@@ -29,10 +29,10 @@ namespace ArcNET.Terminal
         {
             return AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
-                .Title("[green]What fileType would you like to parse[/]?")
-                .PageSize(4)
-                .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
-                .AddChoices("facwalk", "mes", "none"));
+                    .Title("[green]What fileType would you like to parse[/]?")
+                    .PageSize(4)
+                    .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
+                    .AddChoices("facwalk", "mes", "none"));
         }
 
         private static void ParseAndWriteAllInDir(string filename, string fileType)
@@ -68,7 +68,6 @@ namespace ArcNET.Terminal
                     {
                         obj = new FacWalkReader(reader).Read();
                     }
-
                     if (obj == null) return;
                     AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
                     var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
@@ -84,7 +83,7 @@ namespace ArcNET.Terminal
                     {
                         obj2 = new Mes(reader2).Parse();
                     }
-
+                    if (obj2 == null) return;
                     AnsiConsoleExtensions.Log($"Parsed: {obj2}", "success");
                     AnsiConsoleExtensions.Log($"GetEntryCount: {obj2.GetEntryCount()}", "success");
                     Console.WriteLine(obj2.GetEntriesAsJson()); //fixed in next preview

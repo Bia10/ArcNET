@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Spectre.Console" Version="0.38.1-preview.0.7" />
+    <PackageReference Include="Spectre.Console" Version="0.38.1-preview.0.8" />
   </ItemGroup>
 
 </Project>
