@@ -21,12 +21,12 @@ namespace ArcNET.DataTypes
             AnsiConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
             const string markerConst = "FacWalk V101 ";
-            var marketActual = obj.Marker.fileMarker;
-            if (marketActual != markerConst)
+            var markerActual = obj.Marker.fileMarker;
+            if (markerActual != markerConst)
             {
                 AnsiConsoleExtensions.Log("Filetype or version mismatch!", "error");
                 AnsiConsoleExtensions.Log($"Expected: {markerConst}", "error");
-                AnsiConsoleExtensions.Log($"Parsed: {marketActual}", "error");
+                AnsiConsoleExtensions.Log($"Parsed: {markerActual}", "error");
                 return null;
             }
 

@@ -1,6 +1,6 @@
-﻿using System;
+﻿using ArcNET.Utilities;
+using System;
 using System.IO;
-using ArcNET.Utilities;
 
 namespace ArcNET.DataTypes
 {
