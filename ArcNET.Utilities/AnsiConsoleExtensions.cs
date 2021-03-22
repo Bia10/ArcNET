@@ -1,5 +1,5 @@
-﻿using System;
-using Spectre.Console;
+﻿using Spectre.Console;
+using System;
 
 namespace ArcNET.Utilities
 {

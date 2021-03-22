@@ -1,10 +1,10 @@
-﻿using System;
+﻿using ArcNET.DataTypes;
+using Newtonsoft.Json;
+using Spectre.Console;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using ArcNET.DataTypes;
-using Newtonsoft.Json;
-using Spectre.Console;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal
@@ -76,7 +76,7 @@ namespace ArcNET.Terminal
             }
         }
 
-        private static void DumpFile(string filename, TextWriter w)
+        private static void DumpFile(string filename, TextWriter textWriter)
         {
             _facWalksRed++;
 
@@ -86,23 +86,11 @@ namespace ArcNET.Terminal
             {
                 obj = new FacWalkReader(reader).Read();
             }
+            if (obj == null) return;
+
             AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
-            w.WriteLine(new SerializeObjectToJson<FacWalk>(obj).GetText());
-        }
-    }
-
-    public class SerializeObjectToJson<T>
-    {
-        private readonly string _text;
-
-        public SerializeObjectToJson(T obj)
-        {
-            _text = JsonConvert.SerializeObject(obj);
-        }
-
-        public string GetText()
-        {
-            return _text;
+            var serializedObj = JsonConvert.SerializeObject(obj);
+            textWriter.WriteLine(serializedObj);
         }
     }
 }
