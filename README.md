@@ -3,12 +3,9 @@ Is aimed to be a .NET 5 toolkit for modding/patching/fixing a great oldskool gam
 [Arcanum: Of Steamworks and Magick Obscura](https://en.wikipedia.org/wiki/Arcanum:_Of_Steamworks_and_Magick_Obscuramark)
 
 ## ☑️ Roadmap ☑️
-
-- [ ] Extract game data archive
+- [ ] Extract/Pack game data archive
   - [ ] DAT
-- [ ] Pack game data archive
-  - [ ] DAT
-- [ ] Parse game data
+- [ ] Parse/Write game data
   - [x] FacWalk
   - [x] MES
   - [ ] ART
@@ -19,21 +16,15 @@ Is aimed to be a .NET 5 toolkit for modding/patching/fixing a great oldskool gam
   - [ ] PRP
   - [ ] JMP
   - [ ] SCR
-- [ ] Write game data
-  - [x] FacWalk
-  - [x] MES
-  - [ ] ART
-  - [ ] PRO
-  - [ ] MOB
-  - [ ] TDF    
-  - [ ] SEC
-  - [ ] PRP
-  - [ ] JMP
-  - [ ] SCR
-- [ ] Install High-Res Patch
-- [ ] Uninstall High-Res Patch
-- [ ] Reinstall High-Res Patch
-- [ ] Launch Arcanum.exe
+- [ ] High-Res Patch
+  - [ ] Install
+  - [ ] Uninstall
+  - [ ] Reinstall
+- [ ] Arcanum.exe
+  - [ ] Launch
+  - [ ] Inject
+  - [ ] Attach
+  - [ ] Terminate
 
 ## ⭐️ Acknowledgements ⭐️
 * [ArcanumFileFormats](https://github.com/iamkisly/ArcanumFileFormats) - [@iamkisly](https://github.com/iamkisly) did a great start, most of this project is based on it
