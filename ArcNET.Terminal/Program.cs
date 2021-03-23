@@ -14,27 +14,6 @@ namespace ArcNET.Terminal
         private static int _facWalkRed;
         private static int _mesRed;
 
-        private static string GetMainMenuChoice()
-        {
-            return AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("[green]What would you like to do[/]?")
-                    .PageSize(5)
-                    .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
-                    .AddChoices("Extract game data", "Parse extracted game data", "Install High-Res patch",
-                        "Uninstall High-Res patch", "Reinstall High-Res Patch", "Launch Arcanum.exe"));
-        }
-
-        private static string GetParsingMenuChoice()
-        {
-            return AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("[green]What fileType would you like to parse[/]?")
-                    .PageSize(4)
-                    .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
-                    .AddChoices("facwalk", "mes", "none"));
-        }
-
         private static void ParseAndWriteAllInDir(string filename, string fileType)
         {
             var searchPattern = fileType switch
@@ -86,7 +65,6 @@ namespace ArcNET.Terminal
                     if (obj2 == null) return;
                     AnsiConsoleExtensions.Log($"Parsed: {obj2}", "success");
                     AnsiConsoleExtensions.Log($"GetEntryCount: {obj2.GetEntryCount()}", "success");
-                    Console.WriteLine(obj2.GetEntriesAsJson()); //fixed in next preview
                     textWriter.WriteLine(obj2.GetEntriesAsJson());
                     break;
                 }
@@ -95,24 +73,22 @@ namespace ArcNET.Terminal
 
         private static void Main()
         {
-            AnsiConsole.Render(new FigletText("ArcNET v0.0.1")
-                .LeftAligned()
-                .Color(Color.Green));
+            Terminal.RenderLogo();
 
-            var choice = GetMainMenuChoice();
+            var choice = Terminal.GetMainMenuChoice();
             while (choice != "Parse extracted game data")
             {
                 AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "warn");
-                choice = GetMainMenuChoice();
+                choice = Terminal.GetMainMenuChoice();
             }
             AnsiConsoleExtensions.Log($"Selected choice: [blue]{choice}[/]", "info");           
 
-            var fileTypeToParse = GetParsingMenuChoice();
+            var fileTypeToParse = Terminal.GetParsingMenuChoice();
             AnsiConsoleExtensions.Log($"Selected fileType: [blue]{fileTypeToParse}[/]", "info");
 
             AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
             var response = AnsiConsole.Ask<string>("[green]Input[/]");
-            if (response == string.Empty || response.Length < 10)
+            while (response == string.Empty || response.Length < 10)
             {
                 AnsiConsoleExtensions.Log("Path either empty or incorrect format!", "error");
                 AnsiConsoleExtensions.Log("Usage:<filename|directory>", "error");
@@ -155,8 +131,7 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
-
-            AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades."
+            AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
                                       + $"Written {_mesRed} messages.", "debug");
         }
     }
