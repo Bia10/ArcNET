@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal
@@ -14,21 +15,58 @@ namespace ArcNET.Terminal
         private static int _facWalkRed;
         private static int _mesRed;
 
-        private static void ParseAndWriteAllInDir(string filename, string fileType)
+        private static void ParseAndWriteAllInDir(string directory)
         {
-            var searchPattern = fileType switch
-            {
-                "facwalk" => fileType + ".*",
-                "mes" => "*." + fileType,
-                _ => string.Empty
-            };
+            var files = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories).ToList();
+            var facWalkRegex = new Regex(@"^.*walk\..{1,3}$");
+            var facWalkFiles = files.Where(i => facWalkRegex.IsMatch(i)).ToList();
+            var mesRegex = new Regex(@"^.*\.mes$");
+            var mesFiles = files.Where(i => mesRegex.IsMatch(i)).ToList();
+            var artRegex = new Regex(@"^.*\.ART$");
+            var artFiles = files.Where(i => artRegex.IsMatch(i)).ToList();
 
-            var filesToParse = Directory.EnumerateFiles(filename, searchPattern, SearchOption.AllDirectories).ToList();
-            AnsiConsoleExtensions.Log($"{filesToParse.Count} files of fileType: {fileType} found!", "info");
-            foreach (var file in filesToParse)
+            AnsiConsoleExtensions.Log($"Total files in folder: {files.Count}" 
+                                      + $"\n {facWalkFiles.Count} facwalk. files" 
+                                      + $"\n {mesFiles.Count} .mes files" 
+                                      + $"\n {artFiles.Count} .ART files"
+                                      + $"\n {files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count)} unrecognized files."
+                , "info");
+
+            var outputFolder = directory + @"\out\";
+            foreach (var file in facWalkFiles)
             {
-                using var writer = new StreamWriter(file + ".json", false, Encoding.UTF8, 8192);
-                ParseAndWriteFile(file, fileType, writer);
+                if (!Directory.Exists(outputFolder))
+                    Directory.CreateDirectory(outputFolder);
+
+                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
+                using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
+                    var obj = new FacWalkReader(reader).Read();
+                if (obj == null) return;
+                _facWalkRed++;
+                var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
+#if DEBUG
+                AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
+                AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
+#endif
+                writer.WriteLine(serializedObj);
+                writer.Flush();
+                writer.Close();
+            }
+            foreach (var file in mesFiles)
+            {
+                if (!Directory.Exists(outputFolder))
+                    Directory.CreateDirectory(outputFolder);
+
+                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
+                using var reader = new StreamReader(new FileStream(file, FileMode.Open));
+                    var obj = new Mes(reader).Parse();
+                if (obj == null) return;
+                _mesRed++;
+#if DEBUG
+                AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
+                AnsiConsoleExtensions.Log($"Serialized: {obj.GetEntriesAsJson()}", "success");
+#endif
+                writer.WriteLine(obj.GetEntriesAsJson());
                 writer.Flush();
                 writer.Close();
             }
@@ -81,10 +119,7 @@ namespace ArcNET.Terminal
                 AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "warn");
                 choice = Terminal.GetMainMenuChoice();
             }
-            AnsiConsoleExtensions.Log($"Selected choice: [blue]{choice}[/]", "info");           
-
-            var fileTypeToParse = Terminal.GetParsingMenuChoice();
-            AnsiConsoleExtensions.Log($"Selected fileType: [blue]{fileTypeToParse}[/]", "info");
+            AnsiConsoleExtensions.Log($"Selected choice: {choice}", "info");
 
             AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
             var response = AnsiConsole.Ask<string>("[green]Input[/]");
@@ -100,7 +135,7 @@ namespace ArcNET.Terminal
                 AnsiConsoleExtensions.Log($"Directory: {response} exists!", "info");
                 try
                 {
-                    ParseAndWriteAllInDir(response, fileTypeToParse);
+                    ParseAndWriteAllInDir(response);
                 }
                 catch (Exception e)
                 {
@@ -120,6 +155,20 @@ namespace ArcNET.Terminal
 
                 try
                 {
+                    var fileTypeToParse = "";
+                    if (fileName.Contains(".mes"))
+                    {
+                        fileTypeToParse = "mes";
+                    }
+                    else if (fileName.Contains("facwalk."))
+                    {
+                        fileTypeToParse = "facwalk";
+                    }
+                    else if (fileName.Contains(".ART"))
+                    {
+                        fileTypeToParse = "ART";
+                    }
+
                     using var writer = new StreamWriter(fileName + ".json", false, Encoding.UTF8, 8192);
                     ParseAndWriteFile(response, fileTypeToParse, writer);
                     writer.Flush();
@@ -132,7 +181,7 @@ namespace ArcNET.Terminal
                 }
             }
             AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
-                                      + $"Written {_mesRed} messages.", "debug");
+                                      + $"Written {_mesRed} messages.", "success");
         }
     }
 }

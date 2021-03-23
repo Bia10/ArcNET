@@ -13,28 +13,23 @@ namespace ArcNET.DataTypes
         public MesEntry(string[] data)
         {
             _data = data;
-            if (!ParseIndex())
-            {
+            if (!ParseIndex()) 
                 throw new Exception("Failure to parse index for MesEntry");
-            }
         }
 
         public MesEntry(string line)
         {
             _data = new MesEntryReader(line).Parse();
             if (!ParseIndex())
-            {
                 throw new Exception("Failure to parse index for MesEntry");
-            }
+            
         }
 
         public MesEntry(TextReader textReader)
         {
             _data = new MesEntryReader(textReader).Parse();
             if (!ParseIndex())
-            {
                 throw new Exception("Failure to parse index for MesEntry");
-            }
         }
 
         private bool ParseIndex()
@@ -44,9 +39,7 @@ namespace ArcNET.DataTypes
 #if DEBUG
             AnsiConsoleExtensions.Log($"Data count: {_dataCount}", "info");
             foreach (var (item, index) in _data.WithIndex())
-            {
                 AnsiConsoleExtensions.Log($"Index: {index} Data: {item}", "info");
-            }
 #endif
             return indexParsed && (_dataCount == 2 || _dataCount == 7);
         }

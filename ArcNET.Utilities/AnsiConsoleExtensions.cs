@@ -7,6 +7,7 @@ namespace ArcNET.Utilities
     {
         public static void Log(string message, string severity)
         {
+            var escapedMsg = Markup.Escape(message);
             var year = DateTime.Now.Year.ToString("0000");
             var month = DateTime.Now.Month.ToString("00");
             var day = DateTime.Now.Day.ToString("00");
@@ -22,22 +23,22 @@ namespace ArcNET.Utilities
                 {
 
                     case "success":
-                        AnsiConsole.MarkupLine($"[green]{timeStampFull}-{severity.ToUpper()}:[/] {message} [green]...[/]");
+                        AnsiConsole.MarkupLine($"[green]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [green]...[/]");
                         break;
                     case "debug":
-                        AnsiConsole.MarkupLine($"[grey]{timeStampFull}-{severity.ToUpper()}:[/] {message} [grey]...[/]");
+                        AnsiConsole.MarkupLine($"[grey]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [grey]...[/]");
                         break;
                     case "info":
-                        AnsiConsole.MarkupLine($"[white]{timeStampFull}-{severity.ToUpper()}:[/] {message} [white]...[/]");
+                        AnsiConsole.MarkupLine($"[white]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [white]...[/]");
                         break;
                     case "warn":
-                        AnsiConsole.MarkupLine($"[darkorange]{timeStampFull}-{severity.ToUpper()}:[/] {message} [darkorange]...[/]");
+                        AnsiConsole.MarkupLine($"[darkorange]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [darkorange]...[/]");
                         break;
                     case "error":
-                        AnsiConsole.MarkupLine($"[red1]{timeStampFull}-{severity.ToUpper()}:[/] {message} [red1]...[/]");
+                        AnsiConsole.MarkupLine($"[red1]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [red1]...[/]");
                         break;
                     case "critical":
-                        AnsiConsole.MarkupLine($"[red3_1]{timeStampFull}-{severity.ToUpper()}:[/] {message} [red3_1]...[/]");
+                        AnsiConsole.MarkupLine($"[red3_1]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [red3_1]...[/]");
                         break;
 
                     default:

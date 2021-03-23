@@ -31,10 +31,11 @@ namespace ArcNET.DataTypes
             }
 
             obj.Header = Marshalling.ByteArrayToStructure<FacWalkHeader>(_reader);
-            AnsiConsoleExtensions.Log($"Parsed Header: {obj.Header}", "success");
-
             obj.Entries = new FacWalkEntry[obj.Header.entryCount];
+#if DEBUG
+            AnsiConsoleExtensions.Log($"Parsed Header: {obj.Header}", "success");
             AnsiConsoleExtensions.Log($"Parsing {obj.Header.entryCount} entries", "info");
+#endif
             for (var i = 0; i < obj.Header.entryCount; i++)
             {
                 obj.Entries[i] = Marshalling.ByteArrayToStructure<FacWalkEntry>(_reader);
