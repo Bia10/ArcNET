@@ -18,7 +18,7 @@ namespace ArcNET.DataTypes
             {
                 Marker = Marshalling.ByteArrayToStructure<FacWalkMarker>(_reader)
             };
-            AnsiConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
+            //AnsiConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
             const string markerConst = "FacWalk V101 ";
             var markerActual = obj.Marker.fileMarker;
@@ -33,8 +33,8 @@ namespace ArcNET.DataTypes
             obj.Header = Marshalling.ByteArrayToStructure<FacWalkHeader>(_reader);
             obj.Entries = new FacWalkEntry[obj.Header.entryCount];
 #if DEBUG
-            AnsiConsoleExtensions.Log($"Parsed Header: {obj.Header}", "success");
-            AnsiConsoleExtensions.Log($"Parsing {obj.Header.entryCount} entries", "info");
+            //AnsiConsoleExtensions.Log($"Parsed Header: {obj.Header}", "success");
+            //AnsiConsoleExtensions.Log($"Parsing {obj.Header.entryCount} entries", "info");
 #endif
             for (var i = 0; i < obj.Header.entryCount; i++)
             {

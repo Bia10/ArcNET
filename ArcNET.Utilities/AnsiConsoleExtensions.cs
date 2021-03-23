@@ -7,7 +7,9 @@ namespace ArcNET.Utilities
     {
         public static void Log(string message, string severity)
         {
+            //TODO: validation this won't suffice
             var escapedMsg = Markup.Escape(message);
+
             var year = DateTime.Now.Year.ToString("0000");
             var month = DateTime.Now.Month.ToString("00");
             var day = DateTime.Now.Day.ToString("00");
@@ -42,8 +44,7 @@ namespace ArcNET.Utilities
                         break;
 
                     default:
-                        var ex = new Exception("Unsupported log severity!");
-                        AnsiConsole.WriteException(ex);
+                        AnsiConsole.MarkupLine($"[red3_1]{timeStampFull}-{severity.ToUpper()}:[/] Unsupported log severity! [red3_1]...[/]");
                         break;
                 }
             }

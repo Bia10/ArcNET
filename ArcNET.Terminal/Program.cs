@@ -17,20 +17,25 @@ namespace ArcNET.Terminal
 
         private static void ParseAndWriteAllInDir(string directory)
         {
-            var files = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories).ToList();
-            var facWalkRegex = new Regex(@"^.*walk\..{1,3}$");
-            var facWalkFiles = files.Where(i => facWalkRegex.IsMatch(i)).ToList();
-            var mesRegex = new Regex(@"^.*\.mes$");
-            var mesFiles = files.Where(i => mesRegex.IsMatch(i)).ToList();
-            var artRegex = new Regex(@"^.*\.ART$");
-            var artFiles = files.Where(i => artRegex.IsMatch(i)).ToList();
+            var files = Directory.EnumerateFiles(
+                directory, "*.*", SearchOption.AllDirectories).ToList();
+            var facWalkFiles = files.Where(str =>
+                new Regex(@"^.*walk\..{1,3}$").IsMatch(str)).ToList();
+            var mesFiles = files.Where(str => 
+                new Regex(@"^.*\.mes$").IsMatch(str)).ToList();
+            var artFiles = files.Where(str =>
+                new Regex(@"^.*\.ART$").IsMatch(str)).ToList();
 
-            AnsiConsoleExtensions.Log($"Total files in folder: {files.Count}" 
-                                      + $"\n {facWalkFiles.Count} facwalk. files" 
-                                      + $"\n {mesFiles.Count} .mes files" 
-                                      + $"\n {artFiles.Count} .ART files"
-                                      + $"\n {files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count)} unrecognized files."
-                , "info");
+            var table = new Table()
+                .RoundedBorder()
+                .AddColumn("Summary")
+                .AddColumn($"{directory}")
+                .AddRow("Total files", $"{files.Count}")
+                .AddRow("facwalk. files", $"{facWalkFiles.Count}")
+                .AddRow(".mes files", $"{mesFiles.Count}")
+                .AddRow(".ART files", $"{artFiles.Count}")
+                .AddRow("Unrecognized files", $"{files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count)}");
+            AnsiConsole.Render(table);
 
             var outputFolder = directory + @"\out\";
             foreach (var file in facWalkFiles)
@@ -45,13 +50,14 @@ namespace ArcNET.Terminal
                 _facWalkRed++;
                 var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
 #if DEBUG
-                AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
-                AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
+                //AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
+                //AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
 #endif
                 writer.WriteLine(serializedObj);
                 writer.Flush();
                 writer.Close();
             }
+
             foreach (var file in mesFiles)
             {
                 if (!Directory.Exists(outputFolder))
@@ -62,11 +68,12 @@ namespace ArcNET.Terminal
                     var obj = new Mes(reader).Parse();
                 if (obj == null) return;
                 _mesRed++;
+                var serializedObj = obj.GetEntriesAsJson();
 #if DEBUG
-                AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
-                AnsiConsoleExtensions.Log($"Serialized: {obj.GetEntriesAsJson()}", "success");
+                //AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
+                //AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
 #endif
-                writer.WriteLine(obj.GetEntriesAsJson());
+                writer.WriteLine(serializedObj);
                 writer.Flush();
                 writer.Close();
             }
@@ -132,7 +139,6 @@ namespace ArcNET.Terminal
 
             if (Directory.Exists(response))
             {
-                AnsiConsoleExtensions.Log($"Directory: {response} exists!", "info");
                 try
                 {
                     ParseAndWriteAllInDir(response);
@@ -145,7 +151,6 @@ namespace ArcNET.Terminal
             }
             else
             {
-                AnsiConsoleExtensions.Log($"Directory: {response} does not exists!", "warn");
                 var fileName = Path.GetFileName(response);
                 if (fileName == string.Empty || fileName.Length < 10)
                 {
