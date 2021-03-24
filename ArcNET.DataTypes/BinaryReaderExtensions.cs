@@ -3,23 +3,13 @@ using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
 
 namespace ArcNET.DataTypes
 {
     public static class BinaryReaderExtensions
     {
-        public class Location
-        {
-            public int X { get; set; }
-            public int Y { get; set; }
-
-            public override string ToString()
-            {
-                return $"{X},{Y}";
-            }
-        }
-
         public static Location ReadLocation(this BinaryReader reader, bool force = false)
         {
             var loc = new Location();
@@ -54,6 +44,11 @@ namespace ArcNET.DataTypes
             result.Guid = new Guid(guidData);
 
             return result;
+        } 
+
+        public static ArtId ReadArtId(this BinaryReader reader)
+        {
+            return new(reader.ReadInt32().ToString("X2"));
         }
     }
 

@@ -42,8 +42,9 @@ namespace ArcNET.DataTypes.GameObjects
 
                 if (readMethod.IsGenericMethod)
                 {
-                    var genericTypeName = propertyInfo.PropertyType.FullName.Replace("System.Tuple`2[[", "").Split(new[] {','})[0]
-                            .Replace("[]", "");
+                    var genericTypeName = propertyInfo.PropertyType.FullName
+                        .Replace("System.Tuple`2[[", "").Split(new[] {','})[0]
+                        .Replace("[]", "");
                     readMethod = readMethod.MakeGenericMethod(Type.GetType(genericTypeName) ?? throw new InvalidOperationException());
                 }
 

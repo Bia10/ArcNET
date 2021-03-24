@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
 
 namespace ArcNET.DataTypes
@@ -33,7 +34,7 @@ namespace ArcNET.DataTypes
     public class SectorLight
     {
         public ulong Handle { get; set; }
-        public BinaryReaderExtensions.Location Position { get; set; } // x, y, offsx, offsy
+        public Location Position { get; set; } // x, y, offsx, offsy
         public int OffsetX { get; set; }
         public int OffsetY { get; set; }
         public int Flags0 { get; set; }

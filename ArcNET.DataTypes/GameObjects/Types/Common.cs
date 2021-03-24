@@ -6,7 +6,7 @@ namespace ArcNET.DataTypes.GameObjects.Types
 	public partial class Common
 	{
 		[Order(01)] public ArtId ObjFCurrentAid { get; set; }
-		[Order(02)] public BinaryReaderExtensions.Location ObjFLocation { get; set; }
+		[Order(02)] public Location ObjFLocation { get; set; }
 		[Order(03)] public Int32 ObjFOffsetX { get; set; }
 		[Order(04)] public Int32 ObjFOffsetY { get; set; }
 		[Order(05)] public ArtId ObjFShadow { get; set; } //may be bool/int
