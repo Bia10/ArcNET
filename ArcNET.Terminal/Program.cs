@@ -14,6 +14,7 @@ namespace ArcNET.Terminal
     {
         private static int _facWalkRed;
         private static int _mesRed;
+        private static int _sectorsRed;
 
         private static void ParseAndWriteAllInDir(string directory)
         {
@@ -25,6 +26,8 @@ namespace ArcNET.Terminal
                 new Regex(@"^.*\.mes$").IsMatch(str)).ToList();
             var artFiles = files.Where(str =>
                 new Regex(@"^.*\.ART$").IsMatch(str)).ToList();
+            var secFiles = files.Where(str =>
+                new Regex(@"^.*\.sec$").IsMatch(str)).ToList();
 
             var table = new Table()
                 .RoundedBorder()
@@ -34,7 +37,8 @@ namespace ArcNET.Terminal
                 .AddRow("facwalk. files", $"{facWalkFiles.Count}")
                 .AddRow(".mes files", $"{mesFiles.Count}")
                 .AddRow(".ART files", $"{artFiles.Count}")
-                .AddRow("Unrecognized files", $"{files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count)}");
+                .AddRow(".sec files", $"{secFiles.Count}")
+                .AddRow("Unrecognized files", $"{files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count + secFiles.Count)}");
             AnsiConsole.Render(table);
 
             var outputFolder = directory + @"\out\";
@@ -74,6 +78,26 @@ namespace ArcNET.Terminal
                 //AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
 #endif
                 writer.WriteLine(serializedObj);
+                writer.Flush();
+                writer.Close();
+            }
+
+            foreach (var file in secFiles)
+            {
+                if (!Directory.Exists(outputFolder))
+                    Directory.CreateDirectory(outputFolder);
+
+                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
+                using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
+                    var ojb = new SectorReader(reader).ReadSector();
+                if (ojb == null) return;
+                _sectorsRed++;
+                //var serializedObj = ojb.GetEntriesAsJson();
+#if DEBUG
+                //AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
+                //AnsiConsoleExtensions.Log($"Serialized: {serializedObj}", "success");
+#endif
+                //writer.WriteLine(serializedObj);
                 writer.Flush();
                 writer.Close();
             }
