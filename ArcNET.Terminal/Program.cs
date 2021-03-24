@@ -210,7 +210,8 @@ namespace ArcNET.Terminal
                 }
             }
             AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
-                                      + $"Written {_mesRed} messages.", "success");
+                                      + $"Written {_mesRed} messages."
+                                      + $"Written {_sectorsRed} sectors.", "success");
         }
     }
 }

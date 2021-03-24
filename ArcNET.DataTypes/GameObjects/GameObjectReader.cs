@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using ArcNET.DataTypes.Common;
+using Spectre.Console;
+using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes.GameObjects
 {
@@ -22,12 +24,12 @@ namespace ArcNET.DataTypes.GameObjects
             }
 
             const string pathToTypes = "ArcNET.DataTypes.GameObjects.Types.";
-            var gameObjectObjType = Type.GetType(pathToTypes + gameObject.Header.GameObjectType); //TODO: See Key_Ring
+            var gameObjectObjType = Type.GetType(pathToTypes + gameObject.Header.GameObjectType);
             const string pathToCustomReader = "ArcNET.DataTypes.BinaryReaderExtensions";
-            var binaryReader = Type.GetType(pathToCustomReader); //TODO: See Key_Ring
+            var binaryReader = Type.GetType(pathToCustomReader);
             gameObject.Obj = Activator.CreateInstance(gameObjectObjType ?? throw new InvalidOperationException());
 
-            var props = from p in gameObjectObjType.GetProperties()
+            var props = from p in gameObjectObjType.GetProperties() 
                 where p.CanWrite
                 orderby p.PropertyOrder()
                 select p;
@@ -36,23 +38,44 @@ namespace ArcNET.DataTypes.GameObjects
 
             foreach (var propertyInfo in propertyArray)
             {
+                if (binaryReader == null)
+                    throw new InvalidOperationException("binaryReader is null");
+                
                 var readMethod = binaryReader.GetMethod(propertyInfo.PropertyType.Name.Contains("Tuple")
                     ? "ReadArray"
                     : "Read" + propertyInfo.PropertyType.Name);
 
-                if (readMethod.IsGenericMethod)
+                if (readMethod is not null && readMethod.IsGenericMethod)
                 {
-                    var genericTypeName = propertyInfo.PropertyType.FullName
-                        .Replace("System.Tuple`2[[", "").Split(new[] {','})[0]
-                        .Replace("[]", "");
-                    readMethod = readMethod.MakeGenericMethod(Type.GetType(genericTypeName) ?? throw new InvalidOperationException());
+                    if (propertyInfo.PropertyType.FullName != null)
+                    {
+                        var genericTypeName = propertyInfo.PropertyType.FullName
+                            .Replace("System.Tuple`2[[", "").Split(new[] {','})[0]
+                            .Replace("[]", "");
+                        readMethod = readMethod.MakeGenericMethod(Type.GetType(genericTypeName) ?? throw new InvalidOperationException());
+                    }
                 }
 
                 var parameters = new List<object>() {reader};
                 var bit = (int)Enum.Parse(typeof(Enums.ObjectField), propertyInfo.Name);
+
+                foreach (var param in parameters)
+                {
+                    AnsiConsoleExtensions.Log($"Parameters: {param} Bit: {bit}", "debug");
+                }
+
                 if (gameObject.Header.Bitmap.Get(bit, gameObject.Header.IsPrototype()))
                 {
-                    propertyInfo.SetValue(gameObject.Obj, readMethod.Invoke(binaryReader, parameters.ToArray()));
+                    if (readMethod is null) continue;
+                    try
+                    {
+                        propertyInfo.SetValue(gameObject.Obj, readMethod.Invoke(binaryReader, parameters.ToArray()));
+                    }
+                    catch (Exception e)
+                    {
+                        AnsiConsole.WriteException(e);
+                        throw;
+                    }
                 }
                 else
                 {
@@ -69,7 +92,7 @@ namespace ArcNET.DataTypes.GameObjects
 
             var artIds = props
                 .Where(item =>
-                    item.PropertyType.ToString() == "ArcanumFileFormats.Common.ArtId" &&
+                    item.PropertyType.ToString() == "ArcNET.DataTypes.Common.ArtId" &&
                     item.GetValue(gameObject.Obj) != null).Select(item => ((ArtId)item.GetValue(gameObject.Obj))?.Path);
 
             foreach (var artId in artIds)

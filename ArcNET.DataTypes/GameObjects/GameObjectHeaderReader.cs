@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
-using System.Linq.Expressions;
 
 namespace ArcNET.DataTypes.GameObjects
 {
