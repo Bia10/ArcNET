@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Spectre.Console;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -29,17 +30,15 @@ namespace ArcNET.Terminal
             var secFiles = files.Where(str =>
                 new Regex(@"^.*\.sec$").IsMatch(str)).ToList();
 
-            var table = new Table()
-                .RoundedBorder()
-                .AddColumn("Summary")
-                .AddColumn($"{directory}")
-                .AddRow("Total files", $"{files.Count}")
-                .AddRow("facwalk. files", $"{facWalkFiles.Count}")
-                .AddRow(".mes files", $"{mesFiles.Count}")
-                .AddRow(".ART files", $"{artFiles.Count}")
-                .AddRow(".sec files", $"{secFiles.Count}")
-                .AddRow("Unrecognized files", $"{files.Count - (facWalkFiles.Count + mesFiles.Count + artFiles.Count + secFiles.Count)}");
-            AnsiConsole.Render(table);
+            var data = new List<Tuple<int, List<string>>> {
+                new(0, files),
+                new(1, facWalkFiles),
+                new(2, mesFiles),
+                new(3, artFiles),
+                new(4, secFiles)
+            };
+
+            AnsiConsole.Render(Terminal.GenerateSummary(directory, data));
 
             var outputFolder = directory + @"\out\";
             foreach (var file in facWalkFiles)
@@ -209,6 +208,7 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
+
             AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
                                       + $"Written {_mesRed} messages."
                                       + $"Written {_sectorsRed} sectors.", "success");

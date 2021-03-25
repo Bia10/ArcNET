@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
+using ArcNET.Utilities;
 
 namespace ArcNET.DataTypes
 {
@@ -24,10 +25,10 @@ namespace ArcNET.DataTypes
             SkipRoofList(_reader);
 
 			var placeholder = _reader.ReadInt32();
-			Console.WriteLine(placeholder.ToString("X4"));
-			Console.WriteLine(_reader.BaseStream.Position.ToString("X4"));
+			AnsiConsoleExtensions.Log(placeholder.ToString("X4"),"info");
+            AnsiConsoleExtensions.Log(_reader.BaseStream.Position.ToString("X4"), "info");
 
-			if (placeholder < 0xAA0000 || placeholder > 0xAA0004)
+            if (placeholder < 0xAA0000 || placeholder > 0xAA0004)
 			{
                 throw new InvalidDataException("Invalid placeholder value read from sector.");
 			}
@@ -73,7 +74,9 @@ namespace ArcNET.DataTypes
 		private static SectorLight ReadLight(BinaryReader reader)
 		{
 			var handle = reader.ReadUInt64();
+
             //var type = reader.ReadInt32();
+
             var result = new SectorLight
             {
                 Handle = handle,

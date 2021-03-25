@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
+using ArcNET.Utilities;
 
 namespace ArcNET.DataTypes.GameObjects
 {
@@ -24,12 +25,18 @@ namespace ArcNET.DataTypes.GameObjects
 
             if (!header.ProtoId.IsProto())
             {
-                header.PropCollectionItems = reader.ReadInt16(); // Actually not really used anymore
+                header.PropCollectionItems = reader.ReadInt16();
             }
 
             var bitmapLength = (int)Enum.Parse(typeof(Enums.ObjectFieldBitmap), header.GameObjectType.ToString());
             header.Bitmap = new BitArray(reader.ReadBytes(bitmapLength));
 
+            AnsiConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} " 
+                                      + $"\n ProtoId: {header.ProtoId}"
+                                      + $"\n ObjectId: {header.ObjectId}"
+                                      + $"\n GameObjectType: {header.GameObjectType}"
+                                      + $"\n bitmapLength: {bitmapLength}"
+                                      + $"\n bitmapLength: {header.Bitmap}", "warn");
             return header;
         }
     }

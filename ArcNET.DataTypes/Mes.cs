@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Spectre.Console;
+using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes
 {
@@ -89,12 +91,12 @@ namespace ArcNET.DataTypes
                     _entries.Add(index, entry);
                     return true;
                 }
-                Console.WriteLine("Already in dictionary");
+                AnsiConsoleExtensions.Log("Already in dictionary", "error");
                 return false;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine(e.Message);
+                AnsiConsole.WriteException(ex);
                 return false;
             }
         }
@@ -109,13 +111,13 @@ namespace ArcNET.DataTypes
                 }
                 else
                 {
-                    Console.WriteLine("Not contain in dictionary");
+                    AnsiConsoleExtensions.Log("Not contain in dictionary", "error");
                     return false;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine(e.Message);
+                AnsiConsole.WriteException(ex);
                 return false;
             }
             return true;
