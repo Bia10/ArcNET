@@ -15,7 +15,7 @@ namespace ArcNET.Terminal
                     .Color(Color.Green));
         }
 
-
+        //Todo: mess rework
         public static Table GenerateSummary(string directory, List<Tuple<int, List<string>>> data)
         {
             var totalFiles = data.First(p => p.Item1 == 0).Item2.Count;

@@ -20,6 +20,7 @@ namespace ArcNET.Terminal
 
         private static void ParseAndWriteAllInDir(string directory)
         {
+            //Todo: mess rework
             var files = Directory.EnumerateFiles(
                 directory, "*.*", SearchOption.AllDirectories).ToList();
             var facWalkFiles = files.Where(str =>
@@ -223,6 +224,15 @@ namespace ArcNET.Terminal
                         AnsiConsoleExtensions.Log("File not found!", "error");
                         pathToExe = AnsiConsole.Ask<string>("[green]Insert path to exe again[/]:");
                     }
+                    var exeFile = new FileInfo(pathToExe);
+                    var highResDir = exeFile.DirectoryName;
+                    const string configFile = @"\config.ini";
+                    if (!File.Exists(highResDir + configFile))
+                    {
+                        AnsiConsoleExtensions.Log("Config file not found!", "error");
+                        throw new InvalidOperationException();
+                    }
+                    //Todo: read config file, show settings/validate.
                     new ProcessLauncher(pathToExe, ProcessLauncher.CmdArguments.InstallHighRes).Launch();
                     break;
 
