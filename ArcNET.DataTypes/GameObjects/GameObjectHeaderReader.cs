@@ -36,7 +36,7 @@ namespace ArcNET.DataTypes.GameObjects
                                       + $"\n ObjectId: {header.ObjectId}"
                                       + $"\n GameObjectType: {header.GameObjectType}"
                                       + $"\n bitmapLength: {bitmapLength}"
-                                      + $"\n bitmapLength: {header.Bitmap}", "warn");
+                                      + $"\n Bitmap: {header.Bitmap}", "warn");
             return header;
         }
     }

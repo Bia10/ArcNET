@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using ArcNET.Utilities;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal
@@ -139,18 +140,8 @@ namespace ArcNET.Terminal
             }
         }
 
-        private static void Main()
+        public static void ParseExtractedData()
         {
-            Terminal.RenderLogo();
-
-            var choice = Terminal.GetMainMenuChoice();
-            while (choice != "Parse extracted game data")
-            {
-                AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "warn");
-                choice = Terminal.GetMainMenuChoice();
-            }
-            AnsiConsoleExtensions.Log($"Selected choice: {choice}", "info");
-
             AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
             var response = AnsiConsole.Ask<string>("[green]Input[/]");
             while (response == string.Empty || response.Length < 10)
@@ -208,10 +199,47 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
-
             AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
                                       + $"Written {_mesRed} messages."
                                       + $"Written {_sectorsRed} sectors.", "success");
+        }
+
+        private static void Main()
+        {
+            Terminal.RenderLogo();
+
+            var choice = Terminal.GetMainMenuChoice();
+            AnsiConsoleExtensions.Log($"Selected choice: {choice}", "info");
+            switch (choice)
+            {
+                case "Parse extracted game data":
+                    ParseExtractedData();
+                    break;
+
+                case "Install High-Res patch":
+                    var pathToExe = AnsiConsole.Ask<string>("[green]Insert path to exe[/]:");
+                    while (!File.Exists(pathToExe))
+                    {
+                        AnsiConsoleExtensions.Log("File not found!", "error");
+                        pathToExe = AnsiConsole.Ask<string>("[green]Insert path to exe again[/]:");
+                    }
+                    new ProcessLauncher(pathToExe, ProcessLauncher.CmdArguments.InstallHighRes).Launch();
+                    break;
+
+                case "Uninstall High-Res patch":
+                    var pathToExe2 = AnsiConsole.Ask<string>("[green]Insert path to exe[/]:");
+                    while (!File.Exists(pathToExe2))
+                    {
+                        AnsiConsoleExtensions.Log("File not found!", "error");
+                        pathToExe2 = AnsiConsole.Ask<string>("[green]Insert path to exe again[/]:");
+                    }
+                    new ProcessLauncher(pathToExe2, ProcessLauncher.CmdArguments.UninstallHighRes).Launch();
+                    break;
+
+                default:
+                    AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
+                    break;
+            }
         }
     }
 }
