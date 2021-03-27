@@ -218,22 +218,25 @@ namespace ArcNET.Terminal
                     break;
 
                 case "Install High-Res patch":
-                    var pathToExe = AnsiConsole.Ask<string>("[green]Insert path to exe[/]:");
-                    while (!File.Exists(pathToExe))
+                    var pathToDir = AnsiConsole.Ask<string>("[green]Insert path to dir[/]:");
+                    while (!Directory.Exists(pathToDir))
                     {
                         AnsiConsoleExtensions.Log("File not found!", "error");
-                        pathToExe = AnsiConsole.Ask<string>("[green]Insert path to exe again[/]:");
+                        pathToDir = AnsiConsole.Ask<string>("[green]Insert path to dir again[/]:");
                     }
-                    var exeFile = new FileInfo(pathToExe);
-                    var highResDir = exeFile.DirectoryName;
-                    const string configFile = @"\config.ini";
-                    if (!File.Exists(highResDir + configFile))
+
+                    var configPath = pathToDir + @"\config.ini";
+                    if (!File.Exists(configPath))
                     {
                         AnsiConsoleExtensions.Log("Config file not found!", "error");
                         throw new InvalidOperationException();
                     }
+
                     //Todo: read config file, show settings/validate.
-                    new ProcessLauncher(pathToExe, ProcessLauncher.CmdArguments.InstallHighRes).Launch();
+                    var configFile = new HighResConfig(configPath);
+                    AnsiConsoleExtensions.Log($"Width: {configFile.Width}","info");
+
+                    new ProcessLauncher(pathToDir + @"\weidu.exe", ProcessLauncher.CmdArguments.InstallHighRes).Launch();
                     break;
 
                 case "Uninstall High-Res patch":
