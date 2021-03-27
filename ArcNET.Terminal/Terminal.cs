@@ -40,7 +40,7 @@ namespace ArcNET.Terminal
             return table;
         }
 
-        public static Table PrintConfig()
+        public static Table ConfigTable()
         {
             var table = new Table()
                 .RoundedBorder()

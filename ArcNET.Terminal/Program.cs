@@ -233,9 +233,9 @@ namespace ArcNET.Terminal
                     }
 
                     //Todo: validate/modify
-                    HighResConfig.InitConfig(configPath);
+                    HighResConfig.Init(configPath);
                     AnsiConsoleExtensions.Log("Summary of loaded config.ini:", "info");
-                    AnsiConsole.Render(Terminal.PrintConfig());
+                    AnsiConsole.Render(Terminal.ConfigTable());
 
                     new ProcessLauncher(pathToDir + @"\weidu.exe", ProcessLauncher.CmdArguments.InstallHighRes).Launch();
                     break;

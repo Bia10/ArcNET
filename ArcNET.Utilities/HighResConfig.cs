@@ -33,7 +33,7 @@ namespace ArcNET.Utilities
         private static int Logos; // 0 = skip Sierra/Troika logos
         private static int Intro; // 0 = skip the main menu intro clip
 
-        public static void InitConfig(string iniPath)
+        public static void Init(string iniPath)
         {
             foreach (var (key, value) in ParseIni(iniPath))
             {
