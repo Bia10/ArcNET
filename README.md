@@ -1,6 +1,6 @@
 # 🚧 ArcNET (WIP) 🚧
 Is aimed to be a .NET 5 toolkit for modding/patching/fixing a great oldskool game 
-[Arcanum: Of Steamworks and Magick Obscura](https://en.wikipedia.org/wiki/Arcanum:_Of_Steamworks_and_Magick_Obscuramark)
+[Arcanum: Of Steamworks and Magick Obscura](https://en.wikipedia.org/wiki/Arcanum:_Of_Steamworks_and_Magick_Obscura)
 
 ## ☑️ Roadmap ☑️
 - [ ] Extract/Pack game data archive
@@ -32,7 +32,7 @@ Feel free to open any issue which is related to Arcanum or High-Res patch.
 * Make sure you have sufficiently described the problem and provided enough information for its reproduction.
 
 ## ⭐️ Acknowledgements ⭐️
-* [ArcanumFileFormats](https://github.com/iamkisly/ArcanumFileFormats) - [@iamkisly](https://github.com/iamkisly) did a great start, most of this project is based on it
+* [ArcanumFileFormats](https://github.com/iamkisly/ArcanumFileFormats) - [iamkisly](https://github.com/iamkisly) did a great start, most of this project is based on it
 * [Spectre.Console](https://github.com/spectresystems/spectre.console) - great package, which functions as backbone of our terminal
 * [Unofficial Arcanum Patch 2.0.2](https://terra-arcanum.com/drog/uap.html) - a must have patch
 * [DxWrapper](https://github.com/elishacloud/dxwrapper) - main component of High-Res patch
