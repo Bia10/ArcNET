@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using ArcNET.Utilities;
 using Spectre.Console;
 
 namespace ArcNET.Terminal
@@ -34,6 +36,26 @@ namespace ArcNET.Terminal
                 .AddRow(".ART files", $"{artFiles}")
                 .AddRow(".sec files", $"{secFiles}")
                 .AddRow("Unrecognized files", $"{totalFiles - (facWalk + mesFiles + artFiles + secFiles)}");
+
+            return table;
+        }
+
+        public static Table PrintConfig()
+        {
+            var table = new Table()
+                .RoundedBorder()
+                .AddColumn("Parameter name")
+                .AddColumn("Parameter value");
+
+            const BindingFlags bindingFlags = BindingFlags.Public |
+                                              BindingFlags.NonPublic |
+                                              BindingFlags.Instance |
+                                              BindingFlags.Static;
+
+            foreach (var field in typeof(HighResConfig).GetFields(bindingFlags))
+            {
+                table.AddRow($"{field.Name}", $"{field.GetValue(field)}");
+            }
 
             return table;
         }
