@@ -35,38 +35,75 @@ namespace ArcNET.Utilities
 
         public HighResConfig(string iniPath)
         {
-            var data = ParseIni(iniPath);
-            var width = data.First(kvp => kvp.Item1.Equals("Width"));
-            Width = int.Parse(width.Item2);
-
-            //Width = 2560;
-             //Height = 1600;
-             //DialogFont = 1;
-             //LogbookFont = 1;
-             //MenuPosition = 1;
-             //MainMenuArt = 1;
-             //Borders = 1;
-             //Language = 0;
-             //Windowed = 0;
-             //Renderer = 0;
-             //DoubleBuffer = 0;
-             //DDrawWrapper = 1;
-             //ShowFPS = 1;
-             //ScrollFPS = 60;
-             //ScrollDist = 30;
-             //PreloadLimit = 60;
-             //BroadcastLimit = 20;
-             //Logos = 0;
-             //Intro = 0;
+            foreach (var (key, value) in ParseIni(iniPath))
+            {
+                switch (key)
+                {
+                    case "Width":
+                        Width = int.Parse(value);
+                        break;
+                    case "Height":
+                        Height = int.Parse(value);
+                        break;
+                    case "DialogFont":
+                        DialogFont = int.Parse(value);
+                        break;
+                    case "LogbookFont":
+                        LogbookFont = int.Parse(value);
+                        break;
+                    case "MenuPosition":
+                        MenuPosition = int.Parse(value);
+                        break;
+                    case "MainMenuArt":
+                        MainMenuArt = int.Parse(value);
+                        break;
+                    case "Borders":
+                        Borders = int.Parse(value);
+                        break;
+                    case "Language":
+                        Language = int.Parse(value);
+                        break;
+                    case "Windowed":
+                        Windowed = int.Parse(value);
+                        break;
+                    case "Renderer":
+                        Renderer = int.Parse(value);
+                        break;
+                    case "DoubleBuffer":
+                        DoubleBuffer = int.Parse(value);
+                        break;
+                    case "DDrawWrapper":
+                        DDrawWrapper = int.Parse(value);
+                        break;
+                    case "ShowFPS":
+                        ShowFPS = int.Parse(value);
+                        break;
+                    case "ScrollFPS":
+                        ScrollFPS = int.Parse(value);
+                        break;
+                    case "PreloadLimit":
+                        PreloadLimit = int.Parse(value);
+                        break;
+                    case "BroadcastLimit":
+                        BroadcastLimit = int.Parse(value);
+                        break;
+                    case "Logos":
+                        Logos = int.Parse(value);
+                        break;
+                    case "Intro":
+                        Intro = int.Parse(value);
+                        break;
+                }
+            }
         }
 
-        private static IEnumerable<Tuple<string, string>> ParseIni(string iniPath)
+        private static IEnumerable<KeyValuePair<string, string>> ParseIni(string iniPath)
         {
             if (!File.Exists(iniPath)) 
                 throw new FileNotFoundException("Unable to find " + iniPath);
 
             TextReader iniFile = null;
-            var kvpList = new List<Tuple<string, string>>();
+            var kvpList = new List<KeyValuePair<string, string>>();
 
             try
             {
@@ -83,7 +120,7 @@ namespace ArcNET.Utilities
                         if (value.Contains("//"))
                             value = value.Split(new[] { '/' }, 2).First();
 
-                        var nameValuePair = new Tuple<string, string>(key.Trim(' '), value.Trim(' '));
+                        var nameValuePair = new KeyValuePair<string, string>(key.Trim(' '), value.Trim(' '));
                         kvpList.Add(nameValuePair);
                     }
 

@@ -232,9 +232,11 @@ namespace ArcNET.Terminal
                         throw new InvalidOperationException();
                     }
 
-                    //Todo: read config file, show settings/validate.
+                    //Todo: show settings/validate.
                     var configFile = new HighResConfig(configPath);
                     AnsiConsoleExtensions.Log($"Width: {configFile.Width}","info");
+                    AnsiConsoleExtensions.Log($"Height: {configFile.Height}", "info");
+                    AnsiConsoleExtensions.Log($"Logos: {configFile.Logos}", "info");
 
                     new ProcessLauncher(pathToDir + @"\weidu.exe", ProcessLauncher.CmdArguments.InstallHighRes).Launch();
                     break;
