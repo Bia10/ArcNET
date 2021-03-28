@@ -5,30 +5,30 @@ using Spectre.Console;
 
 namespace ArcNET.Utilities
 {
-    public class ProcessLauncher
+    public class ProcLauncher
     {
-        public static string ExePath;
+        private static string _exePath;
         public string CmdArgs;
         //private static readonly Version ExeVersion = Version.Parse(FileVersionInfo.GetVersionInfo(_exePath).FileVersion
         //?? throw new InvalidOperationException("Version unknown."));
 
         public struct CmdArguments
         {
-            public const string InstallHighRes = "--nogame Files/HighRes.tp2 --yes --reinstall";
-            public const string UninstallHighRes = "--nogame Files/HighRes.tp2 --uninstall";
+            public const string Install = "--nogame Files/HighRes.tp2 --yes --reinstall";
+            public const string Uninstall = "--nogame Files/HighRes.tp2 --uninstall";
         }
 
-        public ProcessLauncher(string exePath, string cmdArgs)
+        public ProcLauncher(string exePath, string cmdArgs)
         {
-            ExePath = exePath;
+            _exePath = exePath;
             CmdArgs = cmdArgs;
         }
 
         public void Launch()
         {
-            AnsiConsoleExtensions.Log($"Attempt to start:\n {ExePath} \n with args:\n {CmdArgs}", "info");
+            AnsiConsoleExtensions.Log($"Attempt to start:\n {_exePath} || {CmdArgs}", "info");
 
-            var exeFile = new FileInfo(ExePath);
+            var exeFile = new FileInfo(_exePath);
             var workDir = exeFile.DirectoryName;
             if (workDir == null)
             {
@@ -42,7 +42,7 @@ namespace ArcNET.Utilities
                 {
                     StartInfo =
                     {
-                        FileName = ExePath,
+                        FileName = _exePath,
                         Arguments = CmdArgs,
                         WorkingDirectory = workDir,
                         UseShellExecute = false,
@@ -50,10 +50,8 @@ namespace ArcNET.Utilities
                         RedirectStandardError = true
                     }
                 };
-
                 process.OutputDataReceived += OutputHandler;
                 process.ErrorDataReceived += ErrorHandler;
-
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();

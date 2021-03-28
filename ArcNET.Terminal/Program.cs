@@ -208,33 +208,35 @@ namespace ArcNET.Terminal
         private static string GetHighResDir()
         {
             var pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir[/]:");
-            var pathToHighResDir = pathToArcDir + @"\HighRes";
+            var pathToHighResDir = Path.Combine(pathToArcDir + "\\HighRes");
+
             while (!Directory.Exists(pathToHighResDir))
             {
                 AnsiConsoleExtensions.Log("HighRes dir not found!", "error");
                 pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir again[/]:");
-                pathToHighResDir = pathToArcDir + @"\HighRes";
+                pathToHighResDir = Path.Combine(pathToArcDir + "\\HighRes");
             }
 
             return pathToHighResDir;
         }
 
-        private static void LaunchWeidu(string launchArgs)
+        private static void LaunchWeidu(string launchArgs, string pathToDir = "")
         {
-            var procPath = GetHighResDir() + @"\weidu.exe";
+            var dirPath = string.IsNullOrEmpty(pathToDir) ? GetHighResDir() : pathToDir;
+            var procPath = Path.Combine(dirPath + "\\weidu.exe");
             if (!File.Exists(procPath))
                 throw new InvalidOperationException($"weidu.exe file not found at path: {procPath}");
 
-            var procLauncher = new ProcessLauncher(procPath, "");
+            var procLauncher = new ProcLauncher(procPath, "");
 
             switch (launchArgs)
             {
-                case ProcessLauncher.CmdArguments.InstallHighRes:
-                    procLauncher.CmdArgs = ProcessLauncher.CmdArguments.InstallHighRes;
+                case ProcLauncher.CmdArguments.Install:
+                    procLauncher.CmdArgs = ProcLauncher.CmdArguments.Install;
                     procLauncher.Launch();
                     break;
-                case ProcessLauncher.CmdArguments.UninstallHighRes:
-                    procLauncher.CmdArgs = ProcessLauncher.CmdArguments.UninstallHighRes;
+                case ProcLauncher.CmdArguments.Uninstall:
+                    procLauncher.CmdArgs = ProcLauncher.CmdArguments.Uninstall;
                     procLauncher.Launch();
                     break;
 
@@ -256,7 +258,7 @@ namespace ArcNET.Terminal
                     break;
                 case "Install High-Res patch":
                     var pathToHighResDir = GetHighResDir();
-                    var configPath = pathToHighResDir + @"\config.ini";
+                    var configPath = Path.Combine(pathToHighResDir + "\\config.ini");
                     if (!File.Exists(configPath))
                         throw new InvalidOperationException($"Config file not found at path: {configPath}");
 
@@ -265,10 +267,10 @@ namespace ArcNET.Terminal
                     AnsiConsoleExtensions.Log("Summary of loaded config.ini:", "info");
                     AnsiConsole.Render(Terminal.ConfigTable());
 
-                    LaunchWeidu(ProcessLauncher.CmdArguments.InstallHighRes);
+                    LaunchWeidu(ProcLauncher.CmdArguments.Install, pathToHighResDir);
                     break;
                 case "Uninstall High-Res patch":
-                    LaunchWeidu(ProcessLauncher.CmdArguments.UninstallHighRes);
+                    LaunchWeidu(ProcLauncher.CmdArguments.Uninstall);
                     break;
 
                 default:
