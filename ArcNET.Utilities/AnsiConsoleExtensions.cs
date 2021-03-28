@@ -7,6 +7,9 @@ namespace ArcNET.Utilities
     {
         public static void Log(string message, string severity)
         {
+            if (string.IsNullOrEmpty(message))
+                return;
+
             //TODO: validation this won't suffice
             var escapedMsg = Markup.Escape(message);
 

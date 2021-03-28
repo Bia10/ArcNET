@@ -205,6 +205,44 @@ namespace ArcNET.Terminal
                                       + $"Written {_sectorsRed} sectors.", "success");
         }
 
+        private static string GetHighResDir()
+        {
+            var pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir[/]:");
+            var pathToHighResDir = pathToArcDir + @"\HighRes";
+            while (!Directory.Exists(pathToHighResDir))
+            {
+                AnsiConsoleExtensions.Log("HighRes dir not found!", "error");
+                pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir again[/]:");
+                pathToHighResDir = pathToArcDir + @"\HighRes";
+            }
+
+            return pathToHighResDir;
+        }
+
+        private static void LaunchWeidu(string launchArgs)
+        {
+            var procPath = GetHighResDir() + @"\weidu.exe";
+            if (!File.Exists(procPath))
+                throw new InvalidOperationException($"weidu.exe file not found at path: {procPath}");
+
+            var procLauncher = new ProcessLauncher(procPath, "");
+
+            switch (launchArgs)
+            {
+                case ProcessLauncher.CmdArguments.InstallHighRes:
+                    procLauncher.CmdArgs = ProcessLauncher.CmdArguments.InstallHighRes;
+                    procLauncher.Launch();
+                    break;
+                case ProcessLauncher.CmdArguments.UninstallHighRes:
+                    procLauncher.CmdArgs = ProcessLauncher.CmdArguments.UninstallHighRes;
+                    procLauncher.Launch();
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown launch arguments: {launchArgs}");
+            }
+        }
+
         private static void Main()
         {
             Terminal.RenderLogo();
@@ -216,38 +254,21 @@ namespace ArcNET.Terminal
                 case "Parse extracted game data":
                     ParseExtractedData();
                     break;
-
                 case "Install High-Res patch":
-                    var pathToDir = AnsiConsole.Ask<string>("[green]Insert path to dir[/]:");
-                    while (!Directory.Exists(pathToDir))
-                    {
-                        AnsiConsoleExtensions.Log("File not found!", "error");
-                        pathToDir = AnsiConsole.Ask<string>("[green]Insert path to dir again[/]:");
-                    }
-
-                    var configPath = pathToDir + @"\config.ini";
+                    var pathToHighResDir = GetHighResDir();
+                    var configPath = pathToHighResDir + @"\config.ini";
                     if (!File.Exists(configPath))
-                    {
-                        AnsiConsoleExtensions.Log("Config file not found!", "error");
-                        throw new InvalidOperationException();
-                    }
+                        throw new InvalidOperationException($"Config file not found at path: {configPath}");
 
                     //Todo: validate/modify
                     HighResConfig.Init(configPath);
                     AnsiConsoleExtensions.Log("Summary of loaded config.ini:", "info");
                     AnsiConsole.Render(Terminal.ConfigTable());
 
-                    new ProcessLauncher(pathToDir + @"\weidu.exe", ProcessLauncher.CmdArguments.InstallHighRes).Launch();
+                    LaunchWeidu(ProcessLauncher.CmdArguments.InstallHighRes);
                     break;
-
                 case "Uninstall High-Res patch":
-                    var pathToExe2 = AnsiConsole.Ask<string>("[green]Insert path to exe[/]:");
-                    while (!File.Exists(pathToExe2))
-                    {
-                        AnsiConsoleExtensions.Log("File not found!", "error");
-                        pathToExe2 = AnsiConsole.Ask<string>("[green]Insert path to exe again[/]:");
-                    }
-                    new ProcessLauncher(pathToExe2, ProcessLauncher.CmdArguments.UninstallHighRes).Launch();
+                    LaunchWeidu(ProcessLauncher.CmdArguments.UninstallHighRes);
                     break;
 
                 default:
