@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using ArcNET.Utilities;
 using Spectre.Console;
@@ -17,25 +15,25 @@ namespace ArcNET.Terminal
                     .Color(Color.Green));
         }
 
-        //Todo: mess rework
-        public static Table GenerateSummary(string directory, List<Tuple<int, List<string>>> data)
+        public static Table DirectoryTable(string directory, List<List<string>> data)
         {
-            var totalFiles = data.First(p => p.Item1 == 0).Item2.Count;
-            var facWalk = data.First(p => p.Item1 == 1).Item2.Count;
-            var mesFiles = data.First(p => p.Item1 == 2).Item2.Count;
-            var artFiles = data.First(p => p.Item1 == 3).Item2.Count;
-            var secFiles = data.First(p => p.Item1 == 4).Item2.Count;
-
             var table = new Table()
                 .RoundedBorder()
                 .AddColumn("Summary")
-                .AddColumn($"{directory}")
-                .AddRow("Total files", $"{totalFiles}")
-                .AddRow("facwalk. files", $"{facWalk}")
-                .AddRow(".mes files", $"{mesFiles}")
-                .AddRow(".ART files", $"{artFiles}")
-                .AddRow(".sec files", $"{secFiles}")
-                .AddRow("Unrecognized files", $"{totalFiles - (facWalk + mesFiles + artFiles + secFiles)}");
+                .AddColumn($"{directory}");
+
+            var totalFiles = data[0].Count;
+            var facWalk = data[1].Count;
+            var mesFiles = data[2].Count;
+            var artFiles = data[3].Count;
+            var secFiles = data[4].Count;
+
+            table.AddRow("Total files", $"{totalFiles}");
+            table.AddRow("facwalk. files", $"{facWalk}");
+            table.AddRow(".mes files", $"{mesFiles}");
+            table.AddRow(".ART files", $"{artFiles}");
+            table.AddRow(".sec files", $"{secFiles}");
+            table.AddRow("Unrecognized files", $"{totalFiles - (facWalk + mesFiles + artFiles + secFiles)}");
 
             return table;
         }

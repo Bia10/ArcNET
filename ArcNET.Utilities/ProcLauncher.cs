@@ -32,7 +32,7 @@ namespace ArcNET.Utilities
             var workDir = exeFile.DirectoryName;
             if (workDir == null)
             {
-                AnsiConsoleExtensions.Log($"Work directory null, cannot launch!", "error");
+                AnsiConsoleExtensions.Log("Work directory null, cannot launch!", "error");
                 return;
             }
 
@@ -67,6 +67,7 @@ namespace ArcNET.Utilities
         {
             AnsiConsoleExtensions.Log(outLine.Data,"info");
         }
+
         private static void ErrorHandler(object sendingProcess, DataReceivedEventArgs outLine)
         {
             AnsiConsoleExtensions.Log(outLine.Data, "error");

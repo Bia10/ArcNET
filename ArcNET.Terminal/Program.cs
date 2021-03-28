@@ -18,9 +18,9 @@ namespace ArcNET.Terminal
         private static int _mesRed;
         private static int _sectorsRed;
 
+        //TODO: rework
         private static void ParseAndWriteAllInDir(string directory)
         {
-            //Todo: mess rework
             var files = Directory.EnumerateFiles(
                 directory, "*.*", SearchOption.AllDirectories).ToList();
             var facWalkFiles = files.Where(str =>
@@ -32,15 +32,16 @@ namespace ArcNET.Terminal
             var secFiles = files.Where(str =>
                 new Regex(@"^.*\.sec$").IsMatch(str)).ToList();
 
-            var data = new List<Tuple<int, List<string>>> {
-                new(0, files),
-                new(1, facWalkFiles),
-                new(2, mesFiles),
-                new(3, artFiles),
-                new(4, secFiles)
+            var data = new List<List<string>>()
+            {
+                files,
+                facWalkFiles,
+                mesFiles,
+                artFiles,
+                secFiles
             };
 
-            AnsiConsole.Render(Terminal.GenerateSummary(directory, data));
+            AnsiConsole.Render(Terminal.DirectoryTable(directory, data));
 
             var outputFolder = directory + @"\out\";
             foreach (var file in facWalkFiles)
@@ -141,7 +142,7 @@ namespace ArcNET.Terminal
             }
         }
 
-        public static void ParseExtractedData()
+        private static void ParseExtractedData()
         {
             AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
             var response = AnsiConsole.Ask<string>("[green]Input[/]");
@@ -266,6 +267,12 @@ namespace ArcNET.Terminal
                     HighResConfig.Init(configPath);
                     AnsiConsoleExtensions.Log("Summary of loaded config.ini:", "info");
                     AnsiConsole.Render(Terminal.ConfigTable());
+
+                    if (AnsiConsole.Confirm("Would you like to change config?"))
+                    {
+                        AnsiConsole.WriteException(new NotImplementedException());
+                        return;
+                    }
 
                     LaunchWeidu(ProcLauncher.CmdArguments.Install, pathToHighResDir);
                     break;
