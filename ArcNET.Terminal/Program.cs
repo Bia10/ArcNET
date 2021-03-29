@@ -263,10 +263,12 @@ namespace ArcNET.Terminal
                     if (!File.Exists(configPath))
                         throw new InvalidOperationException($"Config file not found at path: {configPath}");
 
-                    //Todo: validate/modify
                     HighResConfig.Init(configPath);
                     AnsiConsoleExtensions.Log("Summary of loaded config.ini:", "info");
                     AnsiConsole.Render(Terminal.ConfigTable());
+
+                    //TODO: validation based on current environment info
+                    //EnvironmentInfo.Print();
 
                     if (AnsiConsole.Confirm("Would you like to change config?"))
                     {
@@ -274,6 +276,7 @@ namespace ArcNET.Terminal
                         return;
                     }
 
+                    //TODO: write new config.ini if needed
                     LaunchWeidu(ProcLauncher.CmdArguments.Install, pathToHighResDir);
                     break;
                 case "Uninstall High-Res patch":

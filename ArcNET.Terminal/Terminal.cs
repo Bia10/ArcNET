@@ -66,7 +66,7 @@ namespace ArcNET.Terminal
                     .PageSize(5)
                     .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
                     .AddChoices("Extract game data", "Parse extracted game data", "Install High-Res patch",
-                        "Uninstall High-Res patch", "Reinstall High-Res Patch", "Launch Arcanum.exe"));
+                        "Uninstall High-Res patch", "Launch Arcanum.exe"));
         }
     }
 }
