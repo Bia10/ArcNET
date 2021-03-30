@@ -37,6 +37,4 @@ Feel free to open any issue which is related to Arcanum or High-Res patch.
 * [Unofficial Arcanum Patch 2.0.2](https://terra-arcanum.com/drog/uap.html) - a must have patch
 * [Terra Arcanum](https://terra-arcanum.com/) - usefull info
 * [Arcanum Wiki](https://arcanum.fandom.com//) - more info
-* [DxWrapper](https://github.com/elishacloud/dxwrapper) - main component of High-Res patch
-* [Weidu](https://github.com/WeiDUorg/weidu) - High-Res patch installer
 * [Spectre.Console](https://github.com/spectresystems/spectre.console) - great package, which functions as backbone of our terminal
