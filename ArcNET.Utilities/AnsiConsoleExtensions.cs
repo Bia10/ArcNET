@@ -20,7 +20,7 @@ namespace ArcNET.Utilities
             var minute = DateTime.Now.Minute.ToString("00");
             var second = DateTime.Now.Second.ToString("00");
             var milliseconds = DateTime.Now.Millisecond.ToString("000");
-            var timeStampFull = year + "/" + month + "/" + day + "-" + hour + ":" + minute + ":" + second + ":" + milliseconds;
+            var timeStampFull = year + "/" + month + "/" + day + "-" + hour + ":" + minute + ":" + second + "." + milliseconds;
 
             try
             {

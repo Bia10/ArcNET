@@ -13,6 +13,7 @@ namespace ArcNET.Utilities
         //Basic:
         private static int Width; // original: 800
         private static int Height; // original: 600
+        private static int BitDepth; // original: 16
         private static int DialogFont; // 0 = size 12, 1 = size 14, 2 = size 18
         private static int LogbookFont; // 0 = size 12, 1 = size 14
         private static int MenuPosition; // 0 = top, 1 = center, 2 = bottom
@@ -24,6 +25,7 @@ namespace ArcNET.Utilities
         private static int Renderer; // 0 = software, 1 = hardware
         private static int DoubleBuffer; // 0 = disabled, 1 = enabled (unless windowed)
         private static int DDrawWrapper; // 1 = install DDrawCompat wrapper
+        private static int DxWrapper; // 1 = install DxWrapper's DDrawCompat 
         private static int ShowFPS; // 0 = no change, 1 = always enabled
         //Advanced:
         private static int ScrollFPS; // original: 35, max: 255
@@ -44,6 +46,9 @@ namespace ArcNET.Utilities
                         break;
                     case "Height":
                         Height = int.Parse(value);
+                        break;
+                    case "BitDepth":
+                        BitDepth = int.Parse(value);
                         break;
                     case "DialogFont":
                         DialogFont = int.Parse(value);
@@ -74,6 +79,9 @@ namespace ArcNET.Utilities
                         break;
                     case "DDrawWrapper":
                         DDrawWrapper = int.Parse(value);
+                        break;
+                    case "DxWrapper":
+                        DxWrapper = int.Parse(value);
                         break;
                     case "ShowFPS":
                         ShowFPS = int.Parse(value);
