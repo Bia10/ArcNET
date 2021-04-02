@@ -254,11 +254,23 @@ namespace ArcNET.Terminal
             AnsiConsoleExtensions.Log($"Selected choice: {choice}", "info");
             switch (choice)
             {
+                case "Extract game data":
+                    AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
+                    break;
                 case "Parse extracted game data":
                     ParseExtractedData();
                     break;
                 case "Install High-Res patch":
                     var pathToHighResDir = GetHighResDir();
+                    var files = Directory.EnumerateFiles(
+                        pathToHighResDir, "*.*", SearchOption.AllDirectories).ToList();
+
+                    if (files.Count == 0)
+                    {
+                        AnsiConsoleExtensions.Log("HighResFolder empty proceeding to clone latest version", "info");
+                        GitHub.CloneHighResPatch(pathToHighResDir);
+                    }
+
                     var configPath = Path.Combine(pathToHighResDir + "\\config.ini");
                     if (!File.Exists(configPath))
                         throw new InvalidOperationException($"Config file not found at path: {configPath}");
