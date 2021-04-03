@@ -10,6 +10,8 @@ namespace ArcNET.Utilities
             if (string.IsNullOrEmpty(message))
                 return;
 
+            //TODO: when escaping stream from other programs leave out included "..."
+
             //TODO: validation this won't suffice
             var escapedMsg = Markup.Escape(message);
 

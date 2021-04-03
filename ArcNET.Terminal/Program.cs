@@ -280,7 +280,7 @@ namespace ArcNET.Terminal
                     AnsiConsole.Render(Terminal.ConfigTable());
 
                     //TODO: validation based on current environment info
-                    //EnvironmentInfo.Print();
+                    EnvironmentInfo.Print();
 
                     if (AnsiConsole.Confirm("Would you like to change config?"))
                     {
