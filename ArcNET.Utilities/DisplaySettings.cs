@@ -4,11 +4,11 @@ namespace ArcNET.Utilities
 {
     public class DisplaySettings
     {
-        private readonly DeviceMode _deviceMode;
+        public readonly DeviceMode DevMode;
 
         public DisplaySettings()
         {
-            _deviceMode = GetCurrentDisplaySettings();
+            DevMode = GetCurrentDisplaySettings();
         }
 
         [DllImport("user32.dll", CharSet = CharSet.Ansi)]
@@ -18,14 +18,14 @@ namespace ArcNET.Utilities
         private const int CCHFORMNAME = 32;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-        private readonly struct PointLong
+        public readonly struct PointLong
         {
             [MarshalAs(UnmanagedType.I4)] private readonly int x;
             [MarshalAs(UnmanagedType.I4)] private readonly int y;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-        private struct DeviceMode
+        public struct DeviceMode
         {
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCHDEVICENAME)]
             public readonly string dmDeviceName; //BCHAR dmDeviceName[CCHDEVICENAME]; 
@@ -106,14 +106,14 @@ namespace ArcNET.Utilities
 
         public void PrintCurrentDisplaySettings()
         {
-            if (string.IsNullOrEmpty(_deviceMode.dmDeviceName))
+            if (string.IsNullOrEmpty(DevMode.dmDeviceName))
                 return;
 
             var structType = typeof(DeviceMode);
             var fields = structType.GetFields();
 
             foreach (var field in fields)
-                AnsiConsoleExtensions.Log($"{field.Name} {field.GetValue(_deviceMode)}", "info");
+                AnsiConsoleExtensions.Log($"{field.Name} {field.GetValue(DevMode)}", "info");
         }
     }
 }

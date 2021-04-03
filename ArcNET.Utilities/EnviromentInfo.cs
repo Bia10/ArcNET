@@ -2,18 +2,18 @@
 
 namespace ArcNET.Utilities
 {
-    public static class EnvironmentInfo
+    public class EnvironmentInfo
     {
-        private static readonly DisplaySettings DisplaySettings;
-        private static readonly OperatingSystem OperatingSystem;
+        public readonly DisplaySettings DisplaySettings;
+        public readonly OperatingSystem OperatingSystem;
 
-        static EnvironmentInfo()
+        public EnvironmentInfo()
         {
             DisplaySettings = new DisplaySettings();
             OperatingSystem = Environment.OSVersion;
         }
 
-        public static void Print()
+        public void Print()
         {
             var osMajorVersion = OperatingSystem.Version.Major;
             var osMinorVersion = OperatingSystem.Version.Minor;

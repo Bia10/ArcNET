@@ -35,6 +35,14 @@ namespace ArcNET.Utilities
         private static int Logos; // 0 = skip Sierra/Troika logos
         private static int Intro; // 0 = skip the main menu intro clip
 
+        private enum Lang
+        {
+            En = 0,
+            De = 1,
+            Fr = 2,
+            Ru = 3,
+        }
+
         public static void Init(string iniPath)
         {
             foreach (var (key, value) in ParseIni(iniPath))
@@ -109,6 +117,64 @@ namespace ArcNET.Utilities
                         throw new InvalidOperationException($"Unknown parameter: {key}");
                 }
             }
+        }
+
+        public static void AutoConfigure(EnvironmentInfo envInfo)
+        {
+            var displaySettings = envInfo.DisplaySettings;
+            var osInfo = envInfo.OperatingSystem;
+
+            #region Basics
+            Width = (int)displaySettings.DevMode.dmPelsWidth;
+            Height = (int)displaySettings.DevMode.dmPelsHeight;
+            BitDepth = (int)displaySettings.DevMode.dmBitsPerPel;
+
+            switch (Width)
+            {
+                //2K at aspectRatio 16:9 
+                case >= 2560 when Height >= 1440:
+                    DialogFont = 1;
+                    LogbookFont = 1;
+                    break;
+                //4k at aspectRatio 16:9
+                case >= 3840 when Height >= 2160:
+                    DialogFont = 2;
+                    LogbookFont = 1;
+                    break;
+            }
+
+            MenuPosition = 1;
+            MainMenuArt = 1;
+            Borders = 1;
+            Language = (int)Lang.En;
+            #endregion
+            #region Graphics
+            Windowed = 0;
+            Renderer = 0;
+            DoubleBuffer = 0;
+            DDrawWrapper = 0;
+
+            //Check for windows 7 to 10, use DxWrapper
+            if (osInfo.Version.Major >= 7 && osInfo.Version.Major <= 10
+                || BitDepth == 16)
+            {
+                DxWrapper = 1;
+            }
+            else
+            {
+                DxWrapper = 0;
+            }
+
+            ShowFPS = 1;
+            #endregion
+            #region Advanced
+            ScrollFPS = 60;
+            ScrollDist = 30;
+            PreloadLimit = 60;
+            BroadcastLimit = 20;
+            Logos = 0;
+            Intro = 0;
+            #endregion
         }
 
         private static IEnumerable<KeyValuePair<string, string>> ParseIni(string iniPath)
