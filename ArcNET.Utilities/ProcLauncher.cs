@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Spectre.Console;
+using System;
 using System.Diagnostics;
 using System.IO;
-using Spectre.Console;
 
 namespace ArcNET.Utilities
 {

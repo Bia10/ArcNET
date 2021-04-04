@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Spectre.Console;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Spectre.Console;
 
 namespace ArcNET.Utilities
 {

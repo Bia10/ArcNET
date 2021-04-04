@@ -100,7 +100,7 @@ namespace ArcNET.Utilities
             if (EnumDisplaySettings(null, (int) ModeNumber.CurrentSettings, ref devMode))
                 return devMode;
 
-            AnsiConsoleExtensions.Log("Failed to obtain current graphics settings!", "error");
+            AnsiConsoleExtensions.Log("Failed to obtain current display settings!", "error");
             return new DeviceMode();
         }
 

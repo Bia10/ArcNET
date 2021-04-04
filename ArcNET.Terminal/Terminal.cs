@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Reflection;
-using ArcNET.Utilities;
+﻿using ArcNET.Utilities;
 using Spectre.Console;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace ArcNET.Terminal
 {

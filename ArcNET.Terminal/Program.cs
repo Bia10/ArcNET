@@ -1,4 +1,5 @@
 ﻿using ArcNET.DataTypes;
+using ArcNET.Utilities;
 using Newtonsoft.Json;
 using Spectre.Console;
 using System;
@@ -7,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using ArcNET.Utilities;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal

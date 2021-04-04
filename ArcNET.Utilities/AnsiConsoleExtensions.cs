@@ -10,7 +10,8 @@ namespace ArcNET.Utilities
             if (string.IsNullOrEmpty(message))
                 return;
 
-            //TODO: when escaping stream from other programs leave out included "..."
+            if (message.EndsWith("..."))
+                message = message.Substring(0, message.Length - 4);
 
             //TODO: validation this won't suffice
             var escapedMsg = Markup.Escape(message);
@@ -28,7 +29,6 @@ namespace ArcNET.Utilities
             {
                 switch (severity)
                 {
-
                     case "success":
                         AnsiConsole.MarkupLine($"[green]{timeStampFull}-{severity.ToUpper()}:[/] {escapedMsg} [green]...[/]");
                         break;

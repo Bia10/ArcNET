@@ -1,6 +1,6 @@
-﻿using System.IO;
+﻿using LibGit2Sharp;
+using System.IO;
 using System.Linq;
-using LibGit2Sharp;
 
 namespace ArcNET.Utilities
 {
