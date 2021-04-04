@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace ArcNET.Utilities
 {
@@ -221,5 +222,47 @@ namespace ArcNET.Utilities
             }
         }
 
+        public static void Write(string iniPath)
+        {
+            if (!File.Exists(iniPath))
+                throw new FileNotFoundException("Unable to find " + iniPath);
+
+            TextWriter writer = null;
+            var structType = typeof(HighResConfig);
+            var fields = structType.GetFields(BindingFlags.NonPublic | BindingFlags.Static);
+
+            try
+            {
+                writer = new StreamWriter(iniPath, false);
+                writer.WriteLine("//Arcanum High Resolution Patch Settings");
+                writer.WriteLine(" ");
+                writer.WriteLine("//Basic:");
+                for (var i = 0; i <= 8; i++)
+                {
+                    writer.WriteLine($"{fields[i].Name} = {fields[i].GetValue(fields[i])}");
+                }
+                writer.WriteLine(" ");
+                writer.WriteLine("//Graphics:");
+                for (var i = 9; i <= 14; i++)
+                {
+                    writer.WriteLine($"{fields[i].Name} = {fields[i].GetValue(fields[i])}");
+                }
+                writer.WriteLine(" ");
+                writer.WriteLine("//Advanced:");
+                for (var i = 15; i <= 20; i++)
+                {
+                    writer.WriteLine($"{fields[i].Name} = {fields[i].GetValue(fields[i])}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.WriteException(ex);
+                throw;
+            }
+            finally
+            {
+                writer?.Close();
+            }
+        }
     }
 }
