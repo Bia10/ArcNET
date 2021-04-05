@@ -1,9 +1,9 @@
-﻿using System;
+﻿using ArcNET.DataTypes.Common;
+using Spectre.Console;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using ArcNET.DataTypes.Common;
-using Spectre.Console;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes.GameObjects

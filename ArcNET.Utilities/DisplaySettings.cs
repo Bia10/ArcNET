@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 
+// ReSharper disable InconsistentNaming
+
 namespace ArcNET.Utilities
 {
     public class DisplaySettings
@@ -28,7 +30,7 @@ namespace ArcNET.Utilities
         public struct DeviceMode
         {
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCHDEVICENAME)]
-            public readonly string dmDeviceName; //BCHAR dmDeviceName[CCHDEVICENAME]; 
+            public readonly string dmDeviceName; //BCHAR dmDeviceName[CCHDEVICENAME];
             [MarshalAs(UnmanagedType.U2)]
             public readonly ushort dmSpecVersion;
             [MarshalAs(UnmanagedType.U2)]
@@ -89,15 +91,16 @@ namespace ArcNET.Utilities
         private enum ModeNumber
         {   //Specifies the type of information to retrieve.
             CurrentSettings = -1,  //Retrieves current display mode.
+            // ReSharper disable once UnusedMember.Local
             RegistrySettings = -2, //Retrieves current display mode stored in the registry.
         }
 
         private static DeviceMode GetCurrentDisplaySettings()
         {
             DeviceMode devMode = default;
-            devMode.dmSize = (ushort) Marshal.SizeOf(devMode);
+            devMode.dmSize = (ushort)Marshal.SizeOf(devMode);
 
-            if (EnumDisplaySettings(null, (int) ModeNumber.CurrentSettings, ref devMode))
+            if (EnumDisplaySettings(null, (int)ModeNumber.CurrentSettings, ref devMode))
                 return devMode;
 
             AnsiConsoleExtensions.Log("Failed to obtain current display settings!", "error");

@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
-using ArcNET.DataTypes.Common;
+﻿using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
+using Newtonsoft.Json;
+using System.Collections.Generic;
 
 namespace ArcNET.DataTypes
 {
@@ -28,6 +29,11 @@ namespace ArcNET.DataTypes
         public static uint GetSectorLoc(int x, int y)
         {
             return ((uint)y << 26) & 0xFC | ((uint)x & 0xFC);
+        }
+
+        public string GetEntriesAsJson()
+        {
+            return JsonConvert.SerializeObject(this, Formatting.Indented);
         }
     }
 

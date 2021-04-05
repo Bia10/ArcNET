@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Gold : Item
+    public class Gold : Item
     {
         [Order(60)] public int ObjFGoldFlags { get; set; }
         [Order(61)] public int ObjFGoldQuantity { get; set; }

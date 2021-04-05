@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Generic : Item
+    public class Generic : Item
     {
         [Order(60)] public int ObjFGenericFlags { get; set; }
         [Order(61)] public int ObjFGenericUsageBonus { get; set; }

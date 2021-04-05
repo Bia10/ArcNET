@@ -1,7 +1,7 @@
-﻿using System;
+﻿using ArcNET.Utilities;
+using System;
 using System.Collections;
 using System.IO;
-using ArcNET.Utilities;
 
 namespace ArcNET.DataTypes.GameObjects
 {

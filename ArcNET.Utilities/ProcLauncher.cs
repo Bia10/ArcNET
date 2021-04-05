@@ -50,6 +50,7 @@ namespace ArcNET.Utilities
                         RedirectStandardError = true
                     }
                 };
+
                 process.OutputDataReceived += OutputHandler;
                 process.ErrorDataReceived += ErrorHandler;
                 process.Start();

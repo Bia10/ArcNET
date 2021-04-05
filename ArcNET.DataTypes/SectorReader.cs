@@ -1,10 +1,10 @@
-﻿using System;
+﻿using ArcNET.DataTypes.Common;
+using ArcNET.DataTypes.GameObjects;
+using ArcNET.Utilities;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using ArcNET.DataTypes.Common;
-using ArcNET.DataTypes.GameObjects;
-using ArcNET.Utilities;
 
 namespace ArcNET.DataTypes
 {

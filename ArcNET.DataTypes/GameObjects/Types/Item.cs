@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Item : Common
+    public class Item : Common
     {
         [Order(37)] public int ObjFItemFlags { get; set; }
         [Order(38)] public GameObjectGuid ObjFItemParent { get; set; }

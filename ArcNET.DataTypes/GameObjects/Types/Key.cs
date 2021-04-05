@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Key : Item
+    public class Key : Item
     {
         [Order(60)] public int ObjFKeyKeyId { get; set; }
         [Order(61)] public int ObjFKeyPadI1 { get; set; }

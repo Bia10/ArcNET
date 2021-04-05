@@ -1,9 +1,9 @@
-﻿using System;
-using ArcNET.DataTypes.Common;
+﻿using ArcNET.DataTypes.Common;
+using System;
 
 namespace ArcNET.DataTypes.GameObjects.Types
 {
-	public partial class Critter : Common
+    public class Critter : Common
 	{
 		[Order(37)] public int ObjFCritterFlags { get; set; }
 		[Order(38)] public int ObjFCritterFlags2 { get; set; }

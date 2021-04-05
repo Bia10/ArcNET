@@ -8,7 +8,7 @@ namespace ArcNET.Utilities
     {
         private static void Copy(string sourceDir, string targetDir)
         {
-            if (!Directory.Exists(targetDir)) 
+            if (!Directory.Exists(targetDir))
                 Directory.CreateDirectory(targetDir);
 
             foreach (var file in Directory.GetFiles(sourceDir))

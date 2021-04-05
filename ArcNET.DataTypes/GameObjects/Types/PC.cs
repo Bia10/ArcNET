@@ -1,5 +1,5 @@
-﻿using System;
-using ArcNET.DataTypes.Common;
+﻿using ArcNET.DataTypes.Common;
+using System;
 
 namespace ArcNET.DataTypes.GameObjects.Types
 {

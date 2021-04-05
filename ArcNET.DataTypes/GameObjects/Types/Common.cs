@@ -3,7 +3,7 @@ using ArcNET.DataTypes.Common;
 
 namespace ArcNET.DataTypes.GameObjects.Types
 {
-	public partial class Common
+	public class Common
 	{
 		[Order(01)] public ArtId ObjFCurrentAid { get; set; }
 		[Order(02)] public Location ObjFLocation { get; set; }

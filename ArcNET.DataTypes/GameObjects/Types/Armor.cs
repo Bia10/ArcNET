@@ -2,7 +2,7 @@
 
 namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Armor : Item
+    public class Armor : Item
     {
         [Order(60)] public int ObjFArmorFlags { get; set; }
         [Order(61)] public int ObjFArmorPaperDollAid { get; set; }

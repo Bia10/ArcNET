@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Ammo : Item
+    public class Ammo : Item
     {
         [Order(60)] public int ObjFAmmoFlags { get; set; }
         [Order(61)] public int ObjFAmmoQuantity { get; set; }

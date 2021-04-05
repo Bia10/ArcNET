@@ -1,9 +1,9 @@
-﻿using System;
-using ArcNET.DataTypes.Common;
+﻿using ArcNET.DataTypes.Common;
+using System;
 
 namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Npc : Critter
+    public class Npc : Critter
     {
         [Order(70)] public int ObjFNpcFlags { get; set; }
         [Order(71)] public GameObjectGuid ObjFNpcLeader { get; set; }

@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Types
 {
-    public partial class Food : Item
+    public class Food : Item
     {
         [Order(60)] public int ObjFFoodFlags { get; set; }
         [Order(61)] public int ObjFFoodPadI1 { get; set; }

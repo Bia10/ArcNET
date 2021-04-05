@@ -35,11 +35,7 @@ namespace ArcNET.DataTypes
         {
             var indexParsed = int.TryParse(_data[0], out _index);
             _dataCount = _data.Length;
-#if DEBUG
-           //AnsiConsoleExtensions.Log($"Data count: {_dataCount}", "info");
-           //foreach (var (item, index) in _data.WithIndex())
-                //AnsiConsoleExtensions.Log($"Index: {index} Data: {item}", "info");
-#endif
+
             return indexParsed && (_dataCount == 2 || _dataCount == 7);
         }
 

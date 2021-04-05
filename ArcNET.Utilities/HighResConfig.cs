@@ -5,6 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
+// ReSharper disable InconsistentNaming
+// ReSharper disable NotAccessedField.Local
+// ReSharper disable UnusedMember.Local
+
 namespace ArcNET.Utilities
 {
     public static class HighResConfig
@@ -26,7 +30,7 @@ namespace ArcNET.Utilities
         private static int Renderer; // 0 = software, 1 = hardware
         private static int DoubleBuffer; // 0 = disabled, 1 = enabled (unless windowed)
         private static int DDrawWrapper; // 1 = install DDrawCompat wrapper
-        private static int DxWrapper; // 1 = install DxWrapper's DDrawCompat 
+        private static int DxWrapper; // 1 = install DxWrapper's DDrawCompat
         private static int ShowFPS; // 0 = no change, 1 = always enabled
         //Advanced:
         private static int ScrollFPS; // original: 35, max: 255
@@ -132,7 +136,7 @@ namespace ArcNET.Utilities
 
             switch (Width)
             {
-                //2K at aspectRatio 16:9 
+                //2K at aspectRatio 16:9
                 case >= 2560 when Height >= 1440:
                     DialogFont = 1;
                     LogbookFont = 1;
@@ -148,7 +152,8 @@ namespace ArcNET.Utilities
             MainMenuArt = 1;
             Borders = 1;
             Language = (int)Lang.En;
-            #endregion
+            #endregion Basics
+
             #region Graphics
             Windowed = 0;
             Renderer = 0;
@@ -167,7 +172,8 @@ namespace ArcNET.Utilities
             }
 
             ShowFPS = 1;
-            #endregion
+            #endregion Graphics
+
             #region Advanced
             ScrollFPS = 60;
             ScrollDist = 30;
@@ -175,12 +181,12 @@ namespace ArcNET.Utilities
             BroadcastLimit = 20;
             Logos = 0;
             Intro = 0;
-            #endregion
+            #endregion Advanced
         }
 
         private static IEnumerable<KeyValuePair<string, string>> ParseIni(string iniPath)
         {
-            if (!File.Exists(iniPath)) 
+            if (!File.Exists(iniPath))
                 throw new FileNotFoundException("Unable to find " + iniPath);
 
             TextReader iniFile = null;
