@@ -1,5 +1,5 @@
 ﻿using ArcNET.DataTypes;
-using Newtonsoft.Json;
+using ArcNET.Utilities;
 using Spectre.Console;
 using System;
 using System.Collections.Generic;
@@ -48,16 +48,12 @@ namespace ArcNET.Terminal
                 if (!Directory.Exists(outputFolder))
                     Directory.CreateDirectory(outputFolder);
 
-                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
                 using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
                 var obj = new FacWalkReader(reader).Read();
                 if (obj == null) return;
                 _facWalkRed++;
-                var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
 
-                writer.WriteLine(serializedObj);
-                writer.Flush();
-                writer.Close();
+                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj);
             }
 
             foreach (var file in mesFiles)
@@ -65,16 +61,12 @@ namespace ArcNET.Terminal
                 if (!Directory.Exists(outputFolder))
                     Directory.CreateDirectory(outputFolder);
 
-                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
                 using var reader = new StreamReader(new FileStream(file, FileMode.Open));
                 var obj = new Mes(reader).Parse();
                 if (obj == null) return;
                 _mesRed++;
-                var serializedObj = obj.GetEntriesAsJson();
 
-                writer.WriteLine(serializedObj);
-                writer.Flush();
-                writer.Close();
+                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj.GetEntriesAsJson());
             }
 
             foreach (var file in secFiles)
@@ -82,16 +74,12 @@ namespace ArcNET.Terminal
                 if (!Directory.Exists(outputFolder))
                     Directory.CreateDirectory(outputFolder);
 
-                using var writer = new StreamWriter(outputFolder + new FileInfo(file).Name + ".json", false, Encoding.UTF8, 8192);
                 using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
-                var ojb = new SectorReader(reader).ReadSector();
-                if (ojb == null) return;
+                var obj = new SectorReader(reader).ReadSector();
+                if (obj == null) return;
                 _sectorsRed++;
-                var serializedObj = ojb.GetEntriesAsJson();
 
-                writer.WriteLine(serializedObj);
-                writer.Flush();
-                writer.Close();
+                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj.GetEntriesAsJson());
             }
         }
 
@@ -110,9 +98,9 @@ namespace ArcNET.Terminal
                         }
                         if (obj == null) return;
                         AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
-                        var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
-                        AnsiConsoleExtensions.Log($"Serialized: {obj} into {serializedObj}", "success");
-                        textWriter.WriteLine(serializedObj);
+                        //var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
+                        //AnsiConsoleExtensions.Log($"Serialized: {obj} into {serializedObj}", "success");
+                        //textWriter.WriteLine(serializedObj);
                         break;
                     }
                 case "mes":
