@@ -28,8 +28,8 @@ Is aimed to be a .NET 5 toolkit for modding/patching/fixing a great oldskool gam
   - [ ] Terminate
 
 ## 🐞 Bugs and Issues 🐞
-Feel free to open any issue which is related to Arcanum or High-Res patch.
-* Make sure your using latest Unofficial Arcanum Patch(2.0.2) with High-Res Patch(1.5) installed.
+Feel free to open any issue which is related to Arcanum.
+* Make sure your using latest Unofficial Arcanum Patch(2.0.2) with [High-Res Patch(1.5.1)](https://github.com/ArcNET-Modding/HighResPatch) installed.
 * Make sure you have sufficiently described the problem and provided enough information for its reproduction.
 
 ## ⭐️ Acknowledgements ⭐️
