@@ -12,63 +12,71 @@ namespace ArcNET.Terminal
 {
     public static class Parser
     {
-        private static int _facWalkRed;
-        private static int _mesRed;
+        private static int _facadeWalksRed;
+        private static int _messagesRed;
         private static int _sectorsRed;
 
-        private enum FileTypes
+        public enum FileType
         {
-            FacWalk,
-            Mes,
-            Sec,
-            Pro,
+            FacadeWalk,
+            Message,
+            Sector,
+            Prototype,
+            Mobile,
             Art,
-            Null,
+            Jump,
+            Script,
+            Dialog,
+            TownMapInfo,
+            MapProperties,
+            Any,
         }
 
-        //TODO: rework
-        private static void ParseAndWriteAllInDir(string directory)
-        {
-            var files = Directory.EnumerateFiles(
-                directory, "*.*", SearchOption.AllDirectories).ToList();
-            var facWalkFiles = files.Where(str =>
-                new Regex(@"^.*walk\..{1,3}$").IsMatch(str)).ToList();
-            var mesFiles = files.Where(str =>
-                new Regex(@"^.*\.mes$").IsMatch(str)).ToList();
-            var artFiles = files.Where(str =>
-                new Regex(@"^.*\.ART$").IsMatch(str)).ToList();
-            var secFiles = files.Where(str =>
-                new Regex(@"^.*\.sec$").IsMatch(str)).ToList();
+        private static readonly Regex FacadeWalkRegex = new(@"^.*walk\..{1,3}$");
+        private static readonly Regex MessageRegex = new(@"^.*\.mes$");
+        private static readonly Regex SectorRegex = new(@"^.*\.sec$");
+        private static readonly Regex ArtRegex = new(@"^.*\.ART$");
 
-            var data = new List<List<string>>()
+        //TODO: rework
+        private static void ParseAndWriteAllInDir(string dirPath)
+        {
+            var allFiles = Directory.EnumerateFiles(dirPath, "*.*", 
+                SearchOption.AllDirectories).ToList();
+
+            var facWalkFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
+            var mesFiles = allFiles.Where(str => MessageRegex.IsMatch(str)).ToList();
+            var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
+            var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
+
+            var data = new List<Tuple<List<string>, FileType>>()
             {
-                files,
-                facWalkFiles,
-                mesFiles,
-                artFiles,
-                secFiles
+                new(allFiles, FileType.Any),
+                new(facWalkFiles, FileType.FacadeWalk),
+                new(mesFiles, FileType.Message),
+                new(artFiles, FileType.Art),
+                new(secFiles, FileType.Sector),
             };
 
-            AnsiConsole.Render(Terminal.DirectoryTable(directory, data));
+            AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
 
-            var outputFolder = directory + @"\out\";
+            var outputFolder = dirPath + @"\out\";
             foreach (var file in facWalkFiles)
             {
-                ParseAndWriteFile(file, FileTypes.FacWalk, outputFolder);
+                ParseAndWriteFile(file, FileType.FacadeWalk, outputFolder);
             }
 
             foreach (var file in mesFiles)
             {
-                ParseAndWriteFile(file, FileTypes.Mes, outputFolder);
+                ParseAndWriteFile(file, FileType.Message, outputFolder);
             }
 
             foreach (var file in secFiles)
             {
-                ParseAndWriteFile(file, FileTypes.Sec, outputFolder);
+                ParseAndWriteFile(file, FileType.Sector, outputFolder);
             }
         }
 
-        private static void ParseAndWriteFile(string fileName, FileTypes fileType, string outputFolder = null)
+        private static void ParseAndWriteFile(string fileName, FileType fileType, string outputFolder = null)
         {
             AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
 
@@ -83,29 +91,29 @@ namespace ArcNET.Terminal
 
             switch (fileType)
             {
-                case FileTypes.FacWalk:
+                case FileType.FacadeWalk:
                 {
                     using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
                     var obj = new FacWalkReader(reader).Read();
                     if (obj == null) return;
-                    _facWalkRed++;
+                    _facadeWalksRed++;
 
                     FileWriter.ToJson(outputPath, obj);
                     break;
                 }
 
-                case FileTypes.Mes:
+                case FileType.Message:
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     var obj = new Mes(reader).Parse();
                     if (obj == null) return;
-                    _mesRed++;
+                    _messagesRed++;
 
                     FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                     break;
                 }
 
-                case FileTypes.Sec:
+                case FileType.Sector:
                 {
                     using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
                     var obj = new SectorReader(reader).ReadSector();
@@ -116,13 +124,23 @@ namespace ArcNET.Terminal
                     break;
                 }
 
-                case FileTypes.Pro:
+                case FileType.Prototype:
                     break;
-
-                case FileTypes.Art:
+                case FileType.Art:
                     break;
-
-                case FileTypes.Null:
+                case FileType.Any:
+                    break;
+                case FileType.Mobile:
+                    break;
+                case FileType.Jump:
+                    break;
+                case FileType.Script:
+                    break;
+                case FileType.Dialog:
+                    break;
+                case FileType.TownMapInfo:
+                    break;
+                case FileType.MapProperties:
                     break;
 
                 default:
@@ -132,20 +150,20 @@ namespace ArcNET.Terminal
 
         public static void ParseExtractedData()
         {
-            AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
-            var response = AnsiConsole.Ask<string>("[green]Input[/]");
-            while (string.IsNullOrEmpty(response) || response.Length < 10)
+            AnsiConsoleExtensions.Log("Insert path to file or dirPath:", "info");
+            var inputPath = AnsiConsole.Ask<string>("[green]Input[/]");
+            while (string.IsNullOrEmpty(inputPath) || inputPath.Length < 10)
             {
                 AnsiConsoleExtensions.Log("Path either empty or incorrect format!", "error");
-                AnsiConsoleExtensions.Log("Usage:<fileName|directory>", "error");
-                response = AnsiConsole.Ask<string>("[green]Insert path to file or directory[/]:");
+                AnsiConsoleExtensions.Log("Usage:<fileName|dirPath>", "error");
+                inputPath = AnsiConsole.Ask<string>("[green]Insert path to file or dirPath[/]:");
             }
 
-            if (Directory.Exists(response))
+            if (Directory.Exists(inputPath))
             {
                 try
                 {
-                    ParseAndWriteAllInDir(response);
+                    ParseAndWriteAllInDir(inputPath);
                 }
                 catch (Exception ex)
                 {
@@ -155,34 +173,34 @@ namespace ArcNET.Terminal
             }
             else
             {
-                var fileName = Path.GetFileName(response);
+                var fileName = Path.GetFileName(inputPath);
                 if (string.IsNullOrEmpty(fileName) || fileName.Length < 10)
                 {
-                    AnsiConsoleExtensions.Log($"File: {response} does not exists!", "error");
+                    AnsiConsoleExtensions.Log($"File: {inputPath} does not exists!", "error");
                     throw new Exception("File not found!");
                 }
 
                 try
                 {
-                    var fileTypeToParse = FileTypes.Null;
-                    if (fileName.Contains("facwalk."))
+                    var fileTypeToParse = FileType.Any;
+                    if (FacadeWalkRegex.IsMatch(fileName))
                     {
-                        fileTypeToParse = FileTypes.FacWalk;
+                        fileTypeToParse = FileType.FacadeWalk;
                     }
-                    else if (fileName.Contains(".mes"))
+                    else if (MessageRegex.IsMatch(fileName))
                     {
-                        fileTypeToParse = FileTypes.Mes;
+                        fileTypeToParse = FileType.Message;
                     }
-                    else if (fileName.Contains(".sec"))
+                    else if (SectorRegex.IsMatch(fileName))
                     {
-                        fileTypeToParse = FileTypes.Sec;
+                        fileTypeToParse = FileType.Sector;
                     }
-                    else if (fileName.Contains(".ART"))
+                    else if (ArtRegex.IsMatch(fileName))
                     {
-                        fileTypeToParse = FileTypes.Art;
+                        fileTypeToParse = FileType.Art;
                     }
 
-                    ParseAndWriteFile(response, fileTypeToParse);
+                    ParseAndWriteFile(inputPath, fileTypeToParse);
                 }
                 catch (Exception ex)
                 {
@@ -190,10 +208,7 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
-
-            AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
-                                      + $"Written {_mesRed} messages."
-                                      + $"Written {_sectorsRed} sectors.", "success");
+            //TODO: report
         }
     }
 }

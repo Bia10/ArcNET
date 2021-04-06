@@ -1,5 +1,6 @@
 ﻿using ArcNET.Utilities;
 using Spectre.Console;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -15,28 +16,20 @@ namespace ArcNET.Terminal
                     .Color(Color.Green));
         }
 
-        public static Table DirectoryTable(string directory, List<List<string>> data)
+
+        public static Table DirectoryTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
         {
             var table = new Table()
                 .RoundedBorder()
-                .AddColumn("Summary")
-                .AddColumn($"{directory}");
+                .AddColumn("Summary for dirPath:")
+                .AddColumn($"{dirPath}");
 
-            var totalFiles = data[0].Count;
-            var facWalk = data[1].Count;
-            var mesFiles = data[2].Count;
-            var artFiles = data[3].Count;
-            var secFiles = data[4].Count;
-
-            table.AddRow("Total files", $"{totalFiles}");
-            table.AddRow("facwalk. files", $"{facWalk}");
-            table.AddRow(".mes files", $"{mesFiles}");
-            table.AddRow(".ART files", $"{artFiles}");
-            table.AddRow(".sec files", $"{secFiles}");
-            table.AddRow("Unrecognized files", $"{totalFiles - (facWalk + mesFiles + artFiles + secFiles)}");
+            foreach (var (pathToFiles, fileType) in data)
+                table.AddRow($"{Enum.GetName(typeof(Parser.FileType), fileType)}", $"{pathToFiles.Count}");
 
             return table;
         }
+
 
         public static Table ConfigTable()
         {
@@ -45,15 +38,11 @@ namespace ArcNET.Terminal
                 .AddColumn("Parameter name")
                 .AddColumn("Parameter value");
 
-            const BindingFlags bindingFlags = BindingFlags.Public |
-                                              BindingFlags.NonPublic |
-                                              BindingFlags.Instance |
-                                              BindingFlags.Static;
+            const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic |
+                                              BindingFlags.Instance | BindingFlags.Static;
 
             foreach (var field in typeof(HighResConfig).GetFields(bindingFlags))
-            {
                 table.AddRow($"{field.Name}", $"{field.GetValue(field)}");
-            }
 
             return table;
         }
