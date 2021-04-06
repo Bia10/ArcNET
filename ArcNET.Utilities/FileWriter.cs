@@ -20,9 +20,9 @@ namespace ArcNET.Utilities
             TextWriter writer = null;
             try
             {
-                var contentsToWriteToFile = JsonConvert.SerializeObject(objectToWrite);
+                var serializedData = JsonConvert.SerializeObject(objectToWrite);
                 writer = new StreamWriter(filePath, append);
-                writer.Write(contentsToWriteToFile);
+                writer.Write(serializedData);
             }
             catch (Exception ex)
             {

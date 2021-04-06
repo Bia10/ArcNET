@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
@@ -16,6 +15,16 @@ namespace ArcNET.Terminal
         private static int _facWalkRed;
         private static int _mesRed;
         private static int _sectorsRed;
+
+        private enum FileTypes
+        {
+            FacWalk,
+            Mes,
+            Sec,
+            Pro,
+            Art,
+            Null,
+        }
 
         //TODO: rework
         private static void ParseAndWriteAllInDir(string directory)
@@ -45,78 +54,79 @@ namespace ArcNET.Terminal
             var outputFolder = directory + @"\out\";
             foreach (var file in facWalkFiles)
             {
-                if (!Directory.Exists(outputFolder))
-                    Directory.CreateDirectory(outputFolder);
-
-                using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
-                var obj = new FacWalkReader(reader).Read();
-                if (obj == null) return;
-                _facWalkRed++;
-
-                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj);
+                ParseAndWriteFile(file, FileTypes.FacWalk, outputFolder);
             }
 
             foreach (var file in mesFiles)
             {
-                if (!Directory.Exists(outputFolder))
-                    Directory.CreateDirectory(outputFolder);
-
-                using var reader = new StreamReader(new FileStream(file, FileMode.Open));
-                var obj = new Mes(reader).Parse();
-                if (obj == null) return;
-                _mesRed++;
-
-                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj.GetEntriesAsJson());
+                ParseAndWriteFile(file, FileTypes.Mes, outputFolder);
             }
 
             foreach (var file in secFiles)
             {
-                if (!Directory.Exists(outputFolder))
-                    Directory.CreateDirectory(outputFolder);
-
-                using var reader = new BinaryReader(new FileStream(file, FileMode.Open));
-                var obj = new SectorReader(reader).ReadSector();
-                if (obj == null) return;
-                _sectorsRed++;
-
-                FileWriter.ToJson(outputFolder + new FileInfo(file).Name, obj.GetEntriesAsJson());
+                ParseAndWriteFile(file, FileTypes.Sec, outputFolder);
             }
         }
 
-        private static void ParseAndWriteFile(string filename, string fileType, TextWriter textWriter)
+        private static void ParseAndWriteFile(string fileName, FileTypes fileType, string outputFolder = null)
         {
-            AnsiConsoleExtensions.Log($"Parsing file: {filename} FileType: {fileType}", "info");
+            AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
+
+            var outputPath = new FileInfo(fileName).Name;
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                if (!Directory.Exists(outputFolder))
+                    Directory.CreateDirectory(outputFolder);
+
+                outputPath = outputFolder + outputPath;
+            }
+
             switch (fileType)
             {
-                case "facwalk":
-                    {
-                        _facWalkRed++;
-                        FacWalk obj;
-                        using (var reader = new BinaryReader(new FileStream(filename, FileMode.Open)))
-                        {
-                            obj = new FacWalkReader(reader).Read();
-                        }
-                        if (obj == null) return;
-                        AnsiConsoleExtensions.Log($"Parsed: {obj}", "success");
-                        //var serializedObj = JsonConvert.SerializeObject(obj, Formatting.Indented);
-                        //AnsiConsoleExtensions.Log($"Serialized: {obj} into {serializedObj}", "success");
-                        //textWriter.WriteLine(serializedObj);
-                        break;
-                    }
-                case "mes":
-                    {
-                        _mesRed++;
-                        Mes obj2;
-                        using (var reader2 = new StreamReader(new FileStream(filename, FileMode.Open)))
-                        {
-                            obj2 = new Mes(reader2).Parse();
-                        }
-                        if (obj2 == null) return;
-                        AnsiConsoleExtensions.Log($"Parsed: {obj2}", "success");
-                        AnsiConsoleExtensions.Log($"GetEntryCount: {obj2.GetEntryCount()}", "success");
-                        textWriter.WriteLine(obj2.GetEntriesAsJson());
-                        break;
-                    }
+                case FileTypes.FacWalk:
+                {
+                    using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
+                    var obj = new FacWalkReader(reader).Read();
+                    if (obj == null) return;
+                    _facWalkRed++;
+
+                    FileWriter.ToJson(outputPath, obj);
+                    break;
+                }
+
+                case FileTypes.Mes:
+                {
+                    using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
+                    var obj = new Mes(reader).Parse();
+                    if (obj == null) return;
+                    _mesRed++;
+
+                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    break;
+                }
+
+                case FileTypes.Sec:
+                {
+                    using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
+                    var obj = new SectorReader(reader).ReadSector();
+                    if (obj == null) return;
+                    _sectorsRed++;
+
+                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    break;
+                }
+
+                case FileTypes.Pro:
+                    break;
+
+                case FileTypes.Art:
+                    break;
+
+                case FileTypes.Null:
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(fileType), fileType, null);
             }
         }
 
@@ -124,10 +134,10 @@ namespace ArcNET.Terminal
         {
             AnsiConsoleExtensions.Log("Insert path to file or directory:", "info");
             var response = AnsiConsole.Ask<string>("[green]Input[/]");
-            while (response == string.Empty || response.Length < 10)
+            while (string.IsNullOrEmpty(response) || response.Length < 10)
             {
                 AnsiConsoleExtensions.Log("Path either empty or incorrect format!", "error");
-                AnsiConsoleExtensions.Log("Usage:<filename|directory>", "error");
+                AnsiConsoleExtensions.Log("Usage:<fileName|directory>", "error");
                 response = AnsiConsole.Ask<string>("[green]Insert path to file or directory[/]:");
             }
 
@@ -137,16 +147,16 @@ namespace ArcNET.Terminal
                 {
                     ParseAndWriteAllInDir(response);
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    AnsiConsole.WriteException(e);
+                    AnsiConsole.WriteException(ex);
                     throw;
                 }
             }
             else
             {
                 var fileName = Path.GetFileName(response);
-                if (fileName == string.Empty || fileName.Length < 10)
+                if (string.IsNullOrEmpty(fileName) || fileName.Length < 10)
                 {
                     AnsiConsoleExtensions.Log($"File: {response} does not exists!", "error");
                     throw new Exception("File not found!");
@@ -154,31 +164,33 @@ namespace ArcNET.Terminal
 
                 try
                 {
-                    var fileTypeToParse = "";
-                    if (fileName.Contains(".mes"))
+                    var fileTypeToParse = FileTypes.Null;
+                    if (fileName.Contains("facwalk."))
                     {
-                        fileTypeToParse = "mes";
+                        fileTypeToParse = FileTypes.FacWalk;
                     }
-                    else if (fileName.Contains("facwalk."))
+                    else if (fileName.Contains(".mes"))
                     {
-                        fileTypeToParse = "facwalk";
+                        fileTypeToParse = FileTypes.Mes;
+                    }
+                    else if (fileName.Contains(".sec"))
+                    {
+                        fileTypeToParse = FileTypes.Sec;
                     }
                     else if (fileName.Contains(".ART"))
                     {
-                        fileTypeToParse = "ART";
+                        fileTypeToParse = FileTypes.Art;
                     }
 
-                    using var writer = new StreamWriter(fileName + ".json", false, Encoding.UTF8, 8192);
-                    ParseAndWriteFile(response, fileTypeToParse, writer);
-                    writer.Flush();
-                    writer.Close();
+                    ParseAndWriteFile(response, fileTypeToParse);
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    AnsiConsole.WriteException(e);
+                    AnsiConsole.WriteException(ex);
                     throw;
                 }
             }
+
             AnsiConsoleExtensions.Log($"Done, Written {_facWalkRed} facades. "
                                       + $"Written {_mesRed} messages."
                                       + $"Written {_sectorsRed} sectors.", "success");
