@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace ArcNET.DataTypes
 {
-    public class FacWalk
+    public class FacadeWalk
     {
         public FacWalkMarker Marker;
         public FacWalkHeader Header;

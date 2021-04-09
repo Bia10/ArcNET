@@ -11,7 +11,7 @@ namespace ArcNET.Utilities
                 return;
 
             if (message.EndsWith("..."))
-                message = message.Substring(0, message.Length - 4);
+                message = message[..^4];
 
             //TODO: validation this won't suffice
             var escapedMsg = Markup.Escape(message);

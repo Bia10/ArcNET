@@ -3,18 +3,18 @@ using System.Text.RegularExpressions;
 
 namespace ArcNET.DataTypes
 {
-    public class MesEntryReader
+    public class MessageEntryReader
     {
         private readonly string _input;
         private const string Pattern = @"{(.*?)}";
         private const string Substitution = @"$1";
 
-        public MesEntryReader(TextReader textReader)
+        public MessageEntryReader(TextReader textReader)
         {
             _input = textReader.ReadLine();
         }
 
-        public MesEntryReader(string input)
+        public MessageEntryReader(string input)
         {
             _input = input;
         }

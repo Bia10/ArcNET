@@ -3,24 +3,24 @@ using System.IO;
 
 namespace ArcNET.DataTypes
 {
-    public class FacWalkReader
+    public class FacadeWalkReader
     {
         private readonly BinaryReader _reader;
 
-        public FacWalkReader(BinaryReader reader)
+        public FacadeWalkReader(BinaryReader reader)
         {
             _reader = reader;
         }
 
-        public FacWalk Read()
+        public FacadeWalk Read()
         {
-            var obj = new FacWalk
+            var obj = new FacadeWalk
             {
                 Marker = Marshalling.ByteArrayToStructure<FacWalkMarker>(_reader)
             };
             //AnsiConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
-            const string markerConst = "FacWalk V101 ";
+            const string markerConst = "FacadeWalk V101 ";
             var markerActual = obj.Marker.fileMarker;
             if (markerActual != markerConst)
             {

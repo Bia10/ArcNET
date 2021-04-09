@@ -8,12 +8,12 @@ using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes
 {
-    public class Mes
+    public class MessageReader
     {
         private readonly StreamReader _reader;
         private Dictionary<int, string> _entries;
 
-        public Mes(StreamReader reader)
+        public MessageReader(StreamReader reader)
         {
             _reader = reader;
         }
@@ -23,9 +23,9 @@ namespace ArcNET.DataTypes
             return JsonConvert.SerializeObject(_entries, Formatting.Indented);
         }
 
-        public Mes Parse()
+        public MessageReader Parse()
         {
-            var mes = new Mes(_reader);
+            var mes = new MessageReader(_reader);
             mes.Init();
 
             while (true)
@@ -36,7 +36,7 @@ namespace ArcNET.DataTypes
                     temp = temp.TrimStart(' ', '\t');
                     if (temp.StartsWith("//")) continue;
 
-                    var mesEntry = new MesEntry(temp);
+                    var mesEntry = new MessageEntry(temp);
                     if (!mes.ExistEntryWithIndex(mesEntry.GetIndex()))
                         mes.AddEntry(mesEntry.GetIndex(), temp);
                 }
@@ -71,9 +71,9 @@ namespace ArcNET.DataTypes
             return _entries.Count;
         }
 
-        public MesEntry GetEntryWithIndex(int index)
+        public MessageEntry GetEntryWithIndex(int index)
         {
-            var mesEntry = new MesEntry(_entries.Values.ElementAt(index));
+            var mesEntry = new MessageEntry(_entries.Values.ElementAt(index));
             return mesEntry;
         }
 

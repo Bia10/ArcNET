@@ -1,5 +1,6 @@
 ﻿using ArcNET.Utilities;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -16,8 +17,7 @@ namespace ArcNET.Terminal
                     .Color(Color.Green));
         }
 
-
-        public static Table DirectoryTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
+        public static IRenderable DirectoryTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
         {
             var table = new Table()
                 .RoundedBorder()
@@ -30,8 +30,7 @@ namespace ArcNET.Terminal
             return table;
         }
 
-
-        public static Table ConfigTable()
+        public static IRenderable ConfigTable()
         {
             var table = new Table()
                 .RoundedBorder()

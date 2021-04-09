@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal
@@ -14,6 +15,7 @@ namespace ArcNET.Terminal
     {
         private static int _facadeWalksRed;
         private static int _messagesRed;
+        private static int _artsRed;
         private static int _sectorsRed;
 
         public enum FileType
@@ -37,8 +39,8 @@ namespace ArcNET.Terminal
         private static readonly Regex SectorRegex = new(@"^.*\.sec$");
         private static readonly Regex ArtRegex = new(@"^.*\.ART$");
 
-        //TODO: rework
-        private static void ParseAndWriteAllInDir(string dirPath)
+        //TODO: rework, make entire parsing async
+        private static async void ParseAndWriteAllInDir(string dirPath)
         {
             var allFiles = Directory.EnumerateFiles(dirPath, "*.*", 
                 SearchOption.AllDirectories).ToList();
@@ -48,7 +50,7 @@ namespace ArcNET.Terminal
             var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
             var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
 
-            var data = new List<Tuple<List<string>, FileType>>()
+            var data = new List<Tuple<List<string>, FileType>>
             {
                 new(allFiles, FileType.Any),
                 new(facWalkFiles, FileType.FacadeWalk),
@@ -59,26 +61,52 @@ namespace ArcNET.Terminal
 
             AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
 
-            var outputFolder = dirPath + @"\out\";
-            foreach (var file in facWalkFiles)
-            {
-                ParseAndWriteFile(file, FileType.FacadeWalk, outputFolder);
-            }
+            //Removes potential task which are done already
+            //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
+            var toRemove = new HashSet<Tuple<List<string>, FileType>>();
+            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 == FileType.Any))
+                toRemove.Add(tupleList);
+            data.RemoveAll(toRemove.Contains);
 
-            foreach (var file in mesFiles)
-            {
-                ParseAndWriteFile(file, FileType.Message, outputFolder);
-            }
+            var tasks = new (string name, List<string> data)[data.Count];
+            for (var i = 0; i < data.Count; i++)
+                tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}"
+                            + " files :[/]", data[i].Item1);
 
-            foreach (var file in secFiles)
+            // Progress
+            await AnsiConsole.Progress()
+            .Columns(
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(), 
+                new PercentageColumn(), 
+                new RemainingTimeColumn(),
+                new SpinnerColumn())
+            .StartAsync(async ctx =>
             {
-                ParseAndWriteFile(file, FileType.Sector, outputFolder);
-            }
+                await Task.WhenAll(tasks.Select(async item =>
+                {
+                    var (name, files) = item;
+                    var task = ctx.AddTask(name, new ProgressTaskSettings
+                    {
+                        MaxValue = files.Count,
+                        AutoStart = false,
+                    });
+
+                    foreach (var (fileList, fileType) in data)
+                    {
+                        foreach (var file in fileList)
+                        {
+                            await ParseAndWriteFile(file, fileType, task, dirPath + @"\out\");
+                        }
+                    }
+                }));
+            });
         }
-
-        private static void ParseAndWriteFile(string fileName, FileType fileType, string outputFolder = null)
+        
+        //Todo: make async, synchronous...
+        private static async Task ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
         {
-            AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
+            //AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
 
             var outputPath = new FileInfo(fileName).Name;
             if (!string.IsNullOrEmpty(outputFolder))
@@ -89,14 +117,17 @@ namespace ArcNET.Terminal
                 outputPath = outputFolder + outputPath;
             }
 
+            task.StartTask();
+
             switch (fileType)
             {
                 case FileType.FacadeWalk:
                 {
                     using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
-                    var obj = new FacWalkReader(reader).Read();
+                    var obj = new FacadeWalkReader(reader).Read();
                     if (obj == null) return;
                     _facadeWalksRed++;
+                    task.Increment(_facadeWalksRed);
 
                     FileWriter.ToJson(outputPath, obj);
                     break;
@@ -105,9 +136,10 @@ namespace ArcNET.Terminal
                 case FileType.Message:
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
-                    var obj = new Mes(reader).Parse();
+                    var obj = new MessageReader(reader).Parse();
                     if (obj == null) return;
                     _messagesRed++;
+                    task.Increment(_messagesRed);
 
                     FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                     break;
@@ -119,14 +151,17 @@ namespace ArcNET.Terminal
                     var obj = new SectorReader(reader).ReadSector();
                     if (obj == null) return;
                     _sectorsRed++;
+                    task.Increment(_sectorsRed);
 
                     FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                     break;
                 }
 
-                case FileType.Prototype:
-                    break;
                 case FileType.Art:
+                    _artsRed++;
+                    task.Increment(_artsRed);
+                    break;
+                case FileType.Prototype:
                     break;
                 case FileType.Any:
                     break;
@@ -200,7 +235,7 @@ namespace ArcNET.Terminal
                         fileTypeToParse = FileType.Art;
                     }
 
-                    ParseAndWriteFile(inputPath, fileTypeToParse);
+                    //ParseAndWriteFile(inputPath, fileTypeToParse);
                 }
                 catch (Exception ex)
                 {
