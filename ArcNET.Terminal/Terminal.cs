@@ -46,6 +46,20 @@ namespace ArcNET.Terminal
             return table;
         }
 
+        //TODO: merge with summary table?
+        public static IRenderable ReportTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
+        {
+            var table = new Table()
+                .RoundedBorder()
+                .AddColumn("Parsing report for dirPath:")
+                .AddColumn($"{dirPath}");
+
+            foreach (var (pathToFiles, fileType) in data)
+                table.AddRow($"{Enum.GetName(typeof(Parser.FileType), fileType)} files parsed:", $"{pathToFiles.Count}");
+
+            return table;
+        }
+
         public static string GetMainMenuChoice()
         {
             return AnsiConsole.Prompt(

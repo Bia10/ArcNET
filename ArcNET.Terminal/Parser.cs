@@ -31,13 +31,13 @@ namespace ArcNET.Terminal
             Dialog,
             TownMapInfo,
             MapProperties,
-            Any,
+            Any
         }
 
         private static readonly Regex FacadeWalkRegex = new(@"^.*walk\..{1,3}$");
         private static readonly Regex MessageRegex = new(@"^.*\.mes$");
         private static readonly Regex SectorRegex = new(@"^.*\.sec$");
-        private static readonly Regex ArtRegex = new(@"^.*\.ART$");
+        private static readonly Regex ArtRegex = new(@"^.*\.ART$", RegexOptions.IgnoreCase);
 
         //TODO: rework, make entire parsing async
         private static async void ParseAndWriteAllInDir(string dirPath)
@@ -73,7 +73,6 @@ namespace ArcNET.Terminal
                 tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}"
                             + " files :[/]", data[i].Item1);
 
-            // Progress
             await AnsiConsole.Progress()
             .Columns(
                 new TaskDescriptionColumn(),
@@ -83,10 +82,10 @@ namespace ArcNET.Terminal
                 new SpinnerColumn())
             .StartAsync(async ctx =>
             {
-                await Task.WhenAll(tasks.Select(async item =>
+                await Task.WhenAll(tasks.Select(async task =>
                 {
-                    var (name, files) = item;
-                    var task = ctx.AddTask(name, new ProgressTaskSettings
+                    var (name, files) = task;
+                    var currentTask = ctx.AddTask(name, new ProgressTaskSettings
                     {
                         MaxValue = files.Count,
                         AutoStart = false,
@@ -96,14 +95,16 @@ namespace ArcNET.Terminal
                     {
                         foreach (var file in fileList)
                         {
-                            await ParseAndWriteFile(file, fileType, task, dirPath + @"\out\");
+                            await ParseAndWriteFile(file, fileType, currentTask, dirPath + @"\out\");
                         }
                     }
                 }));
             });
+
+            AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
         }
         
-        //Todo: make async, synchronous...
+        //Todo: make async, synchronous, will likely need Async BinaryRead/Write
         private static async Task ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
         {
             //AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
@@ -243,7 +244,6 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
-            //TODO: report
         }
     }
 }
