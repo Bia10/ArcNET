@@ -15,8 +15,9 @@ namespace ArcNET.Terminal
     {
         private static int _facadeWalksRed;
         private static int _messagesRed;
-        private static int _artsRed;
         private static int _sectorsRed;
+        private static int _prototypesRed;
+        private static int _artsRed;
 
         public enum FileType
         {
@@ -38,6 +39,7 @@ namespace ArcNET.Terminal
         private static readonly Regex MessageRegex = new(@"^.*\.mes$");
         private static readonly Regex SectorRegex = new(@"^.*\.sec$");
         private static readonly Regex ArtRegex = new(@"^.*\.ART$", RegexOptions.IgnoreCase);
+        private static readonly Regex PrototypeRegex = new(@"^.*\.pro$");
 
         //TODO: rework, make entire parsing async
         private static async void ParseAndWriteAllInDir(string dirPath)
@@ -45,18 +47,20 @@ namespace ArcNET.Terminal
             var allFiles = Directory.EnumerateFiles(dirPath, "*.*", 
                 SearchOption.AllDirectories).ToList();
 
-            var facWalkFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
+            var facFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
             var mesFiles = allFiles.Where(str => MessageRegex.IsMatch(str)).ToList();
             var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
             var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
+            var proFiles = allFiles.Where(str => PrototypeRegex.IsMatch(str)).ToList();
 
             var data = new List<Tuple<List<string>, FileType>>
             {
                 new(allFiles, FileType.Any),
-                new(facWalkFiles, FileType.FacadeWalk),
+                new(facFiles, FileType.FacadeWalk),
                 new(mesFiles, FileType.Message),
-                new(artFiles, FileType.Art),
                 new(secFiles, FileType.Sector),
+                new(secFiles, FileType.Prototype),
+                new(artFiles, FileType.Art),
             };
 
             AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
@@ -70,7 +74,7 @@ namespace ArcNET.Terminal
 
             var tasks = new (string name, List<string> data)[data.Count];
             for (var i = 0; i < data.Count; i++)
-                tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}"
+                tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}" 
                             + " files :[/]", data[i].Item1);
 
             await AnsiConsole.Progress()
@@ -163,6 +167,8 @@ namespace ArcNET.Terminal
                     task.Increment(_artsRed);
                     break;
                 case FileType.Prototype:
+                    _prototypesRed++;
+                    task.Increment(_prototypesRed);
                     break;
                 case FileType.Any:
                     break;

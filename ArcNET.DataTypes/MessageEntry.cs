@@ -47,7 +47,7 @@ namespace ArcNET.DataTypes
 
             _dataCount = _data.Length;
 
-            return indexParsed && (_dataCount == 2 || _dataCount == 7);
+            return indexParsed && (_dataCount is 2 or 7);
         }
 
         public int GetIndex()

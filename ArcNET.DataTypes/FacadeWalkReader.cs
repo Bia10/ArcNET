@@ -20,7 +20,7 @@ namespace ArcNET.DataTypes
             };
             //AnsiConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
-            const string markerConst = "FacadeWalk V101 ";
+            const string markerConst = "FacWalk V101 ";
             var markerActual = obj.Marker.fileMarker;
             if (markerActual != markerConst)
             {
