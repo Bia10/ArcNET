@@ -21,25 +21,45 @@ namespace ArcNET.Terminal
 
         public enum FileType
         {
+            DataArchive,
             FacadeWalk,
             Message,
             Sector,
             Prototype,
+            PlayerBackground,
             Mobile,
             Art,
             Jump,
             Script,
             Dialog,
-            TownMapInfo,
+            Terrain,
             MapProperties,
+            SoundWav,
+            SoundMp3,
+            Video,
+            Bitmap,
+            Text,
             Any
         }
 
-        private static readonly Regex FacadeWalkRegex = new(@"^.*walk\..{1,3}$");
+        private static readonly Regex DataArchiveRegex = new(@"^.*\.dat$");
+        private static readonly Regex FacadeWalkRegex = new(@"facwalk\..{1,3}$");
         private static readonly Regex MessageRegex = new(@"^.*\.mes$");
         private static readonly Regex SectorRegex = new(@"^.*\.sec$");
-        private static readonly Regex ArtRegex = new(@"^.*\.ART$", RegexOptions.IgnoreCase);
         private static readonly Regex PrototypeRegex = new(@"^.*\.pro$");
+        private static readonly Regex PlayerRegex = new(@"^.*\.mpc$");
+        private static readonly Regex MobileRegex = new(@"^.*\.mob$");
+        private static readonly Regex ArtRegex = new(@"^.*\.art$", RegexOptions.IgnoreCase);
+        private static readonly Regex JumpRegex = new(@"^.*\.jmp$");
+        private static readonly Regex ScriptRegex = new(@"^.*\.scr$");
+        private static readonly Regex DialogRegex = new(@"^.*\.dlg$");
+        private static readonly Regex TerrainRegex = new(@"^.*\.tdf$");
+        private static readonly Regex MapPropertiesRegex = new(@"^.*\.prp$");
+        private static readonly Regex SoundWavRegex = new(@"^.*\.wav$", RegexOptions.IgnoreCase);
+        private static readonly Regex SoundMp3Regex = new(@"^.*\.mp3$");
+        private static readonly Regex VideoRegex = new(@"^.*\.bik$");
+        private static readonly Regex BitmapRegex = new(@"^.*\.bmp$");
+        private static readonly Regex TextRegex = new(@"^.*\.txt$");
 
         //TODO: rework, make entire parsing async
         private static async void ParseAndWriteAllInDir(string dirPath)
@@ -47,20 +67,54 @@ namespace ArcNET.Terminal
             var allFiles = Directory.EnumerateFiles(dirPath, "*.*", 
                 SearchOption.AllDirectories).ToList();
 
+            var datFiles = allFiles.Where(str => DataArchiveRegex.IsMatch(str)).ToList();
             var facFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
             var mesFiles = allFiles.Where(str => MessageRegex.IsMatch(str)).ToList();
             var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
-            var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
             var proFiles = allFiles.Where(str => PrototypeRegex.IsMatch(str)).ToList();
+            var playerFiles = allFiles.Where(str => PlayerRegex.IsMatch(str)).ToList();
+            var mobFiles = allFiles.Where(str => MobileRegex.IsMatch(str)).ToList();
+            var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
+            var jumpFiles = allFiles.Where(str => JumpRegex.IsMatch(str)).ToList();
+            var scriptFiles = allFiles.Where(str => ScriptRegex.IsMatch(str)).ToList();
+            var dialogFiles = allFiles.Where(str => DialogRegex.IsMatch(str)).ToList();
+            var terrainFiles = allFiles.Where(str => TerrainRegex.IsMatch(str)).ToList();
+            var mapPropertiesFiles = allFiles.Where(str => MapPropertiesRegex.IsMatch(str)).ToList();
+            var soundWavFiles = allFiles.Where(str => SoundWavRegex.IsMatch(str)).ToList();
+            var soundMp3Files = allFiles.Where(str => SoundMp3Regex.IsMatch(str)).ToList();
+            var videoFiles = allFiles.Where(str => VideoRegex.IsMatch(str)).ToList();
+            var bitmapFiles = allFiles.Where(str => BitmapRegex.IsMatch(str)).ToList();
+            var textFiles = allFiles.Where(str => TextRegex.IsMatch(str)).ToList();
+
+            var otherFiles = allFiles.Where(str => 
+                !DataArchiveRegex.IsMatch(str) && !FacadeWalkRegex.IsMatch(str) && !MessageRegex.IsMatch(str) 
+                && !SectorRegex.IsMatch(str) && !PrototypeRegex.IsMatch(str) && !PlayerRegex.IsMatch(str) 
+                && !MobileRegex.IsMatch(str) && !ArtRegex.IsMatch(str) && !JumpRegex.IsMatch(str) 
+                && !ScriptRegex.IsMatch(str) && !DialogRegex.IsMatch(str) && !TerrainRegex.IsMatch(str)
+                && !MapPropertiesRegex.IsMatch(str) && !SoundWavRegex.IsMatch(str) && !SoundMp3Regex.IsMatch(str) 
+                && !VideoRegex.IsMatch(str) && !BitmapRegex.IsMatch(str) && !TextRegex.IsMatch(str)).ToList();
 
             var data = new List<Tuple<List<string>, FileType>>
             {
                 new(allFiles, FileType.Any),
+                new(datFiles, FileType.DataArchive),
                 new(facFiles, FileType.FacadeWalk),
                 new(mesFiles, FileType.Message),
                 new(secFiles, FileType.Sector),
-                new(secFiles, FileType.Prototype),
+                new(proFiles, FileType.Prototype),
+                new(playerFiles, FileType.PlayerBackground),
+                new(mobFiles, FileType.Mobile),
                 new(artFiles, FileType.Art),
+                new(jumpFiles, FileType.Jump),
+                new(scriptFiles, FileType.Script),
+                new(dialogFiles, FileType.Dialog),
+                new(terrainFiles, FileType.Terrain),
+                new(mapPropertiesFiles, FileType.MapProperties),
+                new(soundWavFiles, FileType.SoundWav),
+                new(soundMp3Files, FileType.SoundMp3),
+                new(videoFiles, FileType.Video),
+                new(bitmapFiles, FileType.Bitmap),
+                new(textFiles, FileType.Text),
             };
 
             AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
@@ -180,7 +234,7 @@ namespace ArcNET.Terminal
                     break;
                 case FileType.Dialog:
                     break;
-                case FileType.TownMapInfo:
+                case FileType.Terrain:
                     break;
                 case FileType.MapProperties:
                     break;
