@@ -182,19 +182,20 @@ namespace ArcNET.Terminal
             {
                 case FileType.FacadeWalk:
                 {
-                    using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
+                    /*using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
                     var obj = new FacadeWalkReader(reader).Read();
                     if (obj == null) return;
                     _facadeWalksRed++;
                     task.Increment(_facadeWalksRed);
 
-                    FileWriter.ToJson(outputPath, obj);
+                    FileWriter.ToJson(outputPath, obj);*/
                     break;
                 }
 
                 case FileType.Message:
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
+                    //AnsiConsoleExtensions.Log($"parsing mes file:|{fileName}|", "warn");
                     var obj = new MessageReader(reader).Parse();
                     if (obj == null) return;
                     _messagesRed++;
@@ -206,23 +207,23 @@ namespace ArcNET.Terminal
 
                 case FileType.Sector:
                 {
-                    using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
+                    /*using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
                     var obj = new SectorReader(reader).ReadSector();
                     if (obj == null) return;
                     _sectorsRed++;
                     task.Increment(_sectorsRed);
 
-                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());*/
                     break;
                 }
 
                 case FileType.Art:
-                    _artsRed++;
-                    task.Increment(_artsRed);
+                    /*_artsRed++;
+                    task.Increment(_artsRed);*/
                     break;
                 case FileType.Prototype:
-                    _prototypesRed++;
-                    task.Increment(_prototypesRed);
+                    /*_prototypesRed++;
+                    task.Increment(_prototypesRed);*/
                     break;
                 case FileType.Any:
                     break;
@@ -237,6 +238,20 @@ namespace ArcNET.Terminal
                 case FileType.Terrain:
                     break;
                 case FileType.MapProperties:
+                    break;
+                case FileType.DataArchive:
+                    break;
+                case FileType.PlayerBackground:
+                    break;
+                case FileType.SoundWav:
+                    break;
+                case FileType.SoundMp3:
+                    break;
+                case FileType.Video:
+                    break;
+                case FileType.Bitmap:
+                    break;
+                case FileType.Text:
                     break;
 
                 default:

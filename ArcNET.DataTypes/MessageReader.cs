@@ -30,17 +30,22 @@ namespace ArcNET.DataTypes
 
             while (true)
             {
-                var temp = _reader.ReadLine();
-                if (!string.IsNullOrEmpty(temp))
+                var curLine = _reader.ReadLine();
+                //AnsiConsoleExtensions.Log($"currentLine:|{curLine}|", "warn");
+                if (!string.IsNullOrEmpty(curLine))
                 {
-                    temp = temp.TrimStart(' ', '\t');
-                    if (temp.StartsWith("//")) continue;
+                    curLine = curLine.TrimStart(' ', '\t');
+                    if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t")) //TODO: section signs
+                    {
+                        //AnsiConsoleExtensions.Log($"weird line:|{curLine}|", "warn");
+                        continue;
+                    }
 
-                    var mesEntry = new MessageEntry(temp);
+                    var mesEntry = new MessageEntry(curLine);
                     if (!mes.ExistEntryWithIndex(mesEntry.GetIndex()))
-                        mes.AddEntry(mesEntry.GetIndex(), temp);
+                        mes.AddEntry(mesEntry.GetIndex(), curLine);
                 }
-                if (temp == null)
+                if (curLine == null)
                 {
                     break;
                 }
