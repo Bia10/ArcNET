@@ -122,7 +122,7 @@ namespace ArcNET.Terminal
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
             var toRemove = new HashSet<Tuple<List<string>, FileType>>();
-            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 == FileType.Any))
+            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Message))
                 toRemove.Add(tupleList);
             data.RemoveAll(toRemove.Contains);
 
@@ -195,7 +195,7 @@ namespace ArcNET.Terminal
                 case FileType.Message:
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
-                    //AnsiConsoleExtensions.Log($"parsing mes file:|{fileName}|", "warn");
+                    AnsiConsoleExtensions.Log($"parsing mes file:|{fileName}|", "warn");
                     var obj = new MessageReader(reader).Parse();
                     if (obj == null) return;
                     _messagesRed++;

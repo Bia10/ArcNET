@@ -32,7 +32,6 @@ namespace ArcNET.DataTypes
                 "2032 door glass" => "{2032}{door-glass}",
                 "2033 door stone" => "{2033}{door-stone}",
                 "2034 door rock cave in" => "{2034}{door-rock-cave-in}",
-                "*** Windows ***" => "{00000}{***-Windows-***}",
                 "2035 window house standard" => "{2035}{window-house-standard}",
                 "2036 window store front" => "{2036}{window-store-front}",
                 "2037 window curtains only" => "{2037}{window-curtains-only}",
@@ -41,7 +40,6 @@ namespace ArcNET.DataTypes
                 "2040 window metal shutters" => "{2040}{window-metal-shutters}",
                 "2041 window stained glass" => "{2041}{window-stained-glass}",
                 "2042 window boarded up" => "{2042}{window-boarded-up}",
-                "" => "{00000}{?????}",
                 _ => input
             };
 

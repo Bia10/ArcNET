@@ -35,11 +35,53 @@ namespace ArcNET.DataTypes
                 if (!string.IsNullOrEmpty(curLine))
                 {
                     curLine = curLine.TrimStart(' ', '\t');
-                    if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t")) //TODO: section signs
+
+                    var unicodeLines = new[] { 
+                        "WILDERNESS (NICE) MUSIC",
+                        "WILDERNESS (EVIL) MUSIC",
+                        "VILLAGE MUSIC",
+                        "TOWN MUSIC MUSIC",
+                        "CITY TARRANT MUSIC",
+                        "CITY CALADON MUSIC",
+                        "CITY DERHOLM MUSIC",
+                        "ELVEN MUSIC",
+                        "DARK ELVEN MUSIC",
+                        "DWARVEN MUSIC",
+                        "CHAMBER DARK 1 MUSIC",
+                        "CHAMBER DARK 2 MUSIC",
+                        "CHAMBER CHASE MUSIC",
+                        "DARK AMBIENT (HEAVY) MUSIC",
+                        "DARK AMBIENT (LIGHT) MUSIC",
+                        "CRASH SITE MUSIC",
+                        "MIN'GOURAD'S LIAR MUSIC",
+                        "KREE MUSIC",
+                        "TEMPLE OF THE DERIAN KA MUSIC",
+                        "THE DREDGE/IRON CLAN MUSIC",
+                        "THE VOID MUSIC",
+                        "KERGHAN'S LIAR MUSIC",
+                        "ISLE OF DESPAIR MUSIC",
+                        "TULLA MUSIC",
+                        "ARCANUM THEME",
+                        "MAIN MENU MUSIC"
+                    };
+
+                    if (unicodeLines.Any(curLine.Contains))
                     {
-                        //AnsiConsoleExtensions.Log($"weird line:|{curLine}|", "warn");
+                        AnsiConsoleExtensions.Log($"unicode line:|{curLine}|", "warn");
                         continue;
                     }
+                    if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t") || curLine.StartsWith("***") || !curLine.StartsWith("{")) 
+                    {
+                        AnsiConsoleExtensions.Log($"bad line:|{curLine}|", "warn");
+                        continue;
+                    }
+                    if (string.IsNullOrEmpty(curLine))
+                    {
+                        AnsiConsoleExtensions.Log($"empty line:|{curLine}|", "warn");
+                        continue;
+                    }
+
+                    //TODO: multiline messages
 
                     var mesEntry = new MessageEntry(curLine);
                     if (!mes.ExistEntryWithIndex(mesEntry.GetIndex()))
