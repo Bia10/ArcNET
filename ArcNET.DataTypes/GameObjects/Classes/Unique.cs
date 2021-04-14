@@ -1,7 +1,7 @@
 ﻿namespace ArcNET.DataTypes.GameObjects.Classes
 {
-    public class Monster : Entity
+    public class Unique
     {
-
+        
     }
 }
