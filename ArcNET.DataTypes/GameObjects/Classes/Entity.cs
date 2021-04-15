@@ -37,7 +37,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             Fire,
             Electrical,
             Poison,
-            Magick,
+            Magic,
         }
 
         public Tuple<int, string> Description;
@@ -46,6 +46,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public Tuple<int, int> ArtNumberAndPalette;
         public int Scale;
         public int Alignment;
+        public List<ObjFFlags> ObjectFlags;
         public List<ObjFCritterFlags> CritterFlags; //4 critter flags
         public List<ObjFCritterFlags2> CritterFlags2; //4 critter flags2
         public List<ObjFNpcFlags> NpcFlags; //4 npc flags?
@@ -59,10 +60,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public int AIPacket;
         public int Material;
         public int HitPoints;
+        public int Fatigue;
         public List<Tuple<ResistanceType, int>> Resistances; // max 5 resistances
         public List<Tuple<DamageType, int, int>> Damages; // max ?? dmg types
         public int SoundBank;
         public int Category;
+        public int AutoLevelScheme;
         public int InventorySource;
     }
 }

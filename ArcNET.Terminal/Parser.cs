@@ -15,6 +15,7 @@ namespace ArcNET.Terminal
     {
         private static int _facadeWalksRed;
         private static int _messagesRed;
+        private static int _textsRed;
         private static int _sectorsRed;
         private static int _prototypesRed;
         private static int _artsRed;
@@ -122,7 +123,7 @@ namespace ArcNET.Terminal
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
             var toRemove = new HashSet<Tuple<List<string>, FileType>>();
-            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Message))
+            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Text))
                 toRemove.Add(tupleList);
             data.RemoveAll(toRemove.Contains);
 
@@ -192,10 +193,23 @@ namespace ArcNET.Terminal
                     break;
                 }
 
+                case FileType.Text:
+                {
+                    using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
+                    AnsiConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
+                    var obj = new MonsterTextReader(reader).Parse();
+                    if (obj == null) return;
+                    _textsRed++;
+                    task.Increment(_textsRed);
+
+                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    break;
+                }
+
                 case FileType.Message:
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
-                    AnsiConsoleExtensions.Log($"parsing mes file:|{fileName}|", "warn");
+                    AnsiConsoleExtensions.Log($"Parsing mes file:|{fileName}|", "warn");
                     var obj = new MessageReader(reader).Parse();
                     if (obj == null) return;
                     _messagesRed++;
@@ -250,8 +264,6 @@ namespace ArcNET.Terminal
                 case FileType.Video:
                     break;
                 case FileType.Bitmap:
-                    break;
-                case FileType.Text:
                     break;
 
                 default:
