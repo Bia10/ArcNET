@@ -186,12 +186,17 @@ namespace ArcNET.DataTypes
                             break;
                         case "Basic Stat" or "basic stat":
                             var trimmedStats = paramValue.TrimStart();
-                            var statAndValue = trimmedStats.Split(" ", 2);
+
+                            var separator = "\t\t";
+                            if (trimmedStats.Contains("Constitution") || trimmedStats.Contains("Intelligence"))
+                                separator = "\t";
+
+                            var statAndValue = trimmedStats.Split(separator, 2);
                             var statType = statAndValue[0];
                             var statValue = statAndValue[1];
 
-                            if (!((IList)Enum.GetNames(typeof(Entity.BasicStatType))).Contains(paramValue)) 
-                                AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{paramValue}|", "warn");
+                            if (!((IList)Enum.GetNames(typeof(Entity.BasicStatType))).Contains(statType)) 
+                                AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
 
                             foreach (var basicStatType in (Entity.BasicStatType[]) Enum.GetValues(typeof(Entity.BasicStatType)))
                             {
