@@ -197,12 +197,12 @@ namespace ArcNET.Terminal
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     AnsiConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
-                    var obj = new MonsterTextReader(reader).Parse();
-                    if (obj == null) return;
+                    var monsters = new MonsterTextReader(reader).Parse();
+                    if (monsters == null) return;
                     _textsRed++;
                     task.Increment(_textsRed);
 
-                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    AnsiConsoleExtensions.Log($"Monsters: |{monsters.Count}|", "warn");
                     break;
                 }
 
