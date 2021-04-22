@@ -25,14 +25,18 @@ namespace ArcNET.DataTypes
             return JsonConvert.SerializeObject(_monsters, Formatting.Indented);
         }
 
-        private static Tuple<Entity.ResistanceType, int> GetResistTuple(string paramValue)
+        private static Tuple<Entity.ResistanceType, int> GetResistTuple(string paramName, string paramValue)
         {
+            var trimmedResist = paramName.TrimStart();
+            var resist = trimmedResist.Split(" ", 2);
+            var resistTypeStr = resist[0];
+            var resistanceTypes = (Entity.ResistanceType[]) Enum.GetValues(typeof(Entity.ResistanceType));
 
-            var tuple = (from resistanceType in (Entity.ResistanceType[])Enum.GetValues(typeof(Entity.ResistanceType))
-                where nameof(resistanceType).Equals(paramValue)
-                select new Tuple<Entity.ResistanceType, int>(resistanceType, int.Parse(paramValue))).FirstOrDefault();
-
-            return tuple;
+            return (from resistType in resistanceTypes 
+                let resistTypeName = Enum.GetName(typeof(Entity.ResistanceType), resistType)
+                where resistTypeName.Equals(resistTypeStr) 
+                select new Tuple<Entity.ResistanceType, int>(resistType, int.Parse(paramValue)))
+                .FirstOrDefault();
         }
 
         private static Tuple<Entity.DamageType, int, int> GetDmgTuple(string paramName, string paramValue)
@@ -66,6 +70,8 @@ namespace ArcNET.DataTypes
                 BasicStats = new List<Tuple<Entity.BasicStatType, int>>(),
                 Spells = new List<string>(),
                 Scripts = new List<Tuple<int, int, int, int, int, int>>(),
+                Resistances = new List<Tuple<Entity.ResistanceType, int>>(),
+                Damages =  new List<Tuple<Entity.DamageType, int, int>>()
             };
 
             foreach (var curLine in mobText)
@@ -231,19 +237,19 @@ namespace ArcNET.DataTypes
                             monster.Fatigue = int.Parse(paramValue);
                             break;
                         case "Damage Resistance" or "damage resistance":
-                            monster.Resistances.Add(GetResistTuple(paramValue));
+                            monster.Resistances.Add(GetResistTuple(paramName, paramValue));
                             break;
                         case "Fire Resistance":
-                            monster.Resistances.Add(GetResistTuple(paramValue)); 
+                            monster.Resistances.Add(GetResistTuple(paramName, paramValue)); 
                             break;
                         case "Electrical Resistance":
-                            monster.Resistances.Add(GetResistTuple(paramValue));
+                            monster.Resistances.Add(GetResistTuple(paramName, paramValue));
                             break;
                         case "Poison Resistance":
-                            monster.Resistances.Add(GetResistTuple(paramValue));
+                            monster.Resistances.Add(GetResistTuple(paramName, paramValue));
                             break;
                         case "Magic Resistance":
-                            monster.Resistances.Add(GetResistTuple(paramValue));
+                            monster.Resistances.Add(GetResistTuple(paramName, paramValue));
                             break;
                         case "Normal Damage":
                             monster.Damages.Add(GetDmgTuple(paramName, paramValue));
