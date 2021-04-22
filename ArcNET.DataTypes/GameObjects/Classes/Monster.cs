@@ -1,4 +1,5 @@
 ﻿using ArcNET.DataTypes.GameObjects.Flags;
+using ArcNET.Utilities;
 using Spectre.Console;
 using System;
 using System.Collections;
@@ -10,6 +11,20 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 {
     public class Monster : Entity
     {
+        private static List<int> GetWhitespaceIndexes(string input)
+        {
+            var whiteSpaceIndexes = new List<int>();
+            var stringAsChars = input.ToCharArray();
+
+            foreach (var (item, index) in stringAsChars.WithIndex())
+            {
+                if (char.IsWhiteSpace(item))
+                    whiteSpaceIndexes.Add(index);
+            }
+
+            return whiteSpaceIndexes;
+        }
+
         private static Tuple<ResistanceType, int> GetResistTuple(string paramName, string paramValue)
         {
             var trimmedResist = paramName.TrimStart();
@@ -181,17 +196,31 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             var trimmedStats = paramValue.TrimStart();
 
                             var separator = "\t\t";
+                            if (trimmedStats.Contains("tech points") || trimmedStats.Contains("magick points"))
+                            {
+                                var whitespaceIndexes = GetWhitespaceIndexes(trimmedStats);
+                                if (whitespaceIndexes.Count >= 2)
+                                {
+                                    trimmedStats = trimmedStats.Remove(whitespaceIndexes.First(), 1);
+                                    AnsiConsoleExtensions.Log($"trimmedStats after removal:|{trimmedStats}|", "warn");
+                                }
+                                separator = " ";
+                            }
+
                             if (trimmedStats.Contains("Constitution") || trimmedStats.Contains("Intelligence"))
                                 separator = "\t";
 
                             var statAndValue = trimmedStats.Split(separator, 2);
+                            foreach (var paramVal in statAndValue)
+                                AnsiConsoleExtensions.Log($"statAndValue:|{paramVal}|", "warn");
+
                             var statType = statAndValue[0].Trim();
                             var statValue = statAndValue[1];
 
+                            //if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
+                                //AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
 
-                            if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
-                                AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
-
+                            //TODO: magic points/tech points
                             foreach (var basicStatType in (BasicStatType[])Enum.GetValues(typeof(BasicStatType)))
                             {
                                 if (nameof(basicStatType).Equals(statType))
@@ -204,7 +233,11 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             break;
                         case "Script":
                             var trimmedScript = paramValue.TrimStart();
-                            var scriptParams = trimmedScript.Split(" ", 5);
+                            var scriptParams = trimmedScript.Split(" ", 6);
+
+                            //foreach (var paramVal in scriptParams)
+                               // AnsiConsoleExtensions.Log($"script param value:|{paramVal}|", "warn");
+
                             var paramValues = scriptParams.Select(int.Parse).ToList();
 
                             monster.Scripts.Add(new Tuple<int, int, int, int, int, int>(paramValues[0], paramValues[1], paramValues[2], paramValues[3], paramValues[4], paramValues[5]));
@@ -213,12 +246,14 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             monster.Faction = int.Parse(paramValue);
                             break;
                         case "AI Packet":
+                            if (paramValue.Contains("//"))
+                                paramValue = paramValue.Split("//")[0].Trim();
+
                             monster.AIPacket = int.Parse(paramValue);
                             break;
                         case "Material":
-                            const string junk = "//?";
-                            if (paramValue.Contains(junk))
-                                paramValue = paramValue.Replace(junk,"").Trim();
+                            if (paramValue.Contains("//"))
+                                paramValue = paramValue.Split("//")[0].Trim();
 
                             monster.Material = int.Parse(paramValue);
                             break;
