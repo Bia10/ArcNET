@@ -195,7 +195,15 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                         case "Basic Stat" or "basic stat":
                             var trimmedStats = paramValue.TrimStart();
 
+                            //skip junk
+                            if (trimmedStats.Equals("Strength 13") || trimmedStats.Equals("Dexterity 15") ||
+                                trimmedStats.Equals("Dexterity 14")) continue;
+
                             var separator = "\t\t";
+                            if (trimmedStats.Contains("Gender") || trimmedStats.Contains("Race"))
+                            {
+                                separator = " ";
+                            }
                             if (trimmedStats.Contains("tech points") || trimmedStats.Contains("magick points"))
                             {
                                 var whitespaceIndexes = GetWhitespaceIndexes(trimmedStats);
@@ -206,7 +214,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                 }
                                 separator = " ";
                             }
-
                             if (trimmedStats.Contains("Constitution") || trimmedStats.Contains("Intelligence"))
                                 separator = "\t";
 
@@ -293,7 +300,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                         case "Fire Damage":
                             monster.Damages.Add(GetDmgTuple(paramName, paramValue));
                             break;
-
                         case "Sound Bank" or "sound bank":
                             monster.SoundBank = int.Parse(paramValue);
                             break;

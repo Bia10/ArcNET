@@ -1,27 +1,23 @@
 ﻿using ArcNET.DataTypes.GameObjects.Classes;
 using ArcNET.Utilities;
-using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 
 namespace ArcNET.DataTypes
 {
-    public class MonsterTextReader
+    public class TextDataReader
     {
         private readonly StreamReader _reader;
-        private readonly List<Monster> _monsters = new();
+        public readonly List<Monster> _monsters = new();
+        public readonly List<NPC> _npcs = new();
+        public readonly List<Unique> _uniques = new();
 
-        public MonsterTextReader(StreamReader reader)
+        public TextDataReader(StreamReader reader)
         {
             _reader = reader;
         }
 
-        public string GetEntriesAsJson()
-        {
-            return JsonConvert.SerializeObject(_monsters, Formatting.Indented);
-        }
-
-        public List<Monster> Parse()
+        public void Parse(string type)
         {
             var mobStringList = new List<string>();
 
@@ -136,6 +132,15 @@ namespace ArcNET.DataTypes
                         case "Sound Bank" or "sound bank":
                             mobStringList.Add(curLine);
                             break;
+                        case "Portrait":
+                            mobStringList.Add(curLine);
+                            break;
+                        case "Retail Price Multiplier":
+                            mobStringList.Add(curLine);
+                            break;
+                        case "Social Class":
+                            mobStringList.Add(curLine);
+                            break;
                         case "Category":
                             mobStringList.Add(curLine);
                             break;
@@ -155,15 +160,34 @@ namespace ArcNET.DataTypes
                 if (string.IsNullOrWhiteSpace(curLine))
                 {
                     //assuming end of one mob block...
-                    var currentMob = Monster.GetFromText(mobStringList);
-                    _monsters.Add(currentMob);
+
+                    switch (type)
+                    {
+                        case "Monster":
+                        {
+                            var currentMob = Monster.GetFromText(mobStringList);
+                            _monsters.Add(currentMob);
+                            break;
+                        }
+                        case "NPC":
+                        {
+                            //var currentNpc = NPC.GetFromText(mobStringList);
+                            //_npcs.Add(currentNpc);
+                            break;
+                        }
+                        case "Unique":
+                        {
+                            //var currentUnique = Unique.GetFromText(mobStringList);
+                            //_uniques.Add(currentUnique);
+                            break;
+                        }
+                    }
 
                     mobStringList.Clear();
                 }
 
                 if (curLine == null) break;
             }
-            return _monsters;
         }
     }
 }

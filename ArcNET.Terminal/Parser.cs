@@ -197,12 +197,49 @@ namespace ArcNET.Terminal
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     AnsiConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
-                    var monsters = new MonsterTextReader(reader).Parse();
-                    if (monsters == null) return;
-                    _textsRed++;
-                    task.Increment(_textsRed);
 
-                    AnsiConsoleExtensions.Log($"Monsters: |{monsters.Count}|", "warn");
+                    switch (new FileInfo(fileName).Name)
+                    {
+                        case "monster.txt":
+                        {
+                            var mobReader = new TextDataReader(reader);
+                            mobReader.Parse("Monster");
+                            var mobCount = mobReader._monsters.Count;
+                            if (mobCount == 0) return;
+
+                            _textsRed++;
+                            task.Increment(_textsRed);
+                            AnsiConsoleExtensions.Log($"Monsters parsed: |{mobCount}|", "warn");
+                            break;
+                        }
+                        case "npc.txt":
+                        {
+                            var npcs = new TextDataReader(reader);
+                            npcs.Parse("NPC");
+                            var npcCount = npcs._monsters.Count;
+                            if (npcCount == 0) return;
+
+                            _textsRed++;
+                            task.Increment(_textsRed);
+                            AnsiConsoleExtensions.Log($"NPCs parsed: |{npcCount}|", "warn");
+                            break;
+                        }
+                        case "unique.txt":
+                        {
+                            var uniques = new TextDataReader(reader);
+                            uniques.Parse("NPC");
+                            var uniqueCount = uniques._monsters.Count;
+                            if (uniqueCount == 0) return;
+
+                            _textsRed++;
+                            task.Increment(_textsRed);
+                            AnsiConsoleExtensions.Log($"Uniques parsed: |{uniqueCount}|", "warn");
+                            break;
+                        }
+
+                        default:
+                            throw new InvalidOperationException(fileName, null);
+                        }
                     break;
                 }
 
