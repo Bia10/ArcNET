@@ -160,7 +160,6 @@ namespace ArcNET.DataTypes
                 if (string.IsNullOrWhiteSpace(curLine))
                 {
                     //assuming end of one mob block...
-
                     switch (type)
                     {
                         case "Monster":
@@ -171,8 +170,8 @@ namespace ArcNET.DataTypes
                         }
                         case "NPC":
                         {
-                            //var currentNpc = NPC.GetFromText(mobStringList);
-                            //_npcs.Add(currentNpc);
+                            var currentNpc = NPC.GetFromText(mobStringList);
+                            _npcs.Add(currentNpc);
                             break;
                         }
                         case "Unique":

@@ -214,9 +214,9 @@ namespace ArcNET.Terminal
                         }
                         case "npc.txt":
                         {
-                            var npcs = new TextDataReader(reader);
-                            npcs.Parse("NPC");
-                            var npcCount = npcs._monsters.Count;
+                            var npcReader = new TextDataReader(reader);
+                            npcReader.Parse("NPC");
+                            var npcCount = npcReader._npcs.Count;
                             if (npcCount == 0) return;
 
                             _textsRed++;
@@ -226,9 +226,9 @@ namespace ArcNET.Terminal
                         }
                         case "unique.txt":
                         {
-                            var uniques = new TextDataReader(reader);
-                            uniques.Parse("NPC");
-                            var uniqueCount = uniques._monsters.Count;
+                            var uniqueReader = new TextDataReader(reader);
+                            uniqueReader.Parse("Unique");
+                            var uniqueCount = uniqueReader._uniques.Count;
                             if (uniqueCount == 0) return;
 
                             _textsRed++;

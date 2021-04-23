@@ -36,7 +36,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var objFlag in (ObjFFlags[])Enum.GetValues(typeof(ObjFFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFFlags), objFlag).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
                 flag = objFlag;
             }
             return flag;
@@ -53,7 +53,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var critterFlag in (ObjFCritterFlags[])Enum.GetValues(typeof(ObjFCritterFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFCritterFlags), critterFlag).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
                 flag = critterFlag;
             }
             return flag;
@@ -70,7 +70,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var critterFlag2 in (ObjFCritterFlags2[])Enum.GetValues(typeof(ObjFCritterFlags2)))
             {
                 if (!Enum.GetName(typeof(ObjFCritterFlags2), critterFlag2).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
                 flag = critterFlag2;
             }
             return flag;
@@ -87,7 +87,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var npcFlag in (ObjFNpcFlags[])Enum.GetValues(typeof(ObjFNpcFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFNpcFlags), npcFlag).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
                 flag = npcFlag;
             }
             return flag;
@@ -104,7 +104,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var blitFlags in (ObjFBlitFlag[])Enum.GetValues(typeof(ObjFBlitFlag)))
             {
                 if (!Enum.GetName(typeof(ObjFBlitFlag), blitFlags).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
                 flag = blitFlags;
             }
             return flag;
@@ -121,7 +121,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             foreach (var spellFlags in (ObjFSpellFlags[])Enum.GetValues(typeof(ObjFSpellFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFSpellFlags), spellFlags).Equals(trimmedFlag)) continue;
-                AnsiConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
+                //AnsiConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
                 flag = spellFlags;
             }
             return flag;
@@ -138,9 +138,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             var separator = "\t\t";
             if (trimmedStats.Contains("Gender") || trimmedStats.Contains("Race"))
-            {
                 separator = " ";
-            }
             if (trimmedStats.Contains("tech points") || trimmedStats.Contains("magick points"))
             {
                 var whitespaceIndexes = GetWhitespaceIndexes(trimmedStats);
@@ -155,9 +153,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 separator = "\t";
 
             var statAndValue = trimmedStats.Split(separator, 2);
-            //foreach (var paramVal in statAndValue)
-              //AnsiConsoleExtensions.Log($"statAndValue:|{paramVal}|", "warn");
-
             var statType = statAndValue[0].Trim();
             statType = statType switch
             {
@@ -166,12 +161,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 _ => statType
             };
 
-            var statValue = statAndValue[1];
+            if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
+                AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
 
-            //if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
-            //AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
+            var statValue = statAndValue[1].Trim();
+            //AnsiConsoleExtensions.Log($"statType:|{statType}| value:|{statValue}|", "warn");
 
-            //TODO: magic points/tech points
             foreach (var basicStatType in (BasicStatType[])Enum.GetValues(typeof(BasicStatType)))
             {
                 var enumValueName = Enum.GetName(typeof(BasicStatType), basicStatType);
@@ -382,7 +377,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             break;
 
                         default:
-                            AnsiConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "warn");
+                            AnsiConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "error");
                             break;
                     }
                 }
