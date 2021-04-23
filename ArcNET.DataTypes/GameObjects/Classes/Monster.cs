@@ -25,6 +25,167 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             return whiteSpaceIndexes;
         }
 
+        private static ObjFFlags ParseObjFFlags(string paramValue)
+        {
+            var flag = (ObjFFlags) 0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFFlags))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFFlags param:|{trimmedFlag}|", "warn");
+
+            foreach (var objFlag in (ObjFFlags[])Enum.GetValues(typeof(ObjFFlags)))
+            {
+                if (!Enum.GetName(typeof(ObjFFlags), objFlag).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
+                flag = objFlag;
+            }
+            return flag;
+        }
+
+        private static ObjFCritterFlags ParseObjFCritterFlags(string paramValue)
+        {
+            var flag = (ObjFCritterFlags)0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFCritterFlags param:|{trimmedFlag}|", "warn");
+
+            foreach (var critterFlag in (ObjFCritterFlags[])Enum.GetValues(typeof(ObjFCritterFlags)))
+            {
+                if (!Enum.GetName(typeof(ObjFCritterFlags), critterFlag).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
+                flag = critterFlag;
+            }
+            return flag;
+        }
+
+        private static ObjFCritterFlags2 ParseObjFCritterFlags2(string paramValue)
+        {
+            var flag = (ObjFCritterFlags2)0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags2))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFCritterFlags2 param:|{trimmedFlag}|", "warn");
+
+            foreach (var critterFlag2 in (ObjFCritterFlags2[])Enum.GetValues(typeof(ObjFCritterFlags2)))
+            {
+                if (!Enum.GetName(typeof(ObjFCritterFlags2), critterFlag2).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
+                flag = critterFlag2;
+            }
+            return flag;
+        }
+
+        private static ObjFNpcFlags ParseObjFNpcFlags(string paramValue)
+        {
+            var flag = (ObjFNpcFlags)0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFNpcFlags))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFNpcFlags param:|{trimmedFlag}|", "warn");
+
+            foreach (var npcFlag in (ObjFNpcFlags[])Enum.GetValues(typeof(ObjFNpcFlags)))
+            {
+                if (!Enum.GetName(typeof(ObjFNpcFlags), npcFlag).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
+                flag = npcFlag;
+            }
+            return flag;
+        }
+
+        private static ObjFBlitFlag ParseObjFBlitFlag(string paramValue)
+        {
+            var flag = (ObjFBlitFlag)0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFBlitFlag))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFBlitFlag param:|{trimmedFlag}|", "warn");
+
+            foreach (var blitFlags in (ObjFBlitFlag[])Enum.GetValues(typeof(ObjFBlitFlag)))
+            {
+                if (!Enum.GetName(typeof(ObjFBlitFlag), blitFlags).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
+                flag = blitFlags;
+            }
+            return flag;
+        }
+
+        private static ObjFSpellFlags ParseObjFSpellFlags(string paramValue)
+        {
+            var flag = (ObjFSpellFlags)0;
+            var trimmedFlag = paramValue.TrimStart().TrimEnd();
+
+            if (!((IList)Enum.GetNames(typeof(ObjFSpellFlags))).Contains(trimmedFlag))
+                AnsiConsoleExtensions.Log($"Unrecognized ObjFSpellFlags param:|{trimmedFlag}|", "warn");
+
+            foreach (var spellFlags in (ObjFSpellFlags[])Enum.GetValues(typeof(ObjFSpellFlags)))
+            {
+                if (!Enum.GetName(typeof(ObjFSpellFlags), spellFlags).Equals(trimmedFlag)) continue;
+                AnsiConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
+                flag = spellFlags;
+            }
+            return flag;
+        }
+
+        private static Tuple<BasicStatType, int> GetBasicStat(string paramValue)
+        {
+            Tuple<BasicStatType, int> basicStatTuple = null;
+            var trimmedStats = paramValue.TrimStart();
+
+            //skip junk
+            if (trimmedStats.Equals("Strength 13") || trimmedStats.Equals("Dexterity 15") ||
+                trimmedStats.Equals("Dexterity 14")) return null;
+
+            var separator = "\t\t";
+            if (trimmedStats.Contains("Gender") || trimmedStats.Contains("Race"))
+            {
+                separator = " ";
+            }
+            if (trimmedStats.Contains("tech points") || trimmedStats.Contains("magick points"))
+            {
+                var whitespaceIndexes = GetWhitespaceIndexes(trimmedStats);
+                if (whitespaceIndexes.Count >= 2)
+                {
+                    trimmedStats = trimmedStats.Remove(whitespaceIndexes.First(), 1);
+                    //AnsiConsoleExtensions.Log($"trimmedStats after removal:|{trimmedStats}|", "warn");
+                }
+                separator = " ";
+            }
+            if (trimmedStats.Contains("Constitution") || trimmedStats.Contains("Intelligence"))
+                separator = "\t";
+
+            var statAndValue = trimmedStats.Split(separator, 2);
+            //foreach (var paramVal in statAndValue)
+              //AnsiConsoleExtensions.Log($"statAndValue:|{paramVal}|", "warn");
+
+            var statType = statAndValue[0].Trim();
+            statType = statType switch
+            {
+                "magickpoints" => "MagickPoints",
+                "techpoints" => "TechPoints",
+                _ => statType
+            };
+
+            var statValue = statAndValue[1];
+
+            //if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
+            //AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
+
+            //TODO: magic points/tech points
+            foreach (var basicStatType in (BasicStatType[])Enum.GetValues(typeof(BasicStatType)))
+            {
+                var enumValueName = Enum.GetName(typeof(BasicStatType), basicStatType);
+                if (!enumValueName.Equals(statType))
+                {
+                    //AnsiConsoleExtensions.Log($"Failed to match enumValueName:|{enumValueName}| vs statType:|{statType}|", "warn");
+                    continue;
+                }
+                basicStatTuple = new Tuple<BasicStatType, int>(basicStatType, int.Parse(statValue));
+            }
+
+            return basicStatTuple;
+        }
+
         private static Tuple<ResistanceType, int> GetResistTuple(string paramName, string paramValue)
         {
             var trimmedResist = paramName.TrimStart();
@@ -119,121 +280,28 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             monster.Alignment = int.Parse(paramValue);
                             break;
                         case "Object Flag":
-                            var trimmedObjFlag = paramValue.TrimStart();
-
-                            if (!((IList)Enum.GetNames(typeof(ObjFFlags))).Contains(trimmedObjFlag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFFlags param:|{trimmedObjFlag}|", "warn");
-
-                            foreach (var objFlag in (ObjFFlags[])Enum.GetValues(typeof(ObjFFlags)))
-                            {
-                                if (nameof(objFlag).Equals(trimmedObjFlag))
-                                    monster.ObjectFlags.Add(objFlag);
-                            }
+                            monster.ObjectFlags.Add(ParseObjFFlags(paramValue));
                             break;
                         case "Critter Flag":
-                            var trimmedCritterFlag = paramValue.TrimStart();
-
-                            if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags))).Contains(trimmedCritterFlag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFCritterFlags param:|{trimmedCritterFlag}|", "warn");
-
-                            foreach (var critterFlag in (ObjFCritterFlags[])Enum.GetValues(typeof(ObjFCritterFlags)))
-                            {
-                                if (nameof(critterFlag).Equals(trimmedCritterFlag))
-                                    monster.CritterFlags.Add(critterFlag);
-                            }
+                            monster.CritterFlags.Add(ParseObjFCritterFlags(paramValue));
                             break;
                         case "Critter2 Flag":
-                            var trimmedCritter2Flag = paramValue.TrimStart();
-
-                            if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags2))).Contains(trimmedCritter2Flag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFCritterFlags2 param:|{trimmedCritter2Flag}|", "warn");
-
-                            foreach (var critterFlag2 in (ObjFCritterFlags2[])Enum.GetValues(typeof(ObjFCritterFlags2)))
-                            {
-                                if (nameof(critterFlag2).Equals(trimmedCritter2Flag))
-                                    monster.CritterFlags2.Add(critterFlag2);
-                            }
+                            monster.CritterFlags2.Add(ParseObjFCritterFlags2(paramValue));
                             break;
                         case "NPC Flag":
-                            var trimmedNPCFlag = paramValue.TrimStart();
-
-                            if (!((IList)Enum.GetNames(typeof(ObjFNpcFlags))).Contains(trimmedNPCFlag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFNpcFlags param:|{trimmedNPCFlag}|", "warn");
-
-                            foreach (var npcFlag in (ObjFNpcFlags[])Enum.GetValues(typeof(ObjFNpcFlags)))
-                            {
-                                if (nameof(npcFlag).Equals(trimmedNPCFlag))
-                                    monster.NpcFlags.Add(npcFlag);
-                            }
+                            monster.NpcFlags.Add(ParseObjFNpcFlags(paramValue));
                             break;
                         case "Blit Flag":
-                            var trimmedBlitFlag = paramValue.TrimStart();
-
-                            if (!((IList)Enum.GetNames(typeof(ObjFBlitFlag))).Contains(trimmedBlitFlag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFBlitFlag param:|{trimmedBlitFlag}|", "warn");
-
-                            foreach (var blitFlag in (ObjFBlitFlag[])Enum.GetValues(typeof(ObjFBlitFlag)))
-                            {
-                                if (nameof(blitFlag).Equals(trimmedBlitFlag))
-                                    monster.BlitFlags.Add(blitFlag);
-                            }
+                            monster.BlitFlags.Add(ParseObjFBlitFlag(paramValue));
                             break;
                         case "Spell Flag":
-                            var trimmedSpellFlag = paramValue.TrimStart();
-                            if (!((IList)Enum.GetNames(typeof(ObjFSpellFlags))).Contains(trimmedSpellFlag))
-                                AnsiConsoleExtensions.Log($"unrecognized ObjFSpellFlags param:|{trimmedSpellFlag}|", "warn");
-
-                            foreach (var spellFlag in (ObjFSpellFlags[])Enum.GetValues(typeof(ObjFSpellFlags)))
-                            {
-                                if (nameof(spellFlag).Equals(trimmedSpellFlag))
-                                    monster.SpellFlags.Add(spellFlag);
-                            }
+                            monster.SpellFlags.Add(ParseObjFSpellFlags(paramValue));
                             break;
                         case "Hit Chart":
                             monster.HitChart = int.Parse(paramValue);
                             break;
                         case "Basic Stat" or "basic stat":
-                            var trimmedStats = paramValue.TrimStart();
-
-                            //skip junk
-                            if (trimmedStats.Equals("Strength 13") || trimmedStats.Equals("Dexterity 15") ||
-                                trimmedStats.Equals("Dexterity 14")) continue;
-
-                            var separator = "\t\t";
-                            if (trimmedStats.Contains("Gender") || trimmedStats.Contains("Race"))
-                            {
-                                separator = " ";
-                            }
-                            if (trimmedStats.Contains("tech points") || trimmedStats.Contains("magick points"))
-                            {
-                                var whitespaceIndexes = GetWhitespaceIndexes(trimmedStats);
-                                if (whitespaceIndexes.Count >= 2)
-                                {
-                                    trimmedStats = trimmedStats.Remove(whitespaceIndexes.First(), 1);
-                                    AnsiConsoleExtensions.Log($"trimmedStats after removal:|{trimmedStats}|", "warn");
-                                }
-                                separator = " ";
-                            }
-                            if (trimmedStats.Contains("Constitution") || trimmedStats.Contains("Intelligence"))
-                                separator = "\t";
-
-                            var statAndValue = trimmedStats.Split(separator, 2);
-                            foreach (var paramVal in statAndValue)
-                                AnsiConsoleExtensions.Log($"statAndValue:|{paramVal}|", "warn");
-
-                            var statType = statAndValue[0].Trim();
-                            var statValue = statAndValue[1];
-
-                            //if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
-                                //AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
-
-                            //TODO: magic points/tech points
-                            foreach (var basicStatType in (BasicStatType[])Enum.GetValues(typeof(BasicStatType)))
-                            {
-                                if (nameof(basicStatType).Equals(statType))
-                                    monster.BasicStats.Add(new Tuple<BasicStatType, int>(basicStatType, int.Parse(statValue)));
-                            }
-
+                            monster.BasicStats.Add(GetBasicStat(paramValue));
                             break;
                         case "Spell" or "spell":
                             monster.Spells.Add(paramValue);
