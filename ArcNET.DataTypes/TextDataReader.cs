@@ -176,8 +176,8 @@ namespace ArcNET.DataTypes
                         }
                         case "Unique":
                         {
-                            //var currentUnique = Unique.GetFromText(mobStringList);
-                            //_uniques.Add(currentUnique);
+                            var currentUnique = Unique.GetFromText(mobStringList);
+                            _uniques.Add(currentUnique);
                             break;
                         }
                     }

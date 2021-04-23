@@ -1,5 +1,4 @@
 ﻿using ArcNET.DataTypes.GameObjects.Flags;
-using ArcNET.Utilities;
 using Spectre.Console;
 using System;
 using System.Collections;
@@ -14,20 +13,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public int Portrait;
         public int RetailPriceMultiplier;
         public int SocialClass;
-
-        private static List<int> GetWhitespaceIndexes(string input)
-        {
-            var whiteSpaceIndexes = new List<int>();
-            var stringAsChars = input.ToCharArray();
-
-            foreach (var (item, index) in stringAsChars.WithIndex())
-            {
-                if (char.IsWhiteSpace(item))
-                    whiteSpaceIndexes.Add(index);
-            }
-
-            return whiteSpaceIndexes;
-        }
 
         private static ObjFFlags ParseObjFFlags(string paramValue)
         {
@@ -370,6 +355,5 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             }
             return npc;
         }
-
     }
 }
