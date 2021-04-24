@@ -185,7 +185,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         private static Tuple<ResistanceType, int> GetResistTuple(string paramName, string paramValue)
         {
             if (paramValue.Equals("1 0")) paramValue = " 10";
-            AnsiConsoleExtensions.Log($"paramName:|{paramName}| paramValue:|{paramValue}|", "warn");
+            //AnsiConsoleExtensions.Log($"paramName:|{paramName}| paramValue:|{paramValue}|", "warn");
 
 
             var trimmedResist = paramName.TrimStart();

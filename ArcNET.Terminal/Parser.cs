@@ -1,5 +1,5 @@
 ﻿using ArcNET.DataTypes;
-using ArcNET.Utilities;
+using ArcNET.DataTypes.GameObjects.Classes;
 using Spectre.Console;
 using System;
 using System.Collections.Generic;
@@ -123,7 +123,7 @@ namespace ArcNET.Terminal
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
             var toRemove = new HashSet<Tuple<List<string>, FileType>>();
-            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Text))
+            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Text && tuple.Item2 != FileType.Message))
                 toRemove.Add(tupleList);
             data.RemoveAll(toRemove.Contains);
 
@@ -236,7 +236,6 @@ namespace ArcNET.Terminal
                             AnsiConsoleExtensions.Log($"Uniques parsed: |{uniqueCount}|", "warn");
                             break;
                         }
-
                         default:
                             throw new InvalidOperationException(fileName, null);
                         }
@@ -247,12 +246,27 @@ namespace ArcNET.Terminal
                 {
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     AnsiConsoleExtensions.Log($"Parsing mes file:|{fileName}|", "warn");
-                    var obj = new MessageReader(reader).Parse();
-                    if (obj == null) return;
-                    _messagesRed++;
-                    task.Increment(_messagesRed);
 
-                    FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                    switch (new FileInfo(fileName).Name)
+                    {
+                        case "InvenSource.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("InvenSource.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            InventorySource.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(_messagesRed);
+
+                            AnsiConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
+                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
+
+                        default:
+                            break;
+                                //throw new InvalidOperationException(fileName, null);
+                        }
                     break;
                 }
 
