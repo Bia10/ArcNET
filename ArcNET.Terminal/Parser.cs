@@ -269,6 +269,19 @@ namespace ArcNET.Terminal
                             //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
+                        case "xp_level.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("xp_level.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            XpLevels.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|", "warn");
+                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
                         default:
                             _messagesRed++;
                             task.Increment(+1);
