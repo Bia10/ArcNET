@@ -76,7 +76,20 @@ namespace ArcNET.DataTypes
                     }
                     break;
                 }
-
+                case "backgrnd.mes":
+                {
+                    foreach (var (line, index) in lines.WithIndex())
+                    {
+                        if (string.IsNullOrEmpty(line)) continue;
+                        if (!line.StartsWith("{"))
+                        {
+                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
+                            continue;
+                        }
+                        data.Add(line);
+                    }
+                    break;
+                }
             }
             return data;
         }

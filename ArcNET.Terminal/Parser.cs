@@ -282,6 +282,19 @@ namespace ArcNET.Terminal
                             //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
+                        case "backgrnd.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("backgrnd.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            Background.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|", "warn");
+                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
                         default:
                             _messagesRed++;
                             task.Increment(+1);

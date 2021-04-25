@@ -45,6 +45,5 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 throw;
             }
         }
-
     }
 }
