@@ -2,7 +2,6 @@
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes
 {
@@ -42,7 +41,21 @@ namespace ArcNET.DataTypes
                         if (string.IsNullOrEmpty(line)) continue;
                         if (!line.StartsWith("{"))
                         {
-                            AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
+                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
+                            continue;
+                        }
+                        data.Add(line);
+                    }
+                    break;
+                }
+                case "InvenSourceBuy.mes":
+                {
+                    foreach (var (line, index) in lines.WithIndex())
+                    {
+                        if (string.IsNullOrEmpty(line)) continue;
+                        if (!line.StartsWith("{"))
+                        {
+                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
                             continue;
                         }
                         data.Add(line);

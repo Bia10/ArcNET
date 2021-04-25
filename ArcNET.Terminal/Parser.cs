@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.Terminal
@@ -127,44 +126,39 @@ namespace ArcNET.Terminal
                 toRemove.Add(tupleList);
             data.RemoveAll(toRemove.Contains);
 
-            var tasks = new (string name, List<string> data)[data.Count];
+            var tasks = new (string name, List<string> data, FileType fileType)[data.Count];
             for (var i = 0; i < data.Count; i++)
                 tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}" 
-                            + " files :[/]", data[i].Item1);
+                            + " files :[/]", data[i].Item1, data[i].Item2);
 
-            await AnsiConsole.Progress()
-            .Columns(
+            AnsiConsole.Progress().Columns(
                 new TaskDescriptionColumn(),
-                new ProgressBarColumn(), 
-                new PercentageColumn(), 
+                new ProgressBarColumn(),
+                new PercentageColumn(),
                 new RemainingTimeColumn(),
                 new SpinnerColumn())
-            .StartAsync(async ctx =>
-            {
-                await Task.WhenAll(tasks.Select(async task =>
+                .Start(ctx =>
                 {
-                    var (name, files) = task;
-                    var currentTask = ctx.AddTask(name, new ProgressTaskSettings
+                    foreach (var (name, files, fileType) in tasks)
                     {
-                        MaxValue = files.Count,
-                        AutoStart = false,
-                    });
-
-                    foreach (var (fileList, fileType) in data)
-                    {
-                        foreach (var file in fileList)
+                        var currentTask = ctx.AddTask(name, new ProgressTaskSettings
                         {
-                            await ParseAndWriteFile(file, fileType, currentTask, dirPath + @"\out\");
+                            MaxValue = files.Count,
+                            AutoStart = false,
+                        });
+
+                        foreach (var file in files)
+                        {
+                            ParseAndWriteFile(file, fileType, currentTask, dirPath + @"\out\");
                         }
                     }
-                }));
-            });
+                });
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
         }
         
-        //Todo: make async, synchronous, will likely need Async BinaryRead/Write
-        private static async Task ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
+        //Todo: make async, will likely need Async BinaryRead/Write
+        private static void ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
         {
             //AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
 
@@ -176,8 +170,6 @@ namespace ArcNET.Terminal
 
                 outputPath = outputFolder + outputPath;
             }
-
-            task.StartTask();
 
             switch (fileType)
             {
@@ -195,6 +187,7 @@ namespace ArcNET.Terminal
 
                 case FileType.Text:
                 {
+                    task.StartTask();
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     AnsiConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
 
@@ -208,7 +201,7 @@ namespace ArcNET.Terminal
                             if (mobCount == 0) return;
 
                             _textsRed++;
-                            task.Increment(_textsRed);
+                            task.Increment(+1);
                             AnsiConsoleExtensions.Log($"Monsters parsed: |{mobCount}|", "warn");
                             break;
                         }
@@ -220,7 +213,7 @@ namespace ArcNET.Terminal
                             if (npcCount == 0) return;
 
                             _textsRed++;
-                            task.Increment(_textsRed);
+                            task.Increment(+1);
                             AnsiConsoleExtensions.Log($"NPCs parsed: |{npcCount}|", "warn");
                             break;
                         }
@@ -232,7 +225,7 @@ namespace ArcNET.Terminal
                             if (uniqueCount == 0) return;
 
                             _textsRed++;
-                            task.Increment(_textsRed);
+                            task.Increment(+1);
                             AnsiConsoleExtensions.Log($"Uniques parsed: |{uniqueCount}|", "warn");
                             break;
                         }
@@ -244,6 +237,7 @@ namespace ArcNET.Terminal
 
                 case FileType.Message:
                 {
+                    task.StartTask();
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
                     AnsiConsoleExtensions.Log($"Parsing mes file:|{fileName}|", "warn");
 
@@ -256,14 +250,28 @@ namespace ArcNET.Terminal
 
                             InventorySource.InitFromText(textData);
                             _messagesRed++;
-                            task.Increment(_messagesRed);
+                            task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
                             //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
+                        case "InvenSourceBuy.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("InvenSourceBuy.mes");
+                            if (textData == null || textData.Count == 0) return;
 
+                            InventorySourceBuy.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|", "warn");
+                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
                         default:
+                            _messagesRed++;
+                            task.Increment(+1);
                             break;
                                 //throw new InvalidOperationException(fileName, null);
                         }

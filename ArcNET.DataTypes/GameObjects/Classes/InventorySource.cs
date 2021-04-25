@@ -2,7 +2,6 @@
 using Spectre.Console;
 using System;
 using System.Collections.Generic;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -32,19 +31,11 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             {
                 foreach (var (line, index) in textData.WithIndex())
                 {
-                    if (string.IsNullOrEmpty(line)) continue;
-                    if (!line.StartsWith("{"))
-                    {
-                        AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
-                        continue;
-                    }
-
                     var idAndData = line.Split("}", 2);
                     var id = idAndData[0];
                     var data = idAndData[1];
 
                     id = id.Remove(0, 1);
-                    AnsiConsoleExtensions.Log($"id |{id}|", "warn");
                     var invSource = new InventorySource()
                     {
                         Id = int.Parse(id),
@@ -62,7 +53,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     foreach (var badSplit in badSplits)
                     {
                         if (!dropsAndChance.Contains(badSplit)) continue;
-                        AnsiConsoleExtensions.Log($"badSplits found:|{badSplit}| ", "warn");
                         dropsAndChance = dropsAndChance.Replace(badSplit, " ");
                     }
 
