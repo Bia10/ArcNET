@@ -38,12 +38,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line)) continue;
-                        if (!line.StartsWith("{"))
-                        {
-                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
-                            continue;
-                        }
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
                         data.Add(line);
                     }
                     break;
@@ -52,12 +48,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line)) continue;
-                        if (!line.StartsWith("{"))
-                        {
-                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
-                            continue;
-                        }
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
                         data.Add(line);
                     }
                     break;
@@ -66,12 +58,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line)) continue;
-                        if (!line.StartsWith("{"))
-                        {
-                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
-                            continue;
-                        }
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
                         data.Add(line);
                     }
                     break;
@@ -80,12 +68,18 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line)) continue;
-                        if (!line.StartsWith("{"))
-                        {
-                            //AnsiConsoleExtensions.Log($"bad line:|{line}| at index:|{index}|", "warn");
-                            continue;
-                        }
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
+                        data.Add(line);
+                    }
+                    break;
+                }
+                case "faction.mes":
+                {
+                    foreach (var (line, index) in lines.WithIndex())
+                    {
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
                         data.Add(line);
                     }
                     break;

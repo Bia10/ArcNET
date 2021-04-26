@@ -295,7 +295,20 @@ namespace ArcNET.Terminal
                             //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
-                        default:
+                        case "faction.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("faction.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            Faction.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded Factions: |{Faction.LoadedFactions.Entries.Count}|", "warn");
+                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
+                            default:
                             _messagesRed++;
                             task.Increment(+1);
                             break;
