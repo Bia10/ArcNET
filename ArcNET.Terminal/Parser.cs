@@ -184,7 +184,6 @@ namespace ArcNET.Terminal
                     FileWriter.ToJson(outputPath, obj);*/
                     break;
                 }
-
                 case FileType.Text:
                 {
                     task.StartTask();
@@ -234,7 +233,6 @@ namespace ArcNET.Terminal
                         }
                     break;
                 }
-
                 case FileType.Message:
                 {
                     task.StartTask();
@@ -253,7 +251,6 @@ namespace ArcNET.Terminal
                             task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
-                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
                         case "InvenSourceBuy.mes":
@@ -266,7 +263,6 @@ namespace ArcNET.Terminal
                             task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|", "warn");
-                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
                         case "xp_level.mes":
@@ -279,7 +275,30 @@ namespace ArcNET.Terminal
                             task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|", "warn");
-                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
+                            break;
+                        }
+                        case "xp_critter.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("xp_level.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            CritterXpLevels.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded XpCritterLevels: |{CritterXpLevels.LoadedCritterXpLevels.Entries.Count}|", "warn");
+                            break;
+                        }
+                        case "xp_quest.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("xp_quest.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            QuestXpLevels.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded XpQuestLevels: |{QuestXpLevels.LoadedXpQuestLevels.Entries.Count}|", "warn");
                             break;
                         }
                         case "backgrnd.mes":
@@ -292,7 +311,6 @@ namespace ArcNET.Terminal
                             task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|", "warn");
-                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
                         case "faction.mes":
@@ -305,7 +323,6 @@ namespace ArcNET.Terminal
                             task.Increment(+1);
 
                             AnsiConsoleExtensions.Log($"Loaded Factions: |{Faction.LoadedFactions.Entries.Count}|", "warn");
-                            //FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());
                             break;
                         }
                             default:
@@ -316,7 +333,6 @@ namespace ArcNET.Terminal
                         }
                     break;
                 }
-
                 case FileType.Sector:
                 {
                     /*using var reader = new BinaryReader(new FileStream(fileName, FileMode.Open));
@@ -328,7 +344,6 @@ namespace ArcNET.Terminal
                     FileWriter.ToJson(outputPath, obj.GetEntriesAsJson());*/
                     break;
                 }
-
                 case FileType.Art:
                     /*_artsRed++;
                     task.Increment(_artsRed);*/

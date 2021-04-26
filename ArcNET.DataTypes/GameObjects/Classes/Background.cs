@@ -132,17 +132,18 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                         case "NPC":
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.AnyNPC);
                                             break;
-                                        case "" or "ANY":
+                                        case "" or "ANY" or "400": //400 is supposed to be money given
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.Any);
                                             break;
 
                                         default:
-                                            AnsiConsoleExtensions.Log("Unrecognized race gender combo:|{combo}|", "warn");
+                                            AnsiConsoleExtensions.Log($"Unrecognized race gender combo:|{combo}|", "warn");
                                             break;
                                 }
                             }
                             break;
                         case 3:
+                            if (data.Equals("")) data = "400";
                             if (curBackground != null) curBackground.MoneyGiven = int.Parse(data);
                             break;
                         case 4:

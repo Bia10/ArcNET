@@ -54,7 +54,7 @@ namespace ArcNET.DataTypes
                     }
                     break;
                 }
-                case "xp_level.mes":
+                case "xp_level.mes" or "xp_critter.mes" or "xp_quest.mes":
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
