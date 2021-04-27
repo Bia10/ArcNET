@@ -337,6 +337,19 @@ namespace ArcNET.Terminal
                             AnsiConsoleExtensions.Log($"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|", "warn");
                             break;
                         }
+                        case "description.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("description.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            Descriptions.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded description: |{Descriptions.LoadedDescriptions.Entries.Count}|", "warn");
+                            break;
+                        }
+
                             default:
                             _messagesRed++;
                             task.Increment(+1);

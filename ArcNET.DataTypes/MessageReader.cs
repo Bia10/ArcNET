@@ -29,7 +29,7 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -39,7 +39,7 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -49,7 +49,7 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -59,7 +59,7 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -69,7 +69,7 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -79,7 +79,17 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+                        if (EmptyOrBadLine(line)) continue;
+
+                        data.Add(line);
+                    }
+                    break;
+                }
+                case "description.mes":
+                {
+                    foreach (var (line, index) in lines.WithIndex())
+                    {
+                        if (EmptyOrBadLine(line)) continue;
 
                         data.Add(line);
                     }
@@ -87,6 +97,11 @@ namespace ArcNET.DataTypes
                 }
             }
             return data;
+        }
+
+        private static bool EmptyOrBadLine(string line)
+        {
+            return string.IsNullOrEmpty(line) || !line.StartsWith("{");
         }
 
         /*
