@@ -2,6 +2,7 @@
 using Spectre.Console;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -24,6 +25,13 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public int Id; //0 reserved
         public string Name;
         public List<InventorySourceEntry> Entries;
+
+        public static IEnumerable<Tuple<string, double>> NamedDropTableFromId(int id)
+        {
+            return (from inventorySource in LoadedInventorySources.Where(invSrc => invSrc.Id.Equals(id))
+                from inventorySourceEntry in inventorySource.Entries let name = Descriptions.GetNameFromId(inventorySourceEntry.PrototypeId)
+                select new Tuple<string, double>(name, inventorySourceEntry.Chance)).ToList();
+        }
 
         public static void InitFromText(IEnumerable<string> textData)
         {

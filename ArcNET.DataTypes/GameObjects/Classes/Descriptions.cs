@@ -1,6 +1,7 @@
 ﻿using Spectre.Console;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -21,6 +22,17 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         }
 
         public List<DescriptionsEntry> Entries = new();
+
+        public static string GetNameFromId(int id)
+        {
+            var entries = LoadedDescriptions.Entries.Where(entry => entry.Id.Equals(id)).ToList();
+            if (entries.Count == 0) return "NOT_FOUND";
+
+            var name = entries.First().Name;
+            Utilities.AnsiConsoleExtensions.Log($"Entries found: |{entries.Count}| Name: |{name}|", "info");
+
+            return name;
+        }
 
         public static void InitFromText(IEnumerable<string> textData)
         {

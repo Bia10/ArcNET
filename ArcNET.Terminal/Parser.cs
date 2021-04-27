@@ -1,4 +1,5 @@
 ﻿using ArcNET.DataTypes;
+using ArcNET.DataTypes.GameObjects;
 using ArcNET.DataTypes.GameObjects.Classes;
 using Spectre.Console;
 using System;
@@ -98,7 +99,7 @@ namespace ArcNET.Terminal
             {
                 new(allFiles, FileType.Any),
                 new(datFiles, FileType.DataArchive),
-                new(facFiles, FileType.FacadeWalk),
+                new(textFiles, FileType.Text),
                 new(mesFiles, FileType.Message),
                 new(secFiles, FileType.Sector),
                 new(proFiles, FileType.Prototype),
@@ -114,10 +115,12 @@ namespace ArcNET.Terminal
                 new(soundMp3Files, FileType.SoundMp3),
                 new(videoFiles, FileType.Video),
                 new(bitmapFiles, FileType.Bitmap),
-                new(textFiles, FileType.Text),
+                new(facFiles, FileType.FacadeWalk)
             };
 
             AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
+
+            GameObjectManager.Init();
 
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
@@ -153,6 +156,16 @@ namespace ArcNET.Terminal
                         }
                     }
                 });
+
+            //testing 
+            var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0);
+            foreach (var mob in mobsWithDrops)
+            {
+                var namedDropTable = InventorySource.NamedDropTableFromId(mob.InventorySource);
+                AnsiConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
+                foreach (var (name, chance) in namedDropTable)
+                    AnsiConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
+            }
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
         }
@@ -196,7 +209,7 @@ namespace ArcNET.Terminal
                         {
                             var mobReader = new TextDataReader(reader);
                             mobReader.Parse("Monster");
-                            var mobCount = mobReader._monsters.Count;
+                            var mobCount = GameObjectManager.Monsters.Count;
                             if (mobCount == 0) return;
 
                             _textsRed++;

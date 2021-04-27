@@ -1,4 +1,5 @@
-﻿using ArcNET.DataTypes.GameObjects.Classes;
+﻿using ArcNET.DataTypes.GameObjects;
+using ArcNET.DataTypes.GameObjects.Classes;
 using ArcNET.Utilities;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +9,6 @@ namespace ArcNET.DataTypes
     public class TextDataReader
     {
         private readonly StreamReader _reader;
-        public readonly List<Monster> _monsters = new();
         public readonly List<NPC> _npcs = new();
         public readonly List<Unique> _uniques = new();
 
@@ -165,7 +165,7 @@ namespace ArcNET.DataTypes
                         case "Monster":
                         {
                             var currentMob = Monster.GetFromText(mobStringList);
-                            _monsters.Add(currentMob);
+                            GameObjectManager.Monsters.Add(currentMob);
                             break;
                         }
                         case "NPC":
