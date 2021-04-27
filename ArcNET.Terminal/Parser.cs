@@ -325,6 +325,18 @@ namespace ArcNET.Terminal
                             AnsiConsoleExtensions.Log($"Loaded Factions: |{Faction.LoadedFactions.Entries.Count}|", "warn");
                             break;
                         }
+                        case "gamelevel.mes":
+                        {
+                            var textData = new MessageReader(reader).Parse("gamelevel.mes");
+                            if (textData == null || textData.Count == 0) return;
+
+                            AutoLevelSchemes.InitFromText(textData);
+                            _messagesRed++;
+                            task.Increment(+1);
+
+                            AnsiConsoleExtensions.Log($"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|", "warn");
+                            break;
+                        }
                             default:
                             _messagesRed++;
                             task.Increment(+1);

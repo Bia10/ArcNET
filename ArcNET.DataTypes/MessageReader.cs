@@ -1,5 +1,4 @@
 ﻿using ArcNET.Utilities;
-using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 
@@ -8,16 +7,10 @@ namespace ArcNET.DataTypes
     public class MessageReader
     {
         private readonly StreamReader _reader;
-        private Dictionary<int, string> _entries;
 
         public MessageReader(StreamReader reader)
         {
             _reader = reader;
-        }
-
-        public string GetEntriesAsJson()
-        {
-            return JsonConvert.SerializeObject(_entries, Formatting.Indented);
         }
 
         public List<string> Parse(string fileType)
@@ -27,9 +20,7 @@ namespace ArcNET.DataTypes
 
             //Get all data
             while (!_reader.EndOfStream)
-            { 
                 lines.Add(_reader.ReadLine());
-            }
 
             //for each fileType different filtering of data
             switch (fileType)
@@ -75,6 +66,16 @@ namespace ArcNET.DataTypes
                     break;
                 }
                 case "faction.mes":
+                {
+                    foreach (var (line, index) in lines.WithIndex())
+                    {
+                        if (string.IsNullOrEmpty(line) || !line.StartsWith("{")) continue;
+
+                        data.Add(line);
+                    }
+                    break;
+                }
+                case "gamelevel.mes":
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
