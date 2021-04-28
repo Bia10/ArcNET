@@ -159,6 +159,7 @@ namespace ArcNET.Terminal
 
             //testing 
             var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0);
+            AnsiConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
             foreach (var mob in mobsWithDrops)
             {
                 var namedDropTable = InventorySource.NamedDropTableFromId(mob.InventorySource);
@@ -209,6 +210,7 @@ namespace ArcNET.Terminal
                         {
                             var mobReader = new TextDataReader(reader);
                             mobReader.Parse("Monster");
+
                             var mobCount = GameObjectManager.Monsters.Count;
                             if (mobCount == 0) return;
 
@@ -221,7 +223,8 @@ namespace ArcNET.Terminal
                         {
                             var npcReader = new TextDataReader(reader);
                             npcReader.Parse("NPC");
-                            var npcCount = npcReader._npcs.Count;
+
+                            var npcCount = GameObjectManager.NPCs.Count;
                             if (npcCount == 0) return;
 
                             _textsRed++;
@@ -233,7 +236,8 @@ namespace ArcNET.Terminal
                         {
                             var uniqueReader = new TextDataReader(reader);
                             uniqueReader.Parse("Unique");
-                            var uniqueCount = uniqueReader._uniques.Count;
+
+                            var uniqueCount = GameObjectManager.Uniques.Count;
                             if (uniqueCount == 0) return;
 
                             _textsRed++;

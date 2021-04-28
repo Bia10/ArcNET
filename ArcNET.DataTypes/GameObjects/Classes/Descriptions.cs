@@ -26,7 +26,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public static string GetNameFromId(int id)
         {
             var entries = LoadedDescriptions.Entries.Where(entry => entry.Id.Equals(id)).ToList();
-            if (entries.Count == 0) return "NOT_FOUND";
+            if (entries.Count == 0) return $"NOT_FOUND id:{id}";
 
             var name = entries.First().Name;
             Utilities.AnsiConsoleExtensions.Log($"Entries found: |{entries.Count}| Name: |{name}|", "info");

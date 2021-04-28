@@ -9,8 +9,6 @@ namespace ArcNET.DataTypes
     public class TextDataReader
     {
         private readonly StreamReader _reader;
-        public readonly List<NPC> _npcs = new();
-        public readonly List<Unique> _uniques = new();
 
         public TextDataReader(StreamReader reader)
         {
@@ -171,13 +169,13 @@ namespace ArcNET.DataTypes
                         case "NPC":
                         {
                             var currentNpc = NPC.GetFromText(mobStringList);
-                            _npcs.Add(currentNpc);
+                            GameObjectManager.NPCs.Add(currentNpc);
                             break;
                         }
                         case "Unique":
                         {
                             var currentUnique = Unique.GetFromText(mobStringList);
-                            _uniques.Add(currentUnique);
+                            GameObjectManager.Uniques.Add(currentUnique);
                             break;
                         }
                     }
