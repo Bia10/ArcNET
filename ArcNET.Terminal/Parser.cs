@@ -158,7 +158,7 @@ namespace ArcNET.Terminal
                 });
 
             //testing 
-            var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0);
+            var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0).ToList();
             AnsiConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
             foreach (var mob in mobsWithDrops)
             {
@@ -166,6 +166,9 @@ namespace ArcNET.Terminal
                 AnsiConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
                 foreach (var (name, chance) in namedDropTable)
                     AnsiConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
+
+                var mobText = Wikia.GetEntityInfobox(mob);
+                AnsiConsoleExtensions.Log($"mobText: |{mobText}|", "warn");
             }
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
