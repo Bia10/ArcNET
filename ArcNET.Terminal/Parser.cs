@@ -63,60 +63,9 @@ namespace ArcNET.Terminal
         private static readonly Regex TextRegex = new(@"^.*\.txt$");
 
         //TODO: rework, make entire parsing async
-        private static async void ParseAndWriteAllInDir(string dirPath)
+        private static void ParseAndWriteAllInDir(string dirPath)
         {
-            var allFiles = Directory.EnumerateFiles(dirPath, "*.*", 
-                SearchOption.AllDirectories).ToList();
-
-            var datFiles = allFiles.Where(str => DataArchiveRegex.IsMatch(str)).ToList();
-            var facFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
-            var mesFiles = allFiles.Where(str => MessageRegex.IsMatch(str)).ToList();
-            var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
-            var proFiles = allFiles.Where(str => PrototypeRegex.IsMatch(str)).ToList();
-            var playerFiles = allFiles.Where(str => PlayerRegex.IsMatch(str)).ToList();
-            var mobFiles = allFiles.Where(str => MobileRegex.IsMatch(str)).ToList();
-            var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
-            var jumpFiles = allFiles.Where(str => JumpRegex.IsMatch(str)).ToList();
-            var scriptFiles = allFiles.Where(str => ScriptRegex.IsMatch(str)).ToList();
-            var dialogFiles = allFiles.Where(str => DialogRegex.IsMatch(str)).ToList();
-            var terrainFiles = allFiles.Where(str => TerrainRegex.IsMatch(str)).ToList();
-            var mapPropertiesFiles = allFiles.Where(str => MapPropertiesRegex.IsMatch(str)).ToList();
-            var soundWavFiles = allFiles.Where(str => SoundWavRegex.IsMatch(str)).ToList();
-            var soundMp3Files = allFiles.Where(str => SoundMp3Regex.IsMatch(str)).ToList();
-            var videoFiles = allFiles.Where(str => VideoRegex.IsMatch(str)).ToList();
-            var bitmapFiles = allFiles.Where(str => BitmapRegex.IsMatch(str)).ToList();
-            var textFiles = allFiles.Where(str => TextRegex.IsMatch(str)).ToList();
-
-            var otherFiles = allFiles.Where(str => 
-                !DataArchiveRegex.IsMatch(str) && !FacadeWalkRegex.IsMatch(str) && !MessageRegex.IsMatch(str) 
-                && !SectorRegex.IsMatch(str) && !PrototypeRegex.IsMatch(str) && !PlayerRegex.IsMatch(str) 
-                && !MobileRegex.IsMatch(str) && !ArtRegex.IsMatch(str) && !JumpRegex.IsMatch(str) 
-                && !ScriptRegex.IsMatch(str) && !DialogRegex.IsMatch(str) && !TerrainRegex.IsMatch(str)
-                && !MapPropertiesRegex.IsMatch(str) && !SoundWavRegex.IsMatch(str) && !SoundMp3Regex.IsMatch(str) 
-                && !VideoRegex.IsMatch(str) && !BitmapRegex.IsMatch(str) && !TextRegex.IsMatch(str)).ToList();
-
-            var data = new List<Tuple<List<string>, FileType>>
-            {
-                new(allFiles, FileType.Any),
-                new(datFiles, FileType.DataArchive),
-                new(textFiles, FileType.Text),
-                new(mesFiles, FileType.Message),
-                new(secFiles, FileType.Sector),
-                new(proFiles, FileType.Prototype),
-                new(playerFiles, FileType.PlayerBackground),
-                new(mobFiles, FileType.Mobile),
-                new(artFiles, FileType.Art),
-                new(jumpFiles, FileType.Jump),
-                new(scriptFiles, FileType.Script),
-                new(dialogFiles, FileType.Dialog),
-                new(terrainFiles, FileType.Terrain),
-                new(mapPropertiesFiles, FileType.MapProperties),
-                new(soundWavFiles, FileType.SoundWav),
-                new(soundMp3Files, FileType.SoundMp3),
-                new(videoFiles, FileType.Video),
-                new(bitmapFiles, FileType.Bitmap),
-                new(facFiles, FileType.FacadeWalk)
-            };
+            var data = LoadLocalData(dirPath);
 
             AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
 
@@ -489,6 +438,61 @@ namespace ArcNET.Terminal
                     throw;
                 }
             }
+        }
+
+        public static List<Tuple<List<string>, FileType>> LoadLocalData(string dirPath)
+        {
+            var allFiles = Directory.EnumerateFiles(dirPath, "*.*", SearchOption.AllDirectories).ToList();
+
+            var datFiles = allFiles.Where(str => DataArchiveRegex.IsMatch(str)).ToList();
+            var facFiles = allFiles.Where(str => FacadeWalkRegex.IsMatch(str)).ToList();
+            var mesFiles = allFiles.Where(str => MessageRegex.IsMatch(str)).ToList();
+            var secFiles = allFiles.Where(str => SectorRegex.IsMatch(str)).ToList();
+            var proFiles = allFiles.Where(str => PrototypeRegex.IsMatch(str)).ToList();
+            var playerFiles = allFiles.Where(str => PlayerRegex.IsMatch(str)).ToList();
+            var mobFiles = allFiles.Where(str => MobileRegex.IsMatch(str)).ToList();
+            var artFiles = allFiles.Where(str => ArtRegex.IsMatch(str)).ToList();
+            var jumpFiles = allFiles.Where(str => JumpRegex.IsMatch(str)).ToList();
+            var scriptFiles = allFiles.Where(str => ScriptRegex.IsMatch(str)).ToList();
+            var dialogFiles = allFiles.Where(str => DialogRegex.IsMatch(str)).ToList();
+            var terrainFiles = allFiles.Where(str => TerrainRegex.IsMatch(str)).ToList();
+            var mapPropertiesFiles = allFiles.Where(str => MapPropertiesRegex.IsMatch(str)).ToList();
+            var soundWavFiles = allFiles.Where(str => SoundWavRegex.IsMatch(str)).ToList();
+            var soundMp3Files = allFiles.Where(str => SoundMp3Regex.IsMatch(str)).ToList();
+            var videoFiles = allFiles.Where(str => VideoRegex.IsMatch(str)).ToList();
+            var bitmapFiles = allFiles.Where(str => BitmapRegex.IsMatch(str)).ToList();
+            var textFiles = allFiles.Where(str => TextRegex.IsMatch(str)).ToList();
+
+            var otherFiles = allFiles.Where(str =>
+                !DataArchiveRegex.IsMatch(str) && !FacadeWalkRegex.IsMatch(str) && !MessageRegex.IsMatch(str)
+                && !SectorRegex.IsMatch(str) && !PrototypeRegex.IsMatch(str) && !PlayerRegex.IsMatch(str)
+                && !MobileRegex.IsMatch(str) && !ArtRegex.IsMatch(str) && !JumpRegex.IsMatch(str)
+                && !ScriptRegex.IsMatch(str) && !DialogRegex.IsMatch(str) && !TerrainRegex.IsMatch(str)
+                && !MapPropertiesRegex.IsMatch(str) && !SoundWavRegex.IsMatch(str) && !SoundMp3Regex.IsMatch(str)
+                && !VideoRegex.IsMatch(str) && !BitmapRegex.IsMatch(str) && !TextRegex.IsMatch(str)).ToList();
+
+            return new List<Tuple<List<string>, FileType>>
+            {
+                new(allFiles, FileType.Any),
+                new(datFiles, FileType.DataArchive),
+                new(textFiles, FileType.Text),
+                new(mesFiles, FileType.Message),
+                new(secFiles, FileType.Sector),
+                new(proFiles, FileType.Prototype),
+                new(playerFiles, FileType.PlayerBackground),
+                new(mobFiles, FileType.Mobile),
+                new(artFiles, FileType.Art),
+                new(jumpFiles, FileType.Jump),
+                new(scriptFiles, FileType.Script),
+                new(dialogFiles, FileType.Dialog),
+                new(terrainFiles, FileType.Terrain),
+                new(mapPropertiesFiles, FileType.MapProperties),
+                new(soundWavFiles, FileType.SoundWav),
+                new(soundMp3Files, FileType.SoundMp3),
+                new(videoFiles, FileType.Video),
+                new(bitmapFiles, FileType.Bitmap),
+                new(facFiles, FileType.FacadeWalk)
+            };
         }
     }
 }
