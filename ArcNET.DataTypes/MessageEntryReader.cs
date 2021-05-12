@@ -1,6 +1,6 @@
-﻿using ArcNET.Utilities;
-using System.IO;
+﻿using System.IO;
 using System.Text.RegularExpressions;
+using Utils.Console;
 
 namespace ArcNET.DataTypes
 {
@@ -45,7 +45,7 @@ namespace ArcNET.DataTypes
 
             var regex = new Regex(Pattern);
             if (Regex.Matches(input, Pattern).Count == 0)
-                AnsiConsoleExtensions.Log($"Input: |{input}| failed to match pattern: {Pattern}!", "error");
+                ConsoleExtensions.Log($"Input: |{input}| failed to match pattern: {Pattern}!", "error");
             var matches = Regex.Matches(input, Pattern);
 
             var output = new string[matches.Count];

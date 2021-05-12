@@ -1,8 +1,8 @@
 ﻿using ArcNET.DataTypes.GameObjects;
 using ArcNET.DataTypes.GameObjects.Classes;
-using ArcNET.Utilities;
 using System.Collections.Generic;
 using System.IO;
+using Utils.Console;
 
 namespace ArcNET.DataTypes
 {
@@ -150,7 +150,7 @@ namespace ArcNET.DataTypes
                             break;
 
                         default:
-                            AnsiConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "warn");
+                            ConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "warn");
                             break;
                     }
                 }

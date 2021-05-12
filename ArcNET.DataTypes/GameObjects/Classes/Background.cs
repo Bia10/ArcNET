@@ -1,7 +1,7 @@
 ﻿using Spectre.Console;
 using System;
 using System.Collections.Generic;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
+using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -137,7 +137,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                             break;
 
                                         default:
-                                            AnsiConsoleExtensions.Log($"Unrecognized race gender combo:|{combo}|", "warn");
+                                            ConsoleExtensions.Log($"Unrecognized race gender combo:|{combo}|", "warn");
                                             break;
                                 }
                             }

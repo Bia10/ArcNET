@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -29,7 +30,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             if (entries.Count == 0) return $"NOT_FOUND id:{id}";
 
             var name = entries.First().Name;
-            Utilities.AnsiConsoleExtensions.Log($"Entries found: |{entries.Count}| Name: |{name}|", "info");
+            ConsoleExtensions.Log($"Entries found: |{entries.Count}| Name: |{name}|", "info");
 
             return name;
         }

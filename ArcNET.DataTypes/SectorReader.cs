@@ -1,10 +1,10 @@
 ﻿using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
-using ArcNET.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Utils.Console;
 
 namespace ArcNET.DataTypes
 {
@@ -25,8 +25,8 @@ namespace ArcNET.DataTypes
             SkipRoofList(_reader);
 
 			var placeholder = _reader.ReadInt32();
-			AnsiConsoleExtensions.Log(placeholder.ToString("X4"),"info");
-            AnsiConsoleExtensions.Log(_reader.BaseStream.Position.ToString("X4"), "info");
+			ConsoleExtensions.Log(placeholder.ToString("X4"),"info");
+            ConsoleExtensions.Log(_reader.BaseStream.Position.ToString("X4"), "info");
 
             if (placeholder < 0xAA0000 || placeholder > 0xAA0004)
 			{

@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
+using Utils.Console;
 
 namespace ArcNET.Terminal
 {
@@ -108,16 +108,16 @@ namespace ArcNET.Terminal
 
             //testing 
             var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0).ToList();
-            AnsiConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
+            ConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
             foreach (var mob in mobsWithDrops)
             {
                 var namedDropTable = InventorySource.NamedDropTableFromId(mob.InventorySource);
-                AnsiConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
+                ConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
                 foreach (var (name, chance) in namedDropTable)
-                    AnsiConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
+                    ConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
 
                 var mobText = Wikia.GetEntityInfobox(mob);
-                AnsiConsoleExtensions.Log($"mobText: |{mobText}|", "warn");
+                ConsoleExtensions.Log($"mobText: |{mobText}|", "warn");
             }
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
@@ -126,7 +126,7 @@ namespace ArcNET.Terminal
         //Todo: make async, will likely need Async BinaryRead/Write
         private static void ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
         {
-            //AnsiConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
+            //ConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
 
             var outputPath = new FileInfo(fileName).Name;
             if (!string.IsNullOrEmpty(outputFolder))
@@ -154,7 +154,7 @@ namespace ArcNET.Terminal
                 {
                     task.StartTask();
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
-                    AnsiConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
+                    ConsoleExtensions.Log($"Parsing text file:|{fileName}|", "warn");
 
                     switch (new FileInfo(fileName).Name)
                     {
@@ -168,7 +168,7 @@ namespace ArcNET.Terminal
 
                             _textsRed++;
                             task.Increment(+1);
-                            AnsiConsoleExtensions.Log($"Monsters parsed: |{mobCount}|", "warn");
+                            ConsoleExtensions.Log($"Monsters parsed: |{mobCount}|", "warn");
                             break;
                         }
                         case "npc.txt":
@@ -181,7 +181,7 @@ namespace ArcNET.Terminal
 
                             _textsRed++;
                             task.Increment(+1);
-                            AnsiConsoleExtensions.Log($"NPCs parsed: |{npcCount}|", "warn");
+                            ConsoleExtensions.Log($"NPCs parsed: |{npcCount}|", "warn");
                             break;
                         }
                         case "unique.txt":
@@ -194,7 +194,7 @@ namespace ArcNET.Terminal
 
                             _textsRed++;
                             task.Increment(+1);
-                            AnsiConsoleExtensions.Log($"Uniques parsed: |{uniqueCount}|", "warn");
+                            ConsoleExtensions.Log($"Uniques parsed: |{uniqueCount}|", "warn");
                             break;
                         }
                         default:
@@ -206,7 +206,7 @@ namespace ArcNET.Terminal
                 {
                     task.StartTask();
                     using var reader = new StreamReader(new FileStream(fileName, FileMode.Open));
-                    AnsiConsoleExtensions.Log($"Parsing mes file:|{fileName}|", "warn");
+                    ConsoleExtensions.Log($"Parsing mes file:|{fileName}|", "warn");
 
                     switch (new FileInfo(fileName).Name)
                     {
@@ -219,7 +219,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
                             break;
                         }
                         case "InvenSourceBuy.mes":
@@ -231,7 +231,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|", "warn");
                             break;
                         }
                         case "xp_level.mes":
@@ -243,7 +243,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|", "warn");
                             break;
                         }
                         case "xp_critter.mes":
@@ -255,7 +255,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded XpCritterLevels: |{CritterXpLevels.LoadedCritterXpLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded XpCritterLevels: |{CritterXpLevels.LoadedCritterXpLevels.Entries.Count}|", "warn");
                             break;
                         }
                         case "xp_quest.mes":
@@ -267,7 +267,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded XpQuestLevels: |{QuestXpLevels.LoadedXpQuestLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded XpQuestLevels: |{QuestXpLevels.LoadedXpQuestLevels.Entries.Count}|", "warn");
                             break;
                         }
                         case "backgrnd.mes":
@@ -279,7 +279,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|", "warn");
                             break;
                         }
                         case "faction.mes":
@@ -291,7 +291,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded Factions: |{Faction.LoadedFactions.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded Factions: |{Faction.LoadedFactions.Entries.Count}|", "warn");
                             break;
                         }
                         case "gamelevel.mes":
@@ -303,7 +303,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|", "warn");
                             break;
                         }
                         case "description.mes":
@@ -315,7 +315,7 @@ namespace ArcNET.Terminal
                             _messagesRed++;
                             task.Increment(+1);
 
-                            AnsiConsoleExtensions.Log($"Loaded description: |{Descriptions.LoadedDescriptions.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log($"Loaded description: |{Descriptions.LoadedDescriptions.Entries.Count}|", "warn");
                             break;
                         }
 
@@ -380,12 +380,12 @@ namespace ArcNET.Terminal
 
         public static void ParseExtractedData()
         {
-            AnsiConsoleExtensions.Log("Insert path to file or dirPath:", "info");
+            ConsoleExtensions.Log("Insert path to file or dirPath:", "info");
             var inputPath = AnsiConsole.Ask<string>("[green]Input[/]");
             while (string.IsNullOrEmpty(inputPath) || inputPath.Length < 10)
             {
-                AnsiConsoleExtensions.Log("Path either empty or incorrect format!", "error");
-                AnsiConsoleExtensions.Log("Usage:<fileName|dirPath>", "error");
+                ConsoleExtensions.Log("Path either empty or incorrect format!", "error");
+                ConsoleExtensions.Log("Usage:<fileName|dirPath>", "error");
                 inputPath = AnsiConsole.Ask<string>("[green]Insert path to file or dirPath[/]:");
             }
 
@@ -406,7 +406,7 @@ namespace ArcNET.Terminal
                 var fileName = Path.GetFileName(inputPath);
                 if (string.IsNullOrEmpty(fileName) || fileName.Length < 10)
                 {
-                    AnsiConsoleExtensions.Log($"File: {inputPath} does not exists!", "error");
+                    ConsoleExtensions.Log($"File: {inputPath} does not exists!", "error");
                     throw new Exception("File not found!");
                 }
 

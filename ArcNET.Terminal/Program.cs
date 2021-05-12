@@ -3,7 +3,7 @@ using Spectre.Console;
 using System;
 using System.IO;
 using System.Linq;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
+using Utils.Console;
 
 namespace ArcNET.Terminal
 {
@@ -16,7 +16,7 @@ namespace ArcNET.Terminal
 
             while (!Directory.Exists(pathToHighResDir))
             {
-                AnsiConsoleExtensions.Log("HighRes dir not found!", "error");
+                ConsoleExtensions.Log("HighRes dir not found!", "error");
                 pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir again[/]:");
                 pathToHighResDir = Path.Combine(pathToArcDir + "\\HighRes");
             }
@@ -31,17 +31,17 @@ namespace ArcNET.Terminal
             if (!File.Exists(procPath))
                 throw new InvalidOperationException($"weidu.exe file not found at path: {procPath}");
 
-            var procLauncher = new ProcLauncher(procPath, "");
+            var Launcher = new ProcLauncher(procPath, "");
 
             switch (launchArgs)
             {
                 case ProcLauncher.CmdArguments.Install:
-                    procLauncher.CmdArgs = ProcLauncher.CmdArguments.Install;
-                    procLauncher.Launch();
+                    Launcher.CmdArgs = ProcLauncher.CmdArguments.Install;
+                    Launcher.Launch();
                     break;
                 case ProcLauncher.CmdArguments.Uninstall:
-                    procLauncher.CmdArgs = ProcLauncher.CmdArguments.Uninstall;
-                    procLauncher.Launch();
+                    Launcher.CmdArgs = ProcLauncher.CmdArguments.Uninstall;
+                    Launcher.Launch();
                     break;
 
                 default:
@@ -54,11 +54,11 @@ namespace ArcNET.Terminal
             Terminal.RenderLogo();
 
             var choice = Terminal.GetMainMenuChoice();
-            AnsiConsoleExtensions.Log($"Selected choice: {choice}", "info");
+            ConsoleExtensions.Log($"Selected choice: {choice}", "info");
             switch (choice)
             {
                 case "Extract game data":
-                    AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
+                    ConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
                     break;
                 case "Parse extracted game data":
                     Parser.ParseExtractedData();
@@ -70,7 +70,7 @@ namespace ArcNET.Terminal
 
                     if (files.Count == 0)
                     {
-                        AnsiConsoleExtensions.Log("HighResFolder empty proceeding to clone latest version", "info");
+                        ConsoleExtensions.Log("HighResFolder empty proceeding to clone latest version", "info");
                         GitHub.CloneHighResPatch(pathToHighResDir);
                     }
 
@@ -78,14 +78,14 @@ namespace ArcNET.Terminal
                     if (!File.Exists(configPath))
                         throw new InvalidOperationException($"Config file not found at path: {configPath}");
 
-                    AnsiConsoleExtensions.Log("Gathering environment info", "info");
+                    ConsoleExtensions.Log("Gathering environment info", "info");
                     var envInfo = new EnvironmentInfo();
                     envInfo.Print();
 
-                    AnsiConsoleExtensions.Log("Auto-config according to environment info", "info");
+                    ConsoleExtensions.Log("Auto-config according to environment info", "info");
                     HighResConfig.AutoConfigure(envInfo);
 
-                    AnsiConsoleExtensions.Log("Summary of config.ini:", "info");
+                    ConsoleExtensions.Log("Summary of config.ini:", "info");
                     AnsiConsole.Render(Terminal.ConfigTable());
 
                     if (AnsiConsole.Confirm("Would you like to change config?"))
@@ -102,7 +102,7 @@ namespace ArcNET.Terminal
                     break;
 
                 default:
-                    AnsiConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
+                    ConsoleExtensions.Log($"Choice: {choice} is currently unsupported!", "error");
                     break;
             }
         }

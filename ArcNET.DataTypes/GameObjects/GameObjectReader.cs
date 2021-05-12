@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
+using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects
 {
@@ -61,7 +61,7 @@ namespace ArcNET.DataTypes.GameObjects
 
                 foreach (var param in parameters)
                 {
-                    AnsiConsoleExtensions.Log($"Parameters: {param} Bit: {bit}", "debug");
+                    ConsoleExtensions.Log($"Parameters: {param} Bit: {bit}", "debug");
                 }
 
                 if (gameObject.Header.Bitmap.Get(bit, gameObject.Header.IsPrototype()))

@@ -1,11 +1,11 @@
 ﻿using ArcNET.DataTypes.GameObjects.Flags;
-using ArcNET.Utilities;
 using Spectre.Console;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using AnsiConsoleExtensions = ArcNET.Utilities.AnsiConsoleExtensions;
+using Utils.Console;
+using Utils.Enumeration;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -31,12 +31,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFFlags))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFFlags param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFFlags param:|{trimmedFlag}|", "warn");
 
             foreach (var objFlag in (ObjFFlags[])Enum.GetValues(typeof(ObjFFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFFlags), objFlag).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
                 flag = objFlag;
             }
             return flag;
@@ -48,12 +48,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFCritterFlags param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFCritterFlags param:|{trimmedFlag}|", "warn");
 
             foreach (var critterFlag in (ObjFCritterFlags[])Enum.GetValues(typeof(ObjFCritterFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFCritterFlags), critterFlag).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
                 flag = critterFlag;
             }
             return flag;
@@ -65,12 +65,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFCritterFlags2))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFCritterFlags2 param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFCritterFlags2 param:|{trimmedFlag}|", "warn");
 
             foreach (var critterFlag2 in (ObjFCritterFlags2[])Enum.GetValues(typeof(ObjFCritterFlags2)))
             {
                 if (!Enum.GetName(typeof(ObjFCritterFlags2), critterFlag2).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
                 flag = critterFlag2;
             }
             return flag;
@@ -82,12 +82,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFNpcFlags))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFNpcFlags param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFNpcFlags param:|{trimmedFlag}|", "warn");
 
             foreach (var npcFlag in (ObjFNpcFlags[])Enum.GetValues(typeof(ObjFNpcFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFNpcFlags), npcFlag).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
                 flag = npcFlag;
             }
             return flag;
@@ -99,12 +99,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFBlitFlag))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFBlitFlag param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFBlitFlag param:|{trimmedFlag}|", "warn");
 
             foreach (var blitFlags in (ObjFBlitFlag[])Enum.GetValues(typeof(ObjFBlitFlag)))
             {
                 if (!Enum.GetName(typeof(ObjFBlitFlag), blitFlags).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
                 flag = blitFlags;
             }
             return flag;
@@ -116,12 +116,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedFlag = paramValue.TrimStart().TrimEnd();
 
             if (!((IList)Enum.GetNames(typeof(ObjFSpellFlags))).Contains(trimmedFlag))
-                AnsiConsoleExtensions.Log($"Unrecognized ObjFSpellFlags param:|{trimmedFlag}|", "warn");
+                ConsoleExtensions.Log($"Unrecognized ObjFSpellFlags param:|{trimmedFlag}|", "warn");
 
             foreach (var spellFlags in (ObjFSpellFlags[])Enum.GetValues(typeof(ObjFSpellFlags)))
             {
                 if (!Enum.GetName(typeof(ObjFSpellFlags), spellFlags).Equals(trimmedFlag)) continue;
-                //AnsiConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
+                //ConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
                 flag = spellFlags;
             }
             return flag;
@@ -145,7 +145,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 if (whitespaceIndexes.Count >= 2)
                 {
                     trimmedStats = trimmedStats.Remove(whitespaceIndexes.First(), 1);
-                    //AnsiConsoleExtensions.Log($"trimmedStats after removal:|{trimmedStats}|", "warn");
+                    //ConsoleExtensions.Log($"trimmedStats after removal:|{trimmedStats}|", "warn");
                 }
                 separator = " ";
             }
@@ -162,17 +162,17 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             };
 
             if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
-                AnsiConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
+                ConsoleExtensions.Log($"unrecognized Entity.BasicStatType param:|{statType}|", "warn");
 
             var statValue = statAndValue[1].Trim();
-            //AnsiConsoleExtensions.Log($"statType:|{statType}| value:|{statValue}|", "warn");
+            //ConsoleExtensions.Log($"statType:|{statType}| value:|{statValue}|", "warn");
 
             foreach (var basicStatType in (BasicStatType[])Enum.GetValues(typeof(BasicStatType)))
             {
                 var enumValueName = Enum.GetName(typeof(BasicStatType), basicStatType);
                 if (!enumValueName.Equals(statType))
                 {
-                    //AnsiConsoleExtensions.Log($"Failed to match enumValueName:|{enumValueName}| vs statType:|{statType}|", "warn");
+                    //ConsoleExtensions.Log($"Failed to match enumValueName:|{enumValueName}| vs statType:|{statType}|", "warn");
                     continue;
                 }
                 basicStatTuple = new Tuple<BasicStatType, int>(basicStatType, int.Parse(statValue));
@@ -252,7 +252,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             break;
                         }
                         case "Description":
-                            //AnsiConsoleExtensions.Log($"paramValue:|{paramValue}|", "warn");
+                            //ConsoleExtensions.Log($"paramValue:|{paramValue}|", "warn");
                             break;
                         case "Internal Name" or "internal name":
                             monster.InternalName = int.Parse(paramValue);
@@ -306,7 +306,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             var scriptParams = trimmedScript.Split(" ", 6);
 
                             //foreach (var paramVal in scriptParams)
-                               // AnsiConsoleExtensions.Log($"script param value:|{paramVal}|", "warn");
+                               // ConsoleExtensions.Log($"script param value:|{paramVal}|", "warn");
 
                             var paramValues = scriptParams.Select(int.Parse).ToList();
 
@@ -377,7 +377,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             break;
 
                         default:
-                            AnsiConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "error");
+                            ConsoleExtensions.Log($"unrecognized entity param:|{paramName}|", "error");
                             break;
                     }
                 }

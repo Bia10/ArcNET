@@ -1,6 +1,6 @@
-﻿using ArcNET.Utilities;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
+using Utils.Enumeration;
 
 namespace ArcNET.DataTypes
 {
@@ -137,17 +137,17 @@ namespace ArcNET.DataTypes
 
          if (unicodeLines.Any(curLine.Contains))
          {
-         AnsiConsoleExtensions.Log($"unicode line:|{curLine}|", "warn");
+         ConsoleExtensions.Log($"unicode line:|{curLine}|", "warn");
          continue;
          }
          if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t") || curLine.StartsWith("***") || !curLine.StartsWith("{")) 
          {
-         AnsiConsoleExtensions.Log($"bad line:|{curLine}|", "warn");
+         ConsoleExtensions.Log($"bad line:|{curLine}|", "warn");
          continue;
          }
          if (string.IsNullOrEmpty(curLine))
          {
-         AnsiConsoleExtensions.Log($"empty line:|{curLine}|", "warn");
+         ConsoleExtensions.Log($"empty line:|{curLine}|", "warn");
          continue;
          }
 

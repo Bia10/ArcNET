@@ -1,7 +1,7 @@
-﻿using ArcNET.Utilities;
-using System;
+﻿using System;
 using System.Collections;
 using System.IO;
+using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects
 {
@@ -31,7 +31,7 @@ namespace ArcNET.DataTypes.GameObjects
             var bitmapLength = (int)Enum.Parse(typeof(Enums.ObjectFieldBitmap), header.GameObjectType.ToString());
             header.Bitmap = new BitArray(reader.ReadBytes(bitmapLength));
 
-            AnsiConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} " 
+            ConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} " 
                                       + $"\n ProtoId: {header.ProtoId}"
                                       + $"\n ObjectId: {header.ObjectId}"
                                       + $"\n GameObjectType: {header.GameObjectType}"
