@@ -1,6 +1,7 @@
 ﻿using LibGit2Sharp;
 using System.IO;
 using System.Linq;
+using Utils.Console;
 
 namespace ArcNET.Utilities
 {
@@ -32,17 +33,17 @@ namespace ArcNET.Utilities
         public static void CloneHighResPatch(string resultLocation)
         {
             const string repo = "https://github.com/ArcNET-Modding/HighResPatch.git";
-            AnsiConsoleExtensions.Log($"Cloning repo: {repo} into: \n {resultLocation}", "info");
+            ConsoleExtensions.Log($"Cloning repo: {repo} into: \n {resultLocation}", "info");
             Repository.Clone(repo, resultLocation);
             var files = Directory.EnumerateFiles(resultLocation, "*.*", SearchOption.AllDirectories).ToList();
             if (files.Count == 0) return;
 
-            AnsiConsoleExtensions.Log($"Cloned {files.Count} files", "success");
+            ConsoleExtensions.Log($"Cloned {files.Count} files", "success");
             var highResPath = Path.Combine(resultLocation, "HighRes");
             Copy(highResPath, resultLocation);
 
             var foldersToDelete = new DirectoryInfo(highResPath);
-            AnsiConsoleExtensions.Log($"Removing empty folder: {foldersToDelete}", "info");
+            ConsoleExtensions.Log($"Removing empty folder: {foldersToDelete}", "info");
             if (foldersToDelete.Exists)
                 DeleteReadOnly(foldersToDelete);
         }

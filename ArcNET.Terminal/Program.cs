@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Linq;
 using Utils.Console;
+using Utils.Process;
 
 namespace ArcNET.Terminal
 {
@@ -31,17 +32,16 @@ namespace ArcNET.Terminal
             if (!File.Exists(procPath))
                 throw new InvalidOperationException($"weidu.exe file not found at path: {procPath}");
 
-            var Launcher = new ProcLauncher(procPath, "");
-
+            Launcher launcher;
             switch (launchArgs)
             {
-                case ProcLauncher.CmdArguments.Install:
-                    Launcher.CmdArgs = ProcLauncher.CmdArguments.Install;
-                    Launcher.Launch();
+                case CmdArgs.Weidu.InstallHighResPatch:
+                    launcher = new Launcher(procPath, CmdArgs.Weidu.InstallHighResPatch);
+                    launcher.Launch();
                     break;
-                case ProcLauncher.CmdArguments.Uninstall:
-                    Launcher.CmdArgs = ProcLauncher.CmdArguments.Uninstall;
-                    Launcher.Launch();
+                case CmdArgs.Weidu.UninstallHighResPatch:
+                    launcher = new Launcher(procPath, CmdArgs.Weidu.UninstallHighResPatch);
+                    launcher.Launch();
                     break;
 
                 default:
@@ -95,10 +95,10 @@ namespace ArcNET.Terminal
                     }
 
                     HighResConfig.Write(configPath);
-                    LaunchWeidu(ProcLauncher.CmdArguments.Install, pathToHighResDir);
+                    LaunchWeidu(CmdArgs.Weidu.InstallHighResPatch, pathToHighResDir);
                     break;
                 case "Uninstall High-Res patch":
-                    LaunchWeidu(ProcLauncher.CmdArguments.Uninstall);
+                    LaunchWeidu(CmdArgs.Weidu.UninstallHighResPatch);
                     break;
 
                 default:

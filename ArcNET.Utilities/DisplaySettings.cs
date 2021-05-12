@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Utils.Console;
 
 // ReSharper disable InconsistentNaming
 
@@ -103,7 +104,7 @@ namespace ArcNET.Utilities
             if (EnumDisplaySettings(null, (int)ModeNumber.CurrentSettings, ref devMode))
                 return devMode;
 
-            AnsiConsoleExtensions.Log("Failed to obtain current display settings!", "error");
+            ConsoleExtensions.Log("Failed to obtain current display settings!", "error");
             return new DeviceMode();
         }
 
@@ -116,7 +117,7 @@ namespace ArcNET.Utilities
             var fields = structType.GetFields();
 
             foreach (var field in fields)
-                AnsiConsoleExtensions.Log($"{field.Name} {field.GetValue(DevMode)}", "info");
+                ConsoleExtensions.Log($"{field.Name} {field.GetValue(DevMode)}", "info");
         }
     }
 }

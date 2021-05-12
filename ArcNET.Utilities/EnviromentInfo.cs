@@ -1,4 +1,5 @@
 ﻿using System;
+using Utils.Console;
 
 namespace ArcNET.Utilities
 {
@@ -19,7 +20,7 @@ namespace ArcNET.Utilities
             var osMinorVersion = OperatingSystem.Version.Minor;
             var osBuildVersion = OperatingSystem.Version.Build;
 
-            AnsiConsoleExtensions.Log($"Major: {osMajorVersion} " +
+            ConsoleExtensions.Log($"Major: {osMajorVersion} " +
                                       $"Minor: {osMinorVersion} " +
                                       $"OsBuildVersion: {osBuildVersion}", "info");
 
