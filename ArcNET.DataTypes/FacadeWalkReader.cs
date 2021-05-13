@@ -1,6 +1,6 @@
-﻿using ArcNET.Utilities;
-using System.IO;
+﻿using System.IO;
 using Utils.Console;
+using Utils.Marshalling;
 
 namespace ArcNET.DataTypes
 {
@@ -17,7 +17,7 @@ namespace ArcNET.DataTypes
         {
             var obj = new FacadeWalk
             {
-                Marker = Marshalling.ByteArrayToStructure<FacWalkMarker>(_reader)
+                Marker = MarshallingExtensions.ByteArrayToStructure<FacWalkMarker>(_reader)
             };
             //ConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
@@ -31,7 +31,7 @@ namespace ArcNET.DataTypes
                 return null;
             }
 
-            obj.Header = Marshalling.ByteArrayToStructure<FacWalkHeader>(_reader);
+            obj.Header = MarshallingExtensions.ByteArrayToStructure<FacWalkHeader>(_reader);
             obj.Entries = new FacWalkEntry[obj.Header.entryCount];
 #if DEBUG
             //ConsoleExtensions.Log($"Parsed Header: {obj.Header}", "success");
@@ -39,7 +39,7 @@ namespace ArcNET.DataTypes
 #endif
             for (var i = 0; i < obj.Header.entryCount; i++)
             {
-                obj.Entries[i] = Marshalling.ByteArrayToStructure<FacWalkEntry>(_reader);
+                obj.Entries[i] = MarshallingExtensions.ByteArrayToStructure<FacWalkEntry>(_reader);
                 //AnsiConsole.WriteLine($"Parsing entry: {obj.Entries[i]} index:{i}");
             }
 
