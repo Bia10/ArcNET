@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Utils.Device;
 
 // ReSharper disable InconsistentNaming
 // ReSharper disable NotAccessedField.Local

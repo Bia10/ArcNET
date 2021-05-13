@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Linq;
 using Utils.Console;
+using Utils.Device;
 using Utils.Process;
 
 namespace ArcNET.Terminal
