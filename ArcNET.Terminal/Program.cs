@@ -13,8 +13,8 @@ namespace ArcNET.Terminal
     {
         private static string GetHighResDir()
         {
-            var pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir[/]:");
-            var pathToHighResDir = Path.Combine(pathToArcDir + "\\HighRes");
+            string pathToArcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum dir[/]:");
+            string pathToHighResDir = Path.Combine(pathToArcDir + "\\HighRes");
 
             while (!Directory.Exists(pathToHighResDir))
             {
@@ -28,8 +28,8 @@ namespace ArcNET.Terminal
 
         private static void LaunchWeidu(string launchArgs, string pathToDir = "")
         {
-            var dirPath = string.IsNullOrEmpty(pathToDir) ? GetHighResDir() : pathToDir;
-            var procPath = Path.Combine(dirPath + "\\weidu.exe");
+            string dirPath = string.IsNullOrEmpty(pathToDir) ? GetHighResDir() : pathToDir;
+            string procPath = Path.Combine(dirPath + "\\weidu.exe");
             if (!File.Exists(procPath))
                 throw new InvalidOperationException($"weidu.exe file not found at path: {procPath}");
 
@@ -54,7 +54,7 @@ namespace ArcNET.Terminal
         {
             Terminal.RenderLogo();
 
-            var choice = Terminal.GetMainMenuChoice();
+            string choice = Terminal.GetMainMenuChoice();
             ConsoleExtensions.Log($"Selected choice: {choice}", "info");
             switch (choice)
             {
@@ -65,7 +65,7 @@ namespace ArcNET.Terminal
                     Parser.ParseExtractedData();
                     break;
                 case "Install High-Res patch":
-                    var pathToHighResDir = GetHighResDir();
+                    string pathToHighResDir = GetHighResDir();
                     var files = Directory.EnumerateFiles(
                         pathToHighResDir, "*.*", SearchOption.AllDirectories).ToList();
 
@@ -75,7 +75,7 @@ namespace ArcNET.Terminal
                         GitHub.CloneHighResPatch(pathToHighResDir);
                     }
 
-                    var configPath = Path.Combine(pathToHighResDir + "\\config.ini");
+                    string configPath = Path.Combine(pathToHighResDir + "\\config.ini");
                     if (!File.Exists(configPath))
                         throw new InvalidOperationException($"Config file not found at path: {configPath}");
 
@@ -87,7 +87,7 @@ namespace ArcNET.Terminal
                     HighResConfig.AutoConfigure(envInfo);
 
                     ConsoleExtensions.Log("Summary of config.ini:", "info");
-                    AnsiConsole.Render(Terminal.ConfigTable());
+                    AnsiConsole.Write(Terminal.ConfigTable());
 
                     if (AnsiConsole.Confirm("Would you like to change config?"))
                     {

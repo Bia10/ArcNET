@@ -1,13 +1,10 @@
-﻿namespace ArcNET.DataTypes.Common
-{
-    public class Location
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
+﻿namespace ArcNET.DataTypes.Common;
 
-        public override string ToString()
-        {
-            return $"{X},{Y}";
-        }
-    }
+public class Location
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+
+    public override string ToString()
+        => $"{X},{Y}";
 }

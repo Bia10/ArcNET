@@ -6,76 +6,76 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-namespace ArcNET.DataTypes
+namespace ArcNET.DataTypes;
+
+public static class BinaryReaderExtensions
 {
-    public static class BinaryReaderExtensions
+    public static Location ReadLocation(this BinaryReader reader, bool force = false)
     {
-        public static Location ReadLocation(this BinaryReader reader, bool force = false)
+        var loc = new Location();
+        if (!force)
         {
-            var loc = new Location();
-            if (!force)
-            {
-                var flag = reader.ReadByte();
-                if (flag == 0x00) return null;
-                if (flag != 0x01) throw new Exception();
-            }
+            byte flag = reader.ReadByte();
+            if (flag == 0x00) return null;
 
-            loc.X = reader.ReadInt32();
-            loc.Y = reader.ReadInt32();
-            return loc;
+            if (flag != 0x01) 
+                throw new Exception();
         }
 
-        public static GameObjectGuid ReadGameObjectGuid(this BinaryReader reader, bool force = false)
-        {
-            if (!force)
-            {
-                var flag = reader.ReadByte();
-                if (flag == 0x00) return null;
-                if (flag != 0x01) throw new Exception();
-            }
-
-            var result = new GameObjectGuid
-            {
-                Type = reader.ReadInt16(),
-                Foo0 = reader.ReadInt16(),
-                Foo2 = reader.ReadInt32()
-            };
-            var guidData = reader.ReadBytes(16);
-            result.Guid = new Guid(guidData);
-
-            return result;
-        } 
-
-        public static ArtId ReadArtId(this BinaryReader reader)
-        {
-            return new(reader.ReadInt32().ToString("X2"));
-        }
+        loc.X = reader.ReadInt32();
+        loc.Y = reader.ReadInt32();
+        return loc;
     }
 
-    public static class BitArrayUtils
+    public static GameObjectGuid ReadGameObjectGuid(this BinaryReader reader, bool force = false)
     {
-        public static bool Get(this BitArray bitArray, int index, bool isPrototype)
+        if (!force)
         {
-            return bitArray.Get(index) || isPrototype;
+            byte flag = reader.ReadByte();
+            if (flag == 0x00) return null;
+
+            if (flag != 0x01)
+                throw new Exception();
         }
+
+        var result = new GameObjectGuid
+        {
+            Type = reader.ReadInt16(),
+            Foo0 = reader.ReadInt16(),
+            Foo2 = reader.ReadInt32()
+        };
+        byte[] guidData = reader.ReadBytes(16);
+        result.Guid = new Guid(guidData);
+
+        return result;
     }
 
-    public class OrderAttribute : Attribute
-    {
-        public int Order { get; private set; }
-        public OrderAttribute(int order)
-        {
-            Order = order;
-        }
-    }
+    public static ArtId ReadArtId(this BinaryReader reader)
+        => new(reader.ReadInt32().ToString("X2"));
+}
 
-    public static class PropertyInfoUtils
+public static class BitArrayUtils
+{
+    public static bool Get(this BitArray bitArray, int index, bool isPrototype)
+        => bitArray.Get(index) || isPrototype;
+}
+
+public class OrderAttribute : Attribute
+{
+    public int Order { get; private set; }
+
+    public OrderAttribute(int order)
     {
-        public static int PropertyOrder(this PropertyInfo propInfo)
-        {
-            var orderAttr = (OrderAttribute)propInfo.GetCustomAttributes(typeof(OrderAttribute), true).SingleOrDefault();
-            var output = orderAttr?.Order ?? int.MaxValue;
-            return output;
-        }
+        Order = order;
+    }
+}
+
+public static class PropertyInfoUtils
+{
+    public static int PropertyOrder(this PropertyInfo propInfo)
+    {
+        var orderAttr = (OrderAttribute)propInfo.GetCustomAttributes(typeof(OrderAttribute), true).SingleOrDefault();
+        int output = orderAttr?.Order ?? int.MaxValue;
+        return output;
     }
 }

@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Bia10.Utils" Version="1.0.15" />
-    <PackageReference Include="LibGit2Sharp" Version="0.27.0-preview-0096" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="Spectre.Console" Version="0.39.1-preview.0.7" />
+    <PackageReference Include="Bia10.Utils" Version="1.0.33" />
+    <PackageReference Include="LibGit2Sharp" Version="0.27.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Spectre.Console" Version="0.47.1-preview.0.11" />
   </ItemGroup>
 
 </Project>

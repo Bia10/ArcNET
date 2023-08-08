@@ -1,8 +1,7 @@
-﻿namespace ArcNET.DataTypes.GameObjects
+﻿namespace ArcNET.DataTypes.GameObjects;
+
+public class GameObject
 {
-    public class GameObject
-    {
-        public GameObjectHeader Header;
-        public object Obj;
-    }
+    public GameObjectHeader Header;
+    public object Obj;
 }

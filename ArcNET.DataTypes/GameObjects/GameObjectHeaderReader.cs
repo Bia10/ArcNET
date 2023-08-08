@@ -3,41 +3,36 @@ using System.Collections;
 using System.IO;
 using Utils.Console;
 
-namespace ArcNET.DataTypes.GameObjects
+namespace ArcNET.DataTypes.GameObjects;
+
+public static class GameObjectHeaderReader
 {
-    public static class GameObjectHeaderReader
+    public static GameObjectHeader Read(this BinaryReader reader)
     {
-        public static GameObjectHeader Read(this BinaryReader reader)
+        var header = new GameObjectHeader
         {
-            var header = new GameObjectHeader
-            {
-                Version = reader.ReadInt32()
-            };
+            Version = reader.ReadInt32()
+        };
 
-            if (header.Version != 0x77)
-            {
-                throw new InvalidDataException("Unknown object file version: " + header.Version);
-            }
+        if (header.Version != 0x77)
+            throw new InvalidDataException("Unknown object file version: " + header.Version);
 
-            header.ProtoId = reader.ReadGameObjectGuid(true);
-            header.ObjectId = reader.ReadGameObjectGuid(true);
-            header.GameObjectType = (Enums.ObjectType)reader.ReadUInt32();
+        header.ProtoId = reader.ReadGameObjectGuid(true);
+        header.ObjectId = reader.ReadGameObjectGuid(true);
+        header.GameObjectType = (Enums.ObjectType)reader.ReadUInt32();
 
-            if (!header.ProtoId.IsProto())
-            {
-                header.PropCollectionItems = reader.ReadInt16();
-            }
+        if (!header.ProtoId.IsProto())
+            header.PropCollectionItems = reader.ReadInt16();
 
-            var bitmapLength = (int)Enum.Parse(typeof(Enums.ObjectFieldBitmap), header.GameObjectType.ToString());
-            header.Bitmap = new BitArray(reader.ReadBytes(bitmapLength));
+        var bitmapLength = (int)Enum.Parse(typeof(Enums.ObjectFieldBitmap), header.GameObjectType.ToString());
+        header.Bitmap = new BitArray(reader.ReadBytes(bitmapLength));
 
-            ConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} " 
-                                      + $"\n ProtoId: {header.ProtoId}"
-                                      + $"\n ObjectId: {header.ObjectId}"
-                                      + $"\n GameObjectType: {header.GameObjectType}"
-                                      + $"\n bitmapLength: {bitmapLength}"
-                                      + $"\n Bitmap: {header.Bitmap}", "warn");
-            return header;
-        }
+        ConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} "
+                              + $"\n ProtoId: {header.ProtoId}"
+                              + $"\n ObjectId: {header.ObjectId}"
+                              + $"\n GameObjectType: {header.GameObjectType}"
+                              + $"\n bitmapLength: {bitmapLength}"
+                              + $"\n Bitmap: {header.Bitmap}", "warn");
+        return header;
     }
 }
