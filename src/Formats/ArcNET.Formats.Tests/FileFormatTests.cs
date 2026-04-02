@@ -30,7 +30,7 @@ public class FileFormatTests
     public async Task MessageFormat_ParsesValidLines()
     {
         var lines = new[] { "{100}{Test message}", "{200}{Another}" };
-        var entries = MessageFormat.Parse(lines);
+        var entries = MessageFormat.ParseLines(lines);
         await Assert.That(entries.Count).IsEqualTo(2);
         await Assert.That(entries[0].Index).IsEqualTo(100);
         await Assert.That(entries[0].Text).IsEqualTo("Test message");
@@ -40,7 +40,7 @@ public class FileFormatTests
     public async Task MessageFormat_SkipsInvalidLines()
     {
         var lines = new[] { "// comment", "", "{42}{valid}" };
-        var entries = MessageFormat.Parse(lines);
+        var entries = MessageFormat.ParseLines(lines);
         await Assert.That(entries.Count).IsEqualTo(1);
         await Assert.That(entries[0].Index).IsEqualTo(42);
     }
@@ -51,10 +51,10 @@ public class FileFormatTests
         // Build a two-entry MES in UTF-8 bytes and parse via ParseMemory.
         var raw = "{10}{Hello}\n{20}{World}\n";
         var bytes = Encoding.UTF8.GetBytes(raw).AsMemory();
-        var entries = MessageFormat.ParseMemory(bytes);
-        await Assert.That(entries.Count).IsEqualTo(2);
-        await Assert.That(entries[0].Index).IsEqualTo(10);
-        await Assert.That(entries[1].Text).IsEqualTo("World");
+        var mesFile = MessageFormat.ParseMemory(bytes);
+        await Assert.That(mesFile.Entries.Count).IsEqualTo(2);
+        await Assert.That(mesFile.Entries[0].Index).IsEqualTo(10);
+        await Assert.That(mesFile.Entries[1].Text).IsEqualTo("World");
     }
 
     [Test]
@@ -62,21 +62,22 @@ public class FileFormatTests
     {
         // Parse → write → parse again; all entries survive the round-trip.
         var original = new[] { "{1}{Alpha}", "{2}{Beta}", "{3}{Gamma}" };
-        var entries = MessageFormat.Parse(original);
-        var bytes = MessageFormat.WriteToArray(entries).AsMemory();
+        var entries = MessageFormat.ParseLines(original);
+        var mesFile = new MesFile { Entries = entries };
+        var bytes = MessageFormat.WriteToArray(in mesFile).AsMemory();
         var reparsed = MessageFormat.ParseMemory(bytes);
 
-        await Assert.That(reparsed.Count).IsEqualTo(3);
-        await Assert.That(reparsed[0].Text).IsEqualTo("Alpha");
-        await Assert.That(reparsed[1].Text).IsEqualTo("Beta");
-        await Assert.That(reparsed[2].Text).IsEqualTo("Gamma");
+        await Assert.That(reparsed.Entries.Count).IsEqualTo(3);
+        await Assert.That(reparsed.Entries[0].Text).IsEqualTo("Alpha");
+        await Assert.That(reparsed.Entries[1].Text).IsEqualTo("Beta");
+        await Assert.That(reparsed.Entries[2].Text).IsEqualTo("Gamma");
     }
 
     [Test]
     public async Task TextDataFormat_ParsesKeyValueLines()
     {
         var lines = new[] { "Level:5", "Hit Points:100", "Faction:3 // inline comment" };
-        var entries = TextDataFormat.Parse(lines);
+        var entries = TextDataFormat.ParseLines(lines);
         await Assert.That(entries.Count).IsEqualTo(3);
         await Assert.That(entries[0].Key).IsEqualTo("Level");
         await Assert.That(entries[0].Value).IsEqualTo("5");
@@ -87,41 +88,27 @@ public class FileFormatTests
     public async Task TextDataFormat_SkipsBlankAndCommentLines()
     {
         var lines = new[] { "", "// full comment", "Key:Value" };
-        var entries = TextDataFormat.Parse(lines);
+        var entries = TextDataFormat.ParseLines(lines);
         await Assert.That(entries.Count).IsEqualTo(1);
     }
 
-    // ── Stub tests for not-yet-reversed formats ──────────────────────────
+    // ── FileFormat enum / extension lookup ────────────────────────────────
 
     [Test]
-    public void ProtoFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => ProtoFormat.ParseMemory(new byte[4]));
+    public async Task FromExtension_GsiExtension_ReturnsSaveInfo()
+    {
+        await Assert.That(FileFormatExtensions.FromExtension(".gsi")).IsEqualTo(FileFormat.SaveInfo);
+    }
 
     [Test]
-    public void MobFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => MobFormat.ParseMemory(new byte[4]));
+    public async Task FromExtension_TfaiExtension_ReturnsSaveIndex()
+    {
+        await Assert.That(FileFormatExtensions.FromExtension(".tfai")).IsEqualTo(FileFormat.SaveIndex);
+    }
 
     [Test]
-    public void ArtFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => ArtFormat.ParseMemory(new byte[4]));
-
-    [Test]
-    public void JmpFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => JmpFormat.ParseMemory(new byte[4]));
-
-    [Test]
-    public void ScriptFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => ScriptFormat.ParseMemory(new byte[4]));
-
-    [Test]
-    public void DialogFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => DialogFormat.ParseMemory(new byte[4]));
-
-    [Test]
-    public void TerrainFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => TerrainFormat.ParseMemory(new byte[4]));
-
-    [Test]
-    public void MapPropertiesFormat_Parse_ThrowsNotImplementedException() =>
-        Assert.Throws<NotImplementedException>(() => MapPropertiesFormat.ParseMemory(new byte[4]));
+    public async Task FromExtension_TfafExtension_ReturnsSaveData()
+    {
+        await Assert.That(FileFormatExtensions.FromExtension(".tfaf")).IsEqualTo(FileFormat.SaveData);
+    }
 }
