@@ -48,8 +48,15 @@
       IsAotCompatible is the SDK umbrella; we set the three explicitly so the
       intent is visible and they cannot be silently dropped. Conditions guard
       against project-level overrides (e.g. IsAotCompatible=false for tests).
+
+      Note: test projects (*.Tests) are never published as AOT, so we disable
+      the analyzers for them. Their Directory.Build.props (src/Tests/) is not
+      on the parent path of co-located test projects; the override is applied
+      here by project-name convention instead.
     -->
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- Test projects are never published — AOT analyzers are not applicable -->
+    <IsAotCompatible Condition="$(MSBuildProjectName.EndsWith('.Tests'))">false</IsAotCompatible>
     <EnableTrimAnalyzer Condition="'$(EnableTrimAnalyzer)' == ''">$(IsAotCompatible)</EnableTrimAnalyzer>
     <EnableAotAnalyzer Condition="'$(EnableAotAnalyzer)' == ''">$(IsAotCompatible)</EnableAotAnalyzer>
     <EnableSingleFileAnalyzer Condition="'$(EnableSingleFileAnalyzer)' == ''"
