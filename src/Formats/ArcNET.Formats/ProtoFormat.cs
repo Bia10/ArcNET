@@ -1,20 +1,46 @@
 ﻿using System.Buffers;
 using ArcNET.Core;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
 
-/// <summary>Placeholder for parsed Arcanum prototype (.pro) data.</summary>
-public sealed class ProtoData { }
+/// <summary>
+/// Parsed contents of an Arcanum object prototype (.pro) file.
+/// File path pattern: <c>data/proto/&lt;type&gt;/*.pro</c>.
+/// Source: <c>arcanum-ce/src/game/obj.c</c>, <c>proto.c</c>, <c>obj.h</c>.
+/// </summary>
+public sealed class ProtoData
+{
+    /// <summary>OFF file header (version + prototype ID + object ID + type + bitmap).</summary>
+    public required GameObjectHeader Header { get; init; }
 
-/// <summary>Span-based parser and writer for Arcanum prototype (.pro) files.</summary>
+    /// <summary>
+    /// Property values present in the bitmap, in bit-index order.
+    /// Each property's raw bytes include the full wire representation (including SAR headers).
+    /// For prototypes all bitmap bits are considered present.
+    /// </summary>
+    public required IReadOnlyList<ObjectProperty> Properties { get; init; }
+}
+
+/// <summary>
+/// Span-based parser and writer for Arcanum object prototype (.pro) files.
+/// The PRO format is structurally identical to MOB; the differences are:
+/// <list type="bullet">
+///   <item><see cref="GameObjectHeader.IsPrototype"/> is <see langword="true"/>.</item>
+///   <item>The <c>PropCollectionItems</c> int16 is absent from the header.</item>
+///   <item>All bitmap bits are treated as present — prototypes define every field.</item>
+/// </list>
+/// </summary>
 public sealed class ProtoFormat : IFormatReader<ProtoData>, IFormatWriter<ProtoData>
 {
     /// <inheritdoc/>
-    public static ProtoData Parse(scoped ref SpanReader reader) =>
-        throw new NotImplementedException("PRO format not yet reversed.");
+    public static ProtoData Parse(scoped ref SpanReader reader)
+    {
+        var header = GameObjectHeader.Read(ref reader);
+        var properties = ObjectPropertyIo.ReadProperties(ref reader, header);
 
-    /// <inheritdoc/>
-    public static ProtoData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+        return new ProtoData { Header = header, Properties = properties };
+    }
 
     /// <inheritdoc/>
     public static ProtoData ParseMemory(ReadOnlyMemory<byte> memory)
@@ -24,8 +50,14 @@ public sealed class ProtoFormat : IFormatReader<ProtoData>, IFormatWriter<ProtoD
     }
 
     /// <inheritdoc/>
-    public static void Write(in ProtoData value, ref SpanWriter writer) =>
-        throw new NotImplementedException("PRO format not yet reversed.");
+    public static ProtoData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+
+    /// <inheritdoc/>
+    public static void Write(in ProtoData value, ref SpanWriter writer)
+    {
+        value.Header.Write(ref writer);
+        ObjectPropertyIo.WriteProperties(value.Properties, ref writer);
+    }
 
     /// <inheritdoc/>
     public static byte[] WriteToArray(in ProtoData value)
