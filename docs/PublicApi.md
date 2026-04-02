@@ -1,7 +1,27 @@
 # Public API Reference
 
-All packages target `net10.0` and are AOT / trim compatible (no reflection at call site).
+All packages target `net10.0` and are **NativeAOT and trim compatible**.
 Versioning is via [MinVer](https://github.com/adamralph/minver) from git tags.
+
+## NativeAOT compatibility
+
+Every library is built with `IsAotCompatible=true`, which enables the IL2xxx/IL3xxx analyzers at build time.
+These guarantees hold across all packages:
+
+| Pattern | Status | Note |
+|---|---|---|
+| `SpanReader` / `SpanWriter` | ✅ Safe | Stack-allocated `ref struct`, zero heap, no reflection |
+| Primitives (`ArtId`, `Location`, …) | ✅ Safe | `readonly record struct`, static abstract interface members |
+| All format parsers (`MessageFormat`, `SectorFormat`, …) | ✅ Safe | Static methods, span-based, no reflection |
+| `FrozenDictionary` lookups | ✅ Safe | BCL type, AOT-supported |
+| `Enum.GetValues<T>()` | ✅ Safe | Concrete generic, resolved at compile time |
+| `GameDataExporter` JSON | ✅ Safe | Uses `[JsonSerializable]` source generation — **not** `JsonSerializer.Serialize<T>(obj)` with reflection |
+| `MemoryMappedFile` (`DatArchive`) | ✅ Safe | BCL type, no reflection |
+| LINQ (`.Select().ToList()`) | ✅ Safe | BCL, no reflection in .NET 10 |
+
+**What this means for consumers:** you can publish any ArcNET-based application with `PublishAot=true` without needing `rd.xml` files, `[DynamicDependency]` attributes, or suppress-trim annotations.
+
+---
 
 ---
 
@@ -195,7 +215,7 @@ public interface IFormatWriter<T>
 
 ### `FileFormat` (enum) + `FileFormatExtensions` (static)
 
-17 values: `Unknown | Message | Sector | Art | Dialog | Script | Proto | Mob | FacadeWalk | Jmp | TextData | SaveIndex | SaveInfo | Terrain | MapProperties | Tfaf | Terrain`
+16 values: `Unknown | Message | Sector | Art | Dialog | Script | Proto | Mob | FacadeWalk | Jmp | TextData | SaveIndex | SaveInfo | Terrain | MapProperties | Tfaf`
 
 | Method | Description |
 |---|---|
@@ -245,8 +265,8 @@ Backed by `MemoryMappedFile` — no full load into RAM.
 
 ## ArcNET.GameData
 
-> **Status (Preview):** `GameDataLoader` dispatches only on `FileFormat.Message` in the current release.
-> All other format types are discovered but not yet parsed into the store.
+> **Status:** `GameDataLoader` wires `FileFormat.Message`, `FileFormat.Sector`, `FileFormat.Proto`, and `FileFormat.Mob`.
+> Other formats (Dialog, Script, Art, …) are discovered but not yet dispatched into the store.
 
 ### `GameDataLoader` (static)
 
@@ -262,31 +282,53 @@ Backed by `MemoryMappedFile` — no full load into RAM.
 | Member | Description |
 |---|---|
 | `IReadOnlyList<GameObjectHeader> Objects` | All loaded object headers |
-| `IReadOnlyList<string> Messages` | All loaded message strings |
+| `IReadOnlyList<MessageEntry> Messages` | All loaded message entries (index + optional sound ID + text) |
+| `IReadOnlyList<Sector> Sectors` | All loaded sector data |
+| `IReadOnlyList<ProtoData> Protos` | All loaded prototype data |
+| `IReadOnlyList<MobData> Mobs` | All loaded mobile object data |
 | `IReadOnlySet<GameObjectGuid> DirtyObjects` | GUIDs marked dirty since last `ClearDirty` |
 | `event ObjectChanged` (`EventHandler<GameObjectGuid>`) | Raised on `AddObject` or `MarkDirty` |
 | `AddObject(GameObjectHeader)` | Append; invalidates GUID index |
-| `AddMessage(string)` | Append message text |
+| `AddMessage(MessageEntry)` | Append a fully-parsed message entry |
+| `AddSector(Sector)` | Append a parsed sector |
+| `AddProto(ProtoData)` | Append a parsed prototype |
+| `AddMob(MobData)` | Append a parsed mobile object |
 | `FindByGuid(in GameObjectGuid)` → `GameObjectHeader?` | O(1) lookup via lazy FrozenDictionary |
 | `MarkDirty(in GameObjectGuid)` | Add to dirty set; raise event |
 | `ClearDirty()` | Reset dirty set |
-| `Clear()` | Remove all data |
+| `Clear()` | Remove all data (objects, messages, sectors, protos, mobs, dirty set) |
 
 ### `GameDataSaver` (static)
 
 | Method | Description |
 |---|---|
-| `SaveMessagesToFile(GameDataStore, string outputPath)` | Write all messages to a single `.mes` file |
+| `SaveMessagesToFile(GameDataStore, string outputPath)` | Write all messages to a single `.mes` file, preserving original indices and sound IDs |
 | `SaveMessagesToMemory(GameDataStore)` → `byte[]` | Serialize all messages to bytes |
-| `SaveToDirectoryAsync(GameDataStore, string outputDir, IProgress<float>?, CancellationToken)` → `Task` | Write all data to `outputDir` |
-| `SaveToMemory(GameDataStore)` → `IReadOnlyDictionary<string, byte[]>` | Serialize to a virtual filename map |
+| `SaveSectorsToDirectory(GameDataStore, string outputDir)` | Write each sector as `sector_NNNNNN.sec` under `outputDir` |
+| `SaveProtosToDirectory(GameDataStore, string outputDir)` | Write each prototype as `proto_NNNNNN.pro` under `outputDir` |
+| `SaveMobsToDirectory(GameDataStore, string outputDir)` | Write each mob as `mob_NNNNNN.mob` under `outputDir` |
+| `SaveToDirectoryAsync(GameDataStore, string outputDir, IProgress<float>?, CancellationToken)` → `Task` | Write all data types to `outputDir` with progress reporting |
+| `SaveToMemory(GameDataStore)` → `IReadOnlyDictionary<string, byte[]>` | Serialize all data types to a virtual filename map |
 
 ### `GameDataExporter` (static)
 
+All JSON serialization uses `[JsonSerializable]` source generation — no reflection, fully AOT-safe.
+
 | Method | Description |
 |---|---|
-| `ExportToJson(GameDataStore)` → `string` | Serialize to JSON (System.Text.Json, source-generated) |
+| `ExportToJson(GameDataStore)` → `string` | Serialize the full store to a JSON string |
 | `ExportToJsonFileAsync(GameDataStore, string, CancellationToken)` → `Task` | Write JSON to a file |
+
+**DTOs exported:**
+
+| DTO | Fields |
+|---|---|
+| `GameDataExportDto` | `Objects`, `Messages`, `Sectors`, `Protos`, `Mobs` |
+| `GameObjectHeaderDto` | `Version`, `Type`, `ObjectId`, `ProtoId`, `IsPrototype` |
+| `MessageEntryDto` | `Index`, `SoundId?`, `Text` |
+| `SectorDto` | `LightCount`, `TileCount`, `HasRoofs`, `TileScriptCount`, `ObjectCount` |
+| `ProtoDto` | `Version`, `Type`, `ObjectId`, `ProtoId`, `PropertyCount` |
+| `MobDto` | `Version`, `Type`, `ObjectId`, `ProtoId`, `PropertyCount` |
 
 ---
 

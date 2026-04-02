@@ -3,6 +3,10 @@
 Comprehensive, copy-paste-ready examples for every ArcNET library.
 All code targets `net10.0` / C# 14.
 
+> **NativeAOT compatible.** Every library is built with `IsAotCompatible=true`.
+> All examples run unmodified with `PublishAot=true` — no `rd.xml`, no `[DynamicDependency]`.
+> JSON serialization uses `[JsonSerializable]` source generation (see [ArcNET.GameData](#arcnetgamedata)).
+
 ---
 
 ## Table of Contents
@@ -462,21 +466,43 @@ static IEnumerable<GameObjectHeader> LoadHeaders() => [];
 
 ## ArcNET.GameData
 
-> **Status (Preview):** `GameDataLoader` currently wires only `.mes` message files.
-> Object loading from `.mob` / `.pro` and other formats is in progress.
-> The `GameDataStore` design (dirty tracking, GUID index) is complete and stable.
+> **NativeAOT note:** All JSON serialization in this package uses `[JsonSerializable]` source generation.
+> No reflection is used at any call site. Safe for `PublishAot=true` without extra annotations.
 
-### Load all messages from a directory
+> **Status:** `GameDataLoader` wires `FileFormat.Message`, `FileFormat.Sector`, `FileFormat.Proto`, and `FileFormat.Mob`.
+> Other formats (Dialog, Script, Art, …) are discovered by `DiscoverFiles` but not yet dispatched into the store.
+
+### Load all game data from a directory
 
 ```csharp
 using ArcNET.GameData;
 
-// All .mes files in the tree are merged into a single store
+// Messages, sectors, protos, and mobs are all loaded concurrently
 GameDataStore store = await GameDataLoader.LoadFromDirectoryAsync(
     "extracted/",
     progress: new Progress<float>(p => Console.Write($"\rLoading {p:P0}   ")));
 
-Console.WriteLine($"Messages loaded: {store.Messages.Count}");
+Console.WriteLine($"Messages : {store.Messages.Count}");
+Console.WriteLine($"Sectors  : {store.Sectors.Count}");
+Console.WriteLine($"Protos   : {store.Protos.Count}");
+Console.WriteLine($"Mobs     : {store.Mobs.Count}");
+```
+
+### Access message entries (index, sound ID, text)
+
+```csharp
+using ArcNET.GameData;
+using ArcNET.Formats;  // MessageEntry
+
+GameDataStore store = await GameDataLoader.LoadFromDirectoryAsync("extracted/");
+
+foreach (MessageEntry msg in store.Messages)
+{
+    // msg.Index is the original .mes index number (preserved on round-trip)
+    // msg.SoundId is null when not present in the source file
+    // msg.Text is the display string
+    Console.WriteLine($"[{msg.Index}] ({msg.SoundId ?? "—"}) {msg.Text}");
+}
 ```
 
 ### Load from in-memory buffers (editor / test)
@@ -485,36 +511,55 @@ Console.WriteLine($"Messages loaded: {store.Messages.Count}");
 using ArcNET.GameData;
 
 // No filesystem access — suitable for editors and unit tests
+// Keys can be any filename; format is inferred from the extension
 var blobs = new Dictionary<string, ReadOnlyMemory<byte>>
 {
-    ["game.mes"]    = File.ReadAllBytes("game.mes"),
-    ["items.mes"]   = File.ReadAllBytes("items.mes"),
+    ["game.mes"]     = File.ReadAllBytes("game.mes"),
+    ["items.mes"]    = File.ReadAllBytes("items.mes"),
+    ["map_001.sec"]  = File.ReadAllBytes("map_001.sec"),
+    ["critter.pro"]  = File.ReadAllBytes("critter.pro"),
 };
 
 GameDataStore store = await GameDataLoader.LoadFromMemoryAsync(blobs);
+
 Console.WriteLine($"Messages: {store.Messages.Count}");
+Console.WriteLine($"Sectors : {store.Sectors.Count}");
+Console.WriteLine($"Protos  : {store.Protos.Count}");
 ```
 
-### Save messages back to disk
+### Save all data back to disk
 
 ```csharp
 using ArcNET.GameData;
 
 GameDataStore store = await GameDataLoader.LoadFromDirectoryAsync("extracted/");
 
-// Single-file save (all messages → one .mes file)
-GameDataSaver.SaveMessagesToFile(store, "output/game.mes");
-
-// Or as a byte array — no filesystem needed
-byte[] bytes = GameDataSaver.SaveMessagesToMemory(store);
-
-// Or use the directory-save overload (creates output/game.mes automatically)
+// Save every data type into output/ in one call
 await GameDataSaver.SaveToDirectoryAsync(store, "output/");
 
-// Or serialize to a virtual filename map
+// Or save individual types
+GameDataSaver.SaveMessagesToFile(store, "output/game.mes");      // preserves original indices
+GameDataSaver.SaveSectorsToDirectory(store, "output/sectors/");  // sector_000000.sec, …
+GameDataSaver.SaveProtosToDirectory(store, "output/protos/");   // proto_000000.pro, …
+GameDataSaver.SaveMobsToDirectory(store, "output/mobs/");       // mob_000000.mob, …
+```
+
+### Round-trip to an in-memory virtual filesystem
+
+```csharp
+using ArcNET.GameData;
+
+GameDataStore store = await GameDataLoader.LoadFromDirectoryAsync("extracted/");
+
+// Serialize to a virtual filename → bytes map (no filesystem writes)
 IReadOnlyDictionary<string, byte[]> files = GameDataSaver.SaveToMemory(store);
+
 foreach ((string name, byte[] data) in files)
     Console.WriteLine($"{name}: {data.Length} bytes");
+
+// Round-trip: load the virtual files back
+GameDataStore restored = await GameDataLoader.LoadFromMemoryAsync(
+    files.ToDictionary(kv => kv.Key, kv => (ReadOnlyMemory<byte>)kv.Value));
 ```
 
 ### Dirty tracking and the ObjectChanged event
@@ -529,28 +574,29 @@ var store = new GameDataStore();
 // Subscribe before loading so no events are missed
 store.ObjectChanged += (_, guid) => Console.WriteLine($"Changed: {guid}");
 
-// After loading ... mark an object dirty to trigger the event and dirty-set
+// After loading … mark an object dirty to trigger the event and dirty-set
 var guid = new GameObjectGuid(/*...*/);
 store.MarkDirty(in guid);
 
 Console.WriteLine($"Dirty count: {store.DirtyObjects.Count}");
 
-// Find an object by GUID in O(1)
+// Find an object by GUID in O(1) via lazy FrozenDictionary
 GameObjectHeader? header = store.FindByGuid(in guid);
 
-// Persist only dirty objects, then reset dirty state
+// Persist, then reset dirty state
 await GameDataSaver.SaveToDirectoryAsync(store, "output/");
 store.ClearDirty();
 ```
 
-### Export to JSON
+### Export to JSON (AOT-safe)
 
 ```csharp
 using ArcNET.GameData;
 
 GameDataStore store = await GameDataLoader.LoadFromDirectoryAsync("extracted/");
 
-// Full store → JSON string (System.Text.Json source-generated, AOT-compatible)
+// Full store → JSON string
+// Uses [JsonSerializable] source generation — no reflection, safe for PublishAot=true
 string json = GameDataExporter.ExportToJson(store);
 Console.WriteLine(json[..200]);
 
