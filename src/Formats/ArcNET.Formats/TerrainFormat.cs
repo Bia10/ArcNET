@@ -1,20 +1,184 @@
 ﻿using System.Buffers;
+using System.IO.Compression;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
 
-/// <summary>Placeholder for parsed Arcanum terrain definition (.tdf) data.</summary>
-public sealed class TerrainData { }
+/// <summary>
+/// Terrain type per tile, matching the <c>TerrainType</c> enum from
+/// <c>arcanum-ce/src/game/terrain.h</c>.
+/// </summary>
+public enum TerrainType : ushort
+{
+    /// <summary>Open grassland terrain.</summary>
+    Grasslands = 0,
 
-/// <summary>Span-based parser and writer for Arcanum terrain definition (.tdf) files.</summary>
+    /// <summary>Desert terrain.</summary>
+    Desert = 1,
+
+    /// <summary>Swamp terrain.</summary>
+    Swamp = 2,
+
+    /// <summary>Forest terrain.</summary>
+    Forest = 3,
+
+    /// <summary>Mountain terrain.</summary>
+    Mountain = 4,
+
+    /// <summary>Tundra / arctic terrain.</summary>
+    Tundra = 5,
+
+    /// <summary>Wasteland terrain.</summary>
+    Wasteland = 6,
+
+    /// <summary>Deep forest terrain.</summary>
+    DeepForest = 7,
+
+    /// <summary>Urban / city terrain.</summary>
+    Urban = 8,
+
+    /// <summary>Cavern terrain.</summary>
+    Cavern = 9,
+
+    /// <summary>Underground tunnel terrain.</summary>
+    Underground = 10,
+
+    /// <summary>Void / outer-plane terrain.</summary>
+    Void = 11,
+
+    /// <summary>Scorched earth terrain.</summary>
+    ScorchedEarth = 12,
+
+    /// <summary>Plains terrain.</summary>
+    Plains = 13,
+
+    /// <summary>Shallow water / bay terrain.</summary>
+    ShallowWater = 14,
+
+    /// <summary>Deep water / ocean terrain.</summary>
+    DeepWater = 15,
+
+    /// <summary>Farmland terrain.</summary>
+    Farmland = 16,
+
+    /// <summary>Sandy beach terrain.</summary>
+    Beach = 17,
+
+    /// <summary>Jungle terrain.</summary>
+    Jungle = 18,
+}
+
+/// <summary>
+/// Parsed contents of an Arcanum terrain definition (.tdf) file.
+/// Source: <c>arcanum-ce/src/game/terrain.c</c> (<c>terrain_open</c> / <c>terrain_flush</c>).
+/// </summary>
+public sealed class TerrainData
+{
+    /// <summary>Format version; always <c>1.2f</c> for supported files.</summary>
+    public required float Version { get; init; }
+
+    /// <summary>Base terrain type for the entire terrain sheet.</summary>
+    public required TerrainType BaseTerrainType { get; init; }
+
+    /// <summary>Width in tiles.</summary>
+    public required long Width { get; init; }
+
+    /// <summary>Height in tiles.</summary>
+    public required long Height { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the writer emits row-by-row zlib compression
+    /// (flag <c>0x1</c> in the header). Defaults to <see langword="true"/> because
+    /// compressed is always valid; set to <see langword="false"/> for uncompressed output.
+    /// </summary>
+    public required bool Compressed { get; init; }
+
+    /// <summary>
+    /// Terrain type per tile. Indexed as <c>Tiles[y * Width + x]</c>.
+    /// Values are <see cref="TerrainType"/> cast to <see cref="ushort"/>.
+    /// </summary>
+    public required ushort[] Tiles { get; init; }
+}
+
+/// <summary>
+/// Span-based parser and writer for Arcanum terrain definition (.tdf) files.
+/// Header: 32-byte <c>TerrainHeader</c>; body: <c>width × height × uint16</c> tile array.
+/// When <c>flags &amp; 0x1</c> the body is row-by-row zlib-compressed.
+/// </summary>
 public sealed class TerrainFormat : IFormatReader<TerrainData>, IFormatWriter<TerrainData>
 {
-    /// <inheritdoc/>
-    public static TerrainData Parse(scoped ref SpanReader reader) =>
-        throw new NotImplementedException("TDF format not yet reversed.");
+    private const float SupportedVersion = 1.2f;
+    private const uint CompressedFlag = 0x1;
+    private const int HeaderSize = 32;
 
     /// <inheritdoc/>
-    public static TerrainData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static TerrainData Parse(scoped ref SpanReader reader)
+    {
+        // TerrainHeader — 32 bytes
+        var version = reader.ReadSingle(); // 0x00 float
+        if (version != SupportedVersion)
+            throw new InvalidDataException($"Unsupported TDF version {version}; expected {SupportedVersion}.");
+
+        var flags = reader.ReadUInt32(); // 0x04
+        var width = reader.ReadInt64(); // 0x08
+        var height = reader.ReadInt64(); // 0x10
+        var baseType = (TerrainType)reader.ReadInt32(); // 0x18
+        reader.ReadInt32(); // 0x1C padding — discard
+
+        var tileCount = checked((int)(width * height));
+        var tiles = new ushort[tileCount];
+
+        if ((flags & CompressedFlag) != 0)
+            ReadCompressedRows(ref reader, tiles, width, height);
+        else
+            ReadRawTiles(ref reader, tiles, tileCount);
+
+        return new TerrainData
+        {
+            Version = version,
+            BaseTerrainType = baseType,
+            Width = width,
+            Height = height,
+            Compressed = (flags & CompressedFlag) != 0,
+            Tiles = tiles,
+        };
+    }
+
+    private static void ReadRawTiles(ref SpanReader reader, ushort[] tiles, int count)
+    {
+        for (var i = 0; i < count; i++)
+            tiles[i] = reader.ReadUInt16();
+    }
+
+    private static void ReadCompressedRows(ref SpanReader reader, ushort[] tiles, long width, long height)
+    {
+        var rowWidthBytes = checked((int)(width * 2));
+        var rowBuf = new byte[rowWidthBytes];
+
+        for (var row = 0; row < height; row++)
+        {
+            var compressedSize = reader.ReadInt32();
+            var compressed = reader.ReadBytes(compressedSize).ToArray();
+
+            using var compressedStream = new MemoryStream(compressed);
+            using var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress);
+
+            var totalRead = 0;
+            while (totalRead < rowWidthBytes)
+            {
+                var n = zlib.Read(rowBuf, totalRead, rowWidthBytes - totalRead);
+                if (n == 0)
+                    throw new InvalidDataException(
+                        $"TDF compressed row {row} decompressed to fewer bytes than expected."
+                    );
+                totalRead += n;
+            }
+
+            var tileOffset = (int)(row * width);
+            for (var col = 0; col < width; col++)
+                tiles[tileOffset + col] = (ushort)(rowBuf[col * 2] | (rowBuf[col * 2 + 1] << 8));
+        }
+    }
 
     /// <inheritdoc/>
     public static TerrainData ParseMemory(ReadOnlyMemory<byte> memory)
@@ -24,8 +188,51 @@ public sealed class TerrainFormat : IFormatReader<TerrainData>, IFormatWriter<Te
     }
 
     /// <inheritdoc/>
-    public static void Write(in TerrainData value, ref SpanWriter writer) =>
-        throw new NotImplementedException("TDF format not yet reversed.");
+    public static TerrainData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+
+    /// <inheritdoc/>
+    public static void Write(in TerrainData value, ref SpanWriter writer)
+    {
+        // Header — 32 bytes
+        writer.WriteSingle(value.Version);
+        writer.WriteUInt32(value.Compressed ? CompressedFlag : 0u);
+        writer.WriteInt64(value.Width);
+        writer.WriteInt64(value.Height);
+        writer.WriteInt32((int)value.BaseTerrainType);
+        writer.WriteInt32(0); // padding
+
+        if (value.Compressed)
+        {
+            // Body — row-by-row zlib compression
+            var rowWidth = (int)value.Width;
+            var rowBuf = new byte[rowWidth * 2];
+
+            for (var row = 0; row < value.Height; row++)
+            {
+                var tileOffset = (int)(row * value.Width);
+                for (var col = 0; col < rowWidth; col++)
+                {
+                    var t = value.Tiles[tileOffset + col];
+                    rowBuf[col * 2] = (byte)t;
+                    rowBuf[col * 2 + 1] = (byte)(t >> 8);
+                }
+
+                using var compressedStream = new MemoryStream();
+                using (var zlib = new ZLibStream(compressedStream, CompressionLevel.Optimal, leaveOpen: true))
+                    zlib.Write(rowBuf);
+
+                var compressed = compressedStream.ToArray();
+                writer.WriteInt32(compressed.Length);
+                writer.WriteBytes(compressed);
+            }
+        }
+        else
+        {
+            // Body — raw uint16 tiles
+            foreach (var t in value.Tiles)
+                writer.WriteUInt16(t);
+        }
+    }
 
     /// <inheritdoc/>
     public static byte[] WriteToArray(in TerrainData value)
