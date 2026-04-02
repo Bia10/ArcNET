@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
 namespace ArcNET.Patch;
@@ -23,6 +23,11 @@ public sealed class GitHubRelease
     public string Body { get; init; } = string.Empty;
 }
 
+/// <summary>Source-generated JSON serializer context for the Patch assembly.</summary>
+[JsonSerializable(typeof(GitHubRelease))]
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = false)]
+internal sealed partial class PatchJsonContext : JsonSerializerContext { }
+
 /// <summary>GitHub release query helpers (replaces the old LibGit2Sharp-based GitHub class).</summary>
 public static class GitHubReleaseClient
 {
@@ -37,7 +42,7 @@ public static class GitHubReleaseClient
     {
         using var client = CreateHttpClient();
         return await client
-            .GetFromJsonAsync<GitHubRelease>(HighResPatchRepoApi, cancellationToken)
+            .GetFromJsonAsync(HighResPatchRepoApi, PatchJsonContext.Default.GitHubRelease, cancellationToken)
             .ConfigureAwait(false);
     }
 

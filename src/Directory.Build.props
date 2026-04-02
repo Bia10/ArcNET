@@ -40,6 +40,22 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
 
+    <!--
+      Trim / NativeAOT analyzers — run at *build* time (no publish needed).
+        EnableTrimAnalyzer        → IL2xxx: member will be removed by trimmer
+        EnableAotAnalyzer         → IL3xxx: code incompatible with native AOT
+        EnableSingleFileAnalyzer  → IL3xxx (single-file publish variant)
+      IsAotCompatible is the SDK umbrella; we set the three explicitly so the
+      intent is visible and they cannot be silently dropped. Conditions guard
+      against project-level overrides (e.g. IsAotCompatible=false for tests).
+    -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer Condition="'$(EnableTrimAnalyzer)' == ''">$(IsAotCompatible)</EnableTrimAnalyzer>
+    <EnableAotAnalyzer Condition="'$(EnableAotAnalyzer)' == ''">$(IsAotCompatible)</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer Condition="'$(EnableSingleFileAnalyzer)' == ''"
+      >$(IsAotCompatible)</EnableSingleFileAnalyzer
+    >
+
     <!-- TUnit + .NET 10 SDK compatibility -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
