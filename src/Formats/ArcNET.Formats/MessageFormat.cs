@@ -1,13 +1,79 @@
-﻿namespace ArcNET.Formats;
+﻿using System.Buffers;
+using System.Text;
+using ArcNET.Core;
+
+namespace ArcNET.Formats;
 
 /// <summary>A single entry from a .mes message file.</summary>
-public readonly record struct MessageEntry(int Index, string Text);
-
-/// <summary>Parser and writer for Arcanum .mes (message) text files.</summary>
-public static class MessageFormat
+/// <param name="Index">Integer entry key.</param>
+/// <param name="SoundId">
+/// Optional sound-effect identifier token from 3-token lines (<c>{index}{sound}{text}</c>).
+/// <see langword="null"/> when the entry has no sound field.
+/// </param>
+/// <param name="Text">Displayed text (always the last brace-delimited token).</param>
+public readonly record struct MessageEntry(int Index, string? SoundId, string Text)
 {
+    /// <summary>Creates an entry with no sound identifier.</summary>
+    public MessageEntry(int index, string text)
+        : this(index, null, text) { }
+}
+
+/// <summary>Parsed contents of an Arcanum message (.mes) file.</summary>
+public sealed class MesFile
+{
+    /// <summary>All entries, in the order they appear in the file.</summary>
+    public required IReadOnlyList<MessageEntry> Entries { get; init; }
+}
+
+/// <summary>
+/// Span-based parser and writer for Arcanum message (.mes) text files.
+/// The format is plain text: each line with at least two brace-delimited tokens is an entry.
+/// Format: <c>{index}{text}</c> — or with optional sound field: <c>{index}{sound}{text}</c>.
+/// Implements <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/> using
+/// UTF-8 encoding for <see cref="SpanReader"/> / <see cref="SpanWriter"/> integration.
+/// </summary>
+public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFile>
+{
+    /// <inheritdoc/>
+    public static MesFile Parse(scoped ref SpanReader reader)
+    {
+        var text = Encoding.UTF8.GetString(reader.ReadBytes(reader.Remaining));
+        return new MesFile { Entries = ParseLines(text.Split('\n')) };
+    }
+
+    /// <inheritdoc/>
+    public static MesFile ParseMemory(ReadOnlyMemory<byte> memory)
+    {
+        var reader = new SpanReader(memory.Span);
+        return Parse(ref reader);
+    }
+
+    /// <inheritdoc/>
+    public static MesFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+
+    /// <inheritdoc/>
+    public static void Write(in MesFile value, ref SpanWriter writer)
+    {
+        var bytes = Encoding.UTF8.GetBytes(Serialize(value.Entries));
+        writer.WriteBytes(bytes);
+    }
+
+    /// <inheritdoc/>
+    public static byte[] WriteToArray(in MesFile value)
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        var writer = new SpanWriter(buf);
+        Write(in value, ref writer);
+        return buf.WrittenSpan.ToArray();
+    }
+
+    /// <inheritdoc/>
+    public static void WriteToFile(in MesFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+
+    // ── Legacy overloads kept for backward compatibility ──────────────────────
+
     /// <summary>Parses all valid message entries from the given lines.</summary>
-    public static IReadOnlyList<MessageEntry> Parse(IEnumerable<string> lines)
+    public static IReadOnlyList<MessageEntry> ParseLines(IEnumerable<string> lines)
     {
         var results = new List<MessageEntry>();
         foreach (var line in lines)
@@ -23,36 +89,22 @@ public static class MessageFormat
         return results;
     }
 
-    /// <summary>Parses all valid message entries from a file.</summary>
-    public static IReadOnlyList<MessageEntry> ParseFile(string path) => Parse(File.ReadAllLines(path));
-
-    /// <summary>Parses all valid message entries from a UTF-8 byte buffer.</summary>
-    public static IReadOnlyList<MessageEntry> ParseMemory(ReadOnlyMemory<byte> memory) =>
-        Parse(System.Text.Encoding.UTF8.GetString(memory.Span).Split('\n'));
-
-    /// <summary>
-    /// Serializes <paramref name="entries"/> to .mes text format, one entry per line.
-    /// </summary>
-    public static string Write(IEnumerable<MessageEntry> entries)
+    /// <summary>Serializes <paramref name="entries"/> to .mes text format.</summary>
+    public static string Serialize(IEnumerable<MessageEntry> entries)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         foreach (var entry in entries)
-            sb.AppendLine($"{{{entry.Index}}}{{{entry.Text}}}");
+        {
+            if (entry.SoundId != null)
+                sb.AppendLine($"{{{entry.Index}}}{{{entry.SoundId}}}{{{entry.Text}}}");
+            else
+                sb.AppendLine($"{{{entry.Index}}}{{{entry.Text}}}");
+        }
         return sb.ToString();
     }
 
-    /// <summary>Serializes <paramref name="entries"/> to a UTF-8 byte array.</summary>
-    public static byte[] WriteToArray(IEnumerable<MessageEntry> entries) =>
-        System.Text.Encoding.UTF8.GetBytes(Write(entries));
-
-    /// <summary>Serializes <paramref name="entries"/> and writes the result to a file.</summary>
-    public static void WriteToFile(IEnumerable<MessageEntry> entries, string path) =>
-        File.WriteAllBytes(path, WriteToArray(entries));
-
     private static MessageEntry? ParseLine(string line)
     {
-        // Format: {index}{text}  — or with optional sound: {index}{sound}{text}
-        // We read all braced tokens and use: first=index, last=text.
         var tokens = ReadAllBracedTokens(line.AsSpan());
         if (tokens.Count < 2)
             return null;
@@ -60,7 +112,11 @@ public static class MessageFormat
         if (!int.TryParse(tokens[0], out var index))
             return null;
 
-        return new MessageEntry(index, tokens[^1]);
+        // 3-token line: {index}{sound}{text} — middle token is the sound identifier
+        if (tokens.Count >= 3)
+            return new MessageEntry(index, tokens[1], tokens[^1]);
+
+        return new MessageEntry(index, null, tokens[^1]);
     }
 
     private static List<string> ReadAllBracedTokens(ReadOnlySpan<char> span)
