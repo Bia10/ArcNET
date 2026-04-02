@@ -42,8 +42,29 @@ public enum ObjectField
     ObjFScriptsIdx = 31,
     ObjFSoundEffect = 32,
     ObjFCategory = 33,
+
+    // Bit 34: wire type is Float (ObjFRotation in arcanum-ce). The name below is a legacy
+    // misnomer — despite the "Ias1" suffix implying an int32 array, ObjectPropertyIo correctly
+    // dispatches this bit as Float. Do not rename without updating ObjectCommon.cs.
     ObjFPadIas1 = 34,
     ObjFPadI64As1 = 35,
+
+    // ── Common (bits 36–40) — movement / physics ─────────────────────────────
+    // Wire types are Float throughout; cross-referenced from arcanum-ce obj.c object_fields[].
+    /// <summary>Run speed (float). Bit 36 in the common bitmap.</summary>
+    ObjFSpeedRun = 36,
+
+    /// <summary>Walk speed (float). Bit 37 in the common bitmap.</summary>
+    ObjFSpeedWalk = 37,
+
+    /// <summary>Reserved float field. Bit 38 in the common bitmap.</summary>
+    ObjFPadFloat1 = 38,
+
+    /// <summary>Collision radius (float). Bit 39 in the common bitmap.</summary>
+    ObjFRadius = 39,
+
+    /// <summary>Collision height (float). Bit 40 in the common bitmap.</summary>
+    ObjFHeight = 40,
 
     // ── Wall (bits 64–68) ────────────────────────────────────────────────────
     ObjFWallFlags = 64,
