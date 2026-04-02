@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 
 namespace ArcNET.Formats;
 
@@ -43,6 +43,15 @@ public enum FileFormat
 
     /// <summary>DAT archive file (.dat).</summary>
     DataArchive,
+
+    /// <summary>Save game info file (.gsi) — one per save slot.</summary>
+    SaveInfo,
+
+    /// <summary>Save game archive index file (.tfai).</summary>
+    SaveIndex,
+
+    /// <summary>Save game archive data blob file (.tfaf).</summary>
+    SaveData,
 }
 
 /// <summary>Extension-based format lookup utilities.</summary>
@@ -63,6 +72,9 @@ public static class FileFormatExtensions
         [".tdf"] = FileFormat.Terrain,
         [".prp"] = FileFormat.MapProperties,
         [".dat"] = FileFormat.DataArchive,
+        [".gsi"] = FileFormat.SaveInfo,
+        [".tfai"] = FileFormat.SaveIndex,
+        [".tfaf"] = FileFormat.SaveData,
     }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Returns the <see cref="FileFormat"/> for the given file extension (including leading dot).</summary>
