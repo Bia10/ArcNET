@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../../Core/ArcNET.Core/ArcNET.Core.csproj" />
+    <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
+    <ProjectReference Include="../../Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
   </ItemGroup>
 
   <ItemGroup>
