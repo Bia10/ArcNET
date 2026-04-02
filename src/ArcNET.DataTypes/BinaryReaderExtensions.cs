@@ -6,11 +6,14 @@ using System.Reflection;
 using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
 
-namespace ArcNET.DataTypes
+namespace ArcNET.DataTypes;
+
+public static class BinaryReaderExtensions
 {
-    public static class BinaryReaderExtensions
+    public static Location ReadLocation(this BinaryReader reader, bool force = false)
     {
-        public static Location ReadLocation(this BinaryReader reader, bool force = false)
+        var loc = new Location();
+        if (!force)
         {
             var loc = new Location();
             if (!force)
@@ -22,9 +25,8 @@ namespace ArcNET.DataTypes
                     throw new Exception();
             }
 
-            loc.X = reader.ReadInt32();
-            loc.Y = reader.ReadInt32();
-            return loc;
+            if (flag != 0x01) 
+                throw new Exception();
         }
 
         public static GameObjectGuid ReadGameObjectGuid(this BinaryReader reader, bool force = false)
@@ -56,12 +58,27 @@ namespace ArcNET.DataTypes
         }
     }
 
-    public static class BitArrayUtils
+    public static GameObjectGuid ReadGameObjectGuid(this BinaryReader reader, bool force = false)
     {
-        public static bool Get(this BitArray bitArray, int index, bool isPrototype)
+        if (!force)
         {
-            return bitArray.Get(index) || isPrototype;
+            byte flag = reader.ReadByte();
+            if (flag == 0x00) return null;
+
+            if (flag != 0x01)
+                throw new Exception();
         }
+
+        var result = new GameObjectGuid
+        {
+            Type = reader.ReadInt16(),
+            Foo0 = reader.ReadInt16(),
+            Foo2 = reader.ReadInt32()
+        };
+        byte[] guidData = reader.ReadBytes(16);
+        result.Guid = new Guid(guidData);
+
+        return result;
     }
 
     public class OrderAttribute : Attribute
@@ -74,7 +91,17 @@ namespace ArcNET.DataTypes
         }
     }
 
-    public static class PropertyInfoUtils
+public static class BitArrayUtils
+{
+    public static bool Get(this BitArray bitArray, int index, bool isPrototype)
+        => bitArray.Get(index) || isPrototype;
+}
+
+public class OrderAttribute : Attribute
+{
+    public int Order { get; private set; }
+
+    public OrderAttribute(int order)
     {
         public static int PropertyOrder(this PropertyInfo propInfo)
         {

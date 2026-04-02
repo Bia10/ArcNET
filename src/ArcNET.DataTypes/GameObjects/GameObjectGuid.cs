@@ -1,8 +1,15 @@
 ﻿using System;
 
-namespace ArcNET.DataTypes.GameObjects
+namespace ArcNET.DataTypes.GameObjects;
+
+public class GameObjectGuid
 {
-    public class GameObjectGuid
+    public short Type;
+    public short Foo0;
+    public int Foo2;
+    public Guid Guid;
+
+    public GameObjectGuid()
     {
         public short Type;
         public short Foo0;

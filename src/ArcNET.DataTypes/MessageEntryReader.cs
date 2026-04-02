@@ -2,9 +2,15 @@
 using System.Text.RegularExpressions;
 using Utils.Console;
 
-namespace ArcNET.DataTypes
+namespace ArcNET.DataTypes;
+
+public class MessageEntryReader
 {
-    public class MessageEntryReader
+    private readonly string _input;
+    private const string Pattern = "{(.*?)}";
+    private const string Substitution = "$1";
+
+    public MessageEntryReader(TextReader textReader)
     {
         private readonly string _input;
         private const string Pattern = @"{(.*?)}";

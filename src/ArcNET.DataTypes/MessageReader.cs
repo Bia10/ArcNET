@@ -2,9 +2,13 @@
 using System.IO;
 using Utils.Enumeration;
 
-namespace ArcNET.DataTypes
+namespace ArcNET.DataTypes;
+
+public class MessageReader
 {
-    public class MessageReader
+    private readonly StreamReader _reader;
+
+    public MessageReader(StreamReader reader)
     {
         private readonly StreamReader _reader;
 

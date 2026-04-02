@@ -1,7 +1,11 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 
-namespace ArcNET.DataTypes.GameObjects.Flags
+namespace ArcNET.DataTypes.GameObjects.Flags;
+
+[Flags]
+[SuppressMessage("ReSharper", "InconsistentNaming")]
+public enum ObjFSpellFlags
 {
     [Flags]
     [SuppressMessage("ReSharper", "InconsistentNaming")]

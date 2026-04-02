@@ -4,9 +4,11 @@ using LibGit2Sharp;
 using Utils.Console;
 using Utils.FileSystem;
 
-namespace ArcNET.Utilities
+namespace ArcNET.Utilities;
+
+public static class GitHub
 {
-    public static class GitHub
+    public static void CloneHighResPatch(string resultLocation)
     {
         public static void CloneHighResPatch(string resultLocation)
         {
@@ -17,13 +19,12 @@ namespace ArcNET.Utilities
             if (files.Count == 0)
                 return;
 
-            ConsoleExtensions.Log($"Cloned {files.Count} files", "success");
-            var highResPath = Path.Combine(resultLocation, "HighRes");
-            new DirectoryInfo(highResPath).CopyTo(resultLocation);
+        ConsoleExtensions.Log($"Cloned {files.Count} files", "success");
+        string highResPath = Path.Combine(resultLocation, "HighRes");
+        new DirectoryInfo(highResPath).CopyTo(resultLocation);
 
-            var foldersToDelete = new DirectoryInfo(highResPath);
-            ConsoleExtensions.Log($"Removing empty folder: {foldersToDelete}", "info");
-            foldersToDelete.ExistsDelete();
-        }
+        var foldersToDelete = new DirectoryInfo(highResPath);
+        ConsoleExtensions.Log($"Removing empty folder: {foldersToDelete}", "info");
+        foldersToDelete.ExistsDelete();
     }
 }

@@ -6,35 +6,64 @@ using ArcNET.DataTypes.Common;
 using Spectre.Console;
 using Utils.Console;
 
-namespace ArcNET.DataTypes.GameObjects
+namespace ArcNET.DataTypes.GameObjects;
+
+public static class GameObjectReader
 {
-    public static class GameObjectReader
+    public static GameObject GetGameObject(this BinaryReader reader)
     {
-        public static GameObject GetGameObject(this BinaryReader reader)
+        var gameObject = new GameObject();
+        var prototypeGameObject = new GameObject();
+
+        gameObject.Header = GameObjectHeaderReader.Read(reader);
+
+        if (!gameObject.Header.IsPrototype())
+            prototypeGameObject = GameObjectManager.ObjectList.Find(x =>
+                x.Header.ObjectId.GetId().CompareTo(gameObject.Header.ProtoId.GetId()) == 0);
+
+        const string pathToTypes = "ArcNET.DataTypes.GameObjects.Types.";
+        var gameObjectObjType = Type.GetType(pathToTypes + gameObject.Header.GameObjectType);
+        const string pathToCustomReader = "ArcNET.DataTypes.BinaryReaderExtensions";
+        var binaryReader = Type.GetType(pathToCustomReader);
+        gameObject.Obj = Activator.CreateInstance(gameObjectObjType ?? throw new InvalidOperationException());
+
+        IOrderedEnumerable<PropertyInfo> props = from p in gameObjectObjType.GetProperties()
+            where p.CanWrite
+            orderby p.PropertyOrder()
+            select p;
+
+        PropertyInfo[] propertyArray = props.ToArray();
+
+        foreach (PropertyInfo propertyInfo in propertyArray)
         {
-            var gameObject = new GameObject();
-            var prototypeGameObject = new GameObject();
+            if (binaryReader == null)
+                throw new InvalidOperationException("binaryReader is null");
 
-            gameObject.Header = GameObjectHeaderReader.Read(reader);
+            MethodInfo readMethod = binaryReader.GetMethod(propertyInfo.PropertyType.Name.Contains("Tuple")
+                ? "ReadArray"
+                : "Read" + propertyInfo.PropertyType.Name);
 
-            if (!gameObject.Header.IsPrototype())
+            if (readMethod is not null && readMethod.IsGenericMethod)
+                if (propertyInfo.PropertyType.FullName != null)
+                {
+                    string genericTypeName = propertyInfo.PropertyType.FullName
+                        .Replace("System.Tuple`2[[", "").Split(new[] { ',' })[0]
+                        .Replace("[]", "");
+                    readMethod = readMethod.MakeGenericMethod(Type.GetType(genericTypeName) ?? throw new InvalidOperationException());
+                }
+
+            var parameters = new List<object>
             {
                 prototypeGameObject = GameObjectManager.ObjectList.Find(x =>
                     x.Header.ObjectId.GetId().CompareTo(gameObject.Header.ProtoId.GetId()) == 0
                 );
             }
 
-            const string pathToTypes = "ArcNET.DataTypes.GameObjects.Types.";
-            var gameObjectObjType = Type.GetType(pathToTypes + gameObject.Header.GameObjectType);
-            const string pathToCustomReader = "ArcNET.DataTypes.BinaryReaderExtensions";
-            var binaryReader = Type.GetType(pathToCustomReader);
-            gameObject.Obj = Activator.CreateInstance(gameObjectObjType ?? throw new InvalidOperationException());
+            var bit = (int)Enum.Parse(typeof(Enums.ObjectField), propertyInfo.Name);
 
             var props = from p in gameObjectObjType.GetProperties() where p.CanWrite orderby p.PropertyOrder() select p;
 
-            var propertyArray = props.ToArray();
-
-            foreach (var propertyInfo in propertyArray)
+            if (gameObject.Header.Bitmap.Get(bit, gameObject.Header.IsPrototype()))
             {
                 if (binaryReader == null)
                     throw new InvalidOperationException("binaryReader is null");
@@ -45,7 +74,7 @@ namespace ArcNET.DataTypes.GameObjects
                         : "Read" + propertyInfo.PropertyType.Name
                 );
 
-                if (readMethod is not null && readMethod.IsGenericMethod)
+                try
                 {
                     if (propertyInfo.PropertyType.FullName != null)
                     {
@@ -106,10 +135,25 @@ namespace ArcNET.DataTypes.GameObjects
 
             foreach (var artId in artIds)
             {
-                ArtId.ArtIds.Add(artId);
-            }
+                if (prototypeGameObject == null || prototypeGameObject.Header.GameObjectType.ToString()
+                    != gameObjectObjType.ToString()) continue;
 
-            return gameObject;
+                Type tempType = prototypeGameObject.Obj.GetType();
+                PropertyInfo tempProperty = tempType.GetProperty(propertyInfo.Name);
+                object tempObj = tempProperty?.GetValue(prototypeGameObject.Obj);
+
+                propertyInfo.SetValue(gameObject.Obj, tempObj);
+            }
         }
+
+        IEnumerable<string> artIds = props
+            .Where(item =>
+                item.PropertyType.ToString() == "ArcNET.DataTypes.Common.ArtId" &&
+                item.GetValue(gameObject.Obj) != null).Select(item => ((ArtId)item.GetValue(gameObject.Obj))?.Path);
+
+        foreach (string artId in artIds)
+            ArtId.ArtIds.Add(artId);
+
+        return gameObject;
     }
 }

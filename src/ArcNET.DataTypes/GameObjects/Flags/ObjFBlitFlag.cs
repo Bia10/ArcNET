@@ -1,7 +1,9 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 
-namespace ArcNET.DataTypes.GameObjects.Flags
+namespace ArcNET.DataTypes.GameObjects.Flags;
+
+[Flags]
+public enum ObjFBlitFlag
 {
     [Flags]
     [SuppressMessage("ReSharper", "InconsistentNaming")]

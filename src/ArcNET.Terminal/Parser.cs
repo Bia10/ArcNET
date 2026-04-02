@@ -9,16 +9,39 @@ using ArcNET.DataTypes.GameObjects.Classes;
 using Spectre.Console;
 using Utils.Console;
 
-namespace ArcNET.Terminal
+namespace ArcNET.Terminal;
+
+public static class Parser
 {
-    public static class Parser
+    private static int _facadeWalksRed;
+    private static int _messagesRed;
+    private static int _textsRed;
+    private static int _sectorsRed;
+    private static int _prototypesRed;
+    private static int _artsRed;
+
+    public enum FileType
     {
-        private static int _facadeWalksRed;
-        private static int _messagesRed;
-        private static int _textsRed;
-        private static int _sectorsRed;
-        private static int _prototypesRed;
-        private static int _artsRed;
+        DataArchive,
+        FacadeWalk,
+        Message,
+        Sector,
+        Prototype,
+        PlayerBackground,
+        Mobile,
+        Art,
+        Jump,
+        Script,
+        Dialog,
+        Terrain,
+        MapProperties,
+        SoundWav,
+        SoundMp3,
+        Video,
+        Bitmap,
+        Text,
+        Any
+    }
 
         public enum FileType
         {
@@ -43,33 +66,21 @@ namespace ArcNET.Terminal
             Any,
         }
 
-        private static readonly Regex DataArchiveRegex = new(@"^.*\.dat$");
-        private static readonly Regex FacadeWalkRegex = new(@"facwalk\..{1,3}$");
-        private static readonly Regex MessageRegex = new(@"^.*\.mes$");
-        private static readonly Regex SectorRegex = new(@"^.*\.sec$");
-        private static readonly Regex PrototypeRegex = new(@"^.*\.pro$");
-        private static readonly Regex PlayerRegex = new(@"^.*\.mpc$");
-        private static readonly Regex MobileRegex = new(@"^.*\.mob$");
-        private static readonly Regex ArtRegex = new(@"^.*\.art$", RegexOptions.IgnoreCase);
-        private static readonly Regex JumpRegex = new(@"^.*\.jmp$");
-        private static readonly Regex ScriptRegex = new(@"^.*\.scr$");
-        private static readonly Regex DialogRegex = new(@"^.*\.dlg$");
-        private static readonly Regex TerrainRegex = new(@"^.*\.tdf$");
-        private static readonly Regex MapPropertiesRegex = new(@"^.*\.prp$");
-        private static readonly Regex SoundWavRegex = new(@"^.*\.wav$", RegexOptions.IgnoreCase);
-        private static readonly Regex SoundMp3Regex = new(@"^.*\.mp3$");
-        private static readonly Regex VideoRegex = new(@"^.*\.bik$");
-        private static readonly Regex BitmapRegex = new(@"^.*\.bmp$");
-        private static readonly Regex TextRegex = new(@"^.*\.txt$");
+    //TODO: rework, make entire parsing async
+    private static void ParseAndWriteAllInDir(string dirPath)
+    {
+        List<Tuple<List<string>, FileType>> data = LoadLocalData(dirPath);
 
-        //TODO: rework, make entire parsing async
-        private static void ParseAndWriteAllInDir(string dirPath)
-        {
-            var data = LoadLocalData(dirPath);
+        AnsiConsole.Write(Terminal.DirectoryTable(dirPath, data));
 
-            AnsiConsole.Render(Terminal.DirectoryTable(dirPath, data));
+        GameObjectManager.Init();
 
-            GameObjectManager.Init();
+        //Removes potential task which are done already
+        //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
+        var toRemove = new HashSet<Tuple<List<string>, FileType>>();
+        foreach (Tuple<List<string>, FileType> tupleList in data.Where(tuple => tuple.Item1.Count == 0 || (tuple.Item2 != FileType.Text && tuple.Item2 != FileType.Message)))
+            toRemove.Add(tupleList);
+        data.RemoveAll(toRemove.Contains);
 
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
@@ -120,14 +131,18 @@ namespace ArcNET.Terminal
             ConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
             foreach (var mob in mobsWithDrops)
             {
-                var namedDropTable = InventorySource.NamedDropTableFromId(mob.InventorySource);
-                ConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
-                foreach (var (name, chance) in namedDropTable)
-                    ConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
+                foreach ((string name, List<string> files, FileType fileType) in tasks)
+                {
+                    ProgressTask currentTask = ctx.AddTask(name, new ProgressTaskSettings
+                    {
+                        MaxValue = files.Count,
+                        AutoStart = false,
+                    });
 
-                var mobText = Wikia.GetEntityInfobox(mob);
-                ConsoleExtensions.Log($"mobText: |{mobText}|", "warn");
-            }
+                    foreach (string file in files)
+                        ParseAndWriteFile(file, fileType, currentTask, dirPath + @"\out\");
+                }
+            });
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
         }
@@ -140,7 +155,10 @@ namespace ArcNET.Terminal
             string outputFolder = null
         )
         {
-            //ConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
+            IEnumerable<Tuple<string, double>> namedDropTable = InventorySource.NamedDropTableFromId(mob.InventorySource);
+            ConsoleExtensions.Log($"mobName: |{mob.Description.Item2}| invSrcId: |{mob.InventorySource}|", "warn");
+            foreach ((string name, double chance) in namedDropTable)
+                ConsoleExtensions.Log($"itemName: |{name}| chance:|{chance}|", "warn");
 
             var outputPath = new FileInfo(fileName).Name;
             if (!string.IsNullOrEmpty(outputFolder))
@@ -428,69 +446,24 @@ namespace ArcNET.Terminal
             }
         }
 
-        public static void ParseExtractedData()
+        AnsiConsole.Write(Terminal.ReportTable(dirPath, data));
+    }
+
+    //Todo: make async, will likely need Async BinaryRead/Write
+    private static void ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
+    {
+        //ConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
+
+        string outputPath = new FileInfo(fileName).Name;
+        if (!string.IsNullOrEmpty(outputFolder))
         {
-            ConsoleExtensions.Log("Insert path to file or dirPath:", "info");
-            var inputPath = AnsiConsole.Ask<string>("[green]Input[/]");
-            while (string.IsNullOrEmpty(inputPath) || inputPath.Length < 10)
-            {
-                ConsoleExtensions.Log("Path either empty or incorrect format!", "error");
-                ConsoleExtensions.Log("Usage:<fileName|dirPath>", "error");
-                inputPath = AnsiConsole.Ask<string>("[green]Insert path to file or dirPath[/]:");
-            }
+            if (!Directory.Exists(outputFolder))
+                Directory.CreateDirectory(outputFolder);
 
-            if (Directory.Exists(inputPath))
-            {
-                try
-                {
-                    ParseAndWriteAllInDir(inputPath);
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.WriteException(ex);
-                    throw;
-                }
-            }
-            else
-            {
-                var fileName = Path.GetFileName(inputPath);
-                if (string.IsNullOrEmpty(fileName) || fileName.Length < 10)
-                {
-                    ConsoleExtensions.Log($"File: {inputPath} does not exists!", "error");
-                    throw new Exception("File not found!");
-                }
-
-                try
-                {
-                    var fileTypeToParse = FileType.Any;
-                    if (FacadeWalkRegex.IsMatch(fileName))
-                    {
-                        fileTypeToParse = FileType.FacadeWalk;
-                    }
-                    else if (MessageRegex.IsMatch(fileName))
-                    {
-                        fileTypeToParse = FileType.Message;
-                    }
-                    else if (SectorRegex.IsMatch(fileName))
-                    {
-                        fileTypeToParse = FileType.Sector;
-                    }
-                    else if (ArtRegex.IsMatch(fileName))
-                    {
-                        fileTypeToParse = FileType.Art;
-                    }
-
-                    //ParseAndWriteFile(inputPath, fileTypeToParse);
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.WriteException(ex);
-                    throw;
-                }
-            }
+            outputPath = outputFolder + outputPath;
         }
 
-        public static List<Tuple<List<string>, FileType>> LoadLocalData(string dirPath)
+        switch (fileType)
         {
             var allFiles = Directory.EnumerateFiles(dirPath, "*.*", SearchOption.AllDirectories).ToList();
 

@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using ArcNET.DataTypes.GameObjects.Flags;
 
-namespace ArcNET.DataTypes.GameObjects.Classes
+namespace ArcNET.DataTypes.GameObjects.Classes;
+
+public class Entity
 {
-    public class Entity
+    public enum BasicStatType
     {
         public enum BasicStatType
         {
@@ -70,7 +72,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public int InventorySource;
     }
 
-    public class Wikia
+    public enum DamageType
     {
         public static string Header = "{{EntityInfobox";
         public static string[] EntityInfoboxElements =

@@ -2,9 +2,15 @@
 using System.IO;
 using Spectre.Console;
 
-namespace ArcNET.DataTypes
+namespace ArcNET.DataTypes;
+
+public class MessageEntry
 {
-    public class MessageEntry
+    private int _index;
+    private int _dataCount;
+    private string[] _data;
+
+    public MessageEntry(string[] data)
     {
         private int _index;
         private int _dataCount;

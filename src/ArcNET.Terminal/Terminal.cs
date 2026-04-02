@@ -5,9 +5,11 @@ using ArcNET.Utilities;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace ArcNET.Terminal
+namespace ArcNET.Terminal;
+
+public static class Terminal
 {
-    public static class Terminal
+    public static void RenderLogo()
     {
         public static void RenderLogo()
         {
