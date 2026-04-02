@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
@@ -27,6 +27,22 @@ public sealed class GameObjectHeader
 
     /// <summary>Returns <see langword="true"/> when this header describes a prototype.</summary>
     public bool IsPrototype => ProtoId.IsProto;
+
+    internal void Write(ref SpanWriter writer)
+    {
+        writer.WriteInt32(Version);
+        ProtoId.Write(ref writer);
+        ObjectId.Write(ref writer);
+        writer.WriteUInt32((uint)GameObjectType);
+
+        if (!IsPrototype)
+            writer.WriteInt16(PropCollectionItems);
+
+        var bitmapLength = ObjectFieldBitmapSize.For(GameObjectType);
+        var bitmapBytes = new byte[bitmapLength];
+        Bitmap.CopyTo(bitmapBytes, 0);
+        writer.WriteBytes(bitmapBytes);
+    }
 
     internal static GameObjectHeader Read(ref SpanReader reader)
     {

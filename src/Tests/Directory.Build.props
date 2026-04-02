@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <!-- Test projects are never packed or published -->
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+
+    <!-- Suppress XML doc warnings — tests don't need public API docs -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- TUnit + Testing Platform integration -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+</Project>

@@ -1,3 +1,4 @@
+﻿using System.Buffers;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -217,5 +218,86 @@ public static class SectorFormat
         }
 
         return scripts;
+    }
+
+    /// <summary>Serializes a <see cref="Sector"/> to the given <paramref name="writer"/>.</summary>
+    public static void Write(in Sector value, ref SpanWriter writer)
+    {
+        WriteLights(value.Lights, ref writer);
+        WriteTiles(value.Tiles, ref writer);
+        WriteRoofListAbsent(ref writer);
+
+        var placeholder = value.SectorScript is not null ? 0xAA0002 : 0xAA0001;
+        writer.WriteInt32(placeholder);
+
+        WriteTileScripts(value.TileScripts, ref writer);
+
+        if (value.SectorScript is not null)
+            value.SectorScript.Write(ref writer);
+        else
+        {
+            // Emit an empty script so the placeholder 0xAA0002 round-trips correctly.
+            var empty = new GameObjectScript
+            {
+                Counters = [0, 0, 0, 0],
+                Flags = 0,
+                ScriptId = 0,
+            };
+            empty.Write(ref writer);
+        }
+    }
+
+    /// <summary>Serializes a <see cref="Sector"/> to a newly-allocated byte array.</summary>
+    public static byte[] WriteToArray(in Sector value)
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        var writer = new SpanWriter(buf);
+        Write(in value, ref writer);
+        return buf.WrittenSpan.ToArray();
+    }
+
+    /// <summary>Serializes a <see cref="Sector"/> and writes the result to a file.</summary>
+    public static void WriteToFile(in Sector value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+
+    private static void WriteLights(IReadOnlyList<SectorLight> lights, ref SpanWriter writer)
+    {
+        writer.WriteInt32(lights.Count);
+        foreach (var light in lights)
+        {
+            writer.WriteUInt64(light.Handle);
+            writer.WriteLocation(light.Position);
+            writer.WriteInt32(light.OffsetX);
+            writer.WriteInt32(light.OffsetY);
+            writer.WriteInt32(light.Flags0);
+            writer.WriteInt32(light.Art);
+            writer.WriteInt32(light.Color0);
+            writer.WriteInt32(light.Color1);
+            writer.WriteInt32(light.Unk0);
+            writer.WriteInt32(light.Unk1);
+        }
+    }
+
+    private static void WriteTiles(uint[] tiles, ref SpanWriter writer)
+    {
+        for (var i = 0; i < TileCount; i++)
+            writer.WriteUInt32(i < tiles.Length ? tiles[i] : 0u);
+    }
+
+    private static void WriteRoofListAbsent(ref SpanWriter writer) =>
+        // Non-zero value means the roof list is absent (no 256*4 bytes to follow).
+        writer.WriteInt32(1);
+
+    private static void WriteTileScripts(IReadOnlyList<TileScript> scripts, ref SpanWriter writer)
+    {
+        writer.WriteInt32(scripts.Count);
+        foreach (var script in scripts)
+        {
+            writer.WriteInt32(script.F1);
+            writer.WriteInt32(script.F2);
+            writer.WriteInt32(script.F3);
+            writer.WriteInt32(script.F4);
+            writer.WriteInt32(script.F5);
+            writer.WriteInt32(script.F6);
+        }
     }
 }

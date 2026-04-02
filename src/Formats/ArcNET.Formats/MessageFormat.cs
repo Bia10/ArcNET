@@ -1,9 +1,9 @@
-namespace ArcNET.Formats;
+﻿namespace ArcNET.Formats;
 
 /// <summary>A single entry from a .mes message file.</summary>
 public readonly record struct MessageEntry(int Index, string Text);
 
-/// <summary>Parser for Arcanum .mes (message) text files.</summary>
+/// <summary>Parser and writer for Arcanum .mes (message) text files.</summary>
 public static class MessageFormat
 {
     /// <summary>Parses all valid message entries from the given lines.</summary>
@@ -25,6 +25,29 @@ public static class MessageFormat
 
     /// <summary>Parses all valid message entries from a file.</summary>
     public static IReadOnlyList<MessageEntry> ParseFile(string path) => Parse(File.ReadAllLines(path));
+
+    /// <summary>Parses all valid message entries from a UTF-8 byte buffer.</summary>
+    public static IReadOnlyList<MessageEntry> ParseMemory(ReadOnlyMemory<byte> memory) =>
+        Parse(System.Text.Encoding.UTF8.GetString(memory.Span).Split('\n'));
+
+    /// <summary>
+    /// Serializes <paramref name="entries"/> to .mes text format, one entry per line.
+    /// </summary>
+    public static string Write(IEnumerable<MessageEntry> entries)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var entry in entries)
+            sb.AppendLine($"{{{entry.Index}}}{{{entry.Text}}}");
+        return sb.ToString();
+    }
+
+    /// <summary>Serializes <paramref name="entries"/> to a UTF-8 byte array.</summary>
+    public static byte[] WriteToArray(IEnumerable<MessageEntry> entries) =>
+        System.Text.Encoding.UTF8.GetBytes(Write(entries));
+
+    /// <summary>Serializes <paramref name="entries"/> and writes the result to a file.</summary>
+    public static void WriteToFile(IEnumerable<MessageEntry> entries, string path) =>
+        File.WriteAllBytes(path, WriteToArray(entries));
 
     private static MessageEntry? ParseLine(string line)
     {
