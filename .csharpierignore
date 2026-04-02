@@ -1,0 +1,9 @@
+# Legacy projects — not part of the new build; excluded from CSharpier formatting
+src/ArcNET.DataTypes/
+src/ArcNET.Terminal/
+src/ArcNET.Utilities/
+
+# Build outputs
+artifacts/
+**/bin/
+**/obj/

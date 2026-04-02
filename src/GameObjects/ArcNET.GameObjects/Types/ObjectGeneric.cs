@@ -1,0 +1,49 @@
+﻿using System.Collections;
+using ArcNET.Core;
+
+namespace ArcNET.GameObjects.Types;
+
+public sealed class ObjectGeneric : ObjectItem
+{
+    public int GenericFlags { get; set; }
+    public int GenericUsageBonus { get; set; }
+    public int GenericUsageCountRemaining { get; set; }
+    public int GenericPadIas1 { get; set; }
+    public long GenericPadI64As1 { get; set; }
+
+    internal static ObjectGeneric Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    {
+        var obj = new ObjectGeneric();
+        obj.ReadCommonFields(ref reader, bitmap, isPrototype);
+        obj.ReadItemFields(ref reader, bitmap, isPrototype);
+        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        if (Bit(ObjectField.ObjFGenericFlags))
+            obj.GenericFlags = reader.ReadInt32();
+        if (Bit(ObjectField.ObjFGenericUsageBonus))
+            obj.GenericUsageBonus = reader.ReadInt32();
+        if (Bit(ObjectField.ObjFGenericUsageCountRemaining))
+            obj.GenericUsageCountRemaining = reader.ReadInt32();
+        if (Bit(ObjectField.ObjFGenericPadIas1))
+            obj.GenericPadIas1 = reader.ReadInt32();
+        if (Bit(ObjectField.ObjFGenericPadI64As1))
+            obj.GenericPadI64As1 = reader.ReadInt64();
+        return obj;
+    }
+
+    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    {
+        WriteCommonFields(ref writer, bitmap, isPrototype);
+        WriteItemFields(ref writer, bitmap, isPrototype);
+        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        if (Bit(ObjectField.ObjFGenericFlags))
+            writer.WriteInt32(GenericFlags);
+        if (Bit(ObjectField.ObjFGenericUsageBonus))
+            writer.WriteInt32(GenericUsageBonus);
+        if (Bit(ObjectField.ObjFGenericUsageCountRemaining))
+            writer.WriteInt32(GenericUsageCountRemaining);
+        if (Bit(ObjectField.ObjFGenericPadIas1))
+            writer.WriteInt32(GenericPadIas1);
+        if (Bit(ObjectField.ObjFGenericPadI64As1))
+            writer.WriteInt64(GenericPadI64As1);
+    }
+}

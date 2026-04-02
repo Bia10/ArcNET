@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: dotnet
+
+permissions: read-all
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Build
+        run: dotnet build ArcNET.Build.slnx -c Release
+
+      - name: Test (Core)
+        run: dotnet run --project src/Core/ArcNET.Core.Tests -c Release
+
+      - name: Test (GameObjects)
+        run: dotnet run --project src/GameObjects/ArcNET.GameObjects.Tests -c Release
+
+      - name: Test (Formats)
+        run: dotnet run --project src/Formats/ArcNET.Formats.Tests -c Release
+
+      - name: Test (GameData)
+        run: dotnet run --project src/GameData/ArcNET.GameData.Tests -c Release
+
+      - name: Test (Archive)
+        run: dotnet run --project src/Archive/ArcNET.Archive.Tests -c Release
+
+      - name: Test (Patch)
+        run: dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
+
+  format:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: CSharpier check
+        run: dotnet csharpier check .
+
+      - name: dotnet format style
+        run: dotnet format style ArcNET.Build.slnx --verify-no-changes
+
+      - name: dotnet format analyzers
+        run: dotnet format analyzers ArcNET.Build.slnx --verify-no-changes

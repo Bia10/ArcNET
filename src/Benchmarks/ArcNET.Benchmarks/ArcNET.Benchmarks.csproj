@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.Benchmarks</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet is not AOT-compatible; opt out of AOT analysis -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Core/ArcNET.Core/ArcNET.Core.csproj" />
+    <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
+    <ProjectReference Include="../../Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+  </ItemGroup>
+</Project>

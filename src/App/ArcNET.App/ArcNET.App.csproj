@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.App</RootNamespace>
+    <AssemblyName>arcnet</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../GameData/ArcNET.GameData/ArcNET.GameData.csproj" />
+    <ProjectReference Include="../../Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
+    <ProjectReference Include="../../Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
+  </ItemGroup>
+</Project>
