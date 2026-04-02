@@ -2,7 +2,7 @@
 
 ![.NET](https://img.shields.io/badge/net10.0-5C2D91?logo=.NET&labelColor=gray)
 ![C#](https://img.shields.io/badge/C%23-14.0-239120?labelColor=gray)
-[![Build Status](https://github.com/Bia10/ArcNET/actions/workflows/dotnet.yml/badge.svg?branch=net10-refactor)](https://github.com/Bia10/ArcNET/actions/workflows/dotnet.yml)
+[![Build Status](https://github.com/Bia10/ArcNET/actions/workflows/dotnet.yml/badge.svg?branch=main)](https://github.com/Bia10/ArcNET/actions/workflows/dotnet.yml)
 [![codecov](https://codecov.io/gh/Bia10/ArcNET/branch/main/graph/badge.svg)](https://codecov.io/gh/Bia10/ArcNET)
 [![License](https://img.shields.io/github/license/Bia10/ArcNET)](https://github.com/Bia10/ArcNET/blob/main/LICENSE)
 
@@ -11,22 +11,22 @@ Span-based, zero-allocation binary parsing with a UI-agnostic library API — us
 
 ⭐ Please star this project if you find it useful. ⭐
 
-[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](#example-catalogue) · [Public API](docs/PublicApi.md)
+[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](docs/examples.md) · [Public API](docs/PublicApi.md)
 
 ---
 
 ## Packages
 
-| Package | NuGet | Description |
-|---|---|---|
-| `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`) |
-| `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | Full game-object model — 22 typed data classes with explicit `Read` + `Write` |
-| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | Binary format parsers/writers for MES, SEC, FAC, TDF and more |
-| `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | `GameDataLoader` (directory + in-memory), `GameDataStore`, `GameDataSaver` |
-| `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | DAT archive pack / unpack backed by `MemoryMappedFile` |
-| `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | HighRes patch configuration, installer, and uninstaller |
+| Package | NuGet | Status | Description |
+|---|---|---|---|
+| `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | ✅ Ready | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`, `PrefixedString`) |
+| `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | ✅ Ready | Full game-object model — 22 typed data classes with explicit `Read` + `Write` |
+| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | ✅ Ready | Binary format parsers/writers for MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP |
+| `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | ✅ Ready | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support |
+| `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | 🚧 Preview | `GameDataLoader` (messages fully wired; other formats in progress), `GameDataStore` with dirty tracking + GUID index, `GameDataSaver`, `GameDataExporter` |
+| `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | ✅ Ready | HighRes patch configuration, installer, and uninstaller |
 
-All packages target `net10.0` and carry no dependencies outside the BCL.
+All packages target `net10.0`, carry no dependencies outside the BCL, and are AOT / trim compatible.
 
 ---
 
@@ -36,86 +36,31 @@ All packages target `net10.0` and carry no dependencies outside the BCL.
 using ArcNET.Formats;
 
 // Parse a MES message file from disk — one allocation (File.ReadAllBytes)
-IReadOnlyList<MessageEntry> messages = MessageFormat.ParseFile("arcanum/mes/game.mes");
+MesFile mesFile = MessageFormat.ParseFile("arcanum/mes/game.mes");
+IReadOnlyList<MessageEntry> messages = mesFile.Entries;
 
 // Or from a buffer you already own — zero extra allocations
 ReadOnlyMemory<byte> buf = await File.ReadAllBytesAsync("game.mes");
-messages = MessageFormat.ParseMemory(buf);
+mesFile = MessageFormat.ParseMemory(buf);
 
 // Serialize back to bytes
-byte[] bytes = MessageFormat.WriteToArray(messages);
+byte[] bytes = MessageFormat.WriteToArray(in mesFile);
 ```
 
-For more examples see [Example Catalogue](#example-catalogue).
+For more examples see the [Example Catalogue](docs/examples.md).
 
 ---
 
 ## Example Catalogue
 
-### Open and extract a DAT archive
+The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples for every library and format:
 
-```csharp
-using ArcNET.Archive;
-
-using DatArchive archive = DatArchive.Open("arcanum.dat");
-
-// Enumerate the entry table (FrozenDictionary — O(1) lookup, no allocation)
-foreach (ArchiveEntry entry in archive.Entries)
-    Console.WriteLine($"{entry.Path}  {entry.UncompressedSize:N0} bytes");
-
-// Extract all entries to a directory
-await DatExtractor.ExtractAllAsync(archive, outputDir: "extracted/");
-
-// Read a single entry without loading the whole archive
-ReadOnlyMemory<byte> data = archive.GetEntryData("art/CRITTERS/critter.art");
-```
-
-### Load and query game data
-
-```csharp
-using ArcNET.GameData;
-
-// Source 1: extracted directory on disk
-GameDataStore store = await new GameDataLoader().LoadFromDirectoryAsync("extracted/");
-
-Console.WriteLine($"Loaded {store.Messages.Count} messages, {store.Objects.Count} objects");
-
-// Source 2: pre-loaded byte blobs (editor / unit-test friendly — no filesystem needed)
-IReadOnlyDictionary<string, ReadOnlyMemory<byte>> blobs = LoadBlobsFromSomewhere();
-store = await new GameDataLoader().LoadFromMemoryAsync(blobs);
-
-// Save changed files back
-await new GameDataSaver().SaveToDirectoryAsync(store, "output/");
-
-// Or serialize to memory for in-process round-trips
-IReadOnlyDictionary<string, byte[]> result = new GameDataSaver().SaveToMemory(store);
-```
-
-### Parse a game object from raw bytes
-
-```csharp
-using ArcNET.Core;
-using ArcNET.GameObjects;
-
-byte[] raw = File.ReadAllBytes("critter.mob");
-var reader = new SpanReader(raw);
-
-GameObjectHeader header = GameObjectHeader.Read(ref reader);
-Console.WriteLine($"Type: {header.ObjectType}  GUID: {header.Guid}");
-```
-
-### Install the HighRes patch
-
-```csharp
-using ArcNET.Patch;
-
-var installer = new PatchInstaller();
-await installer.InstallAsync(gameDir: @"C:\Games\Arcanum");
-
-// Remove the patch later
-var uninstaller = new PatchUninstaller();
-await uninstaller.UninstallAsync(gameDir: @"C:\Games\Arcanum");
-```
+- **ArcNET.Formats** — MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP parsers; round-trip serialization; file discovery
+- **ArcNET.Archive** — open, enumerate, extract single/all entries, read without extracting, pack a directory, TFAF sub-archive
+- **ArcNET.GameObjects** — read full game objects, read headers only, `GameObjectStore`
+- **ArcNET.GameData** — load from directory or in-memory buffers, save to disk / memory, dirty tracking, JSON export
+- **ArcNET.Patch** — install / uninstall the HighRes patch, read and modify `HighResConfig`
+- **ArcNET.Core** — low-level `SpanReader` / `SpanWriter`, primitive round-trips, `EnumLookup`
 
 ---
 
