@@ -37,6 +37,6 @@ namespace ArcNET.DataTypes.GameObjects.Flags
         OF_MULTIPLAYER_LOCK,
         OF_FROZEN,
         OF_ANIMATED_DEAD,
-        OF_TELEPORTED
+        OF_TELEPORTED,
     }
 }

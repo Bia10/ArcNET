@@ -33,6 +33,6 @@ namespace ArcNET.DataTypes.GameObjects.Flags
         OCF2_SAFE_OFF,
         OCF2_CHECK_REACTION_BAD,
         OCF2_CHECK_ALIGN_GOOD,
-        OCF2_CHECK_ALIGN_BAD
+        OCF2_CHECK_ALIGN_BAD,
     }
 }

@@ -1,7 +1,7 @@
-﻿using ArcNET.DataTypes.GameObjects;
-using ArcNET.DataTypes.GameObjects.Classes;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
+using ArcNET.DataTypes.GameObjects;
+using ArcNET.DataTypes.GameObjects.Classes;
 using Utils.Console;
 
 namespace ArcNET.DataTypes
@@ -183,7 +183,8 @@ namespace ArcNET.DataTypes
                     mobStringList.Clear();
                 }
 
-                if (curLine == null) break;
+                if (curLine == null)
+                    break;
             }
         }
     }

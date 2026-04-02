@@ -40,7 +40,7 @@ namespace ArcNET.DataTypes
                 "2040 window metal shutters" => "{2040}{window-metal-shutters}",
                 "2041 window stained glass" => "{2041}{window-stained-glass}",
                 "2042 window boarded up" => "{2042}{window-boarded-up}",
-                _ => input
+                _ => input,
             };
 
             var regex = new Regex(Pattern);

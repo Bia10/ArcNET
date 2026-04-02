@@ -1,9 +1,9 @@
-﻿using ArcNET.Utilities;
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using ArcNET.Utilities;
+using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace ArcNET.Terminal
 {
@@ -11,18 +11,12 @@ namespace ArcNET.Terminal
     {
         public static void RenderLogo()
         {
-            AnsiConsole.Render(
-                new FigletText("ArcNET v0.0.1")
-                    .LeftAligned()
-                    .Color(Color.Green));
+            AnsiConsole.Render(new FigletText("ArcNET v0.0.1").LeftAligned().Color(Color.Green));
         }
 
         public static IRenderable DirectoryTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
         {
-            var table = new Table()
-                .RoundedBorder()
-                .AddColumn("Summary for dirPath:")
-                .AddColumn($"{dirPath}");
+            var table = new Table().RoundedBorder().AddColumn("Summary for dirPath:").AddColumn($"{dirPath}");
 
             foreach (var (pathToFiles, fileType) in data)
                 table.AddRow($"{Enum.GetName(typeof(Parser.FileType), fileType)}", $"{pathToFiles.Count}");
@@ -32,13 +26,10 @@ namespace ArcNET.Terminal
 
         public static IRenderable ConfigTable()
         {
-            var table = new Table()
-                .RoundedBorder()
-                .AddColumn("Parameter name")
-                .AddColumn("Parameter value");
+            var table = new Table().RoundedBorder().AddColumn("Parameter name").AddColumn("Parameter value");
 
-            const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic |
-                                              BindingFlags.Instance | BindingFlags.Static;
+            const BindingFlags bindingFlags =
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
             foreach (var field in typeof(HighResConfig).GetFields(bindingFlags))
                 table.AddRow($"{field.Name}", $"{field.GetValue(field)}");
@@ -49,13 +40,13 @@ namespace ArcNET.Terminal
         //TODO: merge with summary table?
         public static IRenderable ReportTable(string dirPath, IEnumerable<Tuple<List<string>, Parser.FileType>> data)
         {
-            var table = new Table()
-                .RoundedBorder()
-                .AddColumn("Parsing report for dirPath:")
-                .AddColumn($"{dirPath}");
+            var table = new Table().RoundedBorder().AddColumn("Parsing report for dirPath:").AddColumn($"{dirPath}");
 
             foreach (var (pathToFiles, fileType) in data)
-                table.AddRow($"{Enum.GetName(typeof(Parser.FileType), fileType)} files parsed:", $"{pathToFiles.Count}");
+                table.AddRow(
+                    $"{Enum.GetName(typeof(Parser.FileType), fileType)} files parsed:",
+                    $"{pathToFiles.Count}"
+                );
 
             return table;
         }
@@ -67,8 +58,14 @@ namespace ArcNET.Terminal
                     .Title("[green]What would you like to do[/]?")
                     .PageSize(5)
                     .MoreChoicesText("[grey](Move up and down to reveal more choices)[/]")
-                    .AddChoices("Extract game data", "Parse extracted game data", "Install High-Res patch",
-                        "Uninstall High-Res patch", "Launch Arcanum.exe"));
+                    .AddChoices(
+                        "Extract game data",
+                        "Parse extracted game data",
+                        "Install High-Res patch",
+                        "Uninstall High-Res patch",
+                        "Launch Arcanum.exe"
+                    )
+            );
         }
     }
 }

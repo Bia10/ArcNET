@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Spectre.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -36,7 +36,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     levelAndXp[1] = levelAndXp[1].TrimEnd();
                     var xp = int.Parse(levelAndXp[1]);
 
-                    LoadedXpLevels.Entries.Add(new LevelXpEntry(level,xp));
+                    LoadedXpLevels.Entries.Add(new LevelXpEntry(level, xp));
                 }
             }
             catch (Exception ex)

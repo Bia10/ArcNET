@@ -38,6 +38,6 @@ namespace ArcNET.DataTypes.GameObjects.Flags
         OSF_DRUNK,
         OSF_ENSHROUDED,
         OSF_FAMILIAR,
-        OSF_HARDENED_HANDS
+        OSF_HARDENED_HANDS,
     }
 }

@@ -1,9 +1,9 @@
-﻿using ArcNET.DataTypes.GameObjects.Flags;
-using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using ArcNET.DataTypes.GameObjects.Flags;
+using Spectre.Console;
 using Utils.Console;
 using Utils.Enumeration;
 
@@ -11,7 +11,6 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 {
     public class Unique : Entity
     {
-
         private static List<int> GetWhitespaceIndexes(string input)
         {
             var whiteSpaceIndexes = new List<int>();
@@ -36,7 +35,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var objFlag in (ObjFFlags[])Enum.GetValues(typeof(ObjFFlags)))
             {
-                if (!Enum.GetName(typeof(ObjFFlags), objFlag).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFFlags), objFlag).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFFlags param:|{trimmedFlag}|", "success");
                 flag = objFlag;
             }
@@ -53,7 +53,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var critterFlag in (ObjFCritterFlags[])Enum.GetValues(typeof(ObjFCritterFlags)))
             {
-                if (!Enum.GetName(typeof(ObjFCritterFlags), critterFlag).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFCritterFlags), critterFlag).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFCritterFlags param:|{trimmedFlag}|", "success");
                 flag = critterFlag;
             }
@@ -70,7 +71,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var critterFlag2 in (ObjFCritterFlags2[])Enum.GetValues(typeof(ObjFCritterFlags2)))
             {
-                if (!Enum.GetName(typeof(ObjFCritterFlags2), critterFlag2).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFCritterFlags2), critterFlag2).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFCritterFlags2 param:|{trimmedFlag}|", "success");
                 flag = critterFlag2;
             }
@@ -87,7 +89,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var npcFlag in (ObjFNpcFlags[])Enum.GetValues(typeof(ObjFNpcFlags)))
             {
-                if (!Enum.GetName(typeof(ObjFNpcFlags), npcFlag).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFNpcFlags), npcFlag).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFNpcFlags param:|{trimmedFlag}|", "success");
                 flag = npcFlag;
             }
@@ -104,7 +107,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var blitFlags in (ObjFBlitFlag[])Enum.GetValues(typeof(ObjFBlitFlag)))
             {
-                if (!Enum.GetName(typeof(ObjFBlitFlag), blitFlags).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFBlitFlag), blitFlags).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFBlitFlag param:|{trimmedFlag}|", "success");
                 flag = blitFlags;
             }
@@ -121,7 +125,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
             foreach (var spellFlags in (ObjFSpellFlags[])Enum.GetValues(typeof(ObjFSpellFlags)))
             {
-                if (!Enum.GetName(typeof(ObjFSpellFlags), spellFlags).Equals(trimmedFlag)) continue;
+                if (!Enum.GetName(typeof(ObjFSpellFlags), spellFlags).Equals(trimmedFlag))
+                    continue;
                 //ConsoleExtensions.Log($"Recognized ObjFSpellFlags param:|{trimmedFlag}|", "success");
                 flag = spellFlags;
             }
@@ -134,8 +139,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             var trimmedStats = paramValue.TrimStart();
 
             //skip junk
-            if (trimmedStats.Equals("Strength 13") || trimmedStats.Equals("Dexterity 15") ||
-                trimmedStats.Equals("Dexterity 14")) return null;
+            if (
+                trimmedStats.Equals("Strength 13")
+                || trimmedStats.Equals("Dexterity 15")
+                || trimmedStats.Equals("Dexterity 14")
+            )
+                return null;
 
             var separator = "\t\t";
             if (trimmedStats.Contains("Gender") || trimmedStats.Contains("Race"))
@@ -159,7 +168,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             {
                 "magickpoints" => "MagickPoints",
                 "techpoints" => "TechPoints",
-                _ => statType
+                _ => statType,
             };
 
             if (!((IList)Enum.GetNames(typeof(BasicStatType))).Contains(statType))
@@ -184,20 +193,21 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
         private static Tuple<ResistanceType, int> GetResistTuple(string paramName, string paramValue)
         {
-            if (paramValue.Equals("1 0")) paramValue = " 10";
+            if (paramValue.Equals("1 0"))
+                paramValue = " 10";
             //ConsoleExtensions.Log($"paramName:|{paramName}| paramValue:|{paramValue}|", "warn");
-
 
             var trimmedResist = paramName.TrimStart();
             var resist = trimmedResist.Split(" ", 2);
             var resistTypeStr = resist[0];
             var resistanceTypes = (ResistanceType[])Enum.GetValues(typeof(ResistanceType));
 
-            return (from resistType in resistanceTypes
-                    let resistTypeName = Enum.GetName(typeof(ResistanceType), resistType)
-                    where resistTypeName.Equals(resistTypeStr)
-                    select new Tuple<ResistanceType, int>(resistType, int.Parse(paramValue)))
-                    .FirstOrDefault();
+            return (
+                from resistType in resistanceTypes
+                let resistTypeName = Enum.GetName(typeof(ResistanceType), resistType)
+                where resistTypeName.Equals(resistTypeStr)
+                select new Tuple<ResistanceType, int>(resistType, int.Parse(paramValue))
+            ).FirstOrDefault();
         }
 
         private static Tuple<DamageType, int, int> GetDmgTuple(string paramName, string paramValue)
@@ -214,7 +224,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 "Poison Damage" => new Tuple<DamageType, int, int>(DamageType.Poison, min, max),
                 "Electrical Damage" => new Tuple<DamageType, int, int>(DamageType.Electrical, min, max),
                 "Fire Damage" => new Tuple<DamageType, int, int>(DamageType.Fire, min, max),
-                _ => null
+                _ => null,
             };
         }
 
@@ -232,12 +242,13 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                 Spells = new List<string>(),
                 Scripts = new List<Tuple<int, int, int, int, int, int>>(),
                 Resistances = new List<Tuple<ResistanceType, int>>(),
-                Damages = new List<Tuple<DamageType, int, int>>()
+                Damages = new List<Tuple<DamageType, int, int>>(),
             };
 
             foreach (var curLine in uniqueText)
             {
-                if (string.IsNullOrWhiteSpace(curLine)) continue;
+                if (string.IsNullOrWhiteSpace(curLine))
+                    continue;
 
                 var lines = curLine.Split(":", 2);
                 var paramName = lines[0];
@@ -248,14 +259,14 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     switch (paramName)
                     {
                         case "Description" when paramValue.Contains(@"//"):
-                            {
-                                var idAndName = paramValue.Split(@"//", 2);
-                                var monsterId = idAndName[0];
-                                var monsterName = idAndName[1];
+                        {
+                            var idAndName = paramValue.Split(@"//", 2);
+                            var monsterId = idAndName[0];
+                            var monsterName = idAndName[1];
 
-                                unique.Description = new Tuple<int, string>(int.Parse(monsterId), monsterName);
-                                break;
-                            }
+                            unique.Description = new Tuple<int, string>(int.Parse(monsterId), monsterName);
+                            break;
+                        }
                         case "Description":
                             break;
                         case "Internal Name" or "internal name":
@@ -270,7 +281,10 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             var artNumber = artNumberAndPalette[0];
                             var paletteNumber = artNumberAndPalette[1];
 
-                            unique.ArtNumberAndPalette = new Tuple<int, int>(int.Parse(artNumber), int.Parse(paletteNumber));
+                            unique.ArtNumberAndPalette = new Tuple<int, int>(
+                                int.Parse(artNumber),
+                                int.Parse(paletteNumber)
+                            );
                             break;
                         case "Scale":
                             unique.Scale = int.Parse(paramValue);
@@ -310,7 +324,16 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                             var scriptParams = trimmedScript.Split(" ", 6);
                             var paramValues = scriptParams.Select(int.Parse).ToList();
 
-                            unique.Scripts.Add(new Tuple<int, int, int, int, int, int>(paramValues[0], paramValues[1], paramValues[2], paramValues[3], paramValues[4], paramValues[5]));
+                            unique.Scripts.Add(
+                                new Tuple<int, int, int, int, int, int>(
+                                    paramValues[0],
+                                    paramValues[1],
+                                    paramValues[2],
+                                    paramValues[3],
+                                    paramValues[4],
+                                    paramValues[5]
+                                )
+                            );
                             break;
                         case "Faction":
                             unique.Faction = int.Parse(paramValue);

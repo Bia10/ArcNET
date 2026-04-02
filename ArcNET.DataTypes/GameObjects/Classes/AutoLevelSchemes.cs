@@ -1,7 +1,7 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Spectre.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -21,6 +21,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             pe,
             wp,
             ch,
+
             //Skills
             bow,
             dodge,
@@ -38,6 +39,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             firearms,
             picklock,
             armtrap,
+
             //Spells
             conveyance,
             divination,
@@ -55,6 +57,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             phantasm,
             summoning,
             temporal,
+
             //Tech
             anatomical,
             chemistry,
@@ -64,9 +67,10 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             mechanical,
             smithy,
             therapeutics,
+
             //Misc
             maxhps,
-            maxfatigue
+            maxfatigue,
         }
 
         public class AutoLevelSchemeEntry
@@ -96,7 +100,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     var id = int.Parse(idNameData[0]);
 
                     var nameAndData = idNameData[1];
-                    if (nameAndData.StartsWith("-")) nameAndData.Remove(0);
+                    if (nameAndData.StartsWith("-"))
+                        nameAndData.Remove(0);
 
                     var nameAndDataSplit = nameAndData.Split("{");
                     var name = nameAndDataSplit[0].Trim();
@@ -107,9 +112,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     data = data.Replace("}", "");
 
                     //bad data cleanup
-                    if (data.EndsWith(",")) data = data.Remove(data.Length - 1, 1);
-                    if (data.EndsWith("\t// default level scheme")) data = data.Replace("\t// default level scheme", "");
-                    if (data.Contains("  ")) data = data.Replace("  ", " ");
+                    if (data.EndsWith(","))
+                        data = data.Remove(data.Length - 1, 1);
+                    if (data.EndsWith("\t// default level scheme"))
+                        data = data.Replace("\t// default level scheme", "");
+                    if (data.Contains("  "))
+                        data = data.Replace("  ", " ");
 
                     var dataArray = data.Split(",");
                     foreach (var dataValueTuple in dataArray)
@@ -122,7 +130,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                         foreach (var abrev in (Abbreviations[])Enum.GetValues(typeof(Abbreviations)))
                         {
                             var enumValueName = Enum.GetName(typeof(Abbreviations), abrev);
-                            if (enumValueName != null && !enumValueName.Equals(abbreviation)) continue;
+                            if (enumValueName != null && !enumValueName.Equals(abbreviation))
+                                continue;
 
                             dataTuple = new Tuple<Abbreviations, int>(abrev, value);
                         }

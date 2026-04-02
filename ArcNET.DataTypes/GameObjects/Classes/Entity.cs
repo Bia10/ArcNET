@@ -1,7 +1,7 @@
-﻿using ArcNET.DataTypes.GameObjects.Flags;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ArcNET.DataTypes.GameObjects.Flags;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {
@@ -20,7 +20,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
             Charisma,
             Perception,
             TechPoints,
-            MagickPoints
+            MagickPoints,
         }
 
         public enum DamageType
@@ -73,7 +73,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
     public class Wikia
     {
         public static string Header = "{{EntityInfobox";
-        public static string[] EntityInfoboxElements = {
+        public static string[] EntityInfoboxElements =
+        {
             "| image = ",
             "| race = ",
             "| gender = ",
@@ -117,14 +118,20 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     case "| race = ":
                         var raceStr = "";
                         var race = entity.BasicStats.Any(stat => stat.Item1 == Entity.BasicStatType.Race);
-                        if (race) raceStr = entity.BasicStats.First(stat => stat.Item1 == Entity.BasicStatType.Race).Item2.ToString();
+                        if (race)
+                            raceStr = entity
+                                .BasicStats.First(stat => stat.Item1 == Entity.BasicStatType.Race)
+                                .Item2.ToString();
 
                         result = result + infoboxElement + raceStr;
                         break;
                     case "| gender = ":
                         var genderStr = "";
                         var gender = entity.BasicStats.Any(stat => stat.Item1 == Entity.BasicStatType.Gender);
-                        if (gender) genderStr = entity.BasicStats.First(stat => stat.Item1 == Entity.BasicStatType.Gender).Item2.ToString();
+                        if (gender)
+                            genderStr = entity
+                                .BasicStats.First(stat => stat.Item1 == Entity.BasicStatType.Gender)
+                                .Item2.ToString();
 
                         result = result + infoboxElement + genderStr;
                         break;

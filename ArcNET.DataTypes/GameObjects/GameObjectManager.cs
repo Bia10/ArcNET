@@ -1,5 +1,5 @@
-﻿using ArcNET.DataTypes.GameObjects.Classes;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using ArcNET.DataTypes.GameObjects.Classes;
 
 namespace ArcNET.DataTypes.GameObjects
 {

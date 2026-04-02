@@ -9,9 +9,7 @@ namespace ArcNET.DataTypes.GameObjects
         public int Foo2;
         public Guid Guid;
 
-        public GameObjectGuid()
-        {
-        }
+        public GameObjectGuid() { }
 
         public GameObjectGuid(short type, short foo0, int foo2)
         {

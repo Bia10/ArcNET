@@ -1,8 +1,8 @@
-﻿using ArcNET.Utilities;
-using Spectre.Console;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using ArcNET.Utilities;
+using Spectre.Console;
 using Utils.Console;
 using Utils.Device;
 using Utils.Process;
@@ -66,8 +66,7 @@ namespace ArcNET.Terminal
                     break;
                 case "Install High-Res patch":
                     var pathToHighResDir = GetHighResDir();
-                    var files = Directory.EnumerateFiles(
-                        pathToHighResDir, "*.*", SearchOption.AllDirectories).ToList();
+                    var files = Directory.EnumerateFiles(pathToHighResDir, "*.*", SearchOption.AllDirectories).ToList();
 
                     if (files.Count == 0)
                     {

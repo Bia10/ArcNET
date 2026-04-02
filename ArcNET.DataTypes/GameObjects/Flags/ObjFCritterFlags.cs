@@ -38,6 +38,6 @@ namespace ArcNET.DataTypes.GameObjects.Flags
         OCF_NON_LETHAL_COMBAT,
         OCF_MECHANICAL,
         OCF_ANIMAL_ENSHROUD,
-        OCF_FATIGUE_LIMITING
+        OCF_FATIGUE_LIMITING,
     }
 }

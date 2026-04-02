@@ -29,7 +29,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -39,7 +40,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -49,7 +51,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -59,7 +62,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -69,7 +73,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -79,7 +84,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -89,7 +95,8 @@ namespace ArcNET.DataTypes
                 {
                     foreach (var (line, index) in lines.WithIndex())
                     {
-                        if (EmptyOrBadLine(line)) continue;
+                        if (EmptyOrBadLine(line))
+                            continue;
 
                         data.Add(line);
                     }
@@ -106,7 +113,7 @@ namespace ArcNET.DataTypes
 
         /*
          curLine = curLine.TrimStart(' ', '\t');
-         var unicodeLines = new[] { 
+         var unicodeLines = new[] {
          "WILDERNESS (NICE) MUSIC",
          "WILDERNESS (EVIL) MUSIC",
          "VILLAGE MUSIC",
@@ -140,7 +147,7 @@ namespace ArcNET.DataTypes
          ConsoleExtensions.Log($"unicode line:|{curLine}|", "warn");
          continue;
          }
-         if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t") || curLine.StartsWith("***") || !curLine.StartsWith("{")) 
+         if (curLine.StartsWith("//") || curLine.StartsWith("/\t\t") || curLine.StartsWith("***") || !curLine.StartsWith("{"))
          {
          ConsoleExtensions.Log($"bad line:|{curLine}|", "warn");
          continue;

@@ -36,6 +36,6 @@ namespace ArcNET.DataTypes.GameObjects.Flags
         ONF_LOOK_FOR_ARMOR,
         ONF_LOOK_FOR_AMMO,
         ONF_BACKING_OFF,
-        ONF_NO_ATTACK
+        ONF_NO_ATTACK,
     }
 }

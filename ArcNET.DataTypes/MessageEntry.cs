@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.IO;
+using Spectre.Console;
 
 namespace ArcNET.DataTypes
 {
@@ -13,7 +13,7 @@ namespace ArcNET.DataTypes
         public MessageEntry(string[] data)
         {
             _data = data;
-            if (!ParseIndex()) 
+            if (!ParseIndex())
                 throw new Exception("Failure to parse index for MessageEntry");
         }
 
@@ -22,7 +22,6 @@ namespace ArcNET.DataTypes
             _data = new MessageEntryReader(line).Parse();
             if (!ParseIndex())
                 throw new Exception("Failure to parse index for MessageEntry");
-            
         }
 
         public MessageEntry(TextReader textReader)

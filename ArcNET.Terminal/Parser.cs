@@ -1,12 +1,12 @@
-﻿using ArcNET.DataTypes;
-using ArcNET.DataTypes.GameObjects;
-using ArcNET.DataTypes.GameObjects.Classes;
-using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using ArcNET.DataTypes;
+using ArcNET.DataTypes.GameObjects;
+using ArcNET.DataTypes.GameObjects.Classes;
+using Spectre.Console;
 using Utils.Console;
 
 namespace ArcNET.Terminal
@@ -40,7 +40,7 @@ namespace ArcNET.Terminal
             Video,
             Bitmap,
             Text,
-            Any
+            Any,
         }
 
         private static readonly Regex DataArchiveRegex = new(@"^.*\.dat$");
@@ -74,30 +74,39 @@ namespace ArcNET.Terminal
             //Removes potential task which are done already
             //TODO: remains unclear why a finished task is not at 100%, but rather demands percentage calculation.
             var toRemove = new HashSet<Tuple<List<string>, FileType>>();
-            foreach (var tupleList in data.Where(tuple => tuple.Item1.Count == 0 || tuple.Item2 != FileType.Text && tuple.Item2 != FileType.Message))
+            foreach (
+                var tupleList in data.Where(tuple =>
+                    tuple.Item1.Count == 0 || tuple.Item2 != FileType.Text && tuple.Item2 != FileType.Message
+                )
+            )
                 toRemove.Add(tupleList);
             data.RemoveAll(toRemove.Contains);
 
             var tasks = new (string name, List<string> data, FileType fileType)[data.Count];
             for (var i = 0; i < data.Count; i++)
-                tasks[i] = ($"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}" 
-                            + " files :[/]", data[i].Item1, data[i].Item2);
+                tasks[i] = (
+                    $"[green]Parsing {Enum.GetName(typeof(FileType), data[i].Item2)}" + " files :[/]",
+                    data[i].Item1,
+                    data[i].Item2
+                );
 
-            AnsiConsole.Progress().Columns(
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new RemainingTimeColumn(),
-                new SpinnerColumn())
+            AnsiConsole
+                .Progress()
+                .Columns(
+                    new TaskDescriptionColumn(),
+                    new ProgressBarColumn(),
+                    new PercentageColumn(),
+                    new RemainingTimeColumn(),
+                    new SpinnerColumn()
+                )
                 .Start(ctx =>
                 {
                     foreach (var (name, files, fileType) in tasks)
                     {
-                        var currentTask = ctx.AddTask(name, new ProgressTaskSettings
-                        {
-                            MaxValue = files.Count,
-                            AutoStart = false,
-                        });
+                        var currentTask = ctx.AddTask(
+                            name,
+                            new ProgressTaskSettings { MaxValue = files.Count, AutoStart = false }
+                        );
 
                         foreach (var file in files)
                         {
@@ -106,7 +115,7 @@ namespace ArcNET.Terminal
                     }
                 });
 
-            //testing 
+            //testing
             var mobsWithDrops = GameObjectManager.Monsters.Where(mob => mob.InventorySource > 0).ToList();
             ConsoleExtensions.Log($"mobsWithDrops: |{mobsWithDrops.Count()}|", "warn");
             foreach (var mob in mobsWithDrops)
@@ -122,9 +131,14 @@ namespace ArcNET.Terminal
 
             AnsiConsole.Render(Terminal.ReportTable(dirPath, data));
         }
-        
+
         //Todo: make async, will likely need Async BinaryRead/Write
-        private static void ParseAndWriteFile(string fileName, FileType fileType, ProgressTask task, string outputFolder = null)
+        private static void ParseAndWriteFile(
+            string fileName,
+            FileType fileType,
+            ProgressTask task,
+            string outputFolder = null
+        )
         {
             //ConsoleExtensions.Log($"Parsing file: {fileName} FileType: {fileType}", "info");
 
@@ -164,7 +178,8 @@ namespace ArcNET.Terminal
                             mobReader.Parse("Monster");
 
                             var mobCount = GameObjectManager.Monsters.Count;
-                            if (mobCount == 0) return;
+                            if (mobCount == 0)
+                                return;
 
                             _textsRed++;
                             task.Increment(+1);
@@ -177,7 +192,8 @@ namespace ArcNET.Terminal
                             npcReader.Parse("NPC");
 
                             var npcCount = GameObjectManager.NPCs.Count;
-                            if (npcCount == 0) return;
+                            if (npcCount == 0)
+                                return;
 
                             _textsRed++;
                             task.Increment(+1);
@@ -190,7 +206,8 @@ namespace ArcNET.Terminal
                             uniqueReader.Parse("Unique");
 
                             var uniqueCount = GameObjectManager.Uniques.Count;
-                            if (uniqueCount == 0) return;
+                            if (uniqueCount == 0)
+                                return;
 
                             _textsRed++;
                             task.Increment(+1);
@@ -199,7 +216,7 @@ namespace ArcNET.Terminal
                         }
                         default:
                             throw new InvalidOperationException(fileName, null);
-                        }
+                    }
                     break;
                 }
                 case FileType.Message:
@@ -213,79 +230,104 @@ namespace ArcNET.Terminal
                         case "InvenSource.mes":
                         {
                             var textData = new MessageReader(reader).Parse("InvenSource.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             InventorySource.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded invSources: |{InventorySource.LoadedInventorySources.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "InvenSourceBuy.mes":
                         {
                             var textData = new MessageReader(reader).Parse("InvenSourceBuy.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             InventorySourceBuy.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded BuyInvSources: |{InventorySourceBuy.LoadedInventoryBuySources.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "xp_level.mes":
                         {
                             var textData = new MessageReader(reader).Parse("xp_level.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             XpLevels.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded XpLevels: |{XpLevels.LoadedXpLevels.Entries.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "xp_critter.mes":
                         {
                             var textData = new MessageReader(reader).Parse("xp_level.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             CritterXpLevels.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded XpCritterLevels: |{CritterXpLevels.LoadedCritterXpLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded XpCritterLevels: |{CritterXpLevels.LoadedCritterXpLevels.Entries.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "xp_quest.mes":
                         {
                             var textData = new MessageReader(reader).Parse("xp_quest.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             QuestXpLevels.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded XpQuestLevels: |{QuestXpLevels.LoadedXpQuestLevels.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded XpQuestLevels: |{QuestXpLevels.LoadedXpQuestLevels.Entries.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "backgrnd.mes":
                         {
                             var textData = new MessageReader(reader).Parse("backgrnd.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             Background.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded Backgrounds: |{Background.LoadedBackgrounds.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "faction.mes":
                         {
                             var textData = new MessageReader(reader).Parse("faction.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             Faction.InitFromText(textData);
                             _messagesRed++;
@@ -297,34 +339,42 @@ namespace ArcNET.Terminal
                         case "gamelevel.mes":
                         {
                             var textData = new MessageReader(reader).Parse("gamelevel.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             AutoLevelSchemes.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded Auto Level Schemes: |{AutoLevelSchemes.LoadedAutoLevelSchemes.Entries.Count}|",
+                                "warn"
+                            );
                             break;
                         }
                         case "description.mes":
                         {
                             var textData = new MessageReader(reader).Parse("description.mes");
-                            if (textData == null || textData.Count == 0) return;
+                            if (textData == null || textData.Count == 0)
+                                return;
 
                             Descriptions.InitFromText(textData);
                             _messagesRed++;
                             task.Increment(+1);
 
-                            ConsoleExtensions.Log($"Loaded description: |{Descriptions.LoadedDescriptions.Entries.Count}|", "warn");
+                            ConsoleExtensions.Log(
+                                $"Loaded description: |{Descriptions.LoadedDescriptions.Entries.Count}|",
+                                "warn"
+                            );
                             break;
                         }
 
-                            default:
+                        default:
                             _messagesRed++;
                             task.Increment(+1);
                             break;
-                                //throw new InvalidOperationException(fileName, null);
-                        }
+                        //throw new InvalidOperationException(fileName, null);
+                    }
                     break;
                 }
                 case FileType.Sector:
@@ -463,13 +513,28 @@ namespace ArcNET.Terminal
             var bitmapFiles = allFiles.Where(str => BitmapRegex.IsMatch(str)).ToList();
             var textFiles = allFiles.Where(str => TextRegex.IsMatch(str)).ToList();
 
-            var otherFiles = allFiles.Where(str =>
-                !DataArchiveRegex.IsMatch(str) && !FacadeWalkRegex.IsMatch(str) && !MessageRegex.IsMatch(str)
-                && !SectorRegex.IsMatch(str) && !PrototypeRegex.IsMatch(str) && !PlayerRegex.IsMatch(str)
-                && !MobileRegex.IsMatch(str) && !ArtRegex.IsMatch(str) && !JumpRegex.IsMatch(str)
-                && !ScriptRegex.IsMatch(str) && !DialogRegex.IsMatch(str) && !TerrainRegex.IsMatch(str)
-                && !MapPropertiesRegex.IsMatch(str) && !SoundWavRegex.IsMatch(str) && !SoundMp3Regex.IsMatch(str)
-                && !VideoRegex.IsMatch(str) && !BitmapRegex.IsMatch(str) && !TextRegex.IsMatch(str)).ToList();
+            var otherFiles = allFiles
+                .Where(str =>
+                    !DataArchiveRegex.IsMatch(str)
+                    && !FacadeWalkRegex.IsMatch(str)
+                    && !MessageRegex.IsMatch(str)
+                    && !SectorRegex.IsMatch(str)
+                    && !PrototypeRegex.IsMatch(str)
+                    && !PlayerRegex.IsMatch(str)
+                    && !MobileRegex.IsMatch(str)
+                    && !ArtRegex.IsMatch(str)
+                    && !JumpRegex.IsMatch(str)
+                    && !ScriptRegex.IsMatch(str)
+                    && !DialogRegex.IsMatch(str)
+                    && !TerrainRegex.IsMatch(str)
+                    && !MapPropertiesRegex.IsMatch(str)
+                    && !SoundWavRegex.IsMatch(str)
+                    && !SoundMp3Regex.IsMatch(str)
+                    && !VideoRegex.IsMatch(str)
+                    && !BitmapRegex.IsMatch(str)
+                    && !TextRegex.IsMatch(str)
+                )
+                .ToList();
 
             return new List<Tuple<List<string>, FileType>>
             {
@@ -491,7 +556,7 @@ namespace ArcNET.Terminal
                 new(soundMp3Files, FileType.SoundMp3),
                 new(videoFiles, FileType.Video),
                 new(bitmapFiles, FileType.Bitmap),
-                new(facFiles, FileType.FacadeWalk)
+                new(facFiles, FileType.FacadeWalk),
             };
         }
     }

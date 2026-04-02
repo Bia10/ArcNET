@@ -1,7 +1,7 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Spectre.Console;
 using Utils.Enumeration;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
@@ -28,9 +28,12 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
         public static IEnumerable<Tuple<string, double>> NamedDropTableFromId(int id)
         {
-            return (from inventorySource in LoadedInventorySources.Where(invSrc => invSrc.Id.Equals(id))
-                from inventorySourceEntry in inventorySource.Entries let name = Descriptions.GetNameFromId(inventorySourceEntry.PrototypeId)
-                select new Tuple<string, double>(name, inventorySourceEntry.Chance)).ToList();
+            return (
+                from inventorySource in LoadedInventorySources.Where(invSrc => invSrc.Id.Equals(id))
+                from inventorySourceEntry in inventorySource.Entries
+                let name = Descriptions.GetNameFromId(inventorySourceEntry.PrototypeId)
+                select new Tuple<string, double>(name, inventorySourceEntry.Chance)
+            ).ToList();
         }
 
         public static void InitFromText(IEnumerable<string> textData)
@@ -47,7 +50,7 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     var invSource = new InventorySource()
                     {
                         Id = int.Parse(id),
-                        Entries = new List<InventorySourceEntry>()
+                        Entries = new List<InventorySourceEntry>(),
                     };
                     var nameAndData = data.Split(":", 2);
                     invSource.Name = nameAndData[0];
@@ -60,7 +63,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     var badSplits = new[] { "      ", "     ", "    ", "   ", "  " };
                     foreach (var badSplit in badSplits)
                     {
-                        if (!dropsAndChance.Contains(badSplit)) continue;
+                        if (!dropsAndChance.Contains(badSplit))
+                            continue;
                         dropsAndChance = dropsAndChance.Replace(badSplit, " ");
                     }
 

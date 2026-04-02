@@ -1,0 +1,34 @@
+<Solution>
+  <Folder Name="/src/">
+    <Folder Name="/Core/">
+      <Project Path="src/Core/ArcNET.Core/ArcNET.Core.csproj" />
+      <Project Path="src/Core/ArcNET.Core.Tests/ArcNET.Core.Tests.csproj" />
+    </Folder>
+    <Folder Name="/GameObjects/">
+      <Project Path="src/GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
+      <Project Path="src/GameObjects/ArcNET.GameObjects.Tests/ArcNET.GameObjects.Tests.csproj" />
+    </Folder>
+    <Folder Name="/Formats/">
+      <Project Path="src/Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
+      <Project Path="src/Formats/ArcNET.Formats.Tests/ArcNET.Formats.Tests.csproj" />
+    </Folder>
+    <Folder Name="/GameData/">
+      <Project Path="src/GameData/ArcNET.GameData/ArcNET.GameData.csproj" />
+      <Project Path="src/GameData/ArcNET.GameData.Tests/ArcNET.GameData.Tests.csproj" />
+    </Folder>
+    <Folder Name="/Archive/">
+      <Project Path="src/Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
+      <Project Path="src/Archive/ArcNET.Archive.Tests/ArcNET.Archive.Tests.csproj" />
+    </Folder>
+    <Folder Name="/Patch/">
+      <Project Path="src/Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
+      <Project Path="src/Patch/ArcNET.Patch.Tests/ArcNET.Patch.Tests.csproj" />
+    </Folder>
+    <Folder Name="/App/">
+      <Project Path="src/App/ArcNET.App/ArcNET.App.csproj" />
+    </Folder>
+    <Folder Name="/Benchmarks/">
+      <Project Path="src/Benchmarks/ArcNET.Benchmarks/ArcNET.Benchmarks.csproj" />
+    </Folder>
+  </Folder>
+</Solution>

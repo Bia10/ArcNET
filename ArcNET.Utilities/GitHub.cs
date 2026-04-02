@@ -1,6 +1,6 @@
-﻿using LibGit2Sharp;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
+using LibGit2Sharp;
 using Utils.Console;
 using Utils.FileSystem;
 
@@ -14,7 +14,8 @@ namespace ArcNET.Utilities
             ConsoleExtensions.Log($"Cloning repo: {repo} into: \n {resultLocation}", "info");
             Repository.Clone(repo, resultLocation);
             var files = Directory.EnumerateFiles(resultLocation, "*.*", SearchOption.AllDirectories).ToList();
-            if (files.Count == 0) return;
+            if (files.Count == 0)
+                return;
 
             ConsoleExtensions.Log($"Cloned {files.Count} files", "success");
             var highResPath = Path.Combine(resultLocation, "HighRes");

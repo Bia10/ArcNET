@@ -15,10 +15,7 @@ namespace ArcNET.DataTypes
 
         public FacadeWalk Read()
         {
-            var obj = new FacadeWalk
-            {
-                Marker = MarshallingExtensions.ByteArrayToStructure<FacWalkMarker>(_reader)
-            };
+            var obj = new FacadeWalk { Marker = MarshallingExtensions.ByteArrayToStructure<FacWalkMarker>(_reader) };
             //ConsoleExtensions.Log($"Parsed file marker: {obj.Marker.fileMarker}", "success");
 
             const string markerConst = "FacWalk V101 ";

@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Spectre.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
 {

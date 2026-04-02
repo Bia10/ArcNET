@@ -43,7 +43,7 @@
             Generic,
             Pc,
             Npc,
-            Trap
+            Trap,
         }
 
         public enum ObjectField
@@ -338,7 +338,7 @@
             ObjFTrapDifficulty = 65,
             ObjFTrapPadI2 = 66,
             ObjFTrapPadIas1 = 67,
-            ObjFTrapPadI64As1 = 68
+            ObjFTrapPadI64As1 = 68,
         }
     }
 }

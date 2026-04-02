@@ -1,0 +1,79 @@
+root = true
+
+# All files
+[*]
+indent_style = space
+
+# XML project files
+[*.{csproj,props,targets,config,nuspec}]
+indent_size = 2
+
+# C# files
+[*.cs]
+indent_size = 4
+insert_final_newline = true
+end_of_line = lf
+charset = utf-8-bom
+
+# Build.cs task runner — BOM would break the Unix shebang (#!/usr/bin/env dotnet)
+[Build.cs]
+charset = utf-8
+
+# YAML files
+[*.{yml,yaml}]
+charset = utf-8
+insert_final_newline = true
+indent_size = 2
+end_of_line = lf
+
+# JSON files
+[*.json]
+indent_size = 2
+insert_final_newline = true
+
+# Sorting
+dotnet_sort_system_directives_first = true
+
+# Accessibility modifiers: omit private (cleaner code)
+dotnet_style_require_accessibility_modifiers = omit_if_default
+
+# File-scoped namespaces (required, not optional)
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Throw expressions required
+csharp_style_throw_expression = true:error
+
+# Formatting: IDE0055 disabled — CSharpier is the authoritative formatter.
+dotnet_diagnostic.IDE0055.severity = none
+
+# Remove unused usings
+dotnet_diagnostic.IDE0005.severity = error
+
+# Allman braces for types, methods, properties, control blocks
+csharp_new_line_before_open_brace = accessors, lambdas, types, methods, properties, control_blocks
+
+# Naming: private instance fields → _camelCase
+dotnet_naming_rule.private_fields.symbols = private_fields
+dotnet_naming_rule.private_fields.style = _camelcase
+dotnet_naming_rule.private_fields.severity = suggestion
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, protected
+dotnet_naming_style._camelcase.required_prefix = _
+dotnet_naming_style._camelcase.capitalization = camel_case
+
+# Naming: private static readonly fields → s_camelCase
+dotnet_naming_rule.private_static_readonly.symbols = private_static_readonly
+dotnet_naming_rule.private_static_readonly.style = s_camelcase
+dotnet_naming_rule.private_static_readonly.severity = suggestion
+dotnet_naming_symbols.private_static_readonly.applicable_kinds = field
+dotnet_naming_symbols.private_static_readonly.applicable_accessibilities = private, protected
+dotnet_naming_symbols.private_static_readonly.required_modifiers = static, readonly
+dotnet_naming_style.s_camelcase.required_prefix = s_
+dotnet_naming_style.s_camelcase.capitalization = camel_case
+
+# Selective diagnostic suppressions
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CS8981.severity = none
+dotnet_diagnostic.CA1805.severity = none
+dotnet_diagnostic.MA0008.severity = none
+dotnet_diagnostic.MA0051.severity = none

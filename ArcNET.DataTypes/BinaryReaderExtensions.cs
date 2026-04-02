@@ -1,10 +1,10 @@
-﻿using ArcNET.DataTypes.Common;
-using ArcNET.DataTypes.GameObjects;
-using System;
+﻿using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using ArcNET.DataTypes.Common;
+using ArcNET.DataTypes.GameObjects;
 
 namespace ArcNET.DataTypes
 {
@@ -16,8 +16,10 @@ namespace ArcNET.DataTypes
             if (!force)
             {
                 var flag = reader.ReadByte();
-                if (flag == 0x00) return null;
-                if (flag != 0x01) throw new Exception();
+                if (flag == 0x00)
+                    return null;
+                if (flag != 0x01)
+                    throw new Exception();
             }
 
             loc.X = reader.ReadInt32();
@@ -30,21 +32,23 @@ namespace ArcNET.DataTypes
             if (!force)
             {
                 var flag = reader.ReadByte();
-                if (flag == 0x00) return null;
-                if (flag != 0x01) throw new Exception();
+                if (flag == 0x00)
+                    return null;
+                if (flag != 0x01)
+                    throw new Exception();
             }
 
             var result = new GameObjectGuid
             {
                 Type = reader.ReadInt16(),
                 Foo0 = reader.ReadInt16(),
-                Foo2 = reader.ReadInt32()
+                Foo2 = reader.ReadInt32(),
             };
             var guidData = reader.ReadBytes(16);
             result.Guid = new Guid(guidData);
 
             return result;
-        } 
+        }
 
         public static ArtId ReadArtId(this BinaryReader reader)
         {
@@ -63,6 +67,7 @@ namespace ArcNET.DataTypes
     public class OrderAttribute : Attribute
     {
         public int Order { get; private set; }
+
         public OrderAttribute(int order)
         {
             Order = order;
@@ -73,7 +78,8 @@ namespace ArcNET.DataTypes
     {
         public static int PropertyOrder(this PropertyInfo propInfo)
         {
-            var orderAttr = (OrderAttribute)propInfo.GetCustomAttributes(typeof(OrderAttribute), true).SingleOrDefault();
+            var orderAttr = (OrderAttribute)
+                propInfo.GetCustomAttributes(typeof(OrderAttribute), true).SingleOrDefault();
             var output = orderAttr?.Order ?? int.MaxValue;
             return output;
         }

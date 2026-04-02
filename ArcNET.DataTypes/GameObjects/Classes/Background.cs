@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Spectre.Console;
 using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
@@ -11,24 +11,24 @@ namespace ArcNET.DataTypes.GameObjects.Classes
 
         public enum RaceGenderCombo
         {
-            HumanFemale,     //	HUF - human female
-            HumanMale,       //	HUM - human male
-            DwarfFemale,     //	DWF - dwarf female
-            DwarfMale,       //	DWM - dwarf male
-            ElfFemale,       //	ELF - elf female
-            ElfMale,         //	ELM - elf male
-            HalfElfFemale,   //	HEF - half elf female
-            HalfElfMale,     //	HEM - half elf male
-            GnomeFemale,     //	GNF - gnome female
-            GnomeMale,       //	GNM - gnome male
-            HalflingFemale,  //	HAF - halfling female
-            HalflingMale,    //	HAM - halfling male
-            HalfOrcFemale,   //	HOF - half orc female
-            HalfOrcMale,     //	HOM - half orc male
-            HalfOrgeFemale,  //	HGF - half ogre female
-            HalfOrgeMale,    // HGM - half ogre male
-            AnyNPC,          //	NPC - any NPC can use this background, regardless of their race or gender
-            Any,             //	ANY - anyone can use this background (same as blank line, included for clarity)
+            HumanFemale, //	HUF - human female
+            HumanMale, //	HUM - human male
+            DwarfFemale, //	DWF - dwarf female
+            DwarfMale, //	DWM - dwarf male
+            ElfFemale, //	ELF - elf female
+            ElfMale, //	ELM - elf male
+            HalfElfFemale, //	HEF - half elf female
+            HalfElfMale, //	HEM - half elf male
+            GnomeFemale, //	GNF - gnome female
+            GnomeMale, //	GNM - gnome male
+            HalflingFemale, //	HAF - halfling female
+            HalflingMale, //	HAM - halfling male
+            HalfOrcFemale, //	HOF - half orc female
+            HalfOrcMale, //	HOM - half orc male
+            HalfOrgeFemale, //	HGF - half ogre female
+            HalfOrgeMale, // HGM - half ogre male
+            AnyNPC, //	NPC - any NPC can use this background, regardless of their race or gender
+            Any, //	ANY - anyone can use this background (same as blank line, included for clarity)
         }
 
         public int DescriptionMessageIndex;
@@ -65,22 +65,24 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                         {
                             DescriptionMessageIndex = int.Parse(data),
                             ValidRaceGenderCombinations = new List<RaceGenderCombo>(),
-                            ItemsGiven = new List<int>()
+                            ItemsGiven = new List<int>(),
                         };
                     }
-                    else switch (index % 10)
-                    {
-                        case 1:
-                            if (data.Equals("")) break;
-                            if (curBackground != null) 
-                                curBackground.EffectMessageIndex = int.Parse(data);
-                            break;
-                        case 2:
-                            var combos = indexAndData[1].Split(" ");
-                            foreach (var combo in combos)
-                            {
-                                switch (combo)
+                    else
+                        switch (index % 10)
+                        {
+                            case 1:
+                                if (data.Equals(""))
+                                    break;
+                                if (curBackground != null)
+                                    curBackground.EffectMessageIndex = int.Parse(data);
+                                break;
+                            case 2:
+                                var combos = indexAndData[1].Split(" ");
+                                foreach (var combo in combos)
                                 {
+                                    switch (combo)
+                                    {
                                         case "HUF":
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HumanFemale);
                                             break;
@@ -100,7 +102,9 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.ElfMale);
                                             break;
                                         case "HEF":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfElfFemale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalfElfFemale
+                                            );
                                             break;
                                         case "HEM":
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfElfMale);
@@ -112,22 +116,32 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.GnomeMale);
                                             break;
                                         case "HAF":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalflingFemale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalflingFemale
+                                            );
                                             break;
                                         case "HAM":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalflingMale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalflingMale
+                                            );
                                             break;
                                         case "HOF":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfOrcFemale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalfOrcFemale
+                                            );
                                             break;
                                         case "HOM":
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfOrcMale);
                                             break;
                                         case "HGF":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfOrgeFemale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalfOrgeFemale
+                                            );
                                             break;
                                         case "HGM":
-                                            curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.HalfOrgeMale);
+                                            curBackground?.ValidRaceGenderCombinations.Add(
+                                                RaceGenderCombo.HalfOrgeMale
+                                            );
                                             break;
                                         case "NPC":
                                             curBackground?.ValidRaceGenderCombinations.Add(RaceGenderCombo.AnyNPC);
@@ -139,28 +153,30 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                                         default:
                                             ConsoleExtensions.Log($"Unrecognized race gender combo:|{combo}|", "warn");
                                             break;
+                                    }
                                 }
-                            }
-                            break;
-                        case 3:
-                            if (data.Equals("")) data = "400";
-                            if (curBackground != null) curBackground.MoneyGiven = int.Parse(data);
-                            break;
-                        case 4:
-                            var items = indexAndData[1].Split(" ");
-                            if (items[0].Equals(""))
-                            {
+                                break;
+                            case 3:
+                                if (data.Equals(""))
+                                    data = "400";
+                                if (curBackground != null)
+                                    curBackground.MoneyGiven = int.Parse(data);
+                                break;
+                            case 4:
+                                var items = indexAndData[1].Split(" ");
+                                if (items[0].Equals(""))
+                                {
+                                    LoadedBackgrounds.Add(curBackground);
+                                    break;
+                                }
+
+                                foreach (var itemId in items)
+                                {
+                                    curBackground?.ItemsGiven.Add(int.Parse(itemId));
+                                }
                                 LoadedBackgrounds.Add(curBackground);
                                 break;
-                            }
-
-                            foreach (var itemId in items)
-                            {
-                                curBackground?.ItemsGiven.Add(int.Parse(itemId));
-                            }
-                            LoadedBackgrounds.Add(curBackground);
-                            break;
-                    }
+                        }
                 }
             }
             catch (Exception ex)

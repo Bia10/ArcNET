@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Spectre.Console;
 using Utils.Enumeration;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
@@ -37,29 +37,32 @@ namespace ArcNET.DataTypes.GameObjects.Classes
                     var invSourceBuy = new InventorySourceBuy()
                     {
                         Id = int.Parse(id),
-                        Entries = new List<InventorySourceBuyEntry>()
+                        Entries = new List<InventorySourceBuyEntry>(),
                     };
                     var nameAndData = data.Split(":", 2);
                     invSourceBuy.Name = nameAndData[0];
                     var itemId = nameAndData[1];
 
                     //bad data
-                    if (itemId.Contains(" 0,0")) 
-                        itemId = itemId.Replace(" 0,0","");
+                    if (itemId.Contains(" 0,0"))
+                        itemId = itemId.Replace(" 0,0", "");
 
                     itemId = itemId.Replace("{", "");
                     itemId = itemId.Replace("}", "");
                     itemId = itemId.TrimStart().TrimEnd();
 
                     //placeholders
-                    if (itemId.Equals("all")) itemId = "99999";
-                    if (itemId.Equals("")) itemId = "00000";
+                    if (itemId.Equals("all"))
+                        itemId = "99999";
+                    if (itemId.Equals(""))
+                        itemId = "00000";
 
                     //order matters else recursion is needed
                     var badSplits = new[] { "      ", "     ", "    ", "   ", "  " };
                     foreach (var badSplit in badSplits)
                     {
-                        if (!itemId.Contains(badSplit)) continue;
+                        if (!itemId.Contains(badSplit))
+                            continue;
                         itemId = itemId.Replace(badSplit, " ");
                     }
 

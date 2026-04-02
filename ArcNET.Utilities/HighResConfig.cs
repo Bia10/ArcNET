@@ -1,9 +1,9 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Spectre.Console;
 using Utils.Device;
 
 // ReSharper disable InconsistentNaming
@@ -26,6 +26,7 @@ namespace ArcNET.Utilities
         private static int MainMenuArt; // 0 = black, 1 = fade to black, 2 = wood
         private static int Borders; // 1 = add borders to most UI graphics
         private static int Language; // 0 = English, 1 = German, 2 = French, 3 = Russian
+
         //Graphics:
         private static int Windowed; // 0 = fullscreen mode, 1 = windowed mode
         private static int Renderer; // 0 = software, 1 = hardware
@@ -33,6 +34,7 @@ namespace ArcNET.Utilities
         private static int DDrawWrapper; // 1 = install DDrawCompat wrapper
         private static int DxWrapper; // 1 = install DxWrapper's DDrawCompat
         private static int ShowFPS; // 0 = no change, 1 = always enabled
+
         //Advanced:
         private static int ScrollFPS; // original: 35, max: 255
         private static int ScrollDist; // original: 10, infinite: 0
@@ -162,8 +164,7 @@ namespace ArcNET.Utilities
             DDrawWrapper = 0;
 
             //Check for windows 7 to 10, use DxWrapper
-            if (osInfo.Version.Major >= 7 && osInfo.Version.Major <= 10
-                || BitDepth == 16)
+            if (osInfo.Version.Major >= 7 && osInfo.Version.Major <= 10 || BitDepth == 16)
             {
                 DxWrapper = 1;
             }

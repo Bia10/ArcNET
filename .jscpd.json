@@ -1,0 +1,6 @@
+{
+  "threshold": 5,
+  "reporters": ["console"],
+  "ignore": ["**/__mocks__/**", "**/node_modules/**", "**/artifacts/**"],
+  "absolute": true
+}

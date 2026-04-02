@@ -9,10 +9,7 @@ namespace ArcNET.DataTypes.GameObjects
     {
         public static GameObjectHeader Read(this BinaryReader reader)
         {
-            var header = new GameObjectHeader
-            {
-                Version = reader.ReadInt32()
-            };
+            var header = new GameObjectHeader { Version = reader.ReadInt32() };
 
             if (header.Version != 0x77)
             {
@@ -31,12 +28,15 @@ namespace ArcNET.DataTypes.GameObjects
             var bitmapLength = (int)Enum.Parse(typeof(Enums.ObjectFieldBitmap), header.GameObjectType.ToString());
             header.Bitmap = new BitArray(reader.ReadBytes(bitmapLength));
 
-            ConsoleExtensions.Log($"Parsed GameOjb headerVersion: {header.Version} " 
-                                      + $"\n ProtoId: {header.ProtoId}"
-                                      + $"\n ObjectId: {header.ObjectId}"
-                                      + $"\n GameObjectType: {header.GameObjectType}"
-                                      + $"\n bitmapLength: {bitmapLength}"
-                                      + $"\n Bitmap: {header.Bitmap}", "warn");
+            ConsoleExtensions.Log(
+                $"Parsed GameOjb headerVersion: {header.Version} "
+                    + $"\n ProtoId: {header.ProtoId}"
+                    + $"\n ObjectId: {header.ObjectId}"
+                    + $"\n GameObjectType: {header.GameObjectType}"
+                    + $"\n bitmapLength: {bitmapLength}"
+                    + $"\n Bitmap: {header.Bitmap}",
+                "warn"
+            );
             return header;
         }
     }

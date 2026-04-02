@@ -1,7 +1,7 @@
-﻿using ArcNET.DataTypes.Common;
+﻿using System.Collections.Generic;
+using ArcNET.DataTypes.Common;
 using ArcNET.DataTypes.GameObjects;
 using Newtonsoft.Json;
-using System.Collections.Generic;
 
 namespace ArcNET.DataTypes
 {

@@ -1,7 +1,7 @@
-﻿using Spectre.Console;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Spectre.Console;
 using Utils.Console;
 
 namespace ArcNET.DataTypes.GameObjects.Classes
@@ -27,7 +27,8 @@ namespace ArcNET.DataTypes.GameObjects.Classes
         public static string GetNameFromId(int id)
         {
             var entries = LoadedDescriptions.Entries.Where(entry => entry.Id.Equals(id)).ToList();
-            if (entries.Count == 0) return $"NOT_FOUND id:{id}";
+            if (entries.Count == 0)
+                return $"NOT_FOUND id:{id}";
 
             var name = entries.First().Name;
             ConsoleExtensions.Log($"Entries found: |{entries.Count}| Name: |{name}|", "info");
