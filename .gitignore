@@ -335,6 +335,10 @@ ASALocalRun/
 *.nvuser
 
 # MFractors (Xamarin productivity tool) working folder
+
+# AI-generated documentation (local only)
+docs/ArcanumResearchDoc.md
+docs/implementation-guide.md
 .mfractor/
 
 # Local History for Visual Studio
