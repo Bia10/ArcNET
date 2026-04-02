@@ -1,18 +1,70 @@
-﻿namespace ArcNET.Formats;
+﻿using System.Buffers;
+using System.Text;
+using ArcNET.Core;
+
+namespace ArcNET.Formats;
 
 /// <summary>A single key-value entry from a text data file.</summary>
 /// <param name="Key">The parameter name (before the colon).</param>
 /// <param name="Value">The parameter value (after the colon, trimmed).</param>
 public readonly record struct TextDataEntry(string Key, string Value);
 
-/// <summary>
-/// Span-based line iterator for Arcanum text data files (mob, entity definitions).
-/// These files use <c>key:value</c> lines with optional inline comments.
-/// </summary>
-public static class TextDataFormat
+/// <summary>Parsed contents of an Arcanum text data file.</summary>
+public sealed class TextDataFile
 {
+    /// <summary>All key-value pairs in document order.</summary>
+    public required IReadOnlyList<TextDataEntry> Entries { get; init; }
+}
+
+/// <summary>
+/// Span-based parser and writer for Arcanum text data files (entity definitions, etc.).
+/// These files use <c>key:value</c> lines with optional inline <c>//</c> comments.
+/// Implements both <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/> over
+/// <see cref="TextDataFile"/>.
+/// </summary>
+public sealed class TextDataFormat : IFormatReader<TextDataFile>, IFormatWriter<TextDataFile>
+{
+    /// <inheritdoc/>
+    public static TextDataFile Parse(scoped ref SpanReader reader)
+    {
+        var text = Encoding.UTF8.GetString(reader.ReadBytes(reader.Remaining));
+        return new TextDataFile { Entries = ParseLines(text.Split('\n')) };
+    }
+
+    /// <inheritdoc/>
+    public static TextDataFile ParseMemory(ReadOnlyMemory<byte> memory)
+    {
+        var reader = new SpanReader(memory.Span);
+        return Parse(ref reader);
+    }
+
+    /// <inheritdoc/>
+    public static TextDataFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+
+    /// <inheritdoc/>
+    public static void Write(in TextDataFile value, ref SpanWriter writer)
+    {
+        var sb = new StringBuilder();
+        foreach (var (key, val) in value.Entries)
+            sb.Append(key).Append(':').Append(val).Append('\n');
+        writer.WriteBytes(Encoding.UTF8.GetBytes(sb.ToString()));
+    }
+
+    /// <inheritdoc/>
+    public static byte[] WriteToArray(in TextDataFile value)
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        var w = new SpanWriter(buf);
+        Write(in value, ref w);
+        return buf.WrittenSpan.ToArray();
+    }
+
+    /// <inheritdoc/>
+    public static void WriteToFile(in TextDataFile value, string path) =>
+        File.WriteAllBytes(path, WriteToArray(in value));
+
     /// <summary>Parses all non-empty, non-comment key-value pairs from the given lines.</summary>
-    public static IReadOnlyList<TextDataEntry> Parse(IEnumerable<string> lines)
+    public static IReadOnlyList<TextDataEntry> ParseLines(IEnumerable<string> lines)
     {
         var results = new List<TextDataEntry>();
         foreach (var raw in lines)
@@ -38,11 +90,4 @@ public static class TextDataFormat
 
         return results;
     }
-
-    /// <summary>Parses all key-value pairs from a text file.</summary>
-    public static IReadOnlyList<TextDataEntry> ParseFile(string path) => Parse(File.ReadAllLines(path));
-
-    /// <summary>Parses all key-value pairs from a UTF-8 byte buffer.</summary>
-    public static IReadOnlyList<TextDataEntry> ParseMemory(ReadOnlyMemory<byte> memory) =>
-        Parse(System.Text.Encoding.UTF8.GetString(memory.Span).Split('\n'));
 }
