@@ -52,8 +52,8 @@ public static class GameDataLoader
 
         foreach (var file in mesFiles)
         {
-            var entries = MessageFormat.ParseFile(file);
-            foreach (var entry in entries)
+            var mesFile = MessageFormat.ParseFile(file);
+            foreach (var entry in mesFile.Entries)
                 result.TryAdd(entry.Index, entry.Text);
         }
 
@@ -151,8 +151,8 @@ public static class GameDataLoader
             FileFormat.Message => Task.Run(
                 () =>
                 {
-                    var entries = MessageFormat.ParseFile(path);
-                    foreach (var e in entries)
+                    var mesFile = MessageFormat.ParseFile(path);
+                    foreach (var e in mesFile.Entries)
                         store.AddMessage(e.Text);
                 },
                 ct
@@ -171,8 +171,8 @@ public static class GameDataLoader
             FileFormat.Message => Task.Run(
                 () =>
                 {
-                    var entries = MessageFormat.ParseMemory(memory);
-                    foreach (var e in entries)
+                    var mesFile = MessageFormat.ParseMemory(memory);
+                    foreach (var e in mesFile.Entries)
                         store.AddMessage(e.Text);
                 },
                 ct

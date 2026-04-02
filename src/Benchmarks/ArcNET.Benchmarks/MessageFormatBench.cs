@@ -24,17 +24,17 @@ public class MessageFormatBench
 
     /// <summary>Parse 1000 entries from pre-split string lines.</summary>
     [Benchmark(Baseline = true)]
-    public int ParseFromLines() => MessageFormat.Parse(_lines).Count;
+    public int ParseFromLines() => MessageFormat.ParseLines(_lines).Count;
 
     /// <summary>Parse 1000 entries from a UTF-8 byte buffer via <see cref="MessageFormat.ParseMemory"/>.</summary>
     [Benchmark]
-    public int ParseFromMemory() => MessageFormat.ParseMemory(_bytes).Count;
+    public int ParseFromMemory() => MessageFormat.ParseMemory(_bytes).Entries.Count;
 
     /// <summary>Round-trip: parse then write back to a byte array.</summary>
     [Benchmark]
     public int WriteToArray()
     {
-        var entries = MessageFormat.Parse(_lines);
-        return MessageFormat.WriteToArray(entries).Length;
+        var mesFile = new MesFile { Entries = MessageFormat.ParseLines(_lines) };
+        return MessageFormat.WriteToArray(in mesFile).Length;
     }
 }
