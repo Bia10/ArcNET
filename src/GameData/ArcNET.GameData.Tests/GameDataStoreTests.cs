@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using ArcNET.Core.Primitives;
+using ArcNET.Formats;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
 
@@ -88,7 +89,59 @@ public class GameDataStoreTests
     public async Task AddMessage_IncreasesMessageCount()
     {
         var store = new GameDataStore();
-        store.AddMessage("Hello world");
+        store.AddMessage(new MessageEntry(0, "Hello world"));
         await Assert.That(store.Messages.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AddMessage_PreservesIndexAndText()
+    {
+        var store = new GameDataStore();
+        store.AddMessage(new MessageEntry(1100, "snd_foo", "Skill text"));
+
+        await Assert.That(store.Messages[0].Index).IsEqualTo(1100);
+        await Assert.That(store.Messages[0].SoundId).IsEqualTo("snd_foo");
+        await Assert.That(store.Messages[0].Text).IsEqualTo("Skill text");
+    }
+
+    [Test]
+    public async Task Clear_ResetsAllCollections()
+    {
+        var store = new GameDataStore();
+        store.AddObject(MakeHeader(1));
+        store.AddMessage(new MessageEntry(1, "x"));
+        store.Clear();
+
+        await Assert.That(store.Objects.Count).IsEqualTo(0);
+        await Assert.That(store.Messages.Count).IsEqualTo(0);
+        await Assert.That(store.DirtyObjects.Count).IsEqualTo(0);
+    }
+
+    // ── G4: MessagesBySource origin tracking ────────────────────────────
+
+    [Test]
+    public async Task AddMessage_WithSourcePath_PopulatesMessagesBySource()
+    {
+        var store = new GameDataStore();
+        store.AddMessage(new MessageEntry(10, "Alpha"), "game.mes");
+        store.AddMessage(new MessageEntry(20, "Beta"), "items.mes");
+
+        await Assert.That(store.MessagesBySource.ContainsKey("game.mes")).IsTrue();
+        await Assert.That(store.MessagesBySource.ContainsKey("items.mes")).IsTrue();
+        await Assert.That(store.MessagesBySource["game.mes"][0].Text).IsEqualTo("Alpha");
+        await Assert.That(store.MessagesBySource["items.mes"][0].Text).IsEqualTo("Beta");
+        // Flat Messages list must still contain all entries
+        await Assert.That(store.Messages.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task Clear_ResetsBySourceDictionaries()
+    {
+        var store = new GameDataStore();
+        store.AddMessage(new MessageEntry(1, "x"), "game.mes");
+        store.Clear();
+
+        await Assert.That(store.MessagesBySource.Count).IsEqualTo(0);
+        await Assert.That(store.Messages.Count).IsEqualTo(0);
     }
 }
