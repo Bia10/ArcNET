@@ -54,7 +54,12 @@ public static class GameDataLoader
         {
             var mesFile = MessageFormat.ParseFile(file);
             foreach (var entry in mesFile.Entries)
-                result.TryAdd(entry.Index, entry.Text);
+            {
+                if (!result.TryAdd(entry.Index, entry.Text))
+                    throw new InvalidOperationException(
+                        $"Duplicate message index {entry.Index} in '{file}'. The index was already defined in a previously loaded .mes file."
+                    );
+            }
         }
 
         return result;
@@ -106,7 +111,7 @@ public static class GameDataLoader
                     format = FileFormat.FacadeWalk;
             }
 
-            await LoadEntryFromMemoryAsync(store, format, memory, ct).ConfigureAwait(false);
+            await LoadEntryFromMemoryAsync(store, format, memory, name, ct).ConfigureAwait(false);
             progress?.Report((i + 1f) / total);
         }
 
@@ -152,8 +157,35 @@ public static class GameDataLoader
                 () =>
                 {
                     var mesFile = MessageFormat.ParseFile(path);
+                    var name = Path.GetFileName(path);
                     foreach (var e in mesFile.Entries)
-                        store.AddMessage(e.Text);
+                        store.AddMessage(e, name);
+                },
+                ct
+            ),
+            FileFormat.Sector => Task.Run(
+                () =>
+                {
+                    var sector = SectorFormat.ParseFile(path);
+                    store.AddSector(sector, Path.GetFileName(path));
+                },
+                ct
+            ),
+            FileFormat.Proto => Task.Run(
+                () =>
+                {
+                    var proto = ProtoFormat.ParseFile(path);
+                    store.AddProto(proto, Path.GetFileName(path));
+                    store.AddObject(proto.Header);
+                },
+                ct
+            ),
+            FileFormat.Mob => Task.Run(
+                () =>
+                {
+                    var mob = MobFormat.ParseFile(path);
+                    store.AddMob(mob, Path.GetFileName(path));
+                    store.AddObject(mob.Header);
                 },
                 ct
             ),
@@ -164,6 +196,7 @@ public static class GameDataLoader
         GameDataStore store,
         FileFormat format,
         ReadOnlyMemory<byte> memory,
+        string sourcePath,
         CancellationToken ct
     ) =>
         format switch
@@ -172,8 +205,35 @@ public static class GameDataLoader
                 () =>
                 {
                     var mesFile = MessageFormat.ParseMemory(memory);
+                    var name = Path.GetFileName(sourcePath);
                     foreach (var e in mesFile.Entries)
-                        store.AddMessage(e.Text);
+                        store.AddMessage(e, name);
+                },
+                ct
+            ),
+            FileFormat.Sector => Task.Run(
+                () =>
+                {
+                    var sector = SectorFormat.ParseMemory(memory);
+                    store.AddSector(sector, Path.GetFileName(sourcePath));
+                },
+                ct
+            ),
+            FileFormat.Proto => Task.Run(
+                () =>
+                {
+                    var proto = ProtoFormat.ParseMemory(memory);
+                    store.AddProto(proto, Path.GetFileName(sourcePath));
+                    store.AddObject(proto.Header);
+                },
+                ct
+            ),
+            FileFormat.Mob => Task.Run(
+                () =>
+                {
+                    var mob = MobFormat.ParseMemory(memory);
+                    store.AddMob(mob, Path.GetFileName(sourcePath));
+                    store.AddObject(mob.Header);
                 },
                 ct
             ),
