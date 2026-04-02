@@ -6,28 +6,118 @@
 [![codecov](https://codecov.io/gh/Bia10/ArcNET/branch/main/graph/badge.svg)](https://codecov.io/gh/Bia10/ArcNET)
 [![License](https://img.shields.io/github/license/Bia10/ArcNET)](https://github.com/Bia10/ArcNET/blob/main/LICENSE)
 
-[![NuGet ArcNET.Core](https://img.shields.io/nuget/v/ArcNET.Core?label=ArcNET.Core)](https://www.nuget.org/packages/ArcNET.Core)
-[![NuGet ArcNET.GameObjects](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=ArcNET.GameObjects)](https://www.nuget.org/packages/ArcNET.GameObjects)
-[![NuGet ArcNET.Formats](https://img.shields.io/nuget/v/ArcNET.Formats?label=ArcNET.Formats)](https://www.nuget.org/packages/ArcNET.Formats)
-[![NuGet ArcNET.GameData](https://img.shields.io/nuget/v/ArcNET.GameData?label=ArcNET.GameData)](https://www.nuget.org/packages/ArcNET.GameData)
-[![NuGet ArcNET.Archive](https://img.shields.io/nuget/v/ArcNET.Archive?label=ArcNET.Archive)](https://www.nuget.org/packages/ArcNET.Archive)
-[![NuGet ArcNET.Patch](https://img.shields.io/nuget/v/ArcNET.Patch?label=ArcNET.Patch)](https://www.nuget.org/packages/ArcNET.Patch)
+Read/write SDK for **Arcanum: Of Steamworks and Magick Obscura** game data formats.
+Span-based, zero-allocation binary parsing with a UI-agnostic library API — usable from console tools, Avalonia editors, Blazor WASM, and anything in between.
 
-Read/write SDK for Arcanum: Of Steamworks and Magick Obscura game data formats.
+⭐ Please star this project if you find it useful. ⭐
 
-## Repository structure
+[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](#example-catalogue) · [Public API](docs/PublicApi.md)
 
+---
+
+## Packages
+
+| Package | NuGet | Description |
+|---|---|---|
+| `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`) |
+| `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | Full game-object model — 22 typed data classes with explicit `Read` + `Write` |
+| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | Binary format parsers/writers for MES, SEC, FAC, TDF and more |
+| `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | `GameDataLoader` (directory + in-memory), `GameDataStore`, `GameDataSaver` |
+| `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | DAT archive pack / unpack backed by `MemoryMappedFile` |
+| `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | HighRes patch configuration, installer, and uninstaller |
+
+All packages target `net10.0` and carry no dependencies outside the BCL.
+
+---
+
+## Quick Example
+
+```csharp
+using ArcNET.Formats;
+
+// Parse a MES message file from disk — one allocation (File.ReadAllBytes)
+IReadOnlyList<MessageEntry> messages = MessageFormat.ParseFile("arcanum/mes/game.mes");
+
+// Or from a buffer you already own — zero extra allocations
+ReadOnlyMemory<byte> buf = await File.ReadAllBytesAsync("game.mes");
+messages = MessageFormat.ParseMemory(buf);
+
+// Serialize back to bytes
+byte[] bytes = MessageFormat.WriteToArray(messages);
 ```
-src/
-  Core/       ArcNET.Core         — SpanReader/SpanWriter, primitives (Location, ArtId, Color, GameObjectGuid)
-  GameObjects/ ArcNET.GameObjects  — Game object model, 22 type classes with Read + Write, GameObjectStore
-  Formats/    ArcNET.Formats      — Binary format parsers/writers (MES, SEC, FAC, TDF, ...)
-  GameData/   ArcNET.GameData     — GameDataLoader (dual-source: dir + memory), GameDataStore, GameDataSaver
-  Archive/    ArcNET.Archive      — DAT archive read/write (MemoryMappedFile-backed)
-  Patch/      ArcNET.Patch        — HighResConfig patch management, GitHubReleaseClient
-  App/        ArcNET.App          — Console CLI application (Spectre.Console)
-  Benchmarks/ ArcNET.Benchmarks   — BenchmarkDotNet perf benchmarks
+
+For more examples see [Example Catalogue](#example-catalogue).
+
+---
+
+## Example Catalogue
+
+### Open and extract a DAT archive
+
+```csharp
+using ArcNET.Archive;
+
+using DatArchive archive = DatArchive.Open("arcanum.dat");
+
+// Enumerate the entry table (FrozenDictionary — O(1) lookup, no allocation)
+foreach (ArchiveEntry entry in archive.Entries)
+    Console.WriteLine($"{entry.Path}  {entry.UncompressedSize:N0} bytes");
+
+// Extract all entries to a directory
+await DatExtractor.ExtractAllAsync(archive, outputDir: "extracted/");
+
+// Read a single entry without loading the whole archive
+ReadOnlyMemory<byte> data = archive.GetEntryData("art/CRITTERS/critter.art");
 ```
+
+### Load and query game data
+
+```csharp
+using ArcNET.GameData;
+
+// Source 1: extracted directory on disk
+GameDataStore store = await new GameDataLoader().LoadFromDirectoryAsync("extracted/");
+
+Console.WriteLine($"Loaded {store.Messages.Count} messages, {store.Objects.Count} objects");
+
+// Source 2: pre-loaded byte blobs (editor / unit-test friendly — no filesystem needed)
+IReadOnlyDictionary<string, ReadOnlyMemory<byte>> blobs = LoadBlobsFromSomewhere();
+store = await new GameDataLoader().LoadFromMemoryAsync(blobs);
+
+// Save changed files back
+await new GameDataSaver().SaveToDirectoryAsync(store, "output/");
+
+// Or serialize to memory for in-process round-trips
+IReadOnlyDictionary<string, byte[]> result = new GameDataSaver().SaveToMemory(store);
+```
+
+### Parse a game object from raw bytes
+
+```csharp
+using ArcNET.Core;
+using ArcNET.GameObjects;
+
+byte[] raw = File.ReadAllBytes("critter.mob");
+var reader = new SpanReader(raw);
+
+GameObjectHeader header = GameObjectHeader.Read(ref reader);
+Console.WriteLine($"Type: {header.ObjectType}  GUID: {header.Guid}");
+```
+
+### Install the HighRes patch
+
+```csharp
+using ArcNET.Patch;
+
+var installer = new PatchInstaller();
+await installer.InstallAsync(gameDir: @"C:\Games\Arcanum");
+
+// Remove the patch later
+var uninstaller = new PatchUninstaller();
+await uninstaller.UninstallAsync(gameDir: @"C:\Games\Arcanum");
+```
+
+---
 
 ## Package dependency graph
 
@@ -35,16 +125,15 @@ src/
 ArcNET.App (exe)
   ├── ArcNET.GameData
   │     ├── ArcNET.Formats
-  │     │     ├── ArcNET.GameObjects
-  │     │     │     └── ArcNET.Core
+  │     │     ├── ArcNET.GameObjects → ArcNET.Core
   │     │     └── ArcNET.Core
-  │     ├── ArcNET.GameObjects
+  │     ├── ArcNET.GameObjects → ArcNET.Core
   │     └── ArcNET.Core
-  ├── ArcNET.Archive
-  │     └── ArcNET.Core
-  └── ArcNET.Patch
-        └── ArcNET.Core
+  ├── ArcNET.Archive  → ArcNET.Core
+  └── ArcNET.Patch    → ArcNET.Core
 ```
+
+---
 
 ## Building
 
@@ -55,7 +144,7 @@ dotnet build ArcNET.Build.slnx -c Release
 
 ## Testing
 
-TUnit tests use the Microsoft Testing Platform runner. Run each test project via `dotnet run`:
+TUnit tests use the Microsoft Testing Platform runner:
 
 ```shell
 dotnet run --project src/Core/ArcNET.Core.Tests -c Release
@@ -69,81 +158,18 @@ dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
 ## Formatting
 
 ```shell
-dotnet csharpier format .       # whitespace + brace style (run FIRST)
-dotnet format style ArcNET.Build.slnx    # naming conventions, usings
-dotnet format analyzers ArcNET.Build.slnx  # Roslyn analyzer violations
+dotnet csharpier format .                    # whitespace + brace style (run first)
+dotnet format style ArcNET.Build.slnx        # naming conventions, usings
+dotnet format analyzers ArcNET.Build.slnx    # Roslyn analyzer violations
 ```
 
-## Quick-start examples
-
-### Parse a MES message file
-
-```csharp
-using ArcNET.Formats;
-
-// From file
-var messages = MessageFormat.ParseFile("path/to/game.mes");
-
-// From memory (editor / Blazor scenario)
-ReadOnlyMemory<byte> buf = File.ReadAllBytes("game.mes");
-var messages = MessageFormat.ParseMemory(buf);
-
-// Write back
-byte[] bytes = MessageFormat.WriteToArray(messages);
-```
-
-### Open a DAT archive
-
-```csharp
-using ArcNET.Archive;
-
-using var archive = DatArchive.Open("arcanum.dat");
-foreach (var entry in archive.Entries)
-    Console.WriteLine($"{entry.Path}  {entry.UncompressedSize} bytes");
-
-// Extract all
-await DatExtractor.ExtractAllAsync(archive, outputDir: "extracted/");
-```
-
-### Load game data
-
-```csharp
-using ArcNET.GameData;
-
-// From extracted directory
-var store = await GameDataLoader.LoadFromDirectoryAsync("extracted/");
-Console.WriteLine($"Loaded {store.Messages.Count} messages");
-
-// Save back
-await GameDataSaver.SaveToDirectoryAsync(store, "output/");
-```
-
-### Parse a game object from raw bytes
-
-```csharp
-using ArcNET.Core;
-using ArcNET.GameObjects;
-using ArcNET.GameObjects.Types;
-
-byte[] raw = File.ReadAllBytes("critter.mob");
-var reader = new SpanReader(raw);
-var header = GameObjectHeader.Read(ref reader);
-
-// type dispatch based on header.GameObjectType
-```
-
-### Install HighRes patch
-
-```csharp
-using ArcNET.Patch;
-
-var installer = new PatchInstaller();
-await installer.InstallAsync(gameDir: @"C:\Games\Arcanum");
-```
+---
 
 ## Public API Reference
 
 See [docs/PublicApi.md](docs/PublicApi.md) for the complete public API reference.
+
+---
 
 ## License
 
