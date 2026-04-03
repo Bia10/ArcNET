@@ -45,7 +45,7 @@ public class PrimitiveRoundTripTests
     [Test]
     public async Task GameObjectGuid_RoundTrip()
     {
-        var original = new GameObjectGuid(1, 2, 3, 0xC0FFEE);
+        var original = new GameObjectGuid(1, 2, 3, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0C, 0x0F));
         var buf = new ArrayBufferWriter<byte>();
         var writer = new SpanWriter(buf);
         original.Write(ref writer);

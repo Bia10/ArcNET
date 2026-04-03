@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace ArcNET.Core;
 
@@ -93,6 +93,9 @@ public ref struct SpanReader(ReadOnlySpan<byte> data)
         return s;
     }
 
+    /// <summary>Advances the position by <paramref name="count"/> bytes without reading.</summary>
+    public void Skip(int count) => Advance(count);
+
     /// <summary>Slices a sub-reader of <paramref name="length"/> bytes and advances the position.</summary>
     public SpanReader Slice(int length)
     {
@@ -113,6 +116,9 @@ public ref struct SpanReader(ReadOnlySpan<byte> data)
         value = _remaining[0];
         return true;
     }
+
+    /// <summary>Reads a little-endian <see cref="int"/> at the given offset from current position without advancing.</summary>
+    public int PeekInt32At(int offset) => BinaryPrimitives.ReadInt32LittleEndian(_remaining[offset..]);
 
     private void Advance(int count)
     {
