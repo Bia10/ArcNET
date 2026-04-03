@@ -128,6 +128,16 @@ See [docs/PublicApi.md](docs/PublicApi.md) for the complete public API reference
 
 ---
 
+## Credits
+
+Reverse-engineering references that informed the binary format implementations:
+
+- **[arcanum-ce](https://github.com/arcanum-ce/arcanum-ce)** — C rewrite of the Arcanum engine; primary source for object field tables (`obj.c`, `obj_flags.h`), archive format (`database.h`), script structures (`script.h`), sector layout (`sector.h`), and more. See [references.md](references.md) for the full cross-reference.
+- **[GrognardsFromHell/OpenTemple](https://github.com/GrognardsFromHell/OpenTemple)** — ToEE / Arcanum open-source engine; used for save-game format details (`SaveGameInfoReader.cs`, `ArchiveIndexReader.cs`).
+- **[AxelStrem/ArtConverter](https://github.com/AxelStrem/ArtConverter)** — Reference implementation for Arcanum ART sprite format (`artconverter.cpp`).
+
+---
+
 ## License
 
 MIT — Copyright (c) 2026 Bia10

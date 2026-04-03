@@ -12,7 +12,6 @@ public readonly record struct ArtPaletteEntry(byte Blue, byte Green, byte Red);
 
 /// <summary>
 /// Per-frame metadata block (28 bytes) from an ART file.
-/// Corresponds to <c>ARTFrameHeader</c> in <c>AxelStrem/ArtConverter artconverter.cpp</c>.
 /// </summary>
 public readonly record struct ArtFrameHeader(
     uint Width,
@@ -43,7 +42,6 @@ public sealed class ArtFrame
 
 /// <summary>
 /// Parsed contents of an Arcanum sprite animation (.art) file.
-/// Source: <c>AxelStrem/ArtConverter artconverter.cpp</c>.
 /// </summary>
 public sealed class ArtFile
 {

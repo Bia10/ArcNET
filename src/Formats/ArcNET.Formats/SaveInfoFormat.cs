@@ -6,7 +6,6 @@ namespace ArcNET.Formats;
 
 /// <summary>
 /// Metadata stored in an Arcanum save-game info (.gsi) file — one per save slot.
-/// Source: <c>GrognardsFromHell/OpenTemple</c> — <c>SaveGameInfoReader.cs</c>.
 /// </summary>
 public sealed class SaveInfo
 {
@@ -47,7 +46,7 @@ public sealed class SaveInfo
 /// <summary>
 /// Span-based parser and writer for Arcanum save-game info (.gsi) files.
 /// All strings are length-prefixed with a little-endian <see cref="int"/> followed by ASCII bytes.
-/// Binary layout (exact field order from OpenTemple <c>SaveGameInfoReader.cs</c>):
+/// Binary layout (exact field order):
 /// <c>int32 version(0) | PrefixedString ModuleName | PrefixedString LeaderName |
 /// int32 MapId | int32 GameTimeDays | int32 GameTimeMs | int32 LeaderPortraitId |
 /// int32 LeaderLevel | int64 LeaderLoc | int32 StoryState | PrefixedString DisplayName</c>.
