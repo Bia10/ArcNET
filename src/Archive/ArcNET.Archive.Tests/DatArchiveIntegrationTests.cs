@@ -15,50 +15,71 @@ public class DatArchiveIntegrationTests
     // ── DAT builder helper ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds a minimal valid Arcanum DAT archive in memory.
-    /// Layout:  [file-data...] [directory-table] [footer: dirOffset(4) + archiveSize(4)]
-    /// Directory entry: nameLen(4) + nameBytes + uncompressedSize(4) + compressedSize(4) + offset(4)
+    /// Builds a minimal valid Arcanum DAT archive in memory (DAT format, not DAT1).
+    /// Layout (baseOffset=0 so entry offsets are absolute):
+    ///   [data blobs...]
+    ///   [entry_table_size (4): absolute position of entries_count]
+    ///   [entries_count (4)]
+    ///   [per entry: nameLen(4) + name+NUL(nameLen) + skip(4) + flags(4) + uncompSize(4) + compSize(4) + offset(4)]
+    ///   [footer: magic(4)='DAT ' + nameTableSize(4)=0 + entryTableOffset(4)]
     /// </summary>
     private static byte[] BuildDat(IReadOnlyDictionary<string, byte[]> entries)
     {
-        var out2 = new ArrayBufferWriter<byte>(4096);
+        var buf = new ArrayBufferWriter<byte>(4096);
 
-        // 1. Write all file data sequentially and record offsets
+        // 1. Write all file data blobs and record absolute offsets
         var infos = new List<(string Name, int Offset, int Size)>(entries.Count);
         foreach (var (name, data) in entries)
         {
-            var offset = out2.WrittenCount;
-            var span = out2.GetSpan(data.Length);
+            var offset = buf.WrittenCount;
+            var span = buf.GetSpan(data.Length);
             data.CopyTo(span);
-            out2.Advance(data.Length);
+            buf.Advance(data.Length);
             infos.Add((name, offset, data.Length));
         }
 
-        // 2. Write directory table
-        var dirOffset = out2.WrittenCount;
+        // 2. entry_table_size = absolute position of entries_count (which is right after this field)
+        var tableSizePos = buf.WrittenCount;
+        var entriesCountPos = tableSizePos + 4;
+        WriteUInt32(buf, (uint)entriesCountPos);
+
+        // 3. entries_count
+        WriteUInt32(buf, (uint)infos.Count);
+
+        // 4. Entry records
         foreach (var (name, offset, size) in infos)
         {
             var nameBytes = Encoding.ASCII.GetBytes(name);
-            WriteInt32(out2, nameBytes.Length);
-            var nameSpan = out2.GetSpan(nameBytes.Length);
+            var nameLen = nameBytes.Length + 1; // include null terminator
+            WriteUInt32(buf, (uint)nameLen);
+            var nameSpan = buf.GetSpan(nameBytes.Length);
             nameBytes.CopyTo(nameSpan);
-            out2.Advance(nameBytes.Length);
-            WriteInt32(out2, size); // uncompressedSize
-            WriteInt32(out2, 0); // compressedSize = 0 (stored, not compressed)
-            WriteInt32(out2, offset);
+            buf.Advance(nameBytes.Length);
+            buf.GetSpan(1)[0] = 0; // null terminator (1 byte)
+            buf.Advance(1);
+            WriteUInt32(buf, 0u); // unknown skip field
+            WriteUInt32(buf, 0x001u); // flags: Plain
+            WriteUInt32(buf, (uint)size); // uncompressedSize
+            WriteUInt32(buf, (uint)size); // compressedSize (= uncompressedSize for plain)
+            WriteUInt32(buf, (uint)offset); // absolute file offset
         }
 
-        // 3. Write footer
-        WriteInt32(out2, dirOffset);
-        WriteInt32(out2, out2.WrittenCount + 4); // archiveSize (incl. final 4 bytes)
+        // 5. Footer (12 bytes): magic + nameTableSize + entryTableOffset
+        //    entryTableOffset = fileLength - 4 - tableSizePos  (ensures baseOffset = 0)
+        var footerStart = buf.WrittenCount;
+        var fileLength = footerStart + 12;
+        var entryTableOffset = (uint)(fileLength - 4 - tableSizePos);
+        WriteUInt32(buf, 0x44415420u); // 'DAT ' magic (FourCC LE)
+        WriteUInt32(buf, 0u); // nameTableSize (unused by reader)
+        WriteUInt32(buf, entryTableOffset);
 
-        return out2.WrittenMemory.ToArray();
+        return buf.WrittenMemory.ToArray();
     }
 
-    private static void WriteInt32(ArrayBufferWriter<byte> buf, int value)
+    private static void WriteUInt32(ArrayBufferWriter<byte> buf, uint value)
     {
         var span = buf.GetSpan(4);
-        BinaryPrimitives.WriteInt32LittleEndian(span, value);
+        BinaryPrimitives.WriteUInt32LittleEndian(span, value);
         buf.Advance(4);
     }
 

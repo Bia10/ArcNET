@@ -67,28 +67,44 @@ public static class DatPacker
             progress?.Report((float)(i + 1) / (files.Length + 1));
         }
 
-        // Write directory table
-        var dirOffset = (int)output.Position;
+        // Write directory table in Arcanum DAT format:
+        //   entry_table_size (4): absolute position of entries_count
+        //   entries_count (4)
+        //   per-entry: nameLen(4) + name+NUL(nameLen) + skip(4) + flags(4) + uncompSize(4) + compSize(4) + offset(4)
+        var tableSizePos = (int)output.Position;
+        var entriesCountPos = tableSizePos + 4;
         var dirBuf = new ArrayBufferWriter<byte>();
         var dirWriter = new SpanWriter(dirBuf);
+
+        // entry_table_size = position of entries_count
+        dirWriter.WriteUInt32((uint)entriesCountPos);
+        // entries_count
+        dirWriter.WriteInt32(entryInfos.Count);
 
         foreach (var (virtualPath, size, startOffset) in entryInfos)
         {
             var nameBytes = Encoding.ASCII.GetBytes(virtualPath);
-            dirWriter.WriteInt32(nameBytes.Length);
+            var nameLen = nameBytes.Length + 1; // includes null terminator
+            dirWriter.WriteInt32(nameLen);
             dirWriter.WriteBytes(nameBytes);
-            dirWriter.WriteInt32(size); // uncompressed size
-            dirWriter.WriteInt32(0); // compressed size (0 = not compressed)
-            dirWriter.WriteInt32(startOffset);
+            dirWriter.WriteByte(0); // null terminator
+            dirWriter.WriteUInt32(0u); // unknown skip field
+            dirWriter.WriteUInt32(0x001u); // flags: Plain
+            dirWriter.WriteInt32(size); // uncompressedSize
+            dirWriter.WriteInt32(size); // compressedSize (= size for plain)
+            dirWriter.WriteInt32(startOffset); // absolute file offset
         }
 
         await output.WriteAsync(dirBuf.WrittenMemory, cancellationToken).ConfigureAwait(false);
 
-        // Write 8-byte footer: [directory offset (4)] [archive size (4)]
-        var archiveSize = (int)(output.Position + 8);
-        Span<byte> footer = stackalloc byte[8];
-        BinaryPrimitives.WriteInt32LittleEndian(footer, dirOffset);
-        BinaryPrimitives.WriteInt32LittleEndian(footer[4..], archiveSize);
+        // Write 12-byte footer: magic(4) + nameTableSize(4) + entryTableOffset(4)
+        //   entryTableOffset = fileLength - 4 - tableSizePos  (keeps baseOffset = 0)
+        var fileLength = (int)(output.Position + 12);
+        var entryTableOffset = fileLength - 4 - tableSizePos;
+        Span<byte> footer = stackalloc byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(footer, 0x44415420u); // 'DAT ' magic
+        BinaryPrimitives.WriteUInt32LittleEndian(footer[4..], 0u); // nameTableSize (unused)
+        BinaryPrimitives.WriteUInt32LittleEndian(footer[8..], (uint)entryTableOffset);
         await output.WriteAsync(footer.ToArray(), cancellationToken).ConfigureAwait(false);
 
         progress?.Report(1f);
