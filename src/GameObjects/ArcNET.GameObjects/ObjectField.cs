@@ -43,14 +43,14 @@ public enum ObjectField
     ObjFSoundEffect = 32,
     ObjFCategory = 33,
 
-    // Bit 34: wire type is Float (ObjFRotation in arcanum-ce). The name below is a legacy
+    // Bit 34: wire type is Float (ObjFRotation). The name below is a legacy
     // misnomer — despite the "Ias1" suffix implying an int32 array, ObjectPropertyIo correctly
     // dispatches this bit as Float. Do not rename without updating ObjectCommon.cs.
     ObjFPadIas1 = 34,
     ObjFPadI64As1 = 35,
 
     // ── Common (bits 36–40) — movement / physics ─────────────────────────────
-    // Wire types are Float throughout; cross-referenced from arcanum-ce obj.c object_fields[].
+    // Wire types are Float throughout; cross-referenced from object_fields[].
     /// <summary>Run speed (float). Bit 36 in the common bitmap.</summary>
     ObjFSpeedRun = 36,
 
@@ -104,15 +104,15 @@ public enum ObjectField
     ObjFSceneryPadIas1 = 68,
     ObjFSceneryPadI64As1 = 69,
 
-    // ── Projectile (bits 0–7, separate bitmap) ───────────────────────────────
-    ObjFProjectileFlagsCombat = 0,
-    ObjFProjectileFlagsCombatDamage = 1,
-    ObjFProjectileHitLoc = 2,
-    ObjFProjectileParentWeapon = 3,
-    ObjFProjectilePadI1 = 4,
-    ObjFProjectilePadI2 = 5,
-    ObjFProjectilePadIas1 = 6,
-    ObjFProjectilePadI64As1 = 7,
+    // ── Projectile (bits 64–71) ──────────────────────────────────────────
+    ObjFProjectileFlagsCombat = 64,
+    ObjFProjectileFlagsCombatDamage = 65,
+    ObjFProjectileHitLoc = 66,
+    ObjFProjectileParentWeapon = 67,
+    ObjFProjectilePadI1 = 68,
+    ObjFProjectilePadI2 = 69,
+    ObjFProjectilePadIas1 = 70,
+    ObjFProjectilePadI64As1 = 71,
 
     // ── Trap (bits 64–68) ────────────────────────────────────────────────────
     ObjFTrapFlags = 64,
@@ -295,25 +295,24 @@ public enum ObjectField
     ObjFPcBackground = 132,
     ObjFPcBackgroundText = 133,
     ObjFPcQuestIdx = 134,
-    ObjFPcBlessingIdx = 134,
-    ObjFPcBlessingTsIdx = 135,
-    ObjFPcCurseIdx = 136,
-    ObjFPcCurseTsIdx = 137,
-    ObjFPcPartyId = 138,
-    ObjFPcRumorIdx = 139,
-    ObjFPcPadIas2 = 140,
-    ObjFPcSchematicsFoundIdx = 141,
-    ObjFPcLogbookEgoIdx = 142,
-    ObjFPcFogMask = 143,
-    ObjFPcPlayerName = 144,
-    ObjFPcBankMoney = 145,
-    ObjFPcGlobalFlags = 146,
-    ObjFPcGlobalVariables = 147,
-    ObjFPcPadI1 = 148,
-    ObjFPcPadI2 = 149,
-    ObjFPcPadIas1 = 150,
-    ObjFPcPadI64As1 = 151,
-    ObjFPcPadI64As2 = 152,
+    ObjFPcBlessingIdx = 135,
+    ObjFPcBlessingTsIdx = 136,
+    ObjFPcCurseIdx = 137,
+    ObjFPcCurseTsIdx = 138,
+    ObjFPcPartyId = 139,
+    ObjFPcRumorIdx = 140,
+    ObjFPcPadIas2 = 141,
+    ObjFPcSchematicsFoundIdx = 142,
+    ObjFPcLogbookEgoIdx = 143,
+    ObjFPcFogMask = 144,
+    ObjFPcPlayerName = 145,
+    ObjFPcBankMoney = 146,
+    ObjFPcGlobalFlags = 147,
+    ObjFPcGlobalVariables = 148,
+    ObjFPcPadI1 = 149,
+    ObjFPcPadI2 = 150,
+    ObjFPcPadIas1 = 151,
+    ObjFPcPadI64As1 = 152,
 
     // ── NPC (bits 128–152) ───────────────────────────────────────────────────
     ObjFNpcFlags = 128,

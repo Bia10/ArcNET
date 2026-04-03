@@ -19,7 +19,12 @@ public class ObjectTypeRoundTripTests
     private static readonly ArtId TestArtId = new(0xABCDEF01u);
     private static readonly Location TestLocation = new(10, 20);
     private static readonly Color TestColor = new(255, 128, 64);
-    private static readonly GameObjectGuid TestGuid = new(1u, 2u, 3u, 4u);
+    private static readonly GameObjectGuid TestGuid = new(
+        (short)1,
+        (short)2,
+        3,
+        new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4)
+    );
 
     private static void PopulateCommon(ObjectCommon obj)
     {
@@ -163,7 +168,11 @@ public class ObjectTypeRoundTripTests
         original.ContainerLockDifficulty = 30;
         original.ContainerKeyId = 5;
         original.ContainerInventoryNum = 2;
-        original.ContainerInventoryList = [TestGuid, new GameObjectGuid(5u, 6u, 7u, 8u)];
+        original.ContainerInventoryList =
+        [
+            TestGuid,
+            new GameObjectGuid((short)5, (short)6, 7, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8)),
+        ];
         original.ContainerInventorySource = 1;
         original.ContainerNotifyNpc = 0;
         original.ContainerPadI1 = 1;
@@ -505,7 +514,10 @@ public class ObjectTypeRoundTripTests
         original.CritterStatBase = [10, 11, 12];
         original.CritterInventoryNum = 1;
         original.CritterInventoryList = [TestGuid];
-        original.CritterFollowers = [new GameObjectGuid(9u, 8u, 7u, 6u)];
+        original.CritterFollowers =
+        [
+            new GameObjectGuid((short)9, (short)8, 7, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6)),
+        ];
         original.CritterTeleportDest = TestLocation;
         original.NpcFlags = 1;
         original.NpcLeader = TestGuid;

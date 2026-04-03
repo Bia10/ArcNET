@@ -31,7 +31,6 @@ public sealed class ObjectPc : ObjectCritter
     public int PcPadI2 { get; set; }
     public int PcPadIas1 { get; set; }
     public long PcPadI64As1 { get; set; }
-    public long PcPadI64As2 { get; set; }
 
     internal static new ObjectPc Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
     {
@@ -103,8 +102,6 @@ public sealed class ObjectPc : ObjectCritter
             writer.WriteInt32(PcPadIas1);
         if (Bit(ObjectField.ObjFPcPadI64As1))
             writer.WriteInt64(PcPadI64As1);
-        if (Bit(ObjectField.ObjFPcPadI64As2))
-            writer.WriteInt64(PcPadI64As2);
     }
 
     private void ReadPcFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
@@ -161,7 +158,5 @@ public sealed class ObjectPc : ObjectCritter
             PcPadIas1 = reader.ReadInt32();
         if (Bit(ObjectField.ObjFPcPadI64As1))
             PcPadI64As1 = reader.ReadInt64();
-        if (Bit(ObjectField.ObjFPcPadI64As2))
-            PcPadI64As2 = reader.ReadInt64();
     }
 }
