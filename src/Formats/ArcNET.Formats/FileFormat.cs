@@ -1,86 +1,53 @@
-﻿using System.Collections.Frozen;
-
-namespace ArcNET.Formats;
+﻿namespace ArcNET.Formats;
 
 /// <summary>Known Arcanum file format types.</summary>
-public enum FileFormat
+public enum FileFormat : byte
 {
     /// <summary>Unknown or unsupported format.</summary>
-    Unknown,
+    Unknown = 0,
 
     /// <summary>Sector file (.sec) — map tile and object data.</summary>
-    Sector,
+    Sector = 1,
 
     /// <summary>Prototype file (.pro) — game object template.</summary>
-    Proto,
+    Proto = 2,
 
     /// <summary>Message file (.mes) — localized text strings.</summary>
-    Message,
+    Message = 3,
 
     /// <summary>Mobile file (.mob) — NPC/monster save state.</summary>
-    Mob,
+    Mob = 4,
 
     /// <summary>Art file (.art) — sprite animation data.</summary>
-    Art,
+    Art = 5,
 
     /// <summary>Jump file (.jmp) — world map jump points.</summary>
-    Jmp,
+    Jmp = 6,
 
     /// <summary>Script file (.scr) — compiled game script.</summary>
-    Script,
+    Script = 7,
 
     /// <summary>Dialog file (.dlg) — conversation tree.</summary>
-    Dialog,
+    Dialog = 8,
 
     /// <summary>Terrain definition file (.tdf).</summary>
-    Terrain,
+    Terrain = 9,
 
     /// <summary>Map properties file (.prp).</summary>
-    MapProperties,
+    MapProperties = 10,
 
     /// <summary>FacadeWalk file (facwalk.*).</summary>
-    FacadeWalk,
+    FacadeWalk = 11,
 
     /// <summary>DAT archive file (.dat).</summary>
-    DataArchive,
+    DataArchive = 12,
 
     /// <summary>Save game info file (.gsi) — one per save slot.</summary>
-    SaveInfo,
+    SaveInfo = 13,
 
     /// <summary>Save game archive index file (.tfai).</summary>
-    SaveIndex,
+    SaveIndex = 14,
 
     /// <summary>Save game archive data blob file (.tfaf).</summary>
-    SaveData,
-}
-
-/// <summary>Extension-based format lookup utilities.</summary>
-public static class FileFormatExtensions
-{
-    private static readonly FrozenDictionary<string, FileFormat> s_byExtension = new Dictionary<string, FileFormat>(
-        StringComparer.OrdinalIgnoreCase
-    )
-    {
-        [".sec"] = FileFormat.Sector,
-        [".pro"] = FileFormat.Proto,
-        [".mes"] = FileFormat.Message,
-        [".mob"] = FileFormat.Mob,
-        [".art"] = FileFormat.Art,
-        [".jmp"] = FileFormat.Jmp,
-        [".scr"] = FileFormat.Script,
-        [".dlg"] = FileFormat.Dialog,
-        [".tdf"] = FileFormat.Terrain,
-        [".prp"] = FileFormat.MapProperties,
-        [".dat"] = FileFormat.DataArchive,
-        [".gsi"] = FileFormat.SaveInfo,
-        [".tfai"] = FileFormat.SaveIndex,
-        [".tfaf"] = FileFormat.SaveData,
-    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Returns the <see cref="FileFormat"/> for the given file extension (including leading dot).</summary>
-    public static FileFormat FromExtension(string extension) =>
-        s_byExtension.TryGetValue(extension, out var fmt) ? fmt : FileFormat.Unknown;
-
-    /// <summary>Infers the format from a file path.</summary>
-    public static FileFormat FromPath(string path) => FromExtension(Path.GetExtension(path));
+    SaveData = 15,
 }

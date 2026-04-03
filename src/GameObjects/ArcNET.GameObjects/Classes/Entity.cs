@@ -1,42 +1,5 @@
 ﻿namespace ArcNET.GameObjects.Classes;
 
-/// <summary>Stat types used by NPC/creature templates.</summary>
-public enum BasicStatType
-{
-    Gender,
-    Race,
-    Strength,
-    Dexterity,
-    Constitution,
-    Beauty,
-    Intelligence,
-    Willpower,
-    Charisma,
-    Perception,
-    TechPoints,
-    MagickPoints,
-}
-
-/// <summary>Damage categories.</summary>
-public enum DamageType
-{
-    Normal,
-    Fatigue,
-    Poison,
-    Electrical,
-    Fire,
-}
-
-/// <summary>Resistance categories.</summary>
-public enum ResistanceType
-{
-    Damage,
-    Fire,
-    Electrical,
-    Poison,
-    Magic,
-}
-
 /// <summary>
 /// Data model for an NPC or creature template loaded from TDF text data.
 /// Parsing of the text format is the responsibility of <c>ArcNET.Formats.TextDataFormat</c>.

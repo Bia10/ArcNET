@@ -1,21 +1,5 @@
 ﻿namespace ArcNET.BinaryPatch;
 
-/// <summary>The binary format that a <see cref="PatchTarget"/> file is stored in.</summary>
-public enum PatchTargetFormat
-{
-    /// <summary>Arcanum object prototype (<c>.pro</c>) file — parsed via <c>ProtoFormat</c>.</summary>
-    Proto,
-
-    /// <summary>Arcanum mobile save-state (<c>.mob</c>) file — parsed via <c>MobFormat</c>.</summary>
-    Mob,
-
-    /// <summary>
-    /// Raw bytes — no structured parsing. The patcher passes file bytes directly to the patch.
-    /// Suitable for EXE patches, opaque configs, and formats that have no dedicated parser.
-    /// </summary>
-    Raw,
-}
-
 /// <summary>Identifies the file a patch operates on.</summary>
 /// <param name="RelativePath">
 /// File path relative to the game root directory, using forward slashes as separators,

@@ -5,43 +5,6 @@ using ArcNET.Core;
 namespace ArcNET.Formats;
 
 /// <summary>
-/// Behaviour flags on a compiled script file, matching the <c>SF_*</c> constants.
-/// </summary>
-[Flags]
-public enum ScriptFlags : uint
-{
-    /// <summary>No flags.</summary>
-    None = 0,
-
-    /// <summary>Script defines a non-magical trap.</summary>
-    NonmagicalTrap = 0x0001,
-
-    /// <summary>Script defines a magical trap.</summary>
-    MagicalTrap = 0x0002,
-
-    /// <summary>Trap is auto-removed after triggering.</summary>
-    AutoRemoving = 0x0004,
-
-    /// <summary>NPC has a death speech.</summary>
-    DeathSpeech = 0x0008,
-
-    /// <summary>NPC has a surrender speech.</summary>
-    SurrenderSpeech = 0x0010,
-
-    /// <summary>Trigger radius is 2 tiles.</summary>
-    RadiusTwo = 0x0020,
-
-    /// <summary>Trigger radius is 3 tiles.</summary>
-    RadiusThree = 0x0040,
-
-    /// <summary>Trigger radius is 5 tiles.</summary>
-    RadiusFive = 0x0080,
-
-    /// <summary>Script is a teleport trigger.</summary>
-    TeleportTrigger = 0x0100,
-}
-
-/// <summary>
 /// A single script action (the "then" or "else" branch of a condition).
 /// Wire size: 44 bytes (0x2C).
 /// </summary>

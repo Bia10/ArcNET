@@ -4,25 +4,6 @@ using ArcNET.Core;
 
 namespace ArcNET.Formats;
 
-/// <summary>
-/// Entry type tag used in a TFAI save-game archive index stream.
-/// Source: <c>GrognardsFromHell/OpenTemple</c> — <c>ArchiveIndexReader.cs</c>.
-/// </summary>
-public enum TfaiEntryType : uint
-{
-    /// <summary>A file entry with a name and a payload size in the TFAF blob.</summary>
-    File = 0,
-
-    /// <summary>A directory entry that introduces a named group of children.</summary>
-    Directory = 1,
-
-    /// <summary>Closes the current directory scope.</summary>
-    EndOfDirectory = 2,
-
-    /// <summary>Terminates the entire index stream.</summary>
-    EndOfFile = 3,
-}
-
 /// <summary>Abstract node in a save-game archive index tree.</summary>
 public abstract class TfaiEntry
 {
@@ -58,7 +39,6 @@ public sealed class SaveIndex
 /// Span-based parser and writer for Arcanum save-game index (.tfai) files.
 /// The TFAI stream is a sequence of typed entries terminated by <see cref="TfaiEntryType.EndOfFile"/>.
 /// The companion TFAF file is a raw concatenation of file payloads in depth-first order.
-/// Source: <c>GrognardsFromHell/OpenTemple</c> — <c>ArchiveIndexReader.cs</c>.
 /// </summary>
 public sealed class SaveIndexFormat : IFormatReader<SaveIndex>, IFormatWriter<SaveIndex>
 {

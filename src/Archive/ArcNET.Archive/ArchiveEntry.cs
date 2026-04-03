@@ -1,17 +1,5 @@
 ﻿namespace ArcNET.Archive;
 
-/// <summary>Entry flags for DAT archive entries.</summary>
-[Flags]
-public enum DatEntryFlags : uint
-{
-    Plain = 0x001, // uncompressed
-    Compressed = 0x002, // zlib deflate (standard framing)
-    InArchive = 0x100, // data lives inside the .dat
-    Overridden = 0x200, // shadowed by an extracted copy
-    Directory = 0x400, // directory pseudo-entry
-    Ignored = 0x800, // from .dat.ignore file
-}
-
 /// <summary>A single file entry within a DAT archive.</summary>
 public sealed class ArchiveEntry
 {

@@ -4,26 +4,6 @@ using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
 
-// ─── Wire-type registry ────────────────────────────────────────────────────────
-
-/// <summary>
-/// Wire-type codes used when dispatching field reads in MOB / PRO files.
-/// Corresponds to the <c>OD_TYPE_*</c> constants used for field dispatch.
-/// </summary>
-internal enum ObjectWireType
-{
-    Int32,
-    Int64,
-    Float,
-    String, // int32 length prefix + ASCII bytes
-    Int32Array, // SAR block — 4-byte elements
-    UInt32Array, // SAR block — 4-byte elements
-    Int64Array, // SAR block — 8-byte elements
-    HandleArray, // SAR block — 8-byte int64 object handles
-    ScriptArray, // SAR block — 12-byte Script elements
-    QuestArray, // SAR block — quest elements (element size from SAR header)
-}
-
 /// <summary>
 /// Stores a serialized object field: its bit-index identity and the raw bytes on disk.
 /// Use the per-field typed accessor extensions once defined; for now all data is opaque.
@@ -50,7 +30,6 @@ public sealed class ObjectProperty
 internal static class ObjectPropertyIo
 {
     // ── Common fields (bit indices 0–63, same for all ObjectTypes) ────────
-    // Source: object_fields[] + implementation guide §3.2.2.
     // Fields not present in this table throw NotSupportedException at read time.
     private static readonly FrozenDictionary<int, ObjectWireType> s_commonWireType = new Dictionary<int, ObjectWireType>
     {
