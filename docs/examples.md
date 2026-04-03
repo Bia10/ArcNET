@@ -116,15 +116,17 @@ using ArcNET.Formats;
 
 Sector sector = SectorFormat.ParseFile("maps/map_001_001.sec");
 
-Console.WriteLine($"Tiles: {sector.Tiles.Count}");
+Console.WriteLine($"Tiles: {sector.Tiles.Length}");       // uint[4096]
 Console.WriteLine($"Lights: {sector.Lights.Count}");
 Console.WriteLine($"Objects: {sector.Objects.Count}");
 
 if (sector.HasRoofs)
-    Console.WriteLine($"Roofs: {sector.Roofs.Count}");
+    Console.WriteLine($"Roofs: {sector.Roofs!.Length}");  // uint[256]
 
-// Access block-mask bit for tile (x, y)
-bool blocked = sector.BlockMask[sector.GetSectorLoc(3, 7)];
+// Check whether tile (3, 7) is blocked via the 128-uint bitmask
+// Each uint covers 32 tiles; bit index = y * 64 + x
+int tileIndex = 7 * 64 + 3;
+bool blocked = (sector.BlockMask[tileIndex / 32] & (1u << (tileIndex % 32))) != 0;
 ```
 
 ### Parse an ART sprite file
@@ -286,12 +288,12 @@ Console.WriteLine($"Story:   {info.StoryState}");
 ```csharp
 using ArcNET.Formats;
 
-TerrainData terrain = TerrainFormat.ParseFile("maps/terrain_001.ter");
+TerrainData terrain = TerrainFormat.ParseFile("data/terrain/outdoors.tdf");
 
 Console.WriteLine($"Version: {terrain.Version}");
 Console.WriteLine($"Base terrain: {terrain.BaseTerrainType}");
 Console.WriteLine($"Size: {terrain.Width}×{terrain.Height}  compressed={terrain.Compressed}");
-Console.WriteLine($"Tile count: {terrain.Tiles.Count}");
+Console.WriteLine($"Tile count: {terrain.Tiles.Length}");  // ushort[]
 ```
 
 ### Parse map properties
@@ -399,20 +401,20 @@ Console.WriteLine("\nPacked.");
 ```csharp
 using ArcNET.Formats;
 
-// TFAF is a lightweight sub-archive used inside .dat entries (e.g., save files)
-ReadOnlyMemory<byte> tfafData = File.ReadAllBytes("save/slot_001.sav");
+// TFAF is a sub-archive used for save files; it requires a SaveIndex to map virtual paths.
+SaveIndex index = SaveIndexFormat.ParseFile("save/slot_001.tfai");
+ReadOnlyMemory<byte> tfafBlob = File.ReadAllBytes("save/slot_001.tfaf");
 
-// List all contained files
-long totalBytes = TfafFormat.TotalPayloadSize(tfafData.Span);
+// Sum of all payload bytes
+int totalBytes = TfafFormat.TotalPayloadSize(index);
 Console.WriteLine($"TFAF payload: {totalBytes:N0} bytes");
 
-// Extract all entries to a directory
-TfafFormat.ExtractAll(tfafData.Span, outputDir: "save_extracted/");
+// Extract all entries to a virtual-path → bytes map
+IReadOnlyDictionary<string, byte[]> all = TfafFormat.ExtractAll(index, tfafBlob);
 
 // Extract a single named entry
-byte[]? entry = TfafFormat.Extract(tfafData.Span, "party.gam");
-if (entry is not null)
-    Console.WriteLine($"Extracted party.gam — {entry.Length} bytes");
+byte[] entry = TfafFormat.Extract(index, tfafBlob, "party.gam");
+Console.WriteLine($"Extracted party.gam — {entry.Length} bytes");
 ```
 
 ---
@@ -698,7 +700,7 @@ using ArcNET.Dumpers;
 using ArcNET.Formats;
 
 byte[] bytes = File.ReadAllBytes("arcanum/data/maps/a_map/sector0001.sec");
-SectorData sector = SectorFormat.ParseMemory(bytes);
+Sector sector = SectorFormat.ParseMemory(bytes);
 
 string text = SectorDumper.Dump(sector);
 Console.WriteLine(text);

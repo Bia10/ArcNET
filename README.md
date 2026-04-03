@@ -21,11 +21,11 @@ Span-based, zero-allocation binary parsing with a UI-agnostic library API — us
 |---|---|---|---|
 | `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | ✅ Ready | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`, `PrefixedString`) |
 | `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | ✅ Ready | Full game-object model — 22 typed data classes with explicit `Read` + `Write` |
-| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | ✅ Ready | Binary format parsers/writers for MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP |
+| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | ✅ Ready | Binary format parsers/writers for MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP |
 | `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | ✅ Ready | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support |
 | `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | ✅ Ready | `GameDataLoader` (MES, SEC, PRO, MOB wired; per-source origin tracking), `GameDataStore` with dirty tracking + GUID index + `*BySource` maps, `GameDataSaver` (preserves file origins), `GameDataExporter` (AOT-safe JSON) |
 | `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | ✅ Ready | HighRes patch configuration, installer, and uninstaller |
-| `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | ✅ Ready | Human-readable text dumpers for all game data formats (MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP) |
+| `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | ✅ Ready | Human-readable text dumpers for all game data formats (MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP) |
 | `ArcNET.BinaryPatch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | ✅ Ready | JSON-driven binary patching for bug fixes and mod authoring — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify |
 
 All packages target `net10.0`, carry no dependencies outside the BCL, and are AOT / trim compatible.
@@ -57,7 +57,7 @@ For more examples see the [Example Catalogue](docs/examples.md).
 
 The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples for every library and format:
 
-- **ArcNET.Formats** — MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP parsers; round-trip serialization; file discovery
+- **ArcNET.Formats** — MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP parsers; round-trip serialization; file discovery
 - **ArcNET.Archive** — open, enumerate, extract single/all entries, read without extracting, pack a directory, TFAF sub-archive
 - **ArcNET.GameObjects** — read full game objects, read headers only, `GameObjectStore`
 - **ArcNET.GameData** — load MES/SEC/PRO/MOB from directory or in-memory buffers (per-source origin tracking), save to disk / memory restoring original filenames, dirty tracking, AOT-safe JSON export
