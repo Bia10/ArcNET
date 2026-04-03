@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.DocTest</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- DocTest is never published as AOT — disable those analyzers -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\ArcNET.Core\ArcNET.Core.csproj" />
+    <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
+    <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
+    <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
+    <ProjectReference Include="..\..\GameData\ArcNET.GameData\ArcNET.GameData.csproj" />
+    <ProjectReference Include="..\..\Patch\ArcNET.Patch\ArcNET.Patch.csproj" />
+    <ProjectReference Include="..\..\BinaryPatch\ArcNET.BinaryPatch\ArcNET.BinaryPatch.csproj" />
+    <ProjectReference Include="..\..\Dumpers\ArcNET.Dumpers\ArcNET.Dumpers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="PublicApiGenerator" />
+  </ItemGroup>
+</Project>

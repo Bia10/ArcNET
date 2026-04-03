@@ -37,5 +37,8 @@
     <Folder Name="/Dumpers/">
       <Project Path="src/Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
     </Folder>
+    <Folder Name="/DocTest/">
+      <Project Path="src/DocTest/ArcNET.DocTest/ArcNET.DocTest.csproj" />
+    </Folder>
   </Folder>
 </Solution>

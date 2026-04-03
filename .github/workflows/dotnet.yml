@@ -56,6 +56,9 @@ jobs:
       - name: Test (Patch)
         run: dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
 
+      - name: Test (DocTest)
+        run: dotnet run --project src/DocTest/ArcNET.DocTest -c Release
+
   format:
     runs-on: windows-latest
     steps:
