@@ -8,6 +8,20 @@ if (args is ["dump-mobs", var gameDir, var mapPath])
     return;
 }
 
+// Non-interactive CLI mode: arcnet list-maps <gameDir>
+if (args is ["list-maps", var gameDirListMaps])
+{
+    await AppCommands.RunListMapsAsync(gameDirListMaps);
+    return;
+}
+
+// Non-interactive CLI mode: arcnet dump-map <gameDir> <mapPrefix> <outputFile>
+if (args is ["dump-map", var gameDirDump, var mapPrefixDump, var outputFileDump])
+{
+    await AppCommands.RunDumpMapAsync(gameDirDump, mapPrefixDump, outputFileDump);
+    return;
+}
+
 // Non-interactive CLI mode: arcnet revert-fixes <gameDir>
 if (args is ["revert-fixes", var gameDirRevert])
 {

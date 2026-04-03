@@ -1,8 +1,11 @@
 ﻿using ArcNET.Archive;
 using ArcNET.BinaryPatch;
 using ArcNET.BinaryPatch.State;
+using ArcNET.Core;
+using ArcNET.Dumpers;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameObjects;
 using ArcNET.Patch;
 using Spectre.Console;
 
@@ -518,5 +521,408 @@ internal static class AppCommands
 
             AnsiConsole.MarkupLine("\n[green]Done.[/]");
         });
+    }
+
+    // ── Diagnostic: list map folders in DAT ────────────────────────────────
+
+    internal static async Task RunListMapsAsync(string gameDir)
+    {
+        if (!Directory.Exists(gameDir))
+        {
+            AnsiConsole.MarkupLine("[red]Directory not found.[/]");
+            return;
+        }
+
+        var datPath = Path.Combine(gameDir, "modules", "Arcanum.dat");
+        if (!File.Exists(datPath))
+        {
+            AnsiConsole.MarkupLine($"[red]Arcanum.dat not found at: {Markup.Escape(datPath)}[/]");
+            return;
+        }
+
+        await Task.Run(() =>
+        {
+            using var archive = DatArchive.Open(datPath);
+
+            var mapFolders = archive
+                .Entries.Select(e => e.Path)
+                .Where(p => p.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase))
+                .Select(p =>
+                {
+                    // Extract the map folder name (second path segment)
+                    var segments = p.Split('\\');
+                    return segments.Length >= 2 ? $"maps\\{segments[1]}\\" : null;
+                })
+                .Where(f => f is not null)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(f => f)
+                .ToList();
+
+            AnsiConsole.MarkupLine($"[bold]Found {mapFolders.Count} map folders in Arcanum.dat:[/]");
+            foreach (var folder in mapFolders)
+                Console.WriteLine($"  {folder}");
+        });
+    }
+
+    // ── Diagnostic: full dump of all mobs + protos for a map ──────────────
+
+    internal static async Task RunDumpMapAsync(string gameDir, string mapPrefix, string outputFile)
+    {
+        if (!Directory.Exists(gameDir))
+        {
+            AnsiConsole.MarkupLine("[red]Directory not found.[/]");
+            return;
+        }
+
+        var datPath = Path.Combine(gameDir, "modules", "Arcanum.dat");
+        if (!File.Exists(datPath))
+        {
+            AnsiConsole.MarkupLine($"[red]Arcanum.dat not found at: {Markup.Escape(datPath)}[/]");
+            return;
+        }
+
+        await Task.Run(() =>
+        {
+            using var archive = DatArchive.Open(datPath);
+            using var writer = new StreamWriter(outputFile, append: false, System.Text.Encoding.UTF8);
+
+            // ── Load proto name lookup (searches ArcanumN.dat at game root) ─
+            var nameLookup = ItemDumper.LoadProtoNameLookup(gameDir);
+            AnsiConsole.MarkupLine($"[grey]Loaded {nameLookup.Count} proto names from description.mes.[/]");
+
+            // ── Detect installation type (vanilla vs UAP) ──────────────────
+            var installation = ArcanumInstallation.Detect(gameDir);
+            AnsiConsole.MarkupLine($"[grey]Installation: {installation}[/]");
+
+            // ── Collect matching .mob entries ──────────────────────────────
+            var mobEntries = archive
+                .Entries.Select(e => e.Path)
+                .Where(p =>
+                    p.StartsWith(mapPrefix, StringComparison.OrdinalIgnoreCase)
+                    && p.EndsWith(".mob", StringComparison.OrdinalIgnoreCase)
+                )
+                .OrderBy(p => p)
+                .ToList();
+
+            AnsiConsole.MarkupLine($"[bold]Found {mobEntries.Count} mob files under '{Markup.Escape(mapPrefix)}'.[/]");
+
+            var parseErrors = new List<string>();
+            var protoIdsSeen = new SortedSet<int>();
+
+            // ── First pass: parse all mobs and build GUID index ───────────
+            var parsed = new List<(string EntryPath, byte[] Data, MobData Mob)>(mobEntries.Count);
+            var mobByGuid = new Dictionary<Guid, MobData>(mobEntries.Count);
+
+            foreach (var entryPath in mobEntries)
+            {
+                byte[] data;
+                try
+                {
+                    data = archive.GetEntryData(entryPath).ToArray();
+                }
+                catch (Exception ex)
+                {
+                    parseErrors.Add($"SKIP (read) {entryPath}: {ex.Message}");
+                    continue;
+                }
+
+                MobData mob;
+                try
+                {
+                    mob = MobFormat.ParseMemory(data);
+                }
+                catch (Exception ex)
+                {
+                    parseErrors.Add($"SKIP (parse) {entryPath}: {ex.Message}");
+                    continue;
+                }
+
+                parsed.Add((entryPath, data, mob));
+                mobByGuid[mob.Header.ObjectId.Id] = mob;
+
+                var protoNum = ExtractProtoNum(mob);
+                if (protoNum is > 0)
+                    protoIdsSeen.Add(protoNum.Value);
+            }
+
+            // ── Write dump header ──────────────────────────────────────────
+            writer.WriteLine($"MAP DUMP — prefix: {mapPrefix}");
+            writer.WriteLine($"Generated: {DateTime.UtcNow:u}");
+            writer.WriteLine($"Total mob files: {mobEntries.Count}  (parsed: {parsed.Count})");
+            writer.WriteLine(new string('=', 80));
+            writer.WriteLine();
+
+            // ── Second pass: dump each mob with name + item/inventory annotations ──
+            foreach (var (entryPath, data, mob) in parsed)
+            {
+                var protoNum = ExtractProtoNum(mob);
+                var protoName = protoNum is > 0 ? ResolveProtoName(protoNum.Value, nameLookup, installation) : null;
+
+                writer.WriteLine(
+                    $"FILE: {Path.GetFileName(entryPath)}  ({data.Length} B)"
+                        + (protoName is not null ? $"  [{protoName}]" : "")
+                );
+                writer.WriteLine(MobDumper.Dump(mob));
+
+                // Item summary for standalone item-type mobs
+                if (protoNum is > 0 && IsDumpableItemType(mob.Header.GameObjectType))
+                {
+                    writer.WriteLine("=== ITEM SUMMARY ===");
+                    writer.Write(ItemDumper.DumpItem(mob, protoNum.Value, nameLookup, installation));
+                    writer.WriteLine();
+                }
+
+                // Resolved inventory for containers
+                if (mob.Header.GameObjectType == ObjectType.Container)
+                {
+                    writer.WriteLine("=== CONTAINER INVENTORY ===");
+                    AppendInventorySection(
+                        writer,
+                        mob,
+                        ObjectField.ObjFContainerInventoryListIdx,
+                        mobByGuid,
+                        nameLookup,
+                        installation
+                    );
+                }
+
+                // Resolved inventory for NPCs/PCs
+                if (mob.Header.GameObjectType is ObjectType.Npc or ObjectType.Pc)
+                {
+                    var hasInv = mob.Properties.Any(p => p.Field == ObjectField.ObjFCritterInventoryListIdx);
+                    if (hasInv)
+                    {
+                        writer.WriteLine("=== CRITTER INVENTORY ===");
+                        AppendInventorySection(
+                            writer,
+                            mob,
+                            ObjectField.ObjFCritterInventoryListIdx,
+                            mobByGuid,
+                            nameLookup,
+                            installation
+                        );
+                    }
+                }
+
+                AnsiConsole.MarkupLine(
+                    $"  [grey]Dumped: {Markup.Escape(Path.GetFileName(entryPath))}"
+                        + $"{(protoName is not null ? $" ({Markup.Escape(protoName)})" : "")}[/]"
+                );
+            }
+
+            // ── Dump parse errors ──────────────────────────────────────────
+            if (parseErrors.Count > 0)
+            {
+                writer.WriteLine(new string('=', 80));
+                writer.WriteLine($"PARSE ERRORS ({parseErrors.Count}):");
+                foreach (var err in parseErrors)
+                    writer.WriteLine($"  {err}");
+                writer.WriteLine();
+            }
+
+            // ── Dump protos referenced by the mobs ────────────────────────
+            writer.WriteLine(new string('=', 80));
+            writer.WriteLine($"PROTOS REFERENCED ({protoIdsSeen.Count} unique proto IDs):");
+            writer.WriteLine();
+
+            // Build proto lookup: search DAT for proto\*\*.pro entries
+            var datProtoEntries = archive
+                .Entries.Select(e => e.Path)
+                .Where(p =>
+                    p.StartsWith("proto\\", StringComparison.OrdinalIgnoreCase)
+                    && p.EndsWith(".pro", StringComparison.OrdinalIgnoreCase)
+                )
+                .ToDictionary(p => Path.GetFileNameWithoutExtension(p), p => p, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var protoId in protoIdsSeen)
+            {
+                // Proto files sit at {gameDir}\data\proto\{protoId:D6} - Name.pro (loose on disk).
+                var protoFileName = $"{protoId:D6}";
+                datProtoEntries.TryGetValue(protoFileName, out var protoEntryPath);
+
+                // Loose on-disk protos: {gameDir}\data\proto\{protoId:D6}*.pro
+                var protoDir = Path.Combine(gameDir, "data", "proto");
+                var looseProtoPath = Directory.Exists(protoDir)
+                    ? Directory
+                        .EnumerateFiles(protoDir, $"{protoFileName}*.pro", SearchOption.TopDirectoryOnly)
+                        .FirstOrDefault()
+                    : null;
+
+                ProtoData proto;
+                string protoSource;
+
+                try
+                {
+                    if (looseProtoPath is not null)
+                    {
+                        proto = ProtoFormat.ParseFile(looseProtoPath);
+                        protoSource = $"loose: {looseProtoPath}";
+                    }
+                    else if (protoEntryPath is not null)
+                    {
+                        proto = ProtoFormat.ParseMemory(archive.GetEntryData(protoEntryPath));
+                        protoSource = $"DAT: {protoEntryPath}";
+                    }
+                    else
+                    {
+                        writer.WriteLine($"[Proto {protoId}] NOT FOUND in DAT or on disk.");
+                        writer.WriteLine();
+                        continue;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    writer.WriteLine($"[Proto {protoId}] PARSE ERROR: {ex.Message}");
+                    writer.WriteLine();
+                    continue;
+                }
+
+                var protoName = ResolveProtoName(protoId, nameLookup, installation);
+                writer.WriteLine($"SOURCE: {protoSource}{(protoName is not null ? $"  [{protoName}]" : "")}");
+                writer.WriteLine(ProtoDumper.Dump(proto));
+                AnsiConsole.MarkupLine(
+                    $"  [grey]Dumped proto: {protoId}{(protoName is not null ? $" ({Markup.Escape(protoName)})" : "")}[/]"
+                );
+            }
+
+            writer.WriteLine(new string('=', 80));
+            writer.WriteLine("END OF DUMP");
+            AnsiConsole.MarkupLine($"\n[green]Dump written to: {Markup.Escape(outputFile)}[/]");
+        });
+    }
+
+    // ── Private helpers for dump-map ───────────────────────────────────────
+
+    private static Dictionary<int, string> LoadNameLookupFromArchive(DatArchive archive)
+    {
+        var lookup = new Dictionary<int, string>();
+        foreach (var mesPath in new[] { "mes\\description.mes", "oemes\\oname.mes" })
+        {
+            try
+            {
+                var mes = MessageFormat.ParseMemory(archive.GetEntryData(mesPath));
+                foreach (var e in mes.Entries)
+                    lookup.TryAdd(e.Index, e.Text);
+            }
+            catch
+            {
+                // Not found or parse error — skip
+            }
+        }
+        return lookup;
+    }
+
+    private static int? ExtractProtoNum(MobData mob)
+    {
+        if (mob.Header.ProtoId.OidType != 1)
+            return null;
+        var num = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(mob.Header.ProtoId.Id.ToByteArray());
+        return num > 0 ? num : null;
+    }
+
+    private static string? ResolveProtoName(
+        int protoNum,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
+    {
+        var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoNum, installation);
+        if (nameLookup.TryGetValue(vanillaId, out var name))
+            return name;
+        // Fallback for UAP-only IDs (1–20) that have no vanilla equivalent.
+        if (nameLookup.TryGetValue(protoNum, out name))
+            return name;
+        return null;
+    }
+
+    private static bool IsDumpableItemType(ObjectType type) =>
+        type
+            is ObjectType.Weapon
+                or ObjectType.Armor
+                or ObjectType.Ammo
+                or ObjectType.Gold
+                or ObjectType.Food
+                or ObjectType.Scroll
+                or ObjectType.Key
+                or ObjectType.KeyRing
+                or ObjectType.Written
+                or ObjectType.Generic;
+
+    private static void AppendInventorySection(
+        TextWriter writer,
+        MobData mob,
+        ObjectField invField,
+        Dictionary<Guid, MobData> mobByGuid,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
+    {
+        var invProp = mob.Properties.FirstOrDefault(p => p.Field == invField);
+        if (invProp is null || invProp.RawBytes.Length <= 1)
+        {
+            writer.WriteLine("  (absent)");
+            writer.WriteLine();
+            return;
+        }
+
+        (short OidType, int ProtoOrData1, Guid Id)[] items;
+        try
+        {
+            items = invProp.GetObjectIdArrayFull();
+        }
+        catch
+        {
+            writer.WriteLine("  (failed to decode inventory list)");
+            writer.WriteLine();
+            return;
+        }
+
+        if (items.Length == 0)
+        {
+            writer.WriteLine("  (empty)");
+            writer.WriteLine();
+            return;
+        }
+
+        writer.WriteLine($"  {items.Length} item(s):");
+        for (var i = 0; i < items.Length; i++)
+        {
+            var (_, _, guid) = items[i];
+            if (!mobByGuid.TryGetValue(guid, out var itemMob))
+            {
+                writer.WriteLine($"  [{i + 1}] {guid}  (mob not in this map)");
+                continue;
+            }
+
+            var itemProtoNum = ExtractProtoNum(itemMob);
+            var itemName =
+                (itemProtoNum is > 0 ? ResolveProtoName(itemProtoNum.Value, nameLookup, installation) : null)
+                ?? itemMob.Header.GameObjectType.ToString();
+            var oneLiner = GetItemOneLiner(itemMob);
+
+            writer.WriteLine(
+                $"  [{i + 1}] {itemName}"
+                    + $"  (proto={itemProtoNum?.ToString() ?? "?"}, type={itemMob.Header.GameObjectType})"
+                    + (oneLiner.Length > 0 ? $"  {oneLiner}" : "")
+            );
+        }
+        writer.WriteLine();
+    }
+
+    private static string GetItemOneLiner(MobData mob)
+    {
+        static int? GetInt(MobData m, ObjectField f) => m.Properties.FirstOrDefault(p => p.Field == f)?.GetInt32();
+
+        return mob.Header.GameObjectType switch
+        {
+            ObjectType.Weapon =>
+                $"dmg={GetInt(mob, ObjectField.ObjFWeaponDamageLowerIdx) ?? 0}–{GetInt(mob, ObjectField.ObjFWeaponDamageUpperIdx) ?? 0}"
+                    + (GetInt(mob, ObjectField.ObjFWeaponSpeedFactor) is { } spd ? $" spd={spd}" : ""),
+            ObjectType.Armor => $"ac={GetInt(mob, ObjectField.ObjFArmorAcAdj) ?? 0}"
+                + (GetInt(mob, ObjectField.ObjFArmorMagicAcAdj) is { } mac and > 0 ? $"+{mac}magic" : ""),
+            ObjectType.Gold => $"qty={GetInt(mob, ObjectField.ObjFGoldQuantity) ?? 0}",
+            // Food, Scroll, Ammo, Key add no info beyond what type= already says.
+            _ => "",
+        };
     }
 }
