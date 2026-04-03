@@ -49,6 +49,17 @@ All code targets `net10.0` / C# 14.
   - [Install the HighRes patch](#install-the-highres-patch)
   - [Uninstall the HighRes patch](#uninstall-the-highres-patch)
   - [Read or modify HighRes config](#read-or-modify-highres-config)
+- [ArcNET.Dumpers](#arcnetdumpers)
+  - [Dump a mob file](#dump-a-mob-file)
+  - [Dump a prototype file](#dump-a-prototype-file)
+  - [Dump a sector file](#dump-a-sector-file)
+  - [Dump a message file](#dump-a-message-file)
+- [ArcNET.BinaryPatch](#arcnetbinarypatch)
+  - [Create a patch set (code)](#create-a-patch-set-code)
+  - [Apply, revert, and verify patches](#apply-revert-and-verify-patches)
+  - [Load patches from JSON](#load-patches-from-json)
+  - [Discover patches at runtime](#discover-patches-at-runtime)
+  - [Track patch state](#track-patch-state)
 - [ArcNET.Core](#arcnetcore)
   - [Low-level SpanReader / SpanWriter](#low-level-spanreader--spanwriter)
   - [Primitive types round-trip](#primitive-types-round-trip)
@@ -650,6 +661,192 @@ Console.WriteLine($"Renderer:   {config.Renderer}");
 
 ---
 
+## ArcNET.Dumpers
+
+### Dump a mob file
+
+```csharp
+using ArcNET.Dumpers;
+using ArcNET.Formats;
+
+byte[] bytes = File.ReadAllBytes("arcanum/data/mobile/00001234.mob");
+MobData mob = MobFormat.ParseMemory(bytes);
+
+string text = MobDumper.Dump(mob);
+Console.WriteLine(text);
+// Header, every present field name, byte sizes, decoded scalars,
+// inventory / array fields expanded with per-element detail.
+```
+
+### Dump a prototype file
+
+```csharp
+using ArcNET.Dumpers;
+using ArcNET.Formats;
+
+byte[] bytes = File.ReadAllBytes("arcanum/data/proto/containers/00000025.pro");
+ProtoData proto = ProtoFormat.ParseMemory(bytes);
+
+string text = ProtoDumper.Dump(proto);
+Console.WriteLine(text);
+```
+
+### Dump a sector file
+
+```csharp
+using ArcNET.Dumpers;
+using ArcNET.Formats;
+
+byte[] bytes = File.ReadAllBytes("arcanum/data/maps/a_map/sector0001.sec");
+SectorData sector = SectorFormat.ParseMemory(bytes);
+
+string text = SectorDumper.Dump(sector);
+Console.WriteLine(text);
+```
+
+### Dump a message file
+
+```csharp
+using ArcNET.Dumpers;
+using ArcNET.Formats;
+
+byte[] bytes = File.ReadAllBytes("arcanum/mes/game.mes");
+MesFile mes = MessageFormat.ParseMemory(bytes);
+
+string text = MessageDumper.Dump(mes);
+Console.WriteLine(text);
+```
+
+> All dumpers follow the same pattern: `XxxDumper.Dump(parsedData)` → `string`.
+> Available dumpers: `MobDumper`, `ProtoDumper`, `SectorDumper`, `ArtDumper`,
+> `DialogDumper`, `ScriptDumper`, `MessageDumper`, `JmpDumper`, `MapPropertiesDumper`,
+> `TerrainDumper`, `SaveIndexDumper`, `SaveInfoDumper`, `FacWalkDumper`, `ItemDumper`.
+
+---
+
+## ArcNET.BinaryPatch
+
+### Create a patch set (code)
+
+```csharp
+using ArcNET.BinaryPatch;
+using ArcNET.BinaryPatch.Patches;
+using ArcNET.GameObjects;
+
+// Fix an int32 field inside a .pro file
+var fixChest = ProtoFieldPatch.SetInt32(
+    id: "fix-bangellian-chest",
+    description: "Reset container inventory source to -1",
+    relativePath: "data/proto/containers/00000025.pro",
+    field: ObjectField.ObjFContainerInventorySource,
+    expectedValue: 0,
+    newValue: -1
+);
+
+// Raw byte patch at a known offset (e.g. EXE or opaque format)
+var exePatch = RawBinaryPatch.AtOffset(
+    id: "disable-intro-movie",
+    description: "NOP the intro movie call",
+    relativePath: "arcanum.exe",
+    offset: 0x1A2B3C,
+    expectedBytes: [0xE8, 0x12, 0x34, 0x56],
+    newBytes:      [0x90, 0x90, 0x90, 0x90]
+);
+
+// Group patches into a named, versioned set
+var patchSet = new BinaryPatchSet
+{
+    Name = "ArcNET Vanilla Bug Fixes",
+    Version = "1.0.0",
+    Patches = [fixChest, exePatch],
+};
+```
+
+### Apply, revert, and verify patches
+
+```csharp
+using ArcNET.BinaryPatch;
+
+string gameDir = @"C:\Games\Arcanum";
+
+// Apply — creates .bak backups by default
+IReadOnlyList<PatchResult> results = BinaryPatcher.Apply(patchSet, gameDir);
+
+foreach (var r in results)
+    Console.WriteLine($"{r.PatchId}: {r.Status} {r.Reason}");
+
+// Dry-run — check what would happen without writing
+var dryResults = BinaryPatcher.Apply(
+    patchSet, gameDir,
+    new PatchOptions { DryRun = true }
+);
+
+// Verify — read-only check of which patches still need applying
+IReadOnlyList<PatchVerifyResult> verify = BinaryPatcher.Verify(patchSet, gameDir);
+
+foreach (var v in verify)
+    Console.WriteLine($"{v.PatchId}: NeedsApply={v.NeedsApply}, FileExists={v.FileExists}");
+
+// Revert — restore .bak backups
+IReadOnlyList<PatchResult> reverted = BinaryPatcher.Revert(patchSet, gameDir);
+```
+
+### Load patches from JSON
+
+```csharp
+using ArcNET.BinaryPatch.Json;
+
+// From a file on disk
+BinaryPatchSet patchSet = JsonPatchLoader.LoadFile("patches/vanilla-fixes.json");
+
+// From an embedded resource
+BinaryPatchSet embedded = JsonPatchLoader.LoadEmbedded(
+    typeof(Program).Assembly,
+    "ArcNET.App.patches.vanilla-fixes.json"
+);
+
+// Apply the loaded set
+var results = BinaryPatcher.Apply(patchSet, @"C:\Games\Arcanum");
+```
+
+### Discover patches at runtime
+
+```csharp
+using ArcNET.BinaryPatch;
+
+// Scan the patches/ directory next to the executable
+IReadOnlyList<BinaryPatchSet> allSets = PatchDiscovery.LoadAll(
+    onError: (file, ex) => Console.Error.WriteLine($"Skipped {file}: {ex.Message}")
+);
+
+// Or scan a custom directory
+IReadOnlyList<BinaryPatchSet> custom = PatchDiscovery.LoadAll("mods/patches");
+
+foreach (var set in allSets)
+    Console.WriteLine($"Found: {set.Name} v{set.Version} ({set.Patches.Count} patches)");
+```
+
+### Track patch state
+
+```csharp
+using ArcNET.BinaryPatch;
+using ArcNET.BinaryPatch.State;
+
+string gameDir = @"C:\Games\Arcanum";
+
+// Record a successful apply
+PatchState state = PatchStateStore.RecordApply(gameDir, patchSet);
+// Writes .arcnet-patches.json in the game directory
+
+// Check if a patch set is recorded
+bool isApplied = PatchStateStore.IsRecorded(gameDir, patchSet);
+
+// Record a revert (removes the entry; deletes file when empty)
+PatchStateStore.RecordRevert(gameDir, patchSet);
+```
+
+---
+
 ## ArcNET.Core
 
 ### Low-level SpanReader / SpanWriter
@@ -668,6 +865,13 @@ float  f  = reader.ReadSingle();
 ReadOnlySpan<byte> chunk = reader.ReadBytes(16);
 
 Console.WriteLine($"Remaining: {reader.Remaining}");
+
+// Skip bytes without reading
+reader.Skip(8);  // advance 8 bytes
+
+// Peek ahead without moving position
+int nextInt = reader.PeekInt32At(0);   // read int32 at current position
+int later   = reader.PeekInt32At(12);  // read int32 12 bytes ahead
 
 // Write to a pooled buffer
 var buf = new System.Buffers.ArrayBufferWriter<byte>();
@@ -699,9 +903,10 @@ var reader = new SpanReader(buf);
 Color color = Color.ReadRgba(ref reader);
 Console.WriteLine($"#{color.R:X2}{color.G:X2}{color.B:X2}");
 
-// GameObjectGuid
-var guid = new GameObjectGuid(Type: 0, Foo0: 0, Foo2: 0, Guid: 1234);
-Console.WriteLine($"IsProto: {guid.IsProto}");
+// GameObjectGuid — 24-byte ObjectID (int16 + int16 + int32 + Guid)
+var guid = new GameObjectGuid(OidType: 2, Padding2: 0, Padding4: 0, Id: Guid.NewGuid());
+Console.WriteLine($"IsProto: {guid.IsProto}");   // false — OidType != -1
+Console.WriteLine(guid.ToString());               // OID(2):xxxxxxxx-xxxx-...
 
 // PrefixedString (ushort-length-prefixed ASCII)
 using var ms = new MemoryStream();

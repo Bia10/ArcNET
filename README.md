@@ -25,6 +25,8 @@ Span-based, zero-allocation binary parsing with a UI-agnostic library API — us
 | `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | ✅ Ready | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support |
 | `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | ✅ Ready | `GameDataLoader` (MES, SEC, PRO, MOB wired; per-source origin tracking), `GameDataStore` with dirty tracking + GUID index + `*BySource` maps, `GameDataSaver` (preserves file origins), `GameDataExporter` (AOT-safe JSON) |
 | `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | ✅ Ready | HighRes patch configuration, installer, and uninstaller |
+| `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | ✅ Ready | Human-readable text dumpers for all game data formats (MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, SVG, TER, PRP) |
+| `ArcNET.BinaryPatch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | ✅ Ready | JSON-driven binary patching for bug fixes and mod authoring — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify |
 
 All packages target `net10.0`, carry no dependencies outside the BCL, and are AOT / trim compatible.
 
@@ -60,6 +62,8 @@ The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples
 - **ArcNET.GameObjects** — read full game objects, read headers only, `GameObjectStore`
 - **ArcNET.GameData** — load MES/SEC/PRO/MOB from directory or in-memory buffers (per-source origin tracking), save to disk / memory restoring original filenames, dirty tracking, AOT-safe JSON export
 - **ArcNET.Patch** — install / uninstall the HighRes patch, read and modify `HighResConfig`
+- **ArcNET.Dumpers** — human-readable text dumps for all parsed formats (mob, proto, sector, art, dialog, script, message, etc.)
+- **ArcNET.BinaryPatch** — JSON-driven binary patching: field-level PRO/MOB mutations, raw byte offsets, backup/revert/verify, patch state tracking
 - **ArcNET.Core** — low-level `SpanReader` / `SpanWriter`, primitive round-trips, `EnumLookup`
 
 ---
@@ -68,10 +72,17 @@ The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples
 
 ```
 ArcNET.App (exe)
-  ├── ArcNET.GameData
+  ├── ArcNET.BinaryPatch
   │     ├── ArcNET.Formats
   │     │     ├── ArcNET.GameObjects → ArcNET.Core
   │     │     └── ArcNET.Core
+  │     └── ArcNET.Archive → ArcNET.Core
+  ├── ArcNET.Dumpers
+  │     ├── ArcNET.Formats  (→ see above)
+  │     ├── ArcNET.GameObjects → ArcNET.Core
+  │     └── ArcNET.Archive  → ArcNET.Core
+  ├── ArcNET.GameData
+  │     ├── ArcNET.Formats  (→ see above)
   │     ├── ArcNET.GameObjects → ArcNET.Core
   │     └── ArcNET.Core
   ├── ArcNET.Archive  → ArcNET.Core
@@ -98,6 +109,7 @@ dotnet run --project src/Formats/ArcNET.Formats.Tests -c Release
 dotnet run --project src/GameData/ArcNET.GameData.Tests -c Release
 dotnet run --project src/Archive/ArcNET.Archive.Tests -c Release
 dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
+dotnet run --project src/BinaryPatch/ArcNET.BinaryPatch.Tests -c Release
 ```
 
 ## Formatting
