@@ -8,7 +8,7 @@ namespace ArcNET.Formats;
 
 /// <summary>
 /// Wire-type codes used when dispatching field reads in MOB / PRO files.
-/// Corresponds to the <c>OD_TYPE_*</c> constants in <c>arcanum-ce/src/game/obj.c</c>.
+/// Corresponds to the <c>OD_TYPE_*</c> constants used for field dispatch.
 /// </summary>
 internal enum ObjectWireType
 {
@@ -44,13 +44,13 @@ public sealed class ObjectProperty
 
 /// <summary>
 /// Internal property I/O helpers shared by <see cref="MobFormat"/> and <see cref="ProtoFormat"/>.
-/// Wire-type tables are cross-referenced from <c>arcanum-ce/src/game/obj.c</c>
+/// Wire-type tables are cross-referenced from the engine's
 /// <c>object_fields[]</c> and the guide's documented partial table in section 3.2.2.
 /// </summary>
 internal static class ObjectPropertyIo
 {
     // ── Common fields (bit indices 0–63, same for all ObjectTypes) ────────
-    // Source: arcanum-ce obj.c object_fields[] + implementation guide §3.2.2.
+    // Source: object_fields[] + implementation guide §3.2.2.
     // Fields not present in this table throw NotSupportedException at read time.
     private static readonly FrozenDictionary<int, ObjectWireType> s_commonWireType = new Dictionary<int, ObjectWireType>
     {
@@ -88,7 +88,7 @@ internal static class ObjectPropertyIo
         [31] = ObjectWireType.ScriptArray, // ObjFScriptsIdx
         [32] = ObjectWireType.Int32, // ObjFSoundEffect
         [33] = ObjectWireType.Int32, // ObjFCategory
-        // Bits 34–40 from implementation guide §3.2.2 and arcanum-ce obj.c object_fields[]:
+        // Bits 34–40 from implementation guide §3.2.2 and object_fields[]:
         [34] = ObjectWireType.Float, // ObjFPadIas1 / ObjFRotation (radians)
         [35] = ObjectWireType.Int64, // ObjFPadI64As1
         [36] = ObjectWireType.Float, // ObjFSpeedRun
@@ -132,8 +132,8 @@ internal static class ObjectPropertyIo
                 64 => ObjectWireType.Int32, // ContainerFlags
                 65 => ObjectWireType.Int32, // ContainerLockDifficulty
                 66 => ObjectWireType.Int32, // ContainerKeyId
-                67 => ObjectWireType.Int32, // ContainerInventoryNum
-                68 => ObjectWireType.Int32, // ContainerInventoryListIdx
+                67 => ObjectWireType.Int32, // ContainerInventoryNum           (OD_TYPE_INT32)
+                68 => ObjectWireType.HandleArray, // ContainerInventoryListIdx (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
                 69 => ObjectWireType.Int32, // ContainerInventorySource
                 70 => ObjectWireType.Int32, // ContainerNotifyNpc
                 71 => ObjectWireType.Int32, // ContainerPadI1
@@ -318,18 +318,17 @@ internal static class ObjectPropertyIo
 
             ObjectType.Npc => CritterBit(bit) ?? NpcBit(bit),
 
-            // Projectile has a separate, self-contained bitmap (bits 0–7 only).
-            // Wire types from arcanum-ce obj.c object_fields[] for ObjectType.Projectile.
+            // Projectile fields at bits 64–71 (same as other type-specific blocks).
             ObjectType.Projectile => bit switch
             {
-                0 => ObjectWireType.Int32, // ObjFProjectileFlagsCombat
-                1 => ObjectWireType.Int32, // ObjFProjectileFlagsCombatDamage
-                2 => ObjectWireType.Int64, // ObjFProjectileHitLoc (location int64)
-                3 => ObjectWireType.Int64, // ObjFProjectileParentWeapon (handle int64)
-                4 => ObjectWireType.Int32, // ObjFProjectilePadI1
-                5 => ObjectWireType.Int32, // ObjFProjectilePadI2
-                6 => ObjectWireType.Int32Array, // ObjFProjectilePadIas1
-                7 => ObjectWireType.Int64Array, // ObjFProjectilePadI64As1
+                64 => ObjectWireType.Int32, // ObjFProjectileFlagsCombat
+                65 => ObjectWireType.Int32, // ObjFProjectileFlagsCombatDamage
+                66 => ObjectWireType.Int32, // ObjFProjectileHitLoc
+                67 => ObjectWireType.Int64, // ObjFProjectileParentWeapon (handle)
+                68 => ObjectWireType.Int32, // ObjFProjectilePadI1
+                69 => ObjectWireType.Int32, // ObjFProjectilePadI2
+                70 => ObjectWireType.Int32Array, // ObjFProjectilePadIas1
+                71 => ObjectWireType.Int64Array, // ObjFProjectilePadI64As1
                 _ => null,
             },
 
@@ -337,7 +336,6 @@ internal static class ObjectPropertyIo
         };
 
     // Critter base block (bits 64–96) — shared by both NPC and PC objects.
-    // Source: arcanum-ce src/game/obj.c object_fields[]
     private static ObjectWireType? CritterBit(int bit) =>
         bit switch
         {
@@ -360,11 +358,11 @@ internal static class ObjectPropertyIo
             80 => ObjectWireType.Int32, // CritterBullets
             81 => ObjectWireType.Int32, // CritterPowerCells
             82 => ObjectWireType.Int32, // CritterFuel
-            83 => ObjectWireType.Int32, // CritterInventoryNum
-            84 => ObjectWireType.Int64Array, // CritterInventoryListIdx (handles)
+            83 => ObjectWireType.Int32, // CritterInventoryNum                   (OD_TYPE_INT32)
+            84 => ObjectWireType.HandleArray, // CritterInventoryListIdx           (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
             85 => ObjectWireType.Int32, // CritterInventorySource
             86 => ObjectWireType.Int32, // CritterDescriptionUnknown
-            87 => ObjectWireType.Int64Array, // CritterFollowerIdx (handles)
+            87 => ObjectWireType.HandleArray, // CritterFollowerIdx               (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
             88 => ObjectWireType.Int64, // CritterTeleportDest (location int64)
             89 => ObjectWireType.Int32, // CritterTeleportMap
             90 => ObjectWireType.Int64, // CritterDeathTime
@@ -378,7 +376,6 @@ internal static class ObjectPropertyIo
         };
 
     // PC-specific fields (bits 128–152).
-    // Source: arcanum-ce src/game/obj.c object_fields[] for ObjectType.Pc.
     private static ObjectWireType? PcBit(int bit) =>
         bit switch
         {
@@ -388,30 +385,29 @@ internal static class ObjectPropertyIo
             131 => ObjectWireType.Int32Array, // PcReputationTsIdx
             132 => ObjectWireType.Int32, // PcBackground
             133 => ObjectWireType.String, // PcBackgroundText
-            134 => ObjectWireType.Int32Array, // PcQuestIdx / PcBlessingIdx
-            135 => ObjectWireType.Int32Array, // PcBlessingTsIdx
-            136 => ObjectWireType.Int32Array, // PcCurseIdx
-            137 => ObjectWireType.Int32Array, // PcCurseTsIdx
-            138 => ObjectWireType.Int32, // PcPartyId
-            139 => ObjectWireType.Int32Array, // PcRumorIdx
-            140 => ObjectWireType.Int32Array, // PcPadIas2
-            141 => ObjectWireType.Int32Array, // PcSchematicsFoundIdx
-            142 => ObjectWireType.Int32Array, // PcLogbookEgoIdx
-            143 => ObjectWireType.Int32Array, // PcFogMask
-            144 => ObjectWireType.String, // PcPlayerName
-            145 => ObjectWireType.Int32, // PcBankMoney
-            146 => ObjectWireType.Int32Array, // PcGlobalFlags
-            147 => ObjectWireType.Int32Array, // PcGlobalVariables
-            148 => ObjectWireType.Int32, // PcPadI1
-            149 => ObjectWireType.Int32, // PcPadI2
-            150 => ObjectWireType.Int32Array, // PcPadIas1
-            151 => ObjectWireType.Int64Array, // PcPadI64As1
-            152 => ObjectWireType.Int64Array, // PcPadI64As2
+            134 => ObjectWireType.Int32Array, // PcQuestIdx
+            135 => ObjectWireType.Int32Array, // PcBlessingIdx
+            136 => ObjectWireType.Int32Array, // PcBlessingTsIdx
+            137 => ObjectWireType.Int32Array, // PcCurseIdx
+            138 => ObjectWireType.Int32Array, // PcCurseTsIdx
+            139 => ObjectWireType.Int32, // PcPartyId
+            140 => ObjectWireType.Int32Array, // PcRumorIdx
+            141 => ObjectWireType.Int32Array, // PcPadIas2
+            142 => ObjectWireType.Int32Array, // PcSchematicsFoundIdx
+            143 => ObjectWireType.Int32Array, // PcLogbookEgoIdx
+            144 => ObjectWireType.Int32, // PcFogMask
+            145 => ObjectWireType.String, // PcPlayerName
+            146 => ObjectWireType.Int32, // PcBankMoney
+            147 => ObjectWireType.Int32Array, // PcGlobalFlags
+            148 => ObjectWireType.Int32Array, // PcGlobalVariables
+            149 => ObjectWireType.Int32, // PcPadI1
+            150 => ObjectWireType.Int32, // PcPadI2
+            151 => ObjectWireType.Int32Array, // PcPadIas1
+            152 => ObjectWireType.Int64Array, // PcPadI64As1
             _ => null,
         };
 
     // NPC-specific fields (bits 128–152).
-    // Source: arcanum-ce src/game/obj.c object_fields[] for ObjectType.Npc.
     private static ObjectWireType? NpcBit(int bit) =>
         bit switch
         {
@@ -519,7 +515,7 @@ internal static class ObjectPropertyIo
 
         throw new NotSupportedException(
             $"Unknown wire type for ObjectType={objectType}, bit={bit}. "
-                + "Cross-reference arcanum-ce src/game/obj.c object_fields[] to determine the type "
+                + "Cross-reference object_fields[] to determine the type "
                 + "and add it to ObjectPropertyIo.s_commonWireType or TypeSpecificWireType."
         );
     }
@@ -530,7 +526,7 @@ internal static class ObjectPropertyIo
         wireType switch
         {
             ObjectWireType.Int32 or ObjectWireType.Float => reader.ReadBytes(4).ToArray(),
-            ObjectWireType.Int64 => reader.ReadBytes(8).ToArray(),
+            ObjectWireType.Int64 => ReadPresencePrefixedField(ref reader, 8),
             ObjectWireType.String => ReadStringField(ref reader),
             ObjectWireType.Int32Array
             or ObjectWireType.UInt32Array
@@ -541,50 +537,94 @@ internal static class ObjectPropertyIo
             _ => throw new ArgumentOutOfRangeException(nameof(wireType), wireType, null),
         };
 
-    private static byte[] ReadStringField(ref SpanReader reader)
+    /// <summary>
+    /// Reads a presence-prefixed fixed-size field (used for OD_TYPE_INT64).
+    /// Wire format: uint8 presence + <paramref name="dataSize"/> bytes if present.
+    /// </summary>
+    private static byte[] ReadPresencePrefixedField(ref SpanReader reader, int dataSize)
     {
-        // 4-byte length prefix + length bytes (returned as raw block including the length prefix)
-        var lengthBytes = reader.ReadBytes(4).ToArray();
-        var length = lengthBytes[0] | (lengthBytes[1] << 8) | (lengthBytes[2] << 16) | (lengthBytes[3] << 24);
+        var presence = reader.ReadByte();
+        if (presence == 0)
+            return [0];
 
-        if (length <= 0)
-            return lengthBytes;
-
-        var strBytes = reader.ReadBytes(length).ToArray();
-        var combined = new byte[4 + length];
-        lengthBytes.CopyTo(combined, 0);
-        strBytes.CopyTo(combined, 4);
-        return combined;
+        var data = reader.ReadBytes(dataSize).ToArray();
+        var raw = new byte[1 + dataSize];
+        raw[0] = presence;
+        data.CopyTo(raw, 1);
+        return raw;
     }
 
+    /// <summary>
+    /// Reads a presence-prefixed string field (OD_TYPE_STRING).
+    /// Wire format: uint8 presence + int32 length + (length+1) bytes (including NUL terminator).
+    /// </summary>
+    private static byte[] ReadStringField(ref SpanReader reader)
+    {
+        var presence = reader.ReadByte();
+        if (presence == 0)
+            return [0];
+
+        var lengthBytes = reader.ReadBytes(4).ToArray();
+        var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(lengthBytes);
+
+        // The game writes strlen() as the length, then writes strlen()+1 bytes (including NUL).
+        var strDataSize = length + 1;
+        var strBytes = reader.ReadBytes(strDataSize).ToArray();
+
+        var total = 1 + 4 + strDataSize;
+        var raw = new byte[total];
+        raw[0] = presence;
+        lengthBytes.CopyTo(raw, 1);
+        strBytes.CopyTo(raw, 5);
+        return raw;
+    }
+
+    /// <summary>
+    /// Reads a presence-prefixed SizeableArray (SAR) field.
+    /// Wire format:
+    ///   uint8   presence        — 0 = absent, non-zero = SA data follows
+    ///   int32   sa.size         — element size in bytes  (part of SizeableArray struct)
+    ///   int32   sa.count        — number of elements     (part of SizeableArray struct)
+    ///   int32   sa.bitset_id    — in-memory bitset ID    (part of SizeableArray struct, ignored on read)
+    ///   byte[]  data            — sa.size × sa.count bytes of element data
+    ///   int32   bitset_cnt      — number of 32-bit bitset storage words
+    ///   int32[] bitset_data     — bitset_cnt × 4 bytes of bitmask data
+    /// </summary>
     private static byte[] ReadSarField(ref SpanReader reader)
     {
-        // SAR block: byte sarCount + uint32 elementSize + uint32 elementCount +
-        //            uint32 sarcIndex + (elementSize * elementCount) data +
-        //            uint32 postSize + (postSize * 4) post
-        var header = reader.ReadBytes(13).ToArray(); // 1 + 4 + 4 + 4 = 13
-        var elementSize = (uint)(header[1] | (header[2] << 8) | (header[3] << 16) | (header[4] << 24));
-        var elementCount = (uint)(header[5] | (header[6] << 8) | (header[7] << 16) | (header[8] << 24));
+        var presence = reader.ReadByte();
+        if (presence == 0)
+            return [0];
+
+        // SizeableArray header: { int32 size, int32 count, int32 bitset_id } = 12 bytes
+        var elementSize = reader.ReadUInt32();
+        var elementCount = reader.ReadUInt32();
+        var bitsetId = reader.ReadUInt32(); // in-memory reference, preserved for round-trip
 
         var dataLen = (int)(elementSize * elementCount);
         var data = reader.ReadBytes(dataLen).ToArray();
 
-        var postSizeBytes = reader.ReadBytes(4).ToArray();
-        var postSize = (uint)(
-            postSizeBytes[0] | (postSizeBytes[1] << 8) | (postSizeBytes[2] << 16) | (postSizeBytes[3] << 24)
-        );
-        var post = reader.ReadBytes((int)(postSize * 4)).ToArray();
+        // Bitset serialization: int32 cnt + cnt × int32 storage
+        var bitsetCnt = reader.ReadUInt32();
+        var bitset = reader.ReadBytes((int)(bitsetCnt * 4)).ToArray();
 
-        var total = 13 + dataLen + 4 + (int)(postSize * 4);
+        // Assemble raw bytes preserving the on-disk layout exactly.
+        // presence(1) + SA header(12) + data + bitsetCnt(4) + bitset
+        var total = 1 + 12 + dataLen + 4 + (int)(bitsetCnt * 4);
         var raw = new byte[total];
-        var pos = 0;
-        header.CopyTo(raw, pos);
-        pos += 13;
-        data.CopyTo(raw, pos);
-        pos += dataLen;
-        postSizeBytes.CopyTo(raw, pos);
-        pos += 4;
-        post.CopyTo(raw, pos);
+        var p = 0;
+        raw[p++] = presence;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), elementSize);
+        p += 4;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), elementCount);
+        p += 4;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetId);
+        p += 4;
+        data.CopyTo(raw, p);
+        p += dataLen;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetCnt);
+        p += 4;
+        bitset.CopyTo(raw, p);
 
         return raw;
     }

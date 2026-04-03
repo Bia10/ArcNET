@@ -5,7 +5,7 @@ namespace ArcNET.Formats;
 
 /// <summary>
 /// A single jump point entry: a source tile location, a destination map, and a destination tile location.
-/// Corresponds to the <c>JumpPoint</c> struct (32 bytes) in <c>arcanum-ce/src/game/jumppoint.h</c>.
+/// Wire size: 32 bytes.
 /// </summary>
 public sealed class JumpEntry
 {
@@ -49,8 +49,7 @@ public sealed class JmpFile
 
 /// <summary>
 /// Span-based parser and writer for Arcanum jump-point (.jmp) files.
-/// Format: <c>int32 count</c> followed by <c>count × 32-byte JumpPoint structs</c>
-/// (verbatim binary, as written by <c>jumppoint_write_all</c> in arcanum-ce).
+/// Format: <c>int32 count</c> followed by <c>count × 32-byte JumpPoint structs</c>.
 /// </summary>
 public sealed class JmpFormat : IFormatReader<JmpFile>, IFormatWriter<JmpFile>
 {

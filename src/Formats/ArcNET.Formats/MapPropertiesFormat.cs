@@ -6,7 +6,6 @@ namespace ArcNET.Formats;
 /// <summary>
 /// Parsed contents of an Arcanum map properties (.prp) file.
 /// Binary layout: 24 bytes (int32 ArtId + int32 Unused + uint64 LimitX + uint64 LimitY).
-/// Source: <c>arcanum-ce/src/game/map.c</c>.
 /// </summary>
 public sealed class MapProperties
 {

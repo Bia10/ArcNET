@@ -6,8 +6,7 @@ namespace ArcNET.Formats;
 
 /// <summary>
 /// A light source inside a sector.
-/// Corresponds to <c>LightSerializedData</c> (40 bytes) written by <c>light_write</c> in
-/// <c>arcanum-ce/src/game/light.c</c>.
+/// Corresponds to <c>LightSerializedData</c> (48 bytes).
 /// </summary>
 public sealed class SectorLight
 {
@@ -41,6 +40,12 @@ public sealed class SectorLight
     /// <summary>Tint colour packed as a single <c>uint32</c>.</summary>
     public required uint TintColor { get; init; }
 
+    /// <summary>Palette index for this light.</summary>
+    public required int Palette { get; init; }
+
+    /// <summary>Reserved field (always 0 on disk).</summary>
+    public required int Padding2C { get; init; }
+
     /// <summary>Tile X coordinate (unpacked from <see cref="TileLoc"/>).</summary>
     public int TileX => (int)(TileLoc & 0xFFFFFFFF);
 
@@ -50,11 +55,14 @@ public sealed class SectorLight
 
 /// <summary>
 /// A per-tile script entry inside a sector.
-/// Serialised as: <c>uint32 tileId + Script (12 bytes)</c> = 16 bytes total.
-/// Source: <c>arcanum-ce/src/game/sector.c</c> <c>tile_script_list_save</c>.
+/// Serialised as <c>TileScriptListNodeSerializedData</c> (0x18 = 24 bytes):
+/// <c>uint flags + uint id + Script(12) + int next</c>.
 /// </summary>
 public sealed class TileScript
 {
+    /// <summary>Node flags (e.g. TILE_SCRIPT_LIST_NODE_MODIFIED).</summary>
+    public required uint NodeFlags { get; init; }
+
     /// <summary>Tile index within the sector (0–4095).</summary>
     public required uint TileId { get; init; }
 
@@ -70,7 +78,7 @@ public sealed class TileScript
 
 /// <summary>
 /// Sound configuration for a sector.
-/// Corresponds to <c>SectorSoundList</c> (12 bytes) in <c>arcanum-ce/src/game/sector.h</c>.
+/// Wire size: 12 bytes.
 /// </summary>
 public sealed class SectorSoundList
 {
@@ -123,22 +131,18 @@ public sealed class Sector
     /// <summary>
     /// Townmap display flag (int32).
     /// Non-zero instructs the engine to pre-cache art for this sector when rendering the townmap.
-    /// Source: <c>arcanum-ce/src/game/sector.c</c> — <c>townmap_info</c> field;
-    /// <c>sector_precache_art</c> is called when this value is non-zero.
     /// </summary>
     public required int TownmapInfo { get; init; }
 
     /// <summary>
     /// Encounter aptitude adjustment for this sector (int32).
     /// Added to the global aptitude value when computing random encounter chance.
-    /// Source: <c>arcanum-ce/src/game/sector.c</c> — <c>aptitude_adj</c> field.
     /// </summary>
     public required int AptitudeAdjustment { get; init; }
 
     /// <summary>
     /// Light scheme index for this sector (int32).
     /// Indexes into the engine's registered light-scheme table.
-    /// Source: <c>arcanum-ce/src/game/sector.c</c> — <c>light_scheme</c> field.
     /// </summary>
     public required int LightSchemeIdx { get; init; }
 
@@ -160,15 +164,13 @@ public sealed class Sector
     /// </summary>
     /// <param name="x">Tile X coordinate (0–959 on ship maps).</param>
     /// <param name="y">Tile Y coordinate (0–959 on ship maps).</param>
-    public static uint GetSectorLoc(int x, int y) => ((uint)(y >> 6) << 5) | (uint)(x >> 6);
+    public static uint GetSectorLoc(int x, int y) => (uint)(x >> 6) | ((uint)(y >> 6) << 26);
 }
 
 /// <summary>
 /// Span-based parser and writer for Arcanum sector (.sec) files (editor format).
 /// Write order: lights → tiles → roofs → version(0xAA0004) → tile scripts →
 /// sector script → townmap/aptitude/light-scheme → sound list → block mask → objects.
-/// Source: <c>arcanum-ce/src/game/sector.c</c> <c>sector_save_editor_internal</c> /
-/// <c>sector_load_editor</c>.
 /// </summary>
 public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 {
@@ -307,7 +309,7 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 
     private static SectorLight ReadLight(ref SpanReader reader)
     {
-        // LightSerializedData — 40 bytes (arcanum-ce light.c `light_write`)
+        // LightSerializedData — 48 bytes (sizeof == 0x30)
         var objHandle = reader.ReadInt64(); // 0x00  int64 — attached obj handle
         var tileLoc = reader.ReadInt64(); // 0x08  int64 — LOCATION_MAKE(x,y)
         var offsetX = reader.ReadInt32(); // 0x10  int
@@ -317,9 +319,11 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         var r = reader.ReadByte(); // 0x20  uint8
         var b = reader.ReadByte(); // 0x21  uint8
         var g = reader.ReadByte(); // 0x22  uint8
-        reader.ReadByte(); // 0x23  padding — discard
+        reader.ReadByte(); // 0x23  struct padding
         var tintColor = reader.ReadUInt32(); // 0x24  tig_color_t
-        // Total: 8+8+4+4+4+4+1+1+1+1+4 = 40 bytes
+        var palette = reader.ReadInt32(); // 0x28  palette index
+        var padding2C = reader.ReadInt32(); // 0x2C  reserved
+        // Total: 8+8+4+4+4+4+1+1+1+1+4+4+4 = 48 bytes
 
         return new SectorLight
         {
@@ -333,6 +337,8 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
             B = b,
             G = g,
             TintColor = tintColor,
+            Palette = palette,
+            Padding2C = padding2C,
         };
     }
 
@@ -359,18 +365,27 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 
     private static List<TileScript> ReadTileScripts(ref SpanReader reader)
     {
-        // Each node: uint32 tileId + Script(12 bytes) = 16 bytes
+        // Each node: TileScriptListNodeSerializedData (0x18 = 24 bytes)
+        //   uint flags + uint id + Script(12) + int next
         var count = reader.ReadInt32();
         var scripts = new List<TileScript>(count);
         for (var i = 0; i < count; i++)
         {
+            var nodeFlags = reader.ReadUInt32();
+            var tileId = reader.ReadUInt32();
+            var scriptFlags = reader.ReadUInt32();
+            var scriptCounters = reader.ReadUInt32();
+            var scriptNum = reader.ReadInt32();
+            reader.ReadInt32(); // next — always 0 on disk
+
             scripts.Add(
                 new TileScript
                 {
-                    TileId = reader.ReadUInt32(), // uint32 id
-                    ScriptFlags = reader.ReadUInt32(), // ScriptHeader.flags
-                    ScriptCounters = reader.ReadUInt32(), // ScriptHeader.counters
-                    ScriptNum = reader.ReadInt32(), // Script.num
+                    NodeFlags = nodeFlags,
+                    TileId = tileId,
+                    ScriptFlags = scriptFlags,
+                    ScriptCounters = scriptCounters,
+                    ScriptNum = scriptNum,
                 }
             );
         }
@@ -396,13 +411,22 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 
     private static List<MobData> ReadObjects(ref SpanReader reader)
     {
+        // Object count is stored as the LAST 4 bytes of the file.
+        // objlist_load: fseek(stream, -sizeof(int), SEEK_END) then fread(&cnt).
         if (reader.Remaining < 4)
             return [];
 
-        var count = reader.ReadInt32();
+        // Peek at the last 4 bytes to get the count.
+        var countOffset = reader.Remaining - 4;
+        var count = reader.PeekInt32At(countOffset);
         var objects = new List<MobData>(count);
         for (var i = 0; i < count; i++)
             objects.Add(MobFormat.Parse(ref reader));
+
+        // Skip past the trailing count we already peeked.
+        if (reader.Remaining >= 4)
+            reader.ReadInt32();
+
         return objects;
     }
 
@@ -424,6 +448,8 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
             writer.WriteByte(light.G);
             writer.WriteByte(0); // padding
             writer.WriteUInt32(light.TintColor);
+            writer.WriteInt32(light.Palette);
+            writer.WriteInt32(light.Padding2C);
         }
     }
 
@@ -451,10 +477,12 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         writer.WriteInt32(scripts.Count);
         foreach (var script in scripts)
         {
+            writer.WriteUInt32(script.NodeFlags);
             writer.WriteUInt32(script.TileId);
             writer.WriteUInt32(script.ScriptFlags);
             writer.WriteUInt32(script.ScriptCounters);
             writer.WriteInt32(script.ScriptNum);
+            writer.WriteInt32(0); // next — always 0 on disk
         }
     }
 
@@ -473,8 +501,9 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 
     private static void WriteObjects(IReadOnlyList<MobData> objects, ref SpanWriter writer)
     {
-        writer.WriteInt32(objects.Count);
+        // Objects are written first, then count at the end (objlist_save).
         foreach (var obj in objects)
             MobFormat.Write(in obj, ref writer);
+        writer.WriteInt32(objects.Count);
     }
 }

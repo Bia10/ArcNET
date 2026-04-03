@@ -6,7 +6,6 @@ namespace ArcNET.Formats;
 
 /// <summary>
 /// A single entry in an Arcanum dialogue (.dlg) file.
-/// Corresponds to <c>DialogFileEntry</c> from <c>arcanum-ce/src/game/dialog.h</c>.
 /// </summary>
 public sealed class DialogEntry
 {
@@ -61,7 +60,7 @@ public sealed class DlgFile
 /// Span-based parser and writer for Arcanum dialogue (.dlg) files.
 /// DLG is a <b>plain-text</b> format: each entry consists of exactly 7 brace-delimited fields
 /// in the order <c>{num}{str}{gender}{iq}{conditions}{response_val}{actions}</c>.
-/// Source: <c>arcanum-ce/src/game/dialog.c</c> — <c>dialog_load_internal</c>.
+
 /// </summary>
 public sealed class DialogFormat : IFormatReader<DlgFile>, IFormatWriter<DlgFile>
 {

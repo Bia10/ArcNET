@@ -12,8 +12,8 @@ public class GameDataStoreTests
         new()
         {
             Version = 0x77,
-            ProtoId = new GameObjectGuid(0xFFFFFFFF, 0, 0, 0),
-            ObjectId = new GameObjectGuid(0, 0, 0, guid),
+            ProtoId = new GameObjectGuid(-1, 0, 0, Guid.Empty),
+            ObjectId = new GameObjectGuid(2, 0, (int)guid, Guid.Empty),
             GameObjectType = ObjectType.Generic,
             Bitmap = new BitArray(16),
         };
@@ -42,7 +42,7 @@ public class GameDataStoreTests
     public async Task FindByGuid_MissingGuid_ReturnsNull()
     {
         var store = new GameDataStore();
-        var missing = new GameObjectGuid(0, 0, 0, 999);
+        var missing = new GameObjectGuid(2, 0, 999, Guid.Empty);
         var found = store.FindByGuid(missing);
         await Assert.That(found).IsNull();
     }

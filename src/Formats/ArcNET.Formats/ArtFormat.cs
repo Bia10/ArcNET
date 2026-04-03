@@ -43,8 +43,7 @@ public sealed class ArtFrame
 
 /// <summary>
 /// Parsed contents of an Arcanum sprite animation (.art) file.
-/// Source: <c>AxelStrem/ArtConverter artconverter.cpp</c>;
-/// flag semantics from <c>arcanum-ce</c> art-consuming code.
+/// Source: <c>AxelStrem/ArtConverter artconverter.cpp</c>.
 /// </summary>
 public sealed class ArtFile
 {

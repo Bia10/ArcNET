@@ -5,8 +5,7 @@ using ArcNET.Core;
 namespace ArcNET.Formats;
 
 /// <summary>
-/// Behaviour flags on a compiled script file, matching the <c>SF_*</c> constants
-/// from <c>arcanum-ce/src/game/script.h</c>.
+/// Behaviour flags on a compiled script file, matching the <c>SF_*</c> constants.
 /// </summary>
 [Flags]
 public enum ScriptFlags : uint
@@ -44,7 +43,7 @@ public enum ScriptFlags : uint
 
 /// <summary>
 /// A single script action (the "then" or "else" branch of a condition).
-/// Corresponds to <c>ScriptAction</c> (44 bytes / 0x2C) in <c>arcanum-ce/src/game/script.h</c>.
+/// Wire size: 44 bytes (0x2C).
 /// </summary>
 public readonly record struct ScriptActionData(
     int Type,
@@ -54,7 +53,7 @@ public readonly record struct ScriptActionData(
 
 /// <summary>
 /// A condition/action node in a compiled script.
-/// Corresponds to <c>ScriptCondition</c> (132 bytes / 0x84) in <c>arcanum-ce/src/game/script.h</c>.
+/// Wire size: 132 bytes (0x84).
 /// </summary>
 public readonly record struct ScriptConditionData(
     int Type,
@@ -66,8 +65,6 @@ public readonly record struct ScriptConditionData(
 
 /// <summary>
 /// Parsed contents of an Arcanum compiled script (.scr) file.
-/// Source: <c>arcanum-ce/src/game/script.c</c> — <c>script_file_load_hdr</c> and
-/// <c>script_file_load_code</c>.
 /// </summary>
 public sealed class ScrFile
 {

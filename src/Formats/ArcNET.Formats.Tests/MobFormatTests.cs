@@ -16,6 +16,36 @@ public sealed class MobFormatTests
         return buf.WrittenSpan.ToArray();
     }
 
+    // ── ObjectID wire helpers (24 bytes each) ────────────────────────────────────
+    // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }  sizeof=0x18
+    // OID_TYPE_BLOCKED = -1  (marks a prototype definition)
+    // OID_TYPE_GUID    =  2  (GUID-based instance OID)
+
+    private static void WriteOidBlocked(SpanWriter w)
+    {
+        w.WriteInt16(-1); // OID_TYPE_BLOCKED
+        w.WriteInt16(0); // padding_2
+        w.WriteInt32(0); // padding_4
+        w.WriteBytes(new byte[16]); // TigGuid = zeros
+    }
+
+    private static void WriteOidGuid(SpanWriter w, Guid g)
+    {
+        w.WriteInt16(2); // OID_TYPE_GUID
+        w.WriteInt16(0);
+        w.WriteInt32(0);
+        w.WriteBytes(g.ToByteArray());
+    }
+
+    private static void WriteOidRef(SpanWriter w, int protoIndex = 1)
+    {
+        // OID_TYPE_A = 1 — references a prototype by art-based ID
+        w.WriteInt16(1);
+        w.WriteInt16(0);
+        w.WriteInt32(protoIndex);
+        w.WriteBytes(new byte[16]);
+    }
+
     /// <summary>
     /// Writes a minimal valid MOB header with a Wall object type.
     /// Wall bitmap is 12 bytes. We set bit 21 (ObjFName → Int32).
@@ -26,19 +56,11 @@ public sealed class MobFormatTests
         {
             w.WriteInt32(0x77); // version
 
-            // ProtoId (16 bytes) — Type must NOT be 0xFFFFFFFF for a mob (instance).
-            // 0xFFFFFFFF would set IsPrototype=true and suppress PropCollectionItems.
-            // Use ObjectType.Wall (0) to reference a Wall prototype.
-            w.WriteUInt32((uint)ObjectType.Wall);
-            w.WriteUInt32(1);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
+            // ProtoId (24 bytes) — non-prototype: OidType != -1.
+            WriteOidRef(w, protoIndex: 1);
 
-            // ObjectId (16 bytes) — non-proto instance
-            w.WriteUInt32((uint)ObjectType.Wall.GetHashCode()); // Type field
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(1); // Foo0, Foo2, Guid
+            // ObjectId (24 bytes) — unique instance GUID
+            WriteOidGuid(w, Guid.Parse("00000001-0000-0000-0000-000000000000"));
 
             // GameObjectType
             w.WriteUInt32((uint)ObjectType.Wall);
@@ -105,16 +127,10 @@ public sealed class MobFormatTests
         var bytes = BuildBytes(w =>
         {
             w.WriteInt32(0x77);
-            // ProtoId — not proto
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(1);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
+            // ProtoId — non-prototype instance (ref to prototype)
+            WriteOidRef(w);
             // ObjectId
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(1);
+            WriteOidGuid(w, Guid.Parse("00000001-0000-0000-0000-000000000000"));
             w.WriteUInt32((uint)ObjectType.Portal);
             w.WriteInt16(0); // PropCollectionItems
             // Portal bitmap — 12 bytes, all zero
@@ -134,16 +150,8 @@ public sealed class MobFormatTests
         var bytes = BuildBytes(w =>
         {
             w.WriteInt32(0x77);
-            // ProtoId
-            w.WriteUInt32((uint)ObjectType.Wall);
-            w.WriteUInt32(1);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            // ObjectId
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(2);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("00000002-0000-0000-0000-000000000000"));
             w.WriteUInt32((uint)ObjectType.Wall);
             w.WriteInt16(2); // 2 properties
             // Bitmap 12 bytes: set bits 21 and 23
@@ -162,5 +170,69 @@ public sealed class MobFormatTests
         await Assert.That(mob.Properties[0].GetInt32()).IsEqualTo(999);
         await Assert.That(mob.Properties[1].Field).IsEqualTo(ObjectField.ObjFAid);
         await Assert.That(mob.Properties[1].GetInt32()).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task Container_InventoryListIdx_ParsedAsHandleArray()
+    {
+        // Container MOB with bit 68 (ContainerInventoryListIdx) holding a 2-item SAR block.
+        // Verifies the wire type is HandleArray (SAR of 24-byte ObjectIDs), not Int32.
+        var itemGuid1 = Guid.Parse("AAAAAAAA-0000-0000-0000-000000000001");
+        var itemGuid2 = Guid.Parse("BBBBBBBB-0000-0000-0000-000000000002");
+
+        // Build the SAR block for 2 ObjectIDs.
+        // SAR layout: sarCount(1) + elementSize(4) + elementCount(4) + sarcIndex(4) = 13 bytes header
+        //             + 2×24 bytes data + postSize(4) + post(4×postSize) bytes
+        var elementSize = (uint)ObjectPropertyExtensions.ObjectIdWireSize; // 24
+        const int elementCount = 2;
+        const short oidTypeGuid = 2;
+        var sarData = new byte[elementCount * (int)elementSize];
+        for (var i = 0; i < elementCount; i++)
+        {
+            var o = i * (int)elementSize;
+            System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(sarData.AsSpan(o), oidTypeGuid);
+            // padding_2, padding_4 = 0
+            (i == 0 ? itemGuid1 : itemGuid2)
+                .ToByteArray()
+                .CopyTo(sarData, o + 8);
+        }
+
+        var sarBytes = new byte[13 + sarData.Length + 4 + 4];
+        sarBytes[0] = 1; // sarCount
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(sarBytes.AsSpan(1), elementSize);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(sarBytes.AsSpan(5), elementCount);
+        // sarcIndex = 0
+        sarData.CopyTo(sarBytes, 13);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(sarBytes.AsSpan(13 + sarData.Length), 1); // postSize = 1
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            sarBytes.AsSpan(13 + sarData.Length + 4),
+            0xFFFFFFFF
+        ); // all bits
+
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("CCCCCCCC-0000-0000-0000-000000000003"));
+            w.WriteUInt32((uint)ObjectType.Container);
+            w.WriteInt16(1); // 1 property
+
+            // Container bitmap (12 bytes): set bit 68 (ContainerInventoryListIdx)
+            var bitmap = new byte[12];
+            bitmap[68 / 8] |= (byte)(1 << (68 % 8));
+            w.WriteBytes(bitmap);
+
+            w.WriteBytes(sarBytes);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(1);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo(ObjectField.ObjFContainerInventoryListIdx);
+
+        var ids = mob.Properties[0].GetObjectIdArray();
+        await Assert.That(ids.Length).IsEqualTo(2);
+        await Assert.That(ids[0]).IsEqualTo(itemGuid1);
+        await Assert.That(ids[1]).IsEqualTo(itemGuid2);
     }
 }

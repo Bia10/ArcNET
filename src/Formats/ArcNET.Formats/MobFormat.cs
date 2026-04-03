@@ -7,7 +7,6 @@ namespace ArcNET.Formats;
 /// <summary>
 /// Parsed contents of an Arcanum mobile (.mob) save-state file.
 /// File path pattern: <c>modules/&lt;mod&gt;/maps/&lt;map&gt;/mobile/G_*.mob</c>.
-/// Source: <c>arcanum-ce/src/game/obj.c</c>, <c>obj_file.c</c>, <c>obj.h</c>.
 /// </summary>
 public sealed class MobData
 {

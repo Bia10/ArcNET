@@ -115,12 +115,12 @@ public sealed class SectorFormatTests
     }
 
     [Test]
-    public async Task Parse_SingleLight_40BytesRead()
+    public async Task Parse_SingleLight_48BytesRead()
     {
         var bytes = BuildBytes(w =>
         {
             w.WriteInt32(1); // one light
-            // LightSerializedData — 40 bytes
+            // LightSerializedData — 48 bytes
             w.WriteInt64(-1L); // objHandle (standalone)
             w.WriteInt64(0x0000_0002_0000_0001L); // tileLoc X=1, Y=2
             w.WriteInt32(10); // offsetX
@@ -132,12 +132,14 @@ public sealed class SectorFormatTests
             w.WriteByte(64); // G
             w.WriteByte(0); // padding
             w.WriteUInt32(0xAABBCCDD); // tintColor
+            w.WriteInt32(42); // palette
+            w.WriteInt32(0); // padding_2C
 
             for (var i = 0; i < 4096; i++)
                 w.WriteUInt32(0);
             w.WriteInt32(1); // no roofs
             w.WriteInt32(0xAA0000);
-            w.WriteInt32(0);
+            w.WriteInt32(0); // object count at end
         });
 
         var sector = SectorFormat.ParseMemory(bytes);
@@ -150,10 +152,11 @@ public sealed class SectorFormatTests
         await Assert.That(light.OffsetX).IsEqualTo(10);
         await Assert.That(light.R).IsEqualTo((byte)255);
         await Assert.That(light.TintColor).IsEqualTo(0xAABBCCDD);
+        await Assert.That(light.Palette).IsEqualTo(42);
     }
 
     [Test]
-    public async Task Parse_TileScript_16BytesRead()
+    public async Task Parse_TileScript_24BytesRead()
     {
         var bytes = BuildBytes(w =>
         {
@@ -163,12 +166,14 @@ public sealed class SectorFormatTests
             w.WriteInt32(1); // no roofs
             w.WriteInt32(0xAA0001);
 
-            // one tile script — 16 bytes
+            // one tile script — 24 bytes (TileScriptListNodeSerializedData)
             w.WriteInt32(1); // count
+            w.WriteUInt32(0x03u); // NodeFlags
             w.WriteUInt32(42u); // TileId
             w.WriteUInt32(0x01u); // ScriptFlags
             w.WriteUInt32(0x02u); // ScriptCounters
             w.WriteInt32(7); // ScriptNum
+            w.WriteInt32(0); // next (always 0)
 
             // sector script (needed for 0xAA0002 but 0xAA0001 stops after tile scripts)
             w.WriteInt32(0); // object count
@@ -178,6 +183,7 @@ public sealed class SectorFormatTests
 
         await Assert.That(sector.TileScripts.Count).IsEqualTo(1);
         var ts = sector.TileScripts[0];
+        await Assert.That(ts.NodeFlags).IsEqualTo(0x03u);
         await Assert.That(ts.TileId).IsEqualTo(42u);
         await Assert.That(ts.ScriptFlags).IsEqualTo(0x01u);
         await Assert.That(ts.ScriptCounters).IsEqualTo(0x02u);
@@ -291,11 +297,11 @@ public sealed class SectorFormatTests
     {
         // Sector (0,0) covers tiles 0–63.
         await Assert.That(Sector.GetSectorLoc(0, 0)).IsEqualTo(0u);
-        // Sector (1,0): tile 64 → sectorX=1, sectorY=0 → key = 0<<5 | 1 = 1
+        // Sector (1,0): tile 64 → sectorX=1, sectorY=0 → key = 1
         await Assert.That(Sector.GetSectorLoc(64, 0)).IsEqualTo(1u);
-        // Sector (0,1): tile 0,64 → sectorX=0, sectorY=1 → key = 1<<5 | 0 = 32
-        await Assert.That(Sector.GetSectorLoc(0, 64)).IsEqualTo(32u);
-        // Sector (1,1): tile 64,64 → key = 1<<5 | 1 = 33
-        await Assert.That(Sector.GetSectorLoc(64, 64)).IsEqualTo(33u);
+        // Sector (0,1): tile 0,64 → sectorX=0, sectorY=1 → key = 1<<26
+        await Assert.That(Sector.GetSectorLoc(0, 64)).IsEqualTo(1u << 26);
+        // Sector (1,1): tile 64,64 → key = (1<<26) | 1
+        await Assert.That(Sector.GetSectorLoc(64, 64)).IsEqualTo((1u << 26) | 1u);
     }
 }

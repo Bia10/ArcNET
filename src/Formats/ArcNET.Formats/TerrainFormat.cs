@@ -5,8 +5,7 @@ using ArcNET.Core;
 namespace ArcNET.Formats;
 
 /// <summary>
-/// Terrain type per tile, matching the <c>TerrainType</c> enum from
-/// <c>arcanum-ce/src/game/terrain.h</c>.
+/// Terrain type per tile.
 /// </summary>
 public enum TerrainType : ushort
 {
@@ -70,7 +69,6 @@ public enum TerrainType : ushort
 
 /// <summary>
 /// Parsed contents of an Arcanum terrain definition (.tdf) file.
-/// Source: <c>arcanum-ce/src/game/terrain.c</c> (<c>terrain_open</c> / <c>terrain_flush</c>).
 /// </summary>
 public sealed class TerrainData
 {

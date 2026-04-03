@@ -7,7 +7,6 @@ namespace ArcNET.Formats;
 /// <summary>
 /// Parsed contents of an Arcanum object prototype (.pro) file.
 /// File path pattern: <c>data/proto/&lt;type&gt;/*.pro</c>.
-/// Source: <c>arcanum-ce/src/game/obj.c</c>, <c>proto.c</c>, <c>obj.h</c>.
 /// </summary>
 public sealed class ProtoData
 {

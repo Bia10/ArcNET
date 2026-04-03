@@ -6,27 +6,28 @@ namespace ArcNET.Formats;
 /// <summary>
 /// Typed read/write accessors for <see cref="ObjectProperty.RawBytes"/>.
 /// The wire representation stored in <see cref="ObjectProperty.RawBytes"/> is always
-/// little-endian and matches the <c>OD_TYPE_*</c> layout from
-/// <c>arcanum-ce/src/game/obj.c</c> exactly — including SAR headers for array fields.
+/// little-endian and matches the <c>OD_TYPE_*</c> layout — including SAR headers for array fields.
 /// </summary>
 public static class ObjectPropertyExtensions
 {
     // ── SAR header helpers ────────────────────────────────────────────────────
     // SAR (Sizeable Array) wire layout in RawBytes:
-    //   byte    sarCount      offset 0   always 0x01
-    //   uint32  elementSize   offset 1   bytes per element
-    //   uint32  elementCount  offset 5   number of elements
-    //   uint32  sarcIndex     offset 9   runtime pointer; always 0 in files
-    //   byte[]  data          offset 13  elementSize × elementCount bytes
-    //   uint32  postSize      offset 13+data  ceiling(elementCount/32)
-    //   uint32[] post         postSize × 4 bytes  all-bits-1 bitmask of active elements
+    //   byte    presence      offset 0    (0 = absent, non-zero = SA data follows)
+    //   int32   sa.size       offset 1    (element size in bytes)
+    //   int32   sa.count      offset 5    (number of elements)
+    //   int32   sa.bitset_id  offset 9    (in-memory bitset ID, preserved for round-trip)
+    //   byte[]  data          offset 13   (sa.size × sa.count bytes)
+    //   int32   bitset_cnt    after data  (number of bitset words)
+    //   int32[] bitset_data   bitset_cnt × 4 bytes
 
+    // Returns elementSize, elementCount, and dataOffset into rawBytes.
     private static (int ElementSize, int ElementCount, int DataOffset) ParseSarHeader(byte[] rawBytes)
     {
         if (rawBytes.Length < 13)
             throw new InvalidOperationException(
                 $"SAR raw bytes too short: need at least 13 header bytes, got {rawBytes.Length}."
             );
+        // presence at [0]; SA header { size, count, bitset_id } at [1..12]
         var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(1));
         var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(5));
         return (elementSize, elementCount, 13);
@@ -34,17 +35,18 @@ public static class ObjectPropertyExtensions
 
     private static byte[] BuildSarBytes(int elementSize, int elementCount, ReadOnlySpan<byte> elements)
     {
-        var postSize = (uint)((elementCount + 31) / 32);
-        var totalSize = 13 + elements.Length + 4 + (int)(postSize * 4);
+        var bitsetCnt = (uint)((elementCount + 31) / 32);
+        // presence(1) + SA header(12) + data + bitsetCnt(4) + bitsetData
+        var totalSize = 1 + 12 + elements.Length + 4 + (int)(bitsetCnt * 4);
         var bytes = new byte[totalSize];
-        bytes[0] = 1; // sarCount
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(1), (uint)elementSize);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(5), (uint)elementCount);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(9), 0); // sarcIndex
+        bytes[0] = 1; // presence
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(1), (uint)elementSize); // sa.size
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(5), (uint)elementCount); // sa.count
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(9), 0); // sa.bitset_id
         elements.CopyTo(bytes.AsSpan(13));
         var postOffset = 13 + elements.Length;
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), postSize);
-        for (var i = 0; i < (int)postSize; i++)
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
+        for (var i = 0; i < (int)bitsetCnt; i++)
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), 0xFFFFFFFF);
         return bytes;
     }
@@ -66,15 +68,18 @@ public static class ObjectPropertyExtensions
 
     /// <summary>
     /// Returns the property value as a little-endian <see cref="long"/>.
-    /// Valid for <c>OD_TYPE_INT64</c> and <c>OD_TYPE_HANDLE</c> fields (8 bytes).
+    /// Valid for <c>OD_TYPE_INT64</c> fields (1-byte presence + 8-byte value).
     /// </summary>
     public static long GetInt64(this ObjectProperty property)
     {
-        if (property.RawBytes.Length != 8)
+        if (property.RawBytes.Length == 1 && property.RawBytes[0] == 0)
+            return 0; // absent field
+
+        if (property.RawBytes.Length != 9)
             throw new InvalidOperationException(
-                $"Field {property.Field} has {property.RawBytes.Length} bytes; expected 8 for Int64."
+                $"Field {property.Field} has {property.RawBytes.Length} bytes; expected 9 for Int64 (1 presence + 8 value)."
             );
-        return BinaryPrimitives.ReadInt64LittleEndian(property.RawBytes);
+        return BinaryPrimitives.ReadInt64LittleEndian(property.RawBytes.AsSpan(1));
     }
 
     /// <summary>
@@ -92,22 +97,26 @@ public static class ObjectPropertyExtensions
 
     /// <summary>
     /// Returns the property value as an ASCII string.
-    /// Only valid for <c>OD_TYPE_STRING</c> fields (int32 length prefix + ASCII bytes).
+    /// Only valid for <c>OD_TYPE_STRING</c> fields (1-byte presence + int32 length + (length+1) bytes).
     /// </summary>
     public static string GetString(this ObjectProperty property)
     {
-        if (property.RawBytes.Length < 4)
+        if (property.RawBytes.Length == 1 && property.RawBytes[0] == 0)
+            return string.Empty; // absent field
+
+        if (property.RawBytes.Length < 5)
             throw new InvalidOperationException(
-                $"Field {property.Field} raw bytes too short to contain a string length prefix."
+                $"Field {property.Field} raw bytes too short to contain a string (presence + length prefix)."
             );
-        var length = BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes);
+        // [0] = presence, [1..4] = length, [5..5+length] = string + NUL
+        var length = BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes.AsSpan(1));
         if (length <= 0)
             return string.Empty;
-        if (property.RawBytes.Length < 4 + length)
+        if (property.RawBytes.Length < 5 + length)
             throw new InvalidOperationException(
                 $"Field {property.Field}: declared string length {length} exceeds available bytes."
             );
-        return Encoding.ASCII.GetString(property.RawBytes, 4, length);
+        return Encoding.ASCII.GetString(property.RawBytes, 5, length);
     }
 
     /// <summary>
@@ -135,12 +144,13 @@ public static class ObjectPropertyExtensions
 
     /// <summary>
     /// Returns a new <see cref="ObjectProperty"/> with <paramref name="value"/> encoded as
-    /// a little-endian <see cref="long"/> (8 bytes).
+    /// a little-endian <see cref="long"/> (1-byte presence + 8-byte value).
     /// </summary>
     public static ObjectProperty WithInt64(this ObjectProperty property, long value)
     {
-        var bytes = new byte[8];
-        BinaryPrimitives.WriteInt64LittleEndian(bytes, value);
+        var bytes = new byte[9];
+        bytes[0] = 1; // presence
+        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(1), value);
         return new ObjectProperty { Field = property.Field, RawBytes = bytes };
     }
 
@@ -157,14 +167,17 @@ public static class ObjectPropertyExtensions
 
     /// <summary>
     /// Returns a new <see cref="ObjectProperty"/> with <paramref name="value"/> encoded as
-    /// an ASCII length-prefixed string (int32 length + ASCII bytes).
+    /// an ASCII string (1-byte presence + int32 length + (length+1) bytes including NUL).
     /// </summary>
     public static ObjectProperty WithString(this ObjectProperty property, string value)
     {
         var strBytes = Encoding.ASCII.GetBytes(value);
-        var bytes = new byte[4 + strBytes.Length];
-        BinaryPrimitives.WriteInt32LittleEndian(bytes, strBytes.Length);
-        strBytes.CopyTo(bytes, 4);
+        // presence(1) + length(4) + string + NUL(1)
+        var bytes = new byte[1 + 4 + strBytes.Length + 1];
+        bytes[0] = 1; // presence
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(1), strBytes.Length);
+        strBytes.CopyTo(bytes, 5);
+        bytes[5 + strBytes.Length] = 0; // NUL terminator
         return new ObjectProperty { Field = property.Field, RawBytes = bytes };
     }
 
@@ -313,11 +326,99 @@ public static class ObjectPropertyExtensions
         }
         return new ObjectProperty { Field = property.Field, RawBytes = BuildSarBytes(12, scripts.Length, elements) };
     }
+
+    // ── ObjectID (Handle) array readers / writers ─────────────────────────────
+    // OD_TYPE_HANDLE_ARRAY fields (e.g. ContainerInventoryListIdx, CritterInventoryListIdx)
+    // store a SAR block where each element is a 24-byte ObjectID:
+    //   int16_t  type      (OID_TYPE_* : -1=BLOCKED, 0=NULL, 1=A, 2=GUID, 3=P)
+    //   int16_t  padding_2
+    //   int32    padding_4
+    //   byte[16] TigGuid   (Windows GUID in little-endian layout)
+
+    /// <summary>ObjectID size on disk — <c>sizeof(ObjectID) == 0x18</c>.</summary>
+    public const int ObjectIdWireSize = 24;
+
+    /// <summary>
+    /// Decodes a <c>OD_TYPE_HANDLE_ARRAY</c> SAR property into an array of <see cref="Guid"/> values.
+    /// Each element is a 24-byte <c>ObjectID</c>; only the 16-byte GUID portion (bytes 8–23) is returned.
+    /// </summary>
+    public static Guid[] GetObjectIdArray(this ObjectProperty property)
+    {
+        var (elementSize, elementCount, dataOffset) = ParseSarHeader(property.RawBytes);
+        if (elementSize != ObjectIdWireSize)
+            throw new InvalidOperationException(
+                $"Field {property.Field}: expected elementSize={ObjectIdWireSize} for HandleArray (ObjectID), got {elementSize}."
+            );
+        var result = new Guid[elementCount];
+        for (var i = 0; i < elementCount; i++)
+        {
+            var offset = dataOffset + i * ObjectIdWireSize;
+            // Skip the 8-byte header (type + padding_2 + padding_4); read the 16-byte GUID.
+            result[i] = new Guid(property.RawBytes.AsSpan(offset + 8, 16));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Decodes a <c>OD_TYPE_HANDLE_ARRAY</c> SAR property into full ObjectID tuples:
+    /// (OidType, ProtoOrData1, GUID).  <c>ProtoOrData1</c> is meaningful as a prototype index
+    /// when <c>OidType == 1</c> (OID_TYPE_A); for GUID-type items it is the first 4 bytes of the TigGuid.
+    /// </summary>
+    public static (short OidType, int ProtoOrData1, Guid Id)[] GetObjectIdArrayFull(this ObjectProperty property)
+    {
+        var (elementSize, elementCount, dataOffset) = ParseSarHeader(property.RawBytes);
+        if (elementSize != ObjectIdWireSize)
+            throw new InvalidOperationException(
+                $"Field {property.Field}: expected elementSize={ObjectIdWireSize} for HandleArray (ObjectID), got {elementSize}."
+            );
+        var result = new (short OidType, int ProtoOrData1, Guid Id)[elementCount];
+        for (var i = 0; i < elementCount; i++)
+        {
+            var offset = dataOffset + i * ObjectIdWireSize;
+            var oidType = BinaryPrimitives.ReadInt16LittleEndian(property.RawBytes.AsSpan(offset));
+            // d.a is the first int of the union at bytes 8-11; it is the proto index for OID_TYPE_A.
+            var protoOrData1 = BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes.AsSpan(offset + 8));
+            var guid = new Guid(property.RawBytes.AsSpan(offset + 8, 16));
+            result[i] = (oidType, protoOrData1, guid);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Returns a new <see cref="ObjectProperty"/> encoding <paramref name="ids"/> as a
+    /// <c>OD_TYPE_HANDLE_ARRAY</c> SAR block. Each <see cref="Guid"/> is written as a full
+    /// 24-byte <c>ObjectID</c> with <c>OID_TYPE_GUID = 2</c> in the type field.
+    /// </summary>
+    public static ObjectProperty WithObjectIdArray(this ObjectProperty property, ReadOnlySpan<Guid> ids)
+    {
+        const short OidTypeGuid = 2;
+        var elements = new byte[ids.Length * ObjectIdWireSize];
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var o = i * ObjectIdWireSize;
+            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), OidTypeGuid);
+            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0); // padding_2
+            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0); // padding_4
+            ids[i].ToByteArray().CopyTo(elements, o + 8);
+        }
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
+        };
+    }
+
+    /// <summary>
+    /// Returns a new <see cref="ObjectProperty"/> holding an empty <c>OD_TYPE_HANDLE_ARRAY</c>
+    /// SAR block (zero elements, element size = <see cref="ObjectIdWireSize"/>).
+    /// Use this to clear container or critter inventory lists in mob overrides.
+    /// </summary>
+    public static ObjectProperty WithEmptyObjectIdArray(this ObjectProperty property) => property.WithObjectIdArray([]);
 }
 
 /// <summary>
 /// A script attachment stored in an object property SAR array (<c>OD_TYPE_SCRIPT_ARRAY</c>).
-/// Wire size: 12 bytes — matches the <c>Script</c> struct from <c>arcanum-ce/src/game/script.h</c>.
+/// Wire size: 12 bytes.
 /// </summary>
 /// <param name="Flags">Script header flags bitmask.</param>
 /// <param name="Counters">Per-slot counter bitmask (8 × uint8 packed as uint32).</param>

@@ -16,8 +16,28 @@ public sealed class ProtoFormatTests
         return buf.WrittenSpan.ToArray();
     }
 
+    // ── 24-byte ObjectID wire helpers ──
+    // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }
+    private static void WriteOidBlocked(SpanWriter w)
+    {
+        w.WriteInt16(-1); // OID_TYPE_BLOCKED — marks this as a prototype definition
+        w.WriteInt16(0);
+        w.WriteInt32(0);
+        w.WriteBytes(new byte[16]);
+    }
+
+    private static void WriteOidGuid(SpanWriter w, byte lastByte = 1)
+    {
+        w.WriteInt16(2); // OID_TYPE_GUID
+        w.WriteInt16(0);
+        w.WriteInt32(0);
+        var g = new byte[16];
+        g[15] = lastByte;
+        w.WriteBytes(g);
+    }
+
     /// <summary>
-    /// Builds a minimal valid PRO binary (prototype — all uint32 fields in Type = 0xFFFFFFFF).
+    /// Builds a minimal valid PRO binary (prototype — OID_TYPE_BLOCKED ProtoId).
     /// Scenery type, bitmap 12 bytes, bit 21 (ObjFName) set.
     /// </summary>
     private static byte[] BuildMinimalSceneryProto()
@@ -26,23 +46,16 @@ public sealed class ProtoFormatTests
         {
             w.WriteInt32(0x77); // version
 
-            // ProtoId — all 0xFF marks this buffer itself as a prototype definition
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
+            // ProtoId — OID_TYPE_BLOCKED (-1) marks this as a prototype definition
+            WriteOidBlocked(w);
 
-            // ObjectId (acts as prototype identity)
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(1);
+            // ObjectId — 24-byte GUID-type OID
+            WriteOidGuid(w, 1);
 
             // GameObjectType
             w.WriteUInt32((uint)ObjectType.Scenery);
 
             // NO PropCollectionItems field — prototype omits it
-            // (GameObjectHeader.Read detects IsPrototype via ProtoId.IsProto)
 
             // Bitmap — 12 bytes; bit 21 = ObjFName
             var bitmap = new byte[12];
@@ -103,16 +116,8 @@ public sealed class ProtoFormatTests
         var bytes = BuildBytes(w =>
         {
             w.WriteInt32(0x77);
-            // ProtoId — all 0xFF = IsPrototype
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            // ObjectId
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(1);
+            WriteOidBlocked(w); // ProtoId — OID_TYPE_BLOCKED = prototype
+            WriteOidGuid(w, 1); // ObjectId
             w.WriteUInt32((uint)ObjectType.Scenery);
             // Bitmap — 12 bytes all zero
             w.WriteBytes(new byte[12]);
@@ -129,14 +134,8 @@ public sealed class ProtoFormatTests
         var bytes = BuildBytes(w =>
         {
             w.WriteInt32(0x77);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0xFFFFFFFF);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(0);
-            w.WriteUInt32(2);
+            WriteOidBlocked(w); // ProtoId — prototype marker
+            WriteOidGuid(w, 2); // ObjectId
             w.WriteUInt32((uint)ObjectType.Trap);
             // Bitmap 12 bytes, bit 21 set (ObjFName)
             var bitmap = new byte[12];
