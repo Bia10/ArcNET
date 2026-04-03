@@ -4,96 +4,99 @@
 [Flags]
 public enum ObjFFlags : uint
 {
+    /// <summary>No flags set.</summary>
+    None = 0,
+
     /// <summary>Object has been destroyed.</summary>
-    Destroyed = 1 << 0,
+    Destroyed = 0x1,
 
     /// <summary>Object is switched off.</summary>
-    Off = 1 << 1,
+    Off = 0x2,
 
     /// <summary>Object is flat on the ground.</summary>
-    Flat = 1 << 2,
+    Flat = 0x4,
 
     /// <summary>Object has a floating text label.</summary>
-    Text = 1 << 3,
+    Text = 0x8,
 
     /// <summary>Object can be seen through.</summary>
-    SeeThrough = 1 << 4,
+    SeeThrough = 0x10,
 
     /// <summary>Projectiles can pass through this object.</summary>
-    ShootThrough = 1 << 5,
+    ShootThrough = 0x20,
 
     /// <summary>Object is rendered translucently.</summary>
-    Translucent = 1 << 6,
+    Translucent = 0x40,
 
     /// <summary>Object is displayed at a reduced scale.</summary>
-    Shrunk = 1 << 7,
+    Shrunk = 0x80,
 
     /// <summary>Object is not drawn.</summary>
-    DontDraw = 1 << 8,
+    DontDraw = 0x100,
 
     /// <summary>Object is invisible.</summary>
-    Invisible = 1 << 9,
+    Invisible = 0x200,
 
     /// <summary>Object does not block movement.</summary>
-    NoBlock = 1 << 10,
+    NoBlock = 0x400,
 
     /// <summary>Mouse clicks pass through this object.</summary>
-    ClickThrough = 1 << 11,
+    ClickThrough = 0x800,
 
     /// <summary>Object is stored in an inventory.</summary>
-    Inventory = 1 << 12,
+    Inventory = 0x1000,
 
     /// <summary>Object can be moved dynamically.</summary>
-    Dynamic = 1 << 13,
+    Dynamic = 0x2000,
 
     /// <summary>Object provides partial cover.</summary>
-    ProvidesCover = 1 << 14,
+    ProvidesCover = 0x4000,
 
     /// <summary>Object has overlay art layers.</summary>
-    HasOverlays = 1 << 15,
+    HasOverlays = 0x8000,
 
     /// <summary>Object has underlay art layers.</summary>
-    HasUnderlays = 1 << 16,
+    HasUnderlays = 0x10000,
 
     /// <summary>Object wades through water.</summary>
-    Wading = 1 << 17,
+    Wading = 0x20000,
 
     /// <summary>Object walks on water surfaces.</summary>
-    WaterWalking = 1 << 18,
+    WaterWalking = 0x40000,
 
     /// <summary>Object has been turned to stone.</summary>
-    Stoned = 1 << 19,
+    Stoned = 0x80000,
 
     /// <summary>Object does not receive dynamic lighting.</summary>
-    DontLight = 1 << 20,
+    DontLight = 0x100000,
 
     /// <summary>Object has a floating text effect.</summary>
-    TextFloater = 1 << 21,
+    TextFloater = 0x200000,
 
     /// <summary>Object cannot take damage.</summary>
-    Invulnerable = 1 << 22,
+    Invulnerable = 0x400000,
 
     /// <summary>Object has been removed from existence.</summary>
-    Extinct = 1 << 23,
+    Extinct = 0x800000,
 
     /// <summary>Object is a player-character trap.</summary>
-    TrapPc = 1 << 24,
+    TrapPc = 0x1000000,
 
     /// <summary>Trap has been spotted by a critter.</summary>
-    TrapSpotted = 1 << 25,
+    TrapSpotted = 0x2000000,
 
     /// <summary>Object cannot be waded through.</summary>
-    DisallowWading = 1 << 26,
+    DisallowWading = 0x4000000,
 
     /// <summary>Object is locked for multiplayer synchronization.</summary>
-    MultiplayerLock = 1 << 27,
+    MultiplayerLock = 0x8000000,
 
     /// <summary>Object is frozen in place.</summary>
-    Frozen = 1 << 28,
+    Frozen = 0x10000000,
 
     /// <summary>Object is an animated corpse.</summary>
-    AnimatedDead = 1 << 29,
+    AnimatedDead = 0x20000000,
 
     /// <summary>Object has been teleported this frame.</summary>
-    Teleported = 1 << 30,
+    Teleported = 0x40000000,
 }

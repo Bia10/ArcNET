@@ -5,7 +5,7 @@
 /// <see cref="GameObjectHeader.Bitmap"/>.  Reading code checks this index before reading each
 /// field: if the bit is clear (and the object is not a prototype) the field is absent.
 /// </summary>
-public enum ObjectField
+public enum ObjectField : byte
 {
     // ── Common (bits 0–35) ───────────────────────────────────────────────────
     ObjFCurrentAid = 0,

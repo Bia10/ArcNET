@@ -1,75 +1,78 @@
 ﻿namespace ArcNET.GameObjects;
 
-/// <summary>Item flags shared by all item-type game objects (OIF_ in arcanum-ce obj_flags.h).</summary>
+/// <summary>Item flags shared by all item-type game objects (OIF_).</summary>
 [Flags]
 public enum ObjFItemFlags : uint
 {
+    /// <summary>No flags set.</summary>
+    None = 0,
+
     /// <summary>Item has been identified.</summary>
-    Identified = 1 << 0,
+    Identified = 0x1,
 
     /// <summary>Item cannot be sold.</summary>
-    WontSell = 1 << 1,
+    WontSell = 0x2,
 
     /// <summary>Item is magical.</summary>
-    IsMagical = 1 << 2,
+    IsMagical = 0x4,
 
     /// <summary>Item transfers its light to the owner.</summary>
-    TransferLight = 1 << 3,
+    TransferLight = 0x8,
 
     /// <summary>Item is hidden from display.</summary>
-    NoDisplay = 1 << 4,
+    NoDisplay = 0x10,
 
     /// <summary>Item cannot be dropped.</summary>
-    NoDrop = 1 << 5,
+    NoDrop = 0x20,
 
     /// <summary>Item is hexed and cannot be unwielded.</summary>
-    Hexed = 1 << 6,
+    Hexed = 0x40,
 
     /// <summary>Item can be activated via the action box.</summary>
-    CanUseBox = 1 << 7,
+    CanUseBox = 0x80,
 
     /// <summary>Item requires a target to use.</summary>
-    NeedsTarget = 1 << 8,
+    NeedsTarget = 0x100,
 
     /// <summary>Item emits a small light.</summary>
-    LightSmall = 1 << 9,
+    LightSmall = 0x200,
 
     /// <summary>Item emits a medium light.</summary>
-    LightMedium = 1 << 10,
+    LightMedium = 0x400,
 
     /// <summary>Item emits a large light.</summary>
-    LightLarge = 1 << 11,
+    LightLarge = 0x800,
 
     /// <summary>Item emits an extra-large light.</summary>
-    LightXLarge = 1 << 12,
+    LightXLarge = 0x1000,
 
     /// <summary>Item persists after death (not dropped on critter death).</summary>
-    Persistent = 1 << 13,
+    Persistent = 0x2000,
 
     /// <summary>Item triggers a magic/tech interaction.</summary>
-    MtTriggered = 1 << 14,
+    MtTriggered = 0x4000,
 
     /// <summary>Item was stolen.</summary>
-    Stolen = 1 << 15,
+    Stolen = 0x8000,
 
     /// <summary>Using the item throws it.</summary>
-    UseIsThrow = 1 << 16,
+    UseIsThrow = 0x10000,
 
     /// <summary>Item does not decay over time.</summary>
-    NoDecay = 1 << 17,
+    NoDecay = 0x20000,
 
     /// <summary>Item is uber-quality.</summary>
-    Uber = 1 << 18,
+    Uber = 0x40000,
 
     /// <summary>NPCs cannot pick up this item.</summary>
-    NoNpcPickup = 1 << 19,
+    NoNpcPickup = 0x80000,
 
     /// <summary>Item cannot be used at range.</summary>
-    NoRangedUse = 1 << 20,
+    NoRangedUse = 0x100000,
 
     /// <summary>AI action for this item is valid.</summary>
-    ValidAiAction = 1 << 21,
+    ValidAiAction = 0x200000,
 
     /// <summary>Item was inserted via multiplayer.</summary>
-    MpInserted = 1 << 22,
+    MpInserted = 0x400000,
 }

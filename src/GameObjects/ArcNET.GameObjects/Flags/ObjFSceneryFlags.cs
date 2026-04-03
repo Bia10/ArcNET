@@ -1,39 +1,42 @@
 ﻿namespace ArcNET.GameObjects;
 
-/// <summary>Scenery-specific flags (OSCF_ in arcanum-ce obj_flags.h).</summary>
+/// <summary>Scenery-specific flags (OSCF_).</summary>
 [Flags]
-public enum ObjFSceneryFlags : uint
+public enum ObjFSceneryFlags : ushort
 {
+    /// <summary>No flags set.</summary>
+    None = 0,
+
     /// <summary>Scenery does not auto-animate.</summary>
-    NoAutoAnimate = 1 << 0,
+    NoAutoAnimate = 0x1,
 
     /// <summary>Scenery has been destroyed / busted.</summary>
-    Busted = 1 << 1,
+    Busted = 0x2,
 
     /// <summary>Scenery is only active/visible at night.</summary>
-    Nocturnal = 1 << 2,
+    Nocturnal = 0x4,
 
     /// <summary>Scenery marks a town-map location.</summary>
-    MarksTownmap = 1 << 3,
+    MarksTownmap = 0x8,
 
     /// <summary>Scenery is a fire object.</summary>
-    IsFire = 1 << 4,
+    IsFire = 0x10,
 
     /// <summary>Scenery can respawn after being destroyed.</summary>
-    Respawnable = 1 << 5,
+    Respawnable = 0x20,
 
     /// <summary>Scenery emits small ambient sound.</summary>
-    SoundSmall = 1 << 6,
+    SoundSmall = 0x40,
 
     /// <summary>Scenery emits medium ambient sound.</summary>
-    SoundMedium = 1 << 7,
+    SoundMedium = 0x80,
 
     /// <summary>Scenery emits extra-large ambient sound.</summary>
-    SoundExtraLarge = 1 << 8,
+    SoundExtraLarge = 0x100,
 
     /// <summary>Scenery is rendered beneath all other objects.</summary>
-    UnderAll = 1 << 9,
+    UnderAll = 0x200,
 
     /// <summary>Scenery is currently in the process of respawning.</summary>
-    Respawning = 1 << 10,
+    Respawning = 0x400,
 }

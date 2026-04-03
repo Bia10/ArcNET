@@ -4,98 +4,101 @@
 [Flags]
 public enum ObjFCritterFlags : uint
 {
+    /// <summary>No flags set.</summary>
+    None = 0,
+
     /// <summary>Critter is concealed / hidden.</summary>
-    IsConcealed = 1 << 0,
+    IsConcealed = 0x1,
 
     /// <summary>Critter is moving silently.</summary>
-    MovingSilently = 1 << 1,
+    MovingSilently = 0x2,
 
     /// <summary>Critter is undead.</summary>
-    Undead = 1 << 2,
+    Undead = 0x4,
 
     /// <summary>Critter is an animal.</summary>
-    Animal = 1 << 3,
+    Animal = 0x8,
 
     /// <summary>Critter is fleeing combat.</summary>
-    Fleeing = 1 << 4,
+    Fleeing = 0x10,
 
     /// <summary>Critter is stunned.</summary>
-    Stunned = 1 << 5,
+    Stunned = 0x20,
 
     /// <summary>Critter is paralyzed.</summary>
-    Paralyzed = 1 << 6,
+    Paralyzed = 0x40,
 
     /// <summary>Critter is blinded.</summary>
-    Blinded = 1 << 7,
+    Blinded = 0x80,
 
     /// <summary>One arm is crippled.</summary>
-    CrippledArmsOne = 1 << 8,
+    CrippledArmsOne = 0x100,
 
     /// <summary>Both arms are crippled.</summary>
-    CrippledArmsBoth = 1 << 9,
+    CrippledArmsBoth = 0x200,
 
     /// <summary>Both legs are crippled.</summary>
-    CrippledLegsBoth = 1 << 10,
+    CrippledLegsBoth = 0x400,
 
     /// <summary>Unused flag slot.</summary>
-    Unused = 1 << 11,
+    Unused = 0x800,
 
     /// <summary>Critter is sleeping.</summary>
-    Sleeping = 1 << 12,
+    Sleeping = 0x1000,
 
     /// <summary>Critter cannot speak.</summary>
-    Mute = 1 << 13,
+    Mute = 0x2000,
 
     /// <summary>Critter has surrendered.</summary>
-    Surrendered = 1 << 14,
+    Surrendered = 0x4000,
 
     /// <summary>Critter is a monster-type NPC.</summary>
-    Monster = 1 << 15,
+    Monster = 0x8000,
 
     /// <summary>Critter is fleeing due to a spell.</summary>
-    SpellFlee = 1 << 16,
+    SpellFlee = 0x10000,
 
     /// <summary>Critter is a random encounter spawn.</summary>
-    Encounter = 1 << 17,
+    Encounter = 0x20000,
 
     /// <summary>Critter is in active combat mode.</summary>
-    CombatModeActive = 1 << 18,
+    CombatModeActive = 0x40000,
 
     /// <summary>Critter emits a small light.</summary>
-    LightSmall = 1 << 19,
+    LightSmall = 0x80000,
 
     /// <summary>Critter emits a medium light.</summary>
-    LightMedium = 1 << 20,
+    LightMedium = 0x100000,
 
     /// <summary>Critter emits a large light.</summary>
-    LightLarge = 1 << 21,
+    LightLarge = 0x200000,
 
     /// <summary>Critter emits an extra-large light.</summary>
-    LightXLarge = 1 << 22,
+    LightXLarge = 0x400000,
 
     /// <summary>Critter cannot be revived.</summary>
-    Unrevivifiable = 1 << 23,
+    Unrevivifiable = 0x800000,
 
     /// <summary>Critter cannot be resurrected.</summary>
-    Unressurectable = 1 << 24,
+    Unressurectable = 0x1000000,
 
     /// <summary>Critter is a demon.</summary>
-    Demon = 1 << 25,
+    Demon = 0x2000000,
 
     /// <summary>Critter is immune to fatigue.</summary>
-    FatigueImmune = 1 << 26,
+    FatigueImmune = 0x4000000,
 
     /// <summary>Critter will never flee.</summary>
-    NoFlee = 1 << 27,
+    NoFlee = 0x8000000,
 
     /// <summary>Critter fights non-lethally.</summary>
-    NonLethalCombat = 1 << 28,
+    NonLethalCombat = 0x10000000,
 
     /// <summary>Critter is mechanical.</summary>
-    Mechanical = 1 << 29,
+    Mechanical = 0x20000000,
 
     /// <summary>Critter has an animal-enshroud effect active.</summary>
-    AnimalEnshroud = 1 << 30,
+    AnimalEnshroud = 0x40000000,
 
     /// <summary>Critter has limited fatigue regeneration.</summary>
     FatigueLimiting = 1u << 31,
