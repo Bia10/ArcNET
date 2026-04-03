@@ -13,12 +13,26 @@ public static class ArtDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== ART FILE ===");
-        sb.AppendLine($"  Flags          : 0x{art.Flags:X8}");
+        sb.Append($"  Flags          : 0x{art.Flags:X8}");
+        var flagParts = new List<string>();
+        if ((art.Flags & 0x01) != 0)
+            flagParts.Add("Static(1-dir)");
+        if ((art.Flags & 0x02) != 0)
+            flagParts.Add("Critter(8-dir)");
+        if ((art.Flags & 0x04) != 0)
+            flagParts.Add("Font");
+        if (flagParts.Count > 0)
+            sb.Append($"  [{string.Join(", ", flagParts)}]");
+        sb.AppendLine();
         sb.AppendLine($"  FrameRate      : {art.FrameRate}");
         sb.AppendLine($"  ActionFrame    : {art.ActionFrame}");
         sb.AppendLine($"  FrameCount     : {art.FrameCount}");
         sb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
         sb.AppendLine($"  DataSizes      : [{string.Join(", ", art.DataSizes)}]");
+        if (art.Unknown0.Any(v => v != 0))
+            sb.AppendLine($"  Unknown0       : [{string.Join(", ", art.Unknown0.Select(v => $"0x{v:X8}"))}]");
+        if (art.Unknown2.Any(v => v != 0))
+            sb.AppendLine($"  Unknown2       : [{string.Join(", ", art.Unknown2.Select(v => $"0x{v:X8}"))}]");
         sb.AppendLine();
 
         // Palettes

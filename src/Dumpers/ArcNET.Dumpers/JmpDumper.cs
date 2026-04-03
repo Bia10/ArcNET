@@ -19,7 +19,7 @@ public static class JmpDumper
         {
             var j = jmp.Jumps[i];
             sb.AppendLine(
-                $"  [{i, 3}] flags=0x{j.Flags:X8}  src=({j.SourceX},{j.SourceY})  -> map={j.DestinationMapId}  dst=({j.DestX},{j.DestY})"
+                $"  [{i, 3}] flags=0x{j.Flags:X8}{(j.Flags == 0 ? " (none)" : "")}  src=({j.SourceX},{j.SourceY})  -> map={j.DestinationMapId}  dst=({j.DestX},{j.DestY})"
             );
         }
 

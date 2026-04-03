@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
 using ArcNET.Archive;
+using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -66,19 +67,27 @@ public static class ItemDumper
     }
 
     /// <summary>
-    /// Resolves the display name for an item mob:
+    /// Resolves the display name for an item mob using <paramref name="installation"/> to
+    /// translate the proto ID into the vanilla key used by <c>description.mes</c>:
     /// <list type="number">
-    ///   <item>Direct proto ID → description.mes lookup.</item>
-    ///   <item>UAP proto offset: description.mes key = protoId − 20.</item>
-    ///   <item>Fallback: object type name.</item>
+    ///   <item>Vanilla-translated proto ID → description.mes lookup.</item>
+    ///   <item>Raw proto ID fallback (for UAP-only protos 1–20 with no vanilla equivalent).</item>
+    ///   <item>Object type name as last resort.</item>
     /// </list>
     /// </summary>
-    public static string ResolveItemName(MobData mob, int protoId, Dictionary<int, string> nameLookup)
+    public static string ResolveItemName(
+        MobData mob,
+        int protoId,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
     {
-        if (nameLookup.TryGetValue(protoId, out var name))
+        var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoId, installation);
+        if (nameLookup.TryGetValue(vanillaId, out var name))
             return name;
 
-        if (nameLookup.TryGetValue(protoId - 20, out var altName))
+        // Fallback for UAP-only IDs (1–20) that have no vanilla equivalent.
+        if (nameLookup.TryGetValue(protoId, out var altName))
             return altName;
 
         return mob.Header.GameObjectType.ToString();
@@ -90,10 +99,15 @@ public static class ItemDumper
     /// Produces a human-readable text dump of a single item mob's meaningful properties
     /// (identity, weight/worth, and type-specific stats).
     /// </summary>
-    public static string DumpItem(MobData mob, int protoId, Dictionary<int, string> nameLookup)
+    public static string DumpItem(
+        MobData mob,
+        int protoId,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
     {
         var sb = new StringBuilder();
-        var name = ResolveItemName(mob, protoId, nameLookup);
+        var name = ResolveItemName(mob, protoId, nameLookup, installation);
         sb.AppendLine($"=== ITEM: {name} ===");
         sb.AppendLine($"  Proto    : {protoId}");
         sb.AppendLine($"  ObjectId : {mob.Header.ObjectId}");
@@ -104,9 +118,14 @@ public static class ItemDumper
         return sb.ToString();
     }
 
-    /// <inheritdoc cref="DumpItem(MobData, int, Dictionary{int,string})"/>
-    public static void DumpItem(MobData mob, int protoId, Dictionary<int, string> nameLookup, TextWriter writer) =>
-        writer.Write(DumpItem(mob, protoId, nameLookup));
+    /// <inheritdoc cref="DumpItem(MobData, int, Dictionary{int,string}, ArcanumInstallationType)"/>
+    public static void DumpItem(
+        MobData mob,
+        int protoId,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation,
+        TextWriter writer
+    ) => writer.Write(DumpItem(mob, protoId, nameLookup, installation));
 
     // ── Archive-aware proto lookup ─────────────────────────────────────────────
 
@@ -115,7 +134,12 @@ public static class ItemDumper
     /// Proto files are expected at <c>{gameDir}/data/proto/{protoId:D6}*.pro</c>.
     /// Returns <see langword="null"/> if no matching file is found.
     /// </summary>
-    public static string? DumpProtoById(string gameDir, int protoId, Dictionary<int, string> nameLookup)
+    public static string? DumpProtoById(
+        string gameDir,
+        int protoId,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
     {
         var protoDir = Path.Combine(gameDir, "data", "proto");
         if (!Directory.Exists(protoDir))
@@ -131,7 +155,8 @@ public static class ItemDumper
         var proto = ProtoFormat.ParseFile(match);
         var sb = new StringBuilder();
 
-        if (nameLookup.TryGetValue(protoId, out var name) || nameLookup.TryGetValue(protoId - 20, out name))
+        var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoId, installation);
+        if (nameLookup.TryGetValue(vanillaId, out var name) || nameLookup.TryGetValue(protoId, out name))
             sb.AppendLine($"  Name : {name}");
 
         sb.Append(ProtoDumper.Dump(proto));
@@ -143,7 +168,12 @@ public static class ItemDumper
     /// matches <paramref name="itemName"/> (case-insensitive).
     /// Returns <see langword="null"/> if no matching proto is found.
     /// </summary>
-    public static string? DumpProtoByName(string gameDir, string itemName, Dictionary<int, string> nameLookup)
+    public static string? DumpProtoByName(
+        string gameDir,
+        string itemName,
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
+    )
     {
         int? protoId = null;
         foreach (var kvp in nameLookup)
@@ -155,7 +185,7 @@ public static class ItemDumper
             }
         }
 
-        return protoId is null ? null : DumpProtoById(gameDir, protoId.Value, nameLookup);
+        return protoId is null ? null : DumpProtoById(gameDir, protoId.Value, nameLookup, installation);
     }
 
     // ── Container inventory dump ───────────────────────────────────────────────
@@ -273,7 +303,7 @@ public static class ItemDumper
 
             var protoId = BinaryPrimitives.ReadInt32LittleEndian(itemMob.Header.ProtoId.Id.ToByteArray());
             sb.AppendLine($"  [{i + 1}]");
-            sb.Append(DumpItem(itemMob, protoId, nameLookup));
+            sb.Append(DumpItem(itemMob, protoId, nameLookup, ArcanumInstallationType.Vanilla));
         }
 
         return sb.ToString();

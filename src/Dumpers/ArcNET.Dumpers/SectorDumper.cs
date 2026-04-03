@@ -92,11 +92,31 @@ public static class SectorDumper
             sb.AppendLine();
         }
 
-        // Block mask summary
+        // Block mask grid (64×64 tiles, 128 uint32s — each uint32 = 32 tiles in one row chunk)
+        // Layout: bits are ordered tile 0-31 in BlockMask[0], tiles 32-63 in BlockMask[1],
+        // tiles 64-95 in BlockMask[2], … tiles 4064-4095 in BlockMask[127].
+        // The sector is 64×64; tile index = row*64+col. uint32 index = tileIdx/32.
         var blockedTiles = 0;
         foreach (var mask in sector.BlockMask)
             blockedTiles += int.PopCount((int)mask);
-        sb.AppendLine($"  --- Block Mask ({blockedTiles} blocked tiles) ---");
+        sb.AppendLine($"  --- Block Mask ({blockedTiles}/4096 blocked tiles) ---");
+
+        if (blockedTiles > 0)
+        {
+            // Row 0 = top of sector. Each row = 64 tiles = 2 uint32s.
+            for (var row = 0; row < 64; row++)
+            {
+                var loWord = sector.BlockMask[row * 2];
+                var hiWord = sector.BlockMask[row * 2 + 1];
+                sb.Append("    ");
+                for (var col = 0; col < 32; col++)
+                    sb.Append((loWord & (1u << col)) != 0 ? '#' : '.');
+                for (var col = 0; col < 32; col++)
+                    sb.Append((hiWord & (1u << col)) != 0 ? '#' : '.');
+                sb.AppendLine();
+            }
+        }
+
         sb.AppendLine();
 
         // Objects

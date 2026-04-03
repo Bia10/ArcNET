@@ -45,9 +45,9 @@ public static class MobDumper
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static void DumpHeader(StringBuilder sb, GameObjectHeader h)
+    internal static void DumpHeader(StringBuilder sb, GameObjectHeader h, string label = "=== MOB HEADER ===")
     {
-        sb.AppendLine("=== MOB HEADER ===");
+        sb.AppendLine(label);
         sb.AppendLine($"  Version      : 0x{h.Version:X2}");
         sb.AppendLine($"  ProtoId      : {h.ProtoId}  [IsProto={h.ProtoId.IsProto}]");
         sb.AppendLine($"  ObjectId     : {h.ObjectId}");
@@ -61,7 +61,7 @@ public static class MobDumper
         sb.AppendLine();
     }
 
-    private static void DumpProperties(StringBuilder sb, MobData mob)
+    internal static void DumpProperties(StringBuilder sb, MobData mob)
     {
         sb.AppendLine("=== PROPERTIES ===");
         if (mob.Properties.Count == 0)
@@ -75,7 +75,7 @@ public static class MobDumper
         {
             var fieldName = ResolveFieldName(objectType, (int)prop.Field);
             var bytes = prop.RawBytes;
-            sb.Append($"  [{(int)prop.Field, 3}] {fieldName, -45} ({bytes.Length, 5} B)  ");
+            sb.Append($"  [{(int)prop.Field, 3}] {fieldName, -32} ({bytes.Length, 3} B)  ");
             AppendDecodedValue(sb, prop, objectType);
             sb.AppendLine();
         }
@@ -84,6 +84,7 @@ public static class MobDumper
     private static void AppendDecodedValue(StringBuilder sb, ObjectProperty prop, ObjectType objectType)
     {
         var bytes = prop.RawBytes;
+        var fieldBit = (int)prop.Field;
 
         // ── Absent field (presence byte = 0) ──
         if (bytes.Length == 1 && bytes[0] == 0)
@@ -99,14 +100,117 @@ public static class MobDumper
             var u32 = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
             var f32 = BinaryPrimitives.ReadSingleLittleEndian(bytes);
 
-            // Inventory fields
-            if (prop.Field is ObjectField.ObjFContainerInventoryNum)
+            // ── Common flag fields ──
+            if (fieldBit == 8) // ObjFBlitFlags
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFBlitFlags>(sb, u32);
+                return;
+            }
+            if (fieldBit == 18) // ObjFFlags
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFFlags>(sb, u32);
+                return;
+            }
+            if (fieldBit == 19) // ObjFSpellFlags
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFSpellFlags>(sb, u32);
+                return;
+            }
+
+            // ── Float fields (rotation, speed, radius, height) ──
+            if (fieldBit is 34 or 36 or 37 or 38 or 39 or 40)
+            {
+                if (fieldBit == 34) // rotation
+                    sb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
+                else
+                    sb.Append($"= {f32:G6}");
+                return;
+            }
+
+            // ── Type-specific flag fields (bit 64 = first type-specific slot) ──
+            if (fieldBit == 64)
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                switch (objectType)
+                {
+                    case ObjectType.Npc or ObjectType.Pc:
+                        AppendFlagNames<ObjFCritterFlags>(sb, u32);
+                        break;
+                    case ObjectType.Container:
+                        AppendFlagNames<ObjFContainerFlags>(sb, u32);
+                        break;
+                    case ObjectType.Portal:
+                        AppendFlagNames<ObjFPortalFlags>(sb, u32);
+                        break;
+                    case ObjectType.Scenery:
+                        AppendFlagNames<ObjFSceneryFlags>(sb, u32);
+                        break;
+                    case ObjectType.Weapon
+                    or ObjectType.Ammo
+                    or ObjectType.Armor
+                    or ObjectType.Gold
+                    or ObjectType.Food
+                    or ObjectType.Scroll
+                    or ObjectType.Key
+                    or ObjectType.KeyRing
+                    or ObjectType.Written
+                    or ObjectType.Generic:
+                        AppendFlagNames<ObjFItemFlags>(sb, u32);
+                        break;
+                    default:
+                        sb.Append("(unknown type flags)");
+                        break;
+                }
+                return;
+            }
+            if (fieldBit == 65 && objectType is ObjectType.Npc or ObjectType.Pc)
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFCritterFlags2>(sb, u32);
+                return;
+            }
+
+            // ── Weapon / armor type-specific flags (bit 96) ──
+            if (fieldBit == 96)
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                switch (objectType)
+                {
+                    case ObjectType.Weapon:
+                        AppendFlagNames<ObjFWeaponFlags>(sb, u32);
+                        break;
+                    case ObjectType.Armor:
+                        AppendFlagNames<ObjFArmorFlags>(sb, u32);
+                        break;
+                    default:
+                        sb.Append("(type flags)");
+                        break;
+                }
+                return;
+            }
+
+            if (fieldBit == 128 && objectType is ObjectType.Npc)
+            {
+                sb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFNpcFlags>(sb, u32);
+                return;
+            }
+            if (fieldBit == 128 && objectType is ObjectType.Pc)
+            {
+                sb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
+                return;
+            }
+
+            // ── Inventory fields ──
+            if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
             {
                 sb.Append($"= {i32}  (item count)");
                 return;
             }
-
-            if (prop.Field is ObjectField.ObjFContainerInventorySource)
+            if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
             {
                 sb.Append(
                     i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
@@ -124,7 +228,7 @@ public static class MobDumper
         if (bytes.Length == 9)
         {
             var i64 = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(1));
-            if (IsLocationField(prop.Field))
+            if (IsLocationField(prop.Field, objectType))
             {
                 var x = (int)(i64 & 0xFFFFFFFF);
                 var y = (int)((i64 >> 32) & 0xFFFFFFFF);
@@ -184,6 +288,45 @@ public static class MobDumper
                 return;
             }
 
+            // Script slots: 12B per element — { uint hdrFlags, uint hdrCounters, int scriptId }
+            // Element index maps to ScriptAttachmentPoint
+            if (elementSize == 12)
+            {
+                var dataSpan = bytes.AsSpan(13, elementCount * 12);
+                sb.AppendLine();
+                for (var idx = 0; idx < elementCount; idx++)
+                {
+                    var elem = dataSpan.Slice(idx * 12, 12);
+                    var hdrFlags = BinaryPrimitives.ReadUInt32LittleEndian(elem);
+                    var hdrCounters = BinaryPrimitives.ReadUInt32LittleEndian(elem.Slice(4));
+                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(elem.Slice(8));
+                    if (scriptId == 0 && hdrFlags == 0 && hdrCounters == 0)
+                        continue; // empty slot
+                    var apName = Enum.IsDefined((ScriptAttachmentPoint)idx)
+                        ? ((ScriptAttachmentPoint)idx).ToString()
+                        : $"Slot{idx}";
+                    sb.AppendLine(
+                        $"      [{apName}] scriptId={scriptId}  hdrFlags=0x{hdrFlags:X8}  hdrCounters=0x{hdrCounters:X8}"
+                    );
+                }
+                return;
+            }
+
+            // NPC waypoints: 8B per element — each is an Int64 tile location
+            if (elementSize == 8 && fieldBit == 135) // ObjFNpcWaypointsIdx
+            {
+                var dataSpan = bytes.AsSpan(13, elementCount * 8);
+                sb.AppendLine();
+                for (var idx = 0; idx < elementCount; idx++)
+                {
+                    var loc = BinaryPrimitives.ReadInt64LittleEndian(dataSpan.Slice(idx * 8));
+                    var tx = (int)(loc & 0xFFFFFFFF);
+                    var ty = (int)((loc >> 32) & 0xFFFFFFFF);
+                    sb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
+                }
+                return;
+            }
+
             sb.Append($"  [{elementCount} elem(s)]");
             return;
         }
@@ -192,8 +335,29 @@ public static class MobDumper
         sb.Append($"= \"{prop.GetString()}\"");
     }
 
-    private static bool IsLocationField(ObjectField field) =>
-        field is ObjectField.ObjFLocation or ObjectField.ObjFContainerInventoryListIdx;
+    private static bool IsLocationField(ObjectField field, ObjectType objectType) =>
+        field is ObjectField.ObjFLocation or ObjectField.ObjFCritterTeleportDest
+        || (objectType is ObjectType.Npc && (int)field is 137 or 138); // ObjFNpcStandpointDay/Night
+
+    private static void AppendFlagNames<T>(StringBuilder sb, uint value)
+        where T : struct, Enum
+    {
+        if (value == 0)
+        {
+            sb.Append("(none)");
+            return;
+        }
+
+        var names = new List<string>();
+        foreach (var flag in Enum.GetValues<T>())
+        {
+            var flagVal = Convert.ToUInt32(flag);
+            if (flagVal != 0 && (value & flagVal) == flagVal)
+                names.Add(flag.ToString());
+        }
+
+        sb.Append(names.Count > 0 ? string.Join(" | ", names) : "(unknown flags)");
+    }
 
     // ── Type-aware field name resolution ──────────────────────────────────────
 

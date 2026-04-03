@@ -23,7 +23,8 @@ public static class ScriptDumper
         {
             var cond = scr.Entries[i];
             var condName = FormatEnum<ScriptConditionType>(cond.Type);
-            sb.AppendLine($"  --- Condition [{i}] {condName} ---");
+            var apName = Enum.IsDefined((ScriptAttachmentPoint)i) ? ((ScriptAttachmentPoint)i).ToString() : $"Slot{i}";
+            sb.AppendLine($"  --- [{apName}] Condition [{i}] {condName} ---");
             DumpOperands(sb, "    Cond", cond.OpTypes, cond.OpValues);
             DumpAction(sb, "    Then", cond.Action);
             DumpAction(sb, "    Else", cond.Else);

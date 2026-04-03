@@ -27,9 +27,29 @@ public static class FacWalkDumper
         sb.AppendLine($"  Blocked    : {blocked}");
         sb.AppendLine();
 
-        foreach (var e in fac.Entries)
+        const int maxEntriesToList = 64;
+        if (fac.Entries.Length <= maxEntriesToList)
         {
-            sb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
+            foreach (var e in fac.Entries)
+                sb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
+        }
+        else
+        {
+            sb.AppendLine($"  (listing suppressed — {fac.Entries.Length} entries; showing {h.Width}×{h.Height} grid)");
+            sb.AppendLine();
+
+            var grid = new bool[h.Height, h.Width];
+            foreach (var e in fac.Entries)
+                if (e.X >= 0 && e.X < h.Width && e.Y >= 0 && e.Y < h.Height)
+                    grid[e.Y, e.X] = e.Walkable;
+
+            for (var row = 0; row < h.Height; row++)
+            {
+                sb.Append("  ");
+                for (var col = 0; col < h.Width; col++)
+                    sb.Append(grid[row, col] ? '.' : '#');
+                sb.AppendLine();
+            }
         }
 
         return sb.ToString();
