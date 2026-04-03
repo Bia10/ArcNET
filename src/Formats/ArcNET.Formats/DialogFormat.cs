@@ -60,7 +60,6 @@ public sealed class DlgFile
 /// Span-based parser and writer for Arcanum dialogue (.dlg) files.
 /// DLG is a <b>plain-text</b> format: each entry consists of exactly 7 brace-delimited fields
 /// in the order <c>{num}{str}{gender}{iq}{conditions}{response_val}{actions}</c>.
-
 /// </summary>
 public sealed class DialogFormat : IFormatReader<DlgFile>, IFormatWriter<DlgFile>
 {

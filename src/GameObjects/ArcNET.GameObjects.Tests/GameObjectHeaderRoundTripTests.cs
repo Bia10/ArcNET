@@ -11,7 +11,7 @@ namespace ArcNET.GameObjects.Tests;
 public class GameObjectHeaderRoundTripTests
 {
     // ── ObjectID wire helpers (24 bytes each) ─────────────────────────────────
-        // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }
+    // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }
     // OID_TYPE_BLOCKED = -1: marks a prototype definition (IsProto == true)
 
     private static void WriteOidBlocked(SpanWriter w)
