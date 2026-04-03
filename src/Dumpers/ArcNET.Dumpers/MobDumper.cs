@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Text;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
+using ArcNET.GameObjects.Classes;
 
 namespace ArcNET.Dumpers;
 
@@ -48,16 +49,21 @@ public static class MobDumper
     internal static void DumpHeader(StringBuilder sb, GameObjectHeader h, string label = "=== MOB HEADER ===")
     {
         sb.AppendLine(label);
-        sb.AppendLine($"  Version      : 0x{h.Version:X2}");
-        sb.AppendLine($"  ProtoId      : {h.ProtoId}  [IsProto={h.ProtoId.IsProto}]");
-        sb.AppendLine($"  ObjectId     : {h.ObjectId}");
-        sb.AppendLine($"  ObjectType   : {h.GameObjectType} ({(int)h.GameObjectType})");
-        sb.AppendLine($"  IsPrototype  : {h.IsPrototype}");
+        sb.AppendLine(
+            $"  Format       : 0x{h.Version:X2}  ({(h.Version == 0x77 ? "Object File Format — standard Arcanum/ToEE" : "unknown version")})"
+        );
+        sb.AppendLine(
+            $"  Type         : {h.GameObjectType}  ({(h.IsPrototype ? "prototype definition" : "object instance")})"
+        );
+        sb.AppendLine(
+            $"  Proto ID     : {h.ProtoId}  [{(h.ProtoId.IsProto ? "is a .PRO file itself" : "references prototype")}]"
+        );
         if (!h.IsPrototype)
-            sb.AppendLine($"  PropItems    : {h.PropCollectionItems}");
-        sb.AppendLine($"  BitmapLength : {h.Bitmap.Length} bits");
+            sb.AppendLine($"  Object ID    : {h.ObjectId}");
         var setBits = Enumerable.Range(0, h.Bitmap.Length).Where(i => h.Bitmap[i]).ToList();
-        sb.AppendLine($"  Set bits     : [{string.Join(", ", setBits)}]");
+        sb.AppendLine(
+            $"  Properties   : {setBits.Count}/{h.Bitmap.Length} present  (bits: [{string.Join(", ", setBits)}])"
+        );
         sb.AppendLine();
     }
 
@@ -176,17 +182,22 @@ public static class MobDumper
             // ── Weapon / armor type-specific flags (bit 96) ──
             if (fieldBit == 96)
             {
-                sb.Append($"= 0x{u32:X8}  ");
                 switch (objectType)
                 {
                     case ObjectType.Weapon:
+                        sb.Append($"= 0x{u32:X8}  ");
                         AppendFlagNames<ObjFWeaponFlags>(sb, u32);
                         break;
                     case ObjectType.Armor:
+                        sb.Append($"= 0x{u32:X8}  ");
                         AppendFlagNames<ObjFArmorFlags>(sb, u32);
                         break;
+                    case ObjectType.Key:
+                        // ObjFKeyKeyId — not flags, it's the key identifier
+                        sb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
+                        break;
                     default:
-                        sb.Append("(type flags)");
+                        sb.Append($"= 0x{u32:X8}  (type-specific flags)");
                         break;
                 }
                 return;
@@ -215,6 +226,25 @@ public static class MobDumper
                 sb.Append(
                     i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
                 );
+                return;
+            }
+
+            // ── Well-known common scalar fields ──
+            var wellKnownLabel = fieldBit switch
+            {
+                23 => "art resource ID",
+                24 => "destroyed-art resource ID",
+                25 => "armor class",
+                26 => "max HP",
+                27 => "HP adjustment",
+                28 => "HP damage taken",
+                32 => "sound effect ID",
+                33 => "object category",
+                _ => null,
+            };
+            if (wellKnownLabel is not null)
+            {
+                sb.Append($"= {i32}  ({wellKnownLabel})");
                 return;
             }
 
@@ -280,6 +310,24 @@ public static class MobDumper
             if (elementSize == 4)
             {
                 var vals = prop.GetInt32Array();
+
+                // ── Critter base stats — index maps to BasicStatType ──
+                if (
+                    fieldBit == (int)ObjectField.ObjFCritterStatBaseIdx
+                    && objectType is ObjectType.Npc or ObjectType.Pc
+                )
+                {
+                    sb.AppendLine();
+                    for (var idx = 0; idx < vals.Length; idx++)
+                    {
+                        var statLabel = Enum.IsDefined((BasicStatType)idx)
+                            ? ((BasicStatType)idx).ToString()
+                            : $"Stat{idx}";
+                        sb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
+                    }
+                    return;
+                }
+
                 sb.Append("  [");
                 sb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
                 if (vals.Length > 8)

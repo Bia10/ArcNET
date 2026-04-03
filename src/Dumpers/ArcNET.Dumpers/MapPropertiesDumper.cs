@@ -12,10 +12,13 @@ public static class MapPropertiesDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== MAP PROPERTIES ===");
-        sb.AppendLine($"  ArtId    : {props.ArtId}");
-        sb.AppendLine($"  Unused   : {props.Unused}");
-        sb.AppendLine($"  LimitX   : {props.LimitX}");
-        sb.AppendLine($"  LimitY   : {props.LimitY}");
+        sb.AppendLine($"  Ground art ID : {props.ArtId}  (index into art/ground/ground.mes for the base terrain tile)");
+        sb.AppendLine(
+            $"  Dimensions    : {props.LimitX} × {props.LimitY} tiles"
+                + (props.LimitX == 960 && props.LimitY == 960 ? "  (standard full map)" : "")
+        );
+        if (props.Unused != 0)
+            sb.AppendLine($"  Unused field  : {props.Unused}  (non-zero — unexpected)");
         return sb.ToString();
     }
 

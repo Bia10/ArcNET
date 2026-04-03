@@ -43,10 +43,12 @@ public static class DialogDumper
             if (!string.IsNullOrEmpty(e.GenderField))
                 sb.AppendLine(e.Iq == 0 ? $"    FemaleText : {e.GenderField}" : $"    Gender     : {e.GenderField}");
             if (!string.IsNullOrEmpty(e.Conditions))
-                sb.AppendLine($"    Conditions : {e.Conditions}");
+                sb.AppendLine($"    Conditions : {e.Conditions}  [Arcanum script]");
+            else
+                sb.AppendLine("    Conditions : (always available)");
             sb.AppendLine($"    Response   : {(e.ResponseVal == 0 ? "(end)" : e.ResponseVal.ToString())}");
             if (!string.IsNullOrEmpty(e.Actions))
-                sb.AppendLine($"    Actions    : {e.Actions}");
+                sb.AppendLine($"    Actions    : {e.Actions}  [Arcanum script]");
             sb.AppendLine();
         }
 

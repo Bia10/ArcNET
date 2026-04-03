@@ -12,7 +12,21 @@ public static class MessageDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== MESSAGE FILE ===");
-        sb.AppendLine($"  Entries: {mes.Entries.Count}");
+
+        var withSound = mes.Entries.Count(e => e.SoundId is not null);
+        var textOnly = mes.Entries.Count - withSound;
+        sb.Append($"  Entries: {mes.Entries.Count}");
+        if (withSound > 0)
+            sb.Append($"  ({withSound} with sound ID, {textOnly} text-only)");
+        sb.AppendLine();
+
+        if (mes.Entries.Count > 0)
+        {
+            var minId = mes.Entries.Min(e => e.Index);
+            var maxId = mes.Entries.Max(e => e.Index);
+            sb.AppendLine($"  ID range: {minId} \u2013 {maxId}");
+        }
+
         sb.AppendLine();
 
         foreach (var entry in mes.Entries)

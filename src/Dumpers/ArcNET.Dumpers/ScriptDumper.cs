@@ -12,22 +12,36 @@ public static class ScriptDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== SCRIPT FILE ===");
-        sb.AppendLine($"  Description    : \"{scr.Description}\"");
-        sb.AppendLine($"  HeaderFlags    : 0x{scr.HeaderFlags:X8}");
-        sb.AppendLine($"  HeaderCounters : 0x{scr.HeaderCounters:X8}");
-        sb.AppendLine($"  Flags          : {scr.Flags} (0x{(uint)scr.Flags:X8})");
-        sb.AppendLine($"  Entries        : {scr.Entries.Count}");
+        sb.AppendLine($"  Description : \"{scr.Description}\"");
+        sb.AppendLine($"  Behaviour   : {scr.Flags}  (0x{(uint)scr.Flags:X4})");
+        // Count active (non-empty) slots for the summary line
+        var activeSlots = scr.Entries.Count(e =>
+            !IsEmptyCondition(e) || !IsEmptyAction(e.Action) || !IsEmptyAction(e.Else)
+        );
+        var emptySlots = scr.Entries.Count - activeSlots;
+        sb.Append($"  Entries     : {scr.Entries.Count} attachment slot(s)");
+        if (activeSlots < scr.Entries.Count)
+            sb.Append($"  ({activeSlots} active, {emptySlots} unused/empty)");
+        sb.AppendLine();
+        // HeaderFlags and HeaderCounters are runtime state only (not meaningful off-disk)
+        if (scr.HeaderFlags != 0 || scr.HeaderCounters != 0)
+            sb.AppendLine($"  Runtime state  : flags=0x{scr.HeaderFlags:X8}  counters=0x{scr.HeaderCounters:X8}");
         sb.AppendLine();
 
         for (var i = 0; i < scr.Entries.Count; i++)
         {
             var cond = scr.Entries[i];
+            // Skip completely empty slots — condition=True with no operands + DoNothing action
+            if (IsEmptyCondition(cond) && IsEmptyAction(cond.Action) && IsEmptyAction(cond.Else))
+                continue;
+
             var condName = FormatEnum<ScriptConditionType>(cond.Type);
             var apName = Enum.IsDefined((ScriptAttachmentPoint)i) ? ((ScriptAttachmentPoint)i).ToString() : $"Slot{i}";
-            sb.AppendLine($"  --- [{apName}] Condition [{i}] {condName} ---");
-            DumpOperands(sb, "    Cond", cond.OpTypes, cond.OpValues);
-            DumpAction(sb, "    Then", cond.Action);
-            DumpAction(sb, "    Else", cond.Else);
+            sb.AppendLine($"  [{apName}]  when {condName}");
+            DumpOperands(sb, "    condition", cond.OpTypes, cond.OpValues);
+            DumpAction(sb, "      then", cond.Action);
+            if (!IsEmptyAction(cond.Else))
+                DumpAction(sb, "      else", cond.Else);
             sb.AppendLine();
         }
 
@@ -35,6 +49,14 @@ public static class ScriptDumper
     }
 
     public static void Dump(ScrFile scr, TextWriter writer) => writer.Write(Dump(scr));
+
+    private static bool IsEmptyCondition(ScriptConditionData cond) =>
+        cond.Type == (int)ScriptConditionType.True && cond.OpTypes.All(t => t == 0) && cond.OpValues.All(v => v == 0);
+
+    private static bool IsEmptyAction(ScriptActionData action) =>
+        action.Type == (int)ScriptActionType.DoNothing
+        && action.OpTypes.All(t => t == 0)
+        && action.OpValues.All(v => v == 0);
 
     private static void DumpAction(StringBuilder sb, string prefix, ScriptActionData action)
     {
@@ -51,7 +73,7 @@ public static class ScriptDumper
                 continue;
 
             var typeName = FormatOperandType(opTypes[j]);
-            sb.AppendLine($"{prefix}  op[{j}] {typeName} = {opValues[j]} (0x{opValues[j]:X8})");
+            sb.AppendLine($"{prefix}  [{j}] {typeName} = {opValues[j]}  (0x{opValues[j]:X8})");
         }
     }
 

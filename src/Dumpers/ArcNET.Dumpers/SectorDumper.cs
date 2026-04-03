@@ -12,41 +12,53 @@ public static class SectorDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== SECTOR ===");
-        sb.AppendLine($"  Lights           : {sector.Lights.Count}");
-        sb.AppendLine($"  TownmapInfo      : {sector.TownmapInfo}");
-        sb.AppendLine($"  AptitudeAdj      : {sector.AptitudeAdjustment}");
-        sb.AppendLine($"  LightSchemeIdx   : {sector.LightSchemeIdx}");
-        sb.AppendLine($"  HasRoofs         : {sector.HasRoofs}");
-        sb.AppendLine($"  TileScripts      : {sector.TileScripts.Count}");
-        sb.AppendLine($"  Objects          : {sector.Objects.Count}");
+        sb.AppendLine(
+            $"  Contains {sector.Objects.Count} object(s), {sector.Lights.Count} light source(s), and {sector.TileScripts.Count} tile script(s)."
+        );
+        sb.AppendLine(
+            $"  Roofs: {(sector.HasRoofs ? "present" : "none")}  "
+                + $"Light scheme: {(sector.LightSchemeIdx < 0 ? "none" : sector.LightSchemeIdx.ToString())}  "
+                + $"Townmap cache: {(sector.TownmapInfo != 0 ? "yes" : "no")}  "
+                + $"Encounter adjustment: {sector.AptitudeAdjustment:+#;-#;0}"
+        );
         sb.AppendLine();
 
         // Sound
-        sb.AppendLine("  --- Sound ---");
-        sb.AppendLine($"    MusicSchemeIdx   : {sector.SoundList.MusicSchemeIdx}");
-        sb.AppendLine($"    AmbientSchemeIdx : {sector.SoundList.AmbientSchemeIdx}");
-        sb.AppendLine($"    Flags            : 0x{sector.SoundList.Flags:X8}");
+        var music = sector.SoundList.MusicSchemeIdx < 0 ? "none" : sector.SoundList.MusicSchemeIdx.ToString();
+        var ambient = sector.SoundList.AmbientSchemeIdx < 0 ? "none" : sector.SoundList.AmbientSchemeIdx.ToString();
+        sb.AppendLine($"  Sound — music scheme: {music}, ambient scheme: {ambient}");
+        if (sector.SoundList.Flags != 0)
+            sb.AppendLine($"    (runtime flags: 0x{sector.SoundList.Flags:X8} — not meaningful for editor tools)");
         sb.AppendLine();
 
         // Sector script
         if (sector.SectorScript is { } script)
         {
             sb.AppendLine("  --- Sector Script ---");
-            sb.AppendLine($"    ScriptId   : {script.ScriptId}");
-            sb.AppendLine($"    Flags      : {script.Flags}");
-            sb.AppendLine($"    Counters   : [{string.Join(", ", script.Counters.Select(c => $"0x{c:X2}"))}]");
+            sb.AppendLine($"    Script ID  : {script.ScriptId}");
+            sb.AppendLine($"    Flags      : {script.Flags}  (0x{(uint)script.Flags:X8})");
+            var nonZeroCounters = script.Counters.Select((c, i) => (c, i)).Where(p => p.c != 0).ToList();
+            if (nonZeroCounters.Count > 0)
+                sb.AppendLine(
+                    $"    Counters   : " + string.Join(", ", nonZeroCounters.Select(p => $"[{p.i}]=0x{p.c:X2}"))
+                );
+            else
+                sb.AppendLine("    Counters   : (all zero)");
             sb.AppendLine();
         }
 
         // Lights
         if (sector.Lights.Count > 0)
         {
-            sb.AppendLine("  --- Lights ---");
+            sb.AppendLine($"  --- Lights ({sector.Lights.Count}) ---");
             for (var i = 0; i < sector.Lights.Count; i++)
             {
                 var l = sector.Lights[i];
+                var flagLabel = l.Flags == SectorLightFlags.None ? "active" : l.Flags.ToString();
+                var attached = l.ObjHandle == -1L ? "standalone" : $"attached to obj 0x{l.ObjHandle:X16}";
                 sb.AppendLine(
-                    $"    [{i, 3}] tile=({l.TileX},{l.TileY})  offset=({l.OffsetX},{l.OffsetY})  flags=0x{l.Flags:X8}  art={l.ArtId}  RGB=({l.R},{l.G},{l.B})  tint=0x{l.TintColor:X8}  obj=0x{l.ObjHandle:X16}"
+                    $"    [{i, 3}] tile=({l.TileX},{l.TileY})  offset=({l.OffsetX},{l.OffsetY})  "
+                        + $"color=RGB({l.R},{l.G},{l.B})  art={l.ArtId}  status={flagLabel}  {attached}"
                 );
             }
             sb.AppendLine();
@@ -54,13 +66,10 @@ public static class SectorDumper
 
         // Tile art ID distribution (summary, not all 4096)
         var distinctTiles = sector.Tiles.Distinct().Count();
-        sb.AppendLine($"  --- Tiles (4096 total, {distinctTiles} distinct art IDs) ---");
+        sb.AppendLine($"  --- Tile Art ({distinctTiles} distinct ground tile art IDs across 4096 tiles) ---");
         var tileGroups = sector.Tiles.GroupBy(t => t).OrderByDescending(g => g.Count()).Take(10);
         foreach (var g in tileGroups)
-        {
-            sb.AppendLine($"    art={g.Key, 5}  count={g.Count()}");
-        }
-
+            sb.AppendLine($"    art {g.Key, 5}  ×{g.Count()}");
         if (distinctTiles > 10)
             sb.AppendLine($"    ... and {distinctTiles - 10} more");
         sb.AppendLine();
@@ -69,41 +78,38 @@ public static class SectorDumper
         if (sector.HasRoofs && sector.Roofs is not null)
         {
             var distinctRoofs = sector.Roofs.Distinct().Count();
-            sb.AppendLine($"  --- Roofs (256 total, {distinctRoofs} distinct art IDs) ---");
-            var roofGroups = sector.Roofs.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(5);
-            foreach (var g in roofGroups)
-            {
-                sb.AppendLine($"    art={g.Key, 5}  count={g.Count()}");
-            }
-
+            sb.AppendLine($"  --- Roof Art ({distinctRoofs} distinct art IDs across 256 roof tiles) ---");
+            foreach (var g in sector.Roofs.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(5))
+                sb.AppendLine($"    art {g.Key, 5}  ×{g.Count()}");
             sb.AppendLine();
         }
 
         // Tile scripts
         if (sector.TileScripts.Count > 0)
         {
-            sb.AppendLine("  --- Tile Scripts ---");
+            sb.AppendLine($"  --- Tile Scripts ({sector.TileScripts.Count}) ---");
+            sb.AppendLine(
+                "    (ScriptFlags and ScriptCounters are runtime state — only ScriptNum and NodeFlags are meaningful here)"
+            );
             foreach (var ts in sector.TileScripts)
             {
-                sb.AppendLine(
-                    $"    tile={ts.TileId, 4}  script={ts.ScriptNum}  flags=0x{ts.ScriptFlags:X8}  counters=0x{ts.ScriptCounters:X8}  nodeFlags=0x{ts.NodeFlags:X8}"
-                );
+                var nodeLabel = (ts.NodeFlags & 0x1) != 0 ? "modified" : "clean";
+                var runtimeNote =
+                    ts.ScriptFlags != 0 || ts.ScriptCounters != 0
+                        ? $"  [runtime: flags=0x{ts.ScriptFlags:X8} counters=0x{ts.ScriptCounters:X8}]"
+                        : "";
+                sb.AppendLine($"    tile {ts.TileId, 4}: script {ts.ScriptNum}  node={nodeLabel}{runtimeNote}");
             }
             sb.AppendLine();
         }
 
-        // Block mask grid (64×64 tiles, 128 uint32s — each uint32 = 32 tiles in one row chunk)
-        // Layout: bits are ordered tile 0-31 in BlockMask[0], tiles 32-63 in BlockMask[1],
-        // tiles 64-95 in BlockMask[2], … tiles 4064-4095 in BlockMask[127].
-        // The sector is 64×64; tile index = row*64+col. uint32 index = tileIdx/32.
+        // Block mask
         var blockedTiles = 0;
         foreach (var mask in sector.BlockMask)
             blockedTiles += int.PopCount((int)mask);
-        sb.AppendLine($"  --- Block Mask ({blockedTiles}/4096 blocked tiles) ---");
-
+        sb.AppendLine($"  --- Walkability ({4096 - blockedTiles}/4096 walkable, {blockedTiles}/4096 blocked) ---");
         if (blockedTiles > 0)
         {
-            // Row 0 = top of sector. Each row = 64 tiles = 2 uint32s.
             for (var row = 0; row < 64; row++)
             {
                 var loWord = sector.BlockMask[row * 2];
@@ -122,13 +128,12 @@ public static class SectorDumper
         // Objects
         if (sector.Objects.Count > 0)
         {
-            sb.AppendLine("  --- Objects ---");
+            sb.AppendLine($"  --- Objects ({sector.Objects.Count}) ---");
             for (var i = 0; i < sector.Objects.Count; i++)
             {
                 var mob = sector.Objects[i];
                 sb.AppendLine($"    ┌─ Object [{i}] ─────────────────");
                 var mobDump = MobDumper.Dump(mob);
-                // Indent each mob dump line
                 foreach (var line in mobDump.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {
                     sb.Append("    │ ");

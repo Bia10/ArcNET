@@ -12,12 +12,16 @@ public static class TerrainDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== TERRAIN FILE ===");
-        sb.AppendLine($"  Version     : {terrain.Version:F1}");
-        sb.AppendLine($"  BaseType    : {terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
-        sb.AppendLine($"  Width       : {terrain.Width}");
-        sb.AppendLine($"  Height      : {terrain.Height}");
-        sb.AppendLine($"  Compressed  : {terrain.Compressed}");
-        sb.AppendLine($"  TileCount   : {terrain.Tiles.Length}");
+        sb.AppendLine($"  Version      : {terrain.Version:F1}  (standard TDF format)");
+        sb.AppendLine($"  Base terrain : {terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
+        sb.AppendLine(
+            $"  Dimensions   : {terrain.Width} \u00d7 {terrain.Height} tiles  ({terrain.Tiles.Length} total)"
+        );
+        sb.AppendLine(
+            terrain.Compressed
+                ? "  Storage      : compressed (row-by-row zlib)"
+                : "  Storage      : uncompressed (raw tile array)"
+        );
         sb.AppendLine();
 
         // Terrain type distribution

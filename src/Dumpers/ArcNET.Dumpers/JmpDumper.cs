@@ -12,15 +12,18 @@ public static class JmpDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== JUMP POINT FILE ===");
-        sb.AppendLine($"  Entries: {jmp.Jumps.Count}");
+        sb.AppendLine($"  {jmp.Jumps.Count} transition point(s) defined.");
         sb.AppendLine();
 
         for (var i = 0; i < jmp.Jumps.Count; i++)
         {
             var j = jmp.Jumps[i];
-            sb.AppendLine(
-                $"  [{i, 3}] flags=0x{j.Flags:X8}{(j.Flags == 0 ? " (none)" : "")}  src=({j.SourceX},{j.SourceY})  -> map={j.DestinationMapId}  dst=({j.DestX},{j.DestY})"
+            sb.Append(
+                $"  [{i, 3}] From tile ({j.SourceX},{j.SourceY}) → map {j.DestinationMapId} at tile ({j.DestX},{j.DestY})"
             );
+            if (j.Flags != 0)
+                sb.Append($"  [flags=0x{j.Flags:X8}]");
+            sb.AppendLine();
         }
 
         return sb.ToString();

@@ -13,26 +13,25 @@ public static class ArtDumper
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== ART FILE ===");
-        sb.Append($"  Flags          : 0x{art.Flags:X8}");
-        var flagParts = new List<string>();
-        if ((art.Flags & 0x01) != 0)
-            flagParts.Add("Static(1-dir)");
-        if ((art.Flags & 0x02) != 0)
-            flagParts.Add("Critter(8-dir)");
-        if ((art.Flags & 0x04) != 0)
-            flagParts.Add("Font");
-        if (flagParts.Count > 0)
-            sb.Append($"  [{string.Join(", ", flagParts)}]");
-        sb.AppendLine();
-        sb.AppendLine($"  FrameRate      : {art.FrameRate}");
-        sb.AppendLine($"  ActionFrame    : {art.ActionFrame}");
-        sb.AppendLine($"  FrameCount     : {art.FrameCount}");
+
+        var typeLabel = art.Flags switch
+        {
+            ArtFlags.Static => "static sprite (1 direction)",
+            ArtFlags.Critter => "critter animation (8 directions)",
+            ArtFlags.Font => "font glyph sheet",
+            _ when art.Flags == ArtFlags.None => "unknown type (no flags set)",
+            _ => $"{art.Flags}  (0x{(uint)art.Flags:X8})",
+        };
+        sb.AppendLine($"  Type           : {typeLabel}");
+        sb.AppendLine(
+            $"  Animation      : {art.FrameCount} frame(s) at {art.FrameRate} fps"
+                + (art.ActionFrame > 0 ? $", key frame at index {art.ActionFrame}" : "")
+        );
         sb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
-        sb.AppendLine($"  DataSizes      : [{string.Join(", ", art.DataSizes)}]");
         if (art.Unknown0.Any(v => v != 0))
-            sb.AppendLine($"  Unknown0       : [{string.Join(", ", art.Unknown0.Select(v => $"0x{v:X8}"))}]");
+            sb.AppendLine($"  Service data 0 : [{string.Join(", ", art.Unknown0.Select(v => $"0x{v:X8}"))}]");
         if (art.Unknown2.Any(v => v != 0))
-            sb.AppendLine($"  Unknown2       : [{string.Join(", ", art.Unknown2.Select(v => $"0x{v:X8}"))}]");
+            sb.AppendLine($"  Service data 2 : [{string.Join(", ", art.Unknown2.Select(v => $"0x{v:X8}"))}]");
         sb.AppendLine();
 
         // Palettes
@@ -41,17 +40,15 @@ public static class ArtDumper
             var pal = art.Palettes[slot];
             if (pal is null)
             {
-                sb.AppendLine($"  Palette[{slot}]    : (absent, id={art.PaletteIds[slot]})");
+                if (art.PaletteIds[slot] != 0)
+                    sb.AppendLine($"  Palette {slot}      : absent  (id={art.PaletteIds[slot]})");
             }
             else
             {
-                sb.AppendLine($"  Palette[{slot}]    : {pal.Length} entries (id={art.PaletteIds[slot]})");
-                // Show first/last entry for quick identification
-                sb.AppendLine($"    [  0] B={pal[0].Blue, 3} G={pal[0].Green, 3} R={pal[0].Red, 3}  (transparency)");
+                sb.AppendLine($"  Palette {slot}      : {pal.Length} entries  (id={art.PaletteIds[slot]})");
+                sb.AppendLine($"    [ 0] BGR=({pal[0].Blue},{pal[0].Green},{pal[0].Red})  (transparency)");
                 if (pal.Length > 1)
-                    sb.AppendLine(
-                        $"    [{pal.Length - 1, 3}] B={pal[^1].Blue, 3} G={pal[^1].Green, 3} R={pal[^1].Red, 3}"
-                    );
+                    sb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
             }
         }
 
@@ -60,13 +57,17 @@ public static class ArtDumper
         // Frames
         for (var r = 0; r < art.EffectiveRotationCount; r++)
         {
-            sb.AppendLine($"  --- Rotation {r} ---");
+            sb.AppendLine(
+                art.EffectiveRotationCount > 1 ? $"  --- Rotation {r} (direction {r * 45}°) ---" : "  --- Frames ---"
+            );
             for (var f = 0; f < (int)art.FrameCount; f++)
             {
                 var frame = art.Frames[r][f];
                 var h = frame.Header;
+                var compressed = h.DataSize < h.Width * h.Height;
                 sb.AppendLine(
-                    $"    Frame[{f, 3}] {h.Width}x{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})  data={h.DataSize}B  pixels={frame.Pixels.Length}B"
+                    $"    [{f, 3}] {h.Width}×{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})"
+                        + $"  {h.DataSize}B {(compressed ? "RLE" : "raw")}  pixels={frame.Pixels.Length}B"
                 );
             }
         }

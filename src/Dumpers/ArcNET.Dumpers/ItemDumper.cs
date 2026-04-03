@@ -314,24 +314,66 @@ public static class ItemDumper
         var weight = GetPropInt32(mob, ObjectField.ObjFItemWeight);
         var worth = GetPropInt32(mob, ObjectField.ObjFItemWorth);
         var flags = GetPropInt32(mob, ObjectField.ObjFItemFlags);
-        var spell1 = GetPropInt32(mob, ObjectField.ObjFItemSpell1);
-        var spell2 = GetPropInt32(mob, ObjectField.ObjFItemSpell2);
+        var discipline = GetPropInt32(mob, ObjectField.ObjFItemDiscipline);
+        var complexity = GetPropInt32(mob, ObjectField.ObjFItemMagicTechComplexity);
+        int?[] spells =
+        [
+            GetPropInt32(mob, ObjectField.ObjFItemSpell1),
+            GetPropInt32(mob, ObjectField.ObjFItemSpell2),
+            GetPropInt32(mob, ObjectField.ObjFItemSpell3),
+            GetPropInt32(mob, ObjectField.ObjFItemSpell4),
+            GetPropInt32(mob, ObjectField.ObjFItemSpell5),
+        ];
 
-        if ((weight is > 0) || (worth is > 0))
+        var hasContent =
+            (weight is > 0) || (worth is > 0) || discipline is > 0 || complexity is > 0 || spells.Any(s => s is > 0);
+        if (hasContent)
         {
             sb.AppendLine("  --- Item Base ---");
             if (weight is > 0)
-                sb.AppendLine($"  Weight : {weight.Value / 10.0:F1} lbs");
+                sb.AppendLine($"  Weight       : {weight.Value / 10.0:F1} lbs");
             if (worth is > 0)
-                sb.AppendLine($"  Worth  : {worth.Value} gp");
+                sb.AppendLine($"  Worth        : {worth.Value} gp");
             if (flags is > 0)
-                sb.AppendLine($"  Flags  : 0x{flags.Value:X8}");
-            if (spell1 is > 0)
-                sb.AppendLine($"  Spell1 : {spell1.Value}");
-            if (spell2 is > 0)
-                sb.AppendLine($"  Spell2 : {spell2.Value}");
+            {
+                var flagNames = AppendFlagSummary<ObjFItemFlags>((uint)flags.Value);
+                sb.AppendLine($"  Item flags   : 0x{flags.Value:X8}  {flagNames}");
+            }
+            if (discipline is > 0)
+            {
+                // 0=magic/tech-neutral, 1=magical, 2=technological
+                var discLabel = discipline.Value switch
+                {
+                    1 => "magical",
+                    2 => "technological",
+                    _ => discipline.Value.ToString(),
+                };
+                sb.AppendLine($"  Discipline   : {discLabel}");
+            }
+            if (complexity is > 0)
+                sb.AppendLine($"  Tech complexity : {complexity.Value}  (schematic difficulty)");
+            for (var s = 0; s < spells.Length; s++)
+            {
+                if (spells[s] is > 0)
+                    sb.AppendLine($"  Spell effect {s + 1} : ID {spells[s].Value}  (see spell.mes)");
+            }
             sb.AppendLine();
         }
+    }
+
+    private static string AppendFlagSummary<T>(uint value)
+        where T : struct, Enum
+    {
+        if (value == 0)
+            return "(none)";
+        var parts = new List<string>();
+        foreach (var flag in Enum.GetValues<T>())
+        {
+            var fv = Convert.ToUInt32(flag);
+            if (fv != 0 && (value & fv) == fv)
+                parts.Add(flag.ToString());
+        }
+        return parts.Count > 0 ? string.Join(" | ", parts) : "(unknown flags)";
     }
 
     private static void AppendTypeSpecific(StringBuilder sb, MobData mob)
@@ -352,6 +394,18 @@ public static class ItemDumper
                 break;
             case ObjectType.Scroll:
                 AppendScroll(sb, mob);
+                break;
+            case ObjectType.Ammo:
+                AppendAmmo(sb, mob);
+                break;
+            case ObjectType.Key:
+                AppendKey(sb, mob);
+                break;
+            case ObjectType.Written:
+                AppendWritten(sb, mob);
+                break;
+            case ObjectType.Generic:
+                AppendGeneric(sb, mob);
                 break;
         }
     }
@@ -418,10 +472,12 @@ public static class ItemDumper
     private static void AppendFood(StringBuilder sb, MobData mob)
     {
         var flags = GetPropInt32(mob, ObjectField.ObjFFoodFlags);
-        if (flags is > 0)
+        // Food type flags bits are undocumented; we show the raw value only when non-zero
+        if (flags is not null)
         {
             sb.AppendLine("  --- Food ---");
-            sb.AppendLine($"  Flags : 0x{flags.Value:X8}");
+            if (flags.Value != 0)
+                sb.AppendLine($"  Flags : 0x{flags.Value:X8}  (food type flags)");
             sb.AppendLine();
         }
     }
@@ -429,10 +485,81 @@ public static class ItemDumper
     private static void AppendScroll(StringBuilder sb, MobData mob)
     {
         var flags = GetPropInt32(mob, ObjectField.ObjFScrollFlags);
-        if (flags is > 0)
+        if (flags is not null)
         {
             sb.AppendLine("  --- Scroll ---");
-            sb.AppendLine($"  Flags : 0x{flags.Value:X8}");
+            if (flags.Value != 0)
+                sb.AppendLine($"  Flags : 0x{flags.Value:X8}  (scroll type flags)");
+            sb.AppendLine();
+        }
+    }
+
+    private static void AppendAmmo(StringBuilder sb, MobData mob)
+    {
+        var qty = GetPropInt32(mob, ObjectField.ObjFAmmoQuantity);
+        var type = GetPropInt32(mob, ObjectField.ObjFAmmoType);
+        if (qty is not null || type is not null)
+        {
+            sb.AppendLine("  --- Ammo ---");
+            if (qty.HasValue)
+                sb.AppendLine($"  Quantity : {qty.Value}");
+            if (type.HasValue)
+                sb.AppendLine($"  Type     : {type.Value}  (ammo type — matches ObjFWeaponAmmoType)");
+            sb.AppendLine();
+        }
+    }
+
+    private static void AppendKey(StringBuilder sb, MobData mob)
+    {
+        var keyId = GetPropInt32(mob, ObjectField.ObjFKeyKeyId);
+        if (keyId is not null)
+        {
+            sb.AppendLine("  --- Key ---");
+            sb.AppendLine($"  Key ID : {keyId.Value}  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
+            sb.AppendLine();
+        }
+    }
+
+    private static void AppendWritten(StringBuilder sb, MobData mob)
+    {
+        var subtype = GetPropInt32(mob, ObjectField.ObjFWrittenSubtype);
+        var startLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextStartLine);
+        var endLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextEndLine);
+        if (subtype is not null || startLine is not null)
+        {
+            sb.AppendLine("  --- Written Item ---");
+            if (subtype.HasValue)
+            {
+                // 0=book, 1=note, 2=letter, 3=manual
+                var subtypeLabel = subtype.Value switch
+                {
+                    0 => "book",
+                    1 => "note",
+                    2 => "letter",
+                    3 => "manual",
+                    _ => subtype.Value.ToString(),
+                };
+                sb.AppendLine($"  Subtype    : {subtypeLabel}");
+            }
+            if (startLine is not null || endLine is not null)
+                sb.AppendLine(
+                    $"  Text lines : {startLine ?? 0}..{endLine ?? 0}  (line indices into the text MES file)"
+                );
+            sb.AppendLine();
+        }
+    }
+
+    private static void AppendGeneric(StringBuilder sb, MobData mob)
+    {
+        var bonus = GetPropInt32(mob, ObjectField.ObjFGenericUsageBonus);
+        var count = GetPropInt32(mob, ObjectField.ObjFGenericUsageCountRemaining);
+        if (bonus is > 0 || count is not null)
+        {
+            sb.AppendLine("  --- Generic Item ---");
+            if (bonus is > 0)
+                sb.AppendLine($"  Usage bonus     : +{bonus.Value}");
+            if (count is not null)
+                sb.AppendLine($"  Uses remaining  : {count.Value}");
             sb.AppendLine();
         }
     }

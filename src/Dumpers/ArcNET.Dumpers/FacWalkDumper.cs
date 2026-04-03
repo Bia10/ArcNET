@@ -13,18 +13,20 @@ public static class FacWalkDumper
         var sb = new StringBuilder();
         var h = fac.Header;
         sb.AppendLine("=== FACADE WALK ===");
-        sb.AppendLine($"  Terrain    : {h.Terrain}");
+        var terrainLabel = Enum.IsDefined((TerrainType)h.Terrain)
+            ? $"{(TerrainType)h.Terrain} ({h.Terrain})"
+            : h.Terrain.ToString();
+        sb.AppendLine($"  Terrain    : {terrainLabel}");
         sb.AppendLine($"  Outdoor    : {(h.Outdoor != 0 ? "yes" : "no")}");
         sb.AppendLine($"  Flippable  : {(h.Flippable != 0 ? "yes" : "no")}");
-        sb.AppendLine($"  Width      : {h.Width}");
-        sb.AppendLine($"  Height     : {h.Height}");
-        sb.AppendLine($"  Entries    : {fac.Entries.Length}");
+        sb.AppendLine($"  Width      : {h.Width}  (isometric facade tile columns)");
+        sb.AppendLine($"  Height     : {h.Height}  (isometric facade tile rows)");
+        sb.AppendLine($"  Entries    : {fac.Entries.Length}  ({h.Width}\u00d7{h.Height} grid)");
         sb.AppendLine();
 
         var walkable = fac.Entries.Count(e => e.Walkable);
         var blocked = fac.Entries.Length - walkable;
-        sb.AppendLine($"  Walkable   : {walkable}");
-        sb.AppendLine($"  Blocked    : {blocked}");
+        sb.AppendLine($"  Walkable   : {walkable} / {fac.Entries.Length} tiles  ({blocked} blocked)");
         sb.AppendLine();
 
         const int maxEntriesToList = 64;
