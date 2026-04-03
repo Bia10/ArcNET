@@ -1,59 +1,59 @@
 ﻿namespace ArcNET.GameObjects;
 
 /// <summary>The major category of a game object.</summary>
-public enum ObjectType : uint
+public enum ObjectType : byte
 {
     /// <summary>Wall objects that block movement.</summary>
     Wall = 0,
 
     /// <summary>Portal / door objects.</summary>
-    Portal,
+    Portal = 1,
 
     /// <summary>Container objects (chests, bags).</summary>
-    Container,
+    Container = 2,
 
     /// <summary>Scenery objects (decorations).</summary>
-    Scenery,
+    Scenery = 3,
 
     /// <summary>Projectile objects (arrows, bullets).</summary>
-    Projectile,
+    Projectile = 4,
 
     /// <summary>Weapon items.</summary>
-    Weapon,
+    Weapon = 5,
 
     /// <summary>Ammunition items.</summary>
-    Ammo,
+    Ammo = 6,
 
     /// <summary>Armor and clothing items.</summary>
-    Armor,
+    Armor = 7,
 
     /// <summary>Gold currency.</summary>
-    Gold,
+    Gold = 8,
 
     /// <summary>Food items.</summary>
-    Food,
+    Food = 9,
 
     /// <summary>Scroll items.</summary>
-    Scroll,
+    Scroll = 10,
 
     /// <summary>Key items.</summary>
-    Key,
+    Key = 11,
 
     /// <summary>Key ring items.</summary>
-    KeyRing,
+    KeyRing = 12,
 
     /// <summary>Written items (books, notes).</summary>
-    Written,
+    Written = 13,
 
     /// <summary>Generic items.</summary>
-    Generic,
+    Generic = 14,
 
     /// <summary>Player character.</summary>
-    Pc,
+    Pc = 15,
 
     /// <summary>Non-player character.</summary>
-    Npc,
+    Npc = 16,
 
     /// <summary>Trap objects.</summary>
-    Trap,
+    Trap = 17,
 }
