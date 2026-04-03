@@ -2,7 +2,7 @@
 
 /// <summary>Rendering blit flags controlling how an object is drawn.</summary>
 [Flags]
-public enum ObjFBlitFlags : byte
+public enum ObjFBlitFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

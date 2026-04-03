@@ -2,7 +2,7 @@
 
 /// <summary>Portal-specific flags (OPF_).</summary>
 [Flags]
-public enum ObjFPortalFlags : ushort
+public enum ObjFPortalFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

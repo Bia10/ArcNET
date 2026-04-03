@@ -2,7 +2,7 @@
 
 /// <summary>Container-specific flags (OCOF_).</summary>
 [Flags]
-public enum ObjFContainerFlags : ushort
+public enum ObjFContainerFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

@@ -2,7 +2,7 @@
 
 /// <summary>Scenery-specific flags (OSCF_).</summary>
 [Flags]
-public enum ObjFSceneryFlags : ushort
+public enum ObjFSceneryFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,
