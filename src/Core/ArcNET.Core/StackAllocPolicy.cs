@@ -1,4 +1,4 @@
-namespace ArcNET.Core;
+﻿namespace ArcNET.Core;
 
 /// <summary>
 /// Shared constants governing stack-allocation size limits.

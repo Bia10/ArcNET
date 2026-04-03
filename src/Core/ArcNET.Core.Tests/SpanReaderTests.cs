@@ -1,4 +1,4 @@
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.Core.Tests;
 

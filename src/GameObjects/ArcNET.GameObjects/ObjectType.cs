@@ -1,4 +1,4 @@
-namespace ArcNET.GameObjects;
+﻿namespace ArcNET.GameObjects;
 
 /// <summary>The major category of a game object.</summary>
 public enum ObjectType : uint

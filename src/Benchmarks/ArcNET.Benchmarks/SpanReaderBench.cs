@@ -1,4 +1,4 @@
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using BenchmarkDotNet.Attributes;
 
 namespace ArcNET.Benchmarks;

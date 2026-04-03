@@ -1,4 +1,4 @@
-using ArcNET.Patch;
+﻿using ArcNET.Patch;
 
 namespace ArcNET.Patch.Tests;
 

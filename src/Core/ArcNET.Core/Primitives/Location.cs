@@ -1,4 +1,4 @@
-namespace ArcNET.Core.Primitives;
+﻿namespace ArcNET.Core.Primitives;
 
 /// <summary>A 2D integer coordinate pair used for map tile positions.</summary>
 public readonly record struct Location(short X, short Y) : IBinarySerializable<Location, SpanReader>, ISpanFormattable

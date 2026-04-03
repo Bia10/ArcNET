@@ -1,4 +1,4 @@
-using System.Text.Unicode;
+﻿using System.Text.Unicode;
 
 namespace ArcNET.Core.Primitives;
 

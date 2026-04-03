@@ -1,4 +1,4 @@
-namespace ArcNET.Core.Primitives;
+﻿namespace ArcNET.Core.Primitives;
 
 /// <summary>An RGB color triplet stored as bytes.</summary>
 public readonly record struct Color(byte R, byte G, byte B) : IBinarySerializable<Color, SpanReader>, ISpanFormattable

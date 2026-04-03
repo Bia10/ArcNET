@@ -1,4 +1,4 @@
-namespace ArcNET.Patch;
+﻿namespace ArcNET.Patch;
 
 /// <summary>Display resolution settings for the HighRes patch config.ini.</summary>
 public sealed class HighResConfig

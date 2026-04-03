@@ -1,4 +1,4 @@
-namespace ArcNET.GameObjects;
+﻿namespace ArcNET.GameObjects;
 
 /// <summary>Bitmap byte-length per object type used when reading object headers.</summary>
 internal static class ObjectFieldBitmapSize

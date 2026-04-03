@@ -1,4 +1,4 @@
-namespace ArcNET.Core;
+﻿namespace ArcNET.Core;
 
 /// <summary>
 /// Contract for types that can be deserialized from a <see cref="SpanReader"/> and

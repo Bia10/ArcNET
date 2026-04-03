@@ -1,4 +1,4 @@
-namespace ArcNET.GameObjects;
+﻿namespace ArcNET.GameObjects;
 
 /// <summary>
 /// Injectable data store for loaded game objects.
