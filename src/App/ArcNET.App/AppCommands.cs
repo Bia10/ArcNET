@@ -22,6 +22,21 @@ internal static class AppCommands
     internal const string CheckPatchStatus = "Check patch status";
     internal const string DumpMobFiles = "Dump mob files (diagnostic)";
 
+    // ── File dumper commands ───────────────────────────────────────────────
+    internal const string DumpArt = "Dump ART file";
+    internal const string DumpDialog = "Dump DLG dialog file";
+    internal const string DumpFacWalk = "Dump FacadeWalk file";
+    internal const string DumpJmp = "Dump JMP jump-point file";
+    internal const string DumpMapProps = "Dump map properties (PRP) file";
+    internal const string DumpMessage = "Dump MES message file";
+    internal const string DumpProto = "Dump proto (PRO) file";
+    internal const string DumpSaveIndex = "Dump save-game index (TFAI) file";
+    internal const string DumpSaveInfo = "Dump save-game info (GSI) file";
+    internal const string DumpScript = "Dump script (SCR) file";
+    internal const string DumpSector = "Dump sector (SEC) file";
+    internal const string DumpTerrain = "Dump terrain (TDF) file";
+    internal const string DumpTextData = "Dump text-data file";
+
     internal static async Task RunAsync(string command)
     {
         switch (command)
@@ -52,6 +67,49 @@ internal static class AppCommands
 
             case DumpMobFiles:
                 await RunDumpMobFilesAsync();
+                break;
+
+            case DumpArt:
+                await RunDumpFileAsync(DumpArt, path => ArtDumper.Dump(ArtFormat.ParseFile(path)));
+                break;
+            case DumpDialog:
+                await RunDumpFileAsync(DumpDialog, path => DialogDumper.Dump(DialogFormat.ParseFile(path)));
+                break;
+            case DumpFacWalk:
+                await RunDumpFileAsync(DumpFacWalk, path => FacWalkDumper.Dump(FacWalkFormat.ParseFile(path)));
+                break;
+            case DumpJmp:
+                await RunDumpFileAsync(DumpJmp, path => JmpDumper.Dump(JmpFormat.ParseFile(path)));
+                break;
+            case DumpMapProps:
+                await RunDumpFileAsync(
+                    DumpMapProps,
+                    path => MapPropertiesDumper.Dump(MapPropertiesFormat.ParseFile(path))
+                );
+                break;
+            case DumpMessage:
+                await RunDumpFileAsync(DumpMessage, path => MessageDumper.Dump(MessageFormat.ParseFile(path)));
+                break;
+            case DumpProto:
+                await RunDumpFileAsync(DumpProto, path => ProtoDumper.Dump(ProtoFormat.ParseFile(path)));
+                break;
+            case DumpSaveIndex:
+                await RunDumpFileAsync(DumpSaveIndex, path => SaveIndexDumper.Dump(SaveIndexFormat.ParseFile(path)));
+                break;
+            case DumpSaveInfo:
+                await RunDumpFileAsync(DumpSaveInfo, path => SaveInfoDumper.Dump(SaveInfoFormat.ParseFile(path)));
+                break;
+            case DumpScript:
+                await RunDumpFileAsync(DumpScript, path => ScriptDumper.Dump(ScriptFormat.ParseFile(path)));
+                break;
+            case DumpSector:
+                await RunDumpFileAsync(DumpSector, path => SectorDumper.Dump(SectorFormat.ParseFile(path)));
+                break;
+            case DumpTerrain:
+                await RunDumpFileAsync(DumpTerrain, path => TerrainDumper.Dump(TerrainFormat.ParseFile(path)));
+                break;
+            case DumpTextData:
+                await RunDumpFileAsync(DumpTextData, path => TextDataDumper.Dump(TextDataFormat.ParseFile(path)));
                 break;
 
             default:
@@ -368,6 +426,49 @@ internal static class AppCommands
             }
 
             AnsiConsole.Write(summary);
+        });
+    }
+
+    // ── Generic file dumper ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Interactive: prompts for a file path and writes the dump to stdout.
+    /// Non-interactive variant: call <see cref="RunDumpFileAsync(string, Func{string,string}, string?)"/> directly.
+    /// </summary>
+    private static async Task RunDumpFileAsync(string commandLabel, Func<string, string> dump)
+    {
+        var path = AnsiConsole.Ask<string>($"[green]Path to file[/] ({Markup.Escape(commandLabel)}):");
+        await RunDumpFileAsync(commandLabel, dump, path);
+    }
+
+    /// <summary>
+    /// Parses and dumps a single file to <paramref name="outputFile"/> (or stdout when null).
+    /// </summary>
+    internal static async Task RunDumpFileAsync(string commandLabel, Func<string, string> dump, string? outputFile)
+    {
+        if (outputFile is null)
+        {
+            AnsiConsole.MarkupLine("[red]No file path provided.[/]");
+            return;
+        }
+
+        if (!File.Exists(outputFile))
+        {
+            AnsiConsole.MarkupLine($"[red]File not found: {Markup.Escape(outputFile)}[/]");
+            return;
+        }
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                var result = dump(outputFile);
+                Console.Write(result);
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]{Markup.Escape(commandLabel)} failed: {Markup.Escape(ex.Message)}[/]");
+            }
         });
     }
 
