@@ -354,8 +354,8 @@ public static class ItemDumper
                 sb.AppendLine($"  Tech complexity : {complexity.Value}  (schematic difficulty)");
             for (var s = 0; s < spells.Length; s++)
             {
-                if (spells[s] is > 0)
-                    sb.AppendLine($"  Spell effect {s + 1} : ID {spells[s].Value}  (see spell.mes)");
+                if (spells[s] is int spellId and > 0)
+                    sb.AppendLine($"  Spell effect {s + 1} : ID {spellId}  (see spell.mes)");
             }
             sb.AppendLine();
         }
