@@ -24,11 +24,18 @@
       <Project Path="src/Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
       <Project Path="src/Patch/ArcNET.Patch.Tests/ArcNET.Patch.Tests.csproj" />
     </Folder>
+    <Folder Name="/BinaryPatch/">
+      <Project Path="src/BinaryPatch/ArcNET.BinaryPatch/ArcNET.BinaryPatch.csproj" />
+      <Project Path="src/BinaryPatch/ArcNET.BinaryPatch.Tests/ArcNET.BinaryPatch.Tests.csproj" />
+    </Folder>
     <Folder Name="/App/">
       <Project Path="src/App/ArcNET.App/ArcNET.App.csproj" />
     </Folder>
     <Folder Name="/Benchmarks/">
       <Project Path="src/Benchmarks/ArcNET.Benchmarks/ArcNET.Benchmarks.csproj" />
+    </Folder>
+    <Folder Name="/Dumpers/">
+      <Project Path="src/Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
     </Folder>
   </Folder>
 </Solution>

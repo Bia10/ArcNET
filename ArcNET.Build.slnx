@@ -30,4 +30,7 @@
     <Project Path="src/Patch/ArcNET.Patch.Tests/ArcNET.Patch.Tests.csproj" />
     <Project Path="src/Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
   </Folder>
+  <Folder Name="/src/Dumpers/">
+    <Project Path="src/Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
+  </Folder>
 </Solution>
