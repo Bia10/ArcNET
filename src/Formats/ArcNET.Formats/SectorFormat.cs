@@ -23,7 +23,7 @@ public sealed class SectorLight
     public required int OffsetY { get; init; }
 
     /// <summary>Light behaviour flags (LF_OFF, LF_DARK, LF_ANIMATING, LF_INDOOR, LF_OUTDOOR, …).</summary>
-    public required uint Flags { get; init; }
+    public required SectorLightFlags Flags { get; init; }
 
     /// <summary>Animation art resource identifier.</summary>
     public required uint ArtId { get; init; }
@@ -314,7 +314,7 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         var tileLoc = reader.ReadInt64(); // 0x08  int64 — LOCATION_MAKE(x,y)
         var offsetX = reader.ReadInt32(); // 0x10  int
         var offsetY = reader.ReadInt32(); // 0x14  int
-        var flags = reader.ReadUInt32(); // 0x18  unsigned int
+        var flags = (SectorLightFlags)reader.ReadUInt32(); // 0x18  unsigned int
         var artId = reader.ReadUInt32(); // 0x1C  tig_art_id_t
         var r = reader.ReadByte(); // 0x20  uint8
         var b = reader.ReadByte(); // 0x21  uint8
@@ -441,7 +441,7 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
             writer.WriteInt64(light.TileLoc);
             writer.WriteInt32(light.OffsetX);
             writer.WriteInt32(light.OffsetY);
-            writer.WriteUInt32(light.Flags);
+            writer.WriteUInt32((uint)light.Flags);
             writer.WriteUInt32(light.ArtId);
             writer.WriteByte(light.R);
             writer.WriteByte(light.B);

@@ -46,10 +46,9 @@ public sealed class ArtFrame
 public sealed class ArtFile
 {
     /// <summary>
-    /// Flags bitfield: <c>0x01</c> = static (1 direction), <c>0x02</c> = critter (8 directions),
-    /// <c>0x04</c> = font art.
+    /// Flags describing the art type and rendering behaviour.
     /// </summary>
-    public required uint Flags { get; init; }
+    public required ArtFlags Flags { get; init; }
 
     /// <summary>Animation frames per second (typically 8 or 15).</summary>
     public required uint FrameRate { get; init; }
@@ -90,9 +89,9 @@ public sealed class ArtFile
 
     /// <summary>
     /// Number of rotation directions encoded in this file.
-    /// 1 when <c>Flags &amp; 0x01</c> is set (static art); 8 otherwise.
+    /// 1 when <see cref="ArtFlags.Static"/> is set; 8 otherwise.
     /// </summary>
-    public int EffectiveRotationCount => (Flags & 0x01) != 0 ? 1 : 8;
+    public int EffectiveRotationCount => (Flags & ArtFlags.Static) != 0 ? 1 : 8;
 }
 
 /// <summary>
@@ -110,7 +109,7 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
     public static ArtFile Parse(scoped ref SpanReader reader)
     {
         // ── ArtHeader (132 bytes) ──────────────────────────────────────────
-        var flags = reader.ReadUInt32();
+        var flags = (ArtFlags)reader.ReadUInt32();
         var frameRate = reader.ReadUInt32();
         reader.ReadUInt32(); // RotationCount in file — always 8, not used; derive from flags
         var paletteIds = new int[4];
@@ -156,7 +155,7 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         }
 
         // ── Frame headers (all before pixel data) ─────────────────────────
-        var effectiveRotations = (flags & 0x01) != 0 ? 1 : 8;
+        var effectiveRotations = (flags & ArtFlags.Static) != 0 ? 1 : 8;
         var totalFrames = (int)(effectiveRotations * frameCount);
         var frameHeaders = new ArtFrameHeader[totalFrames];
 
@@ -282,7 +281,7 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         }
 
         // ── ArtHeader (132 bytes) ──────────────────────────────────────────
-        writer.WriteUInt32(value.Flags);
+        writer.WriteUInt32((uint)value.Flags);
         writer.WriteUInt32(value.FrameRate);
         writer.WriteUInt32(8); // RotationCount — always 8 in file
         for (var slot = 0; slot < 4; slot++)
