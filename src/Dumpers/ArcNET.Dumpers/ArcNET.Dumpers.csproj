@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.Dumpers</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <Description>Human-readable text dumpers for all Arcanum: Of Steamworks and Magick Obscura game data formats.</Description>
+
+    <PackageId>ArcNET.Dumpers</PackageId>
+    <PackageTags>arcanum;gamedata;sdk;dotnet;dumpers;diagnostics</PackageTags>
+    <PackageIcon>Icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/Bia10/ArcNET/</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/Bia10/ArcNET/releases</PackageReleaseNotes>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <RepositoryUrl>https://github.com/Bia10/ArcNET/</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <ContinuousIntegrationBuild Condition="'$(TF_BUILD)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../../Icon.png" Pack="true" PackagePath="\" />
+    <None Include="../../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
+    <ProjectReference Include="../../Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
+    <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
+  </ItemGroup>
+</Project>
