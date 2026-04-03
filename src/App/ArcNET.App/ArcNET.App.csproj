@@ -11,9 +11,18 @@
     <ProjectReference Include="../../GameData/ArcNET.GameData/ArcNET.GameData.csproj" />
     <ProjectReference Include="../../Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
     <ProjectReference Include="../../Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
+    <ProjectReference Include="../../BinaryPatch/ArcNET.BinaryPatch/ArcNET.BinaryPatch.csproj" />
+    <ProjectReference Include="../../Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy all patch files to output alongside the executable for runtime autodiscovery -->
+    <None Update="patches\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
