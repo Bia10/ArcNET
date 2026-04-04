@@ -28,10 +28,10 @@ public static class ArtDumper
                 + (art.ActionFrame > 0 ? $", key frame at index {art.ActionFrame}" : "")
         );
         sb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
-        if (art.Unknown0.Any(v => v != 0))
-            sb.AppendLine($"  Service data 0 : [{string.Join(", ", art.Unknown0.Select(v => $"0x{v:X8}"))}]");
-        if (art.Unknown2.Any(v => v != 0))
-            sb.AppendLine($"  Service data 2 : [{string.Join(", ", art.Unknown2.Select(v => $"0x{v:X8}"))}]");
+        if (art.PaletteData1.Any(v => v != 0))
+            sb.AppendLine($"  Palette data 1 : [{string.Join(", ", art.PaletteData1.Select(v => $"0x{v:X8}"))}]");
+        if (art.PaletteData2.Any(v => v != 0))
+            sb.AppendLine($"  Palette data 2 : [{string.Join(", ", art.PaletteData2.Select(v => $"0x{v:X8}"))}]");
         sb.AppendLine();
 
         // Palettes

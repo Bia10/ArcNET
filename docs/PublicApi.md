@@ -239,8 +239,8 @@ namespace ArcNET.Formats
         public required ArcNET.Formats.ArtFrame[][] Frames { get; init; }
         public required int[] PaletteIds { get; init; }
         public required ArcNET.Formats.ArtPaletteEntry[]?[] Palettes { get; init; }
-        public required uint[] Unknown0 { get; init; }
-        public required uint[] Unknown2 { get; init; }
+        public required uint[] PaletteData1 { get; init; }
+        public required uint[] PaletteData2 { get; init; }
     }
     [System.Flags]
     public enum ArtFlags : uint

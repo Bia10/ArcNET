@@ -62,11 +62,19 @@ public sealed class ArtFile
     /// <summary>Per-direction sum of compressed frame data sizes (8 slots, always stored).</summary>
     public required uint[] DataSizes { get; init; }
 
-    /// <summary>Service / metadata array from the header (8 × uint32); preserved verbatim.</summary>
-    public required uint[] Unknown0 { get; init; }
+    /// <summary>
+    /// First palette-sample array from the header (8 × uint32, stored as COLOR_4B/BGRA entries).
+    /// Named <c>palette_data1</c> in the ArtConverter reference implementation.
+    /// Semantics are undocumented; preserved verbatim for byte-exact round-trips.
+    /// </summary>
+    public required uint[] PaletteData1 { get; init; }
 
-    /// <summary>Second service array from the header (8 × uint32); preserved verbatim.</summary>
-    public required uint[] Unknown2 { get; init; }
+    /// <summary>
+    /// Second palette-sample array from the header (8 × uint32, stored as COLOR_4B/BGRA entries).
+    /// Named <c>palette_data3</c> in the ArtConverter reference implementation.
+    /// Semantics are undocumented; preserved verbatim for byte-exact round-trips.
+    /// </summary>
+    public required uint[] PaletteData2 { get; init; }
 
     /// <summary>
     /// Up to 4 palette slots; <see langword="null"/> slot = absent (<c>PaletteId[i] == 0</c>).
@@ -119,17 +127,17 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         var actionFrame = reader.ReadUInt32();
         var frameCount = reader.ReadUInt32();
 
-        var unknown0 = new uint[8];
+        var paletteData1 = new uint[8];
         for (var i = 0; i < 8; i++)
-            unknown0[i] = reader.ReadUInt32();
+            paletteData1[i] = reader.ReadUInt32();
 
         var dataSizes = new uint[8];
         for (var i = 0; i < 8; i++)
             dataSizes[i] = reader.ReadUInt32();
 
-        var unknown2 = new uint[8];
+        var paletteData2 = new uint[8];
         for (var i = 0; i < 8; i++)
-            unknown2[i] = reader.ReadUInt32();
+            paletteData2[i] = reader.ReadUInt32();
 
         // ── Palettes ──────────────────────────────────────────────────────
         var palettes = new ArtPaletteEntry[]?[4];
@@ -191,8 +199,8 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
             ActionFrame = actionFrame,
             FrameCount = frameCount,
             DataSizes = dataSizes,
-            Unknown0 = unknown0,
-            Unknown2 = unknown2,
+            PaletteData1 = paletteData1,
+            PaletteData2 = paletteData2,
             PaletteIds = paletteIds,
             Palettes = palettes,
             Frames = frames,
@@ -291,13 +299,13 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         writer.WriteUInt32(value.FrameCount);
 
         for (var i = 0; i < 8; i++)
-            writer.WriteUInt32(value.Unknown0[i]);
+            writer.WriteUInt32(value.PaletteData1[i]);
 
         for (var i = 0; i < 8; i++)
             writer.WriteUInt32(dataSizes[i]);
 
         for (var i = 0; i < 8; i++)
-            writer.WriteUInt32(value.Unknown2[i]);
+            writer.WriteUInt32(value.PaletteData2[i]);
 
         // ── Palettes ──────────────────────────────────────────────────────
         foreach (var palette in value.Palettes)

@@ -26,11 +26,11 @@ public sealed class ArtFormatTests
         w.WriteUInt32(0); // ActionFrame
         w.WriteUInt32(frameCount); // FrameCount
         for (var i = 0; i < 8; i++)
-            w.WriteUInt32(0); // Unknown0
+            w.WriteUInt32(0); // PaletteData1
         for (var i = 0; i < 8; i++)
             w.WriteUInt32(0); // DataSizes (placeholder)
         for (var i = 0; i < 8; i++)
-            w.WriteUInt32(0); // Unknown2
+            w.WriteUInt32(0); // PaletteData2
 
         // No palettes (all PaletteIds == 0)
 
