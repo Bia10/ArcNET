@@ -22,12 +22,25 @@ public sealed class TextDataFile
 /// Implements both <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/> over
 /// <see cref="TextDataFile"/>.
 /// </summary>
+/// <remarks>
+/// Arcanum shipped as a Win32 title; its text files are encoded in Windows-1252 (code page 1252).
+/// </remarks>
 public sealed class TextDataFormat : IFormatReader<TextDataFile>, IFormatWriter<TextDataFile>
 {
+    // Arcanum text-data files use Windows-1252. Register the provider so the encoding is
+    // available on non-Windows runtimes (no-op on Windows where it is built-in).
+    private static readonly Encoding s_encoding;
+
+    static TextDataFormat()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        s_encoding = Encoding.GetEncoding(1252);
+    }
+
     /// <inheritdoc/>
     public static TextDataFile Parse(scoped ref SpanReader reader)
     {
-        var text = Encoding.UTF8.GetString(reader.ReadBytes(reader.Remaining));
+        var text = s_encoding.GetString(reader.ReadBytes(reader.Remaining));
         return new TextDataFile { Entries = ParseLines(text.Split('\n')) };
     }
 
@@ -47,7 +60,7 @@ public sealed class TextDataFormat : IFormatReader<TextDataFile>, IFormatWriter<
         var sb = new StringBuilder();
         foreach (var (key, val) in value.Entries)
             sb.Append(key).Append(':').Append(val).Append('\n');
-        writer.WriteBytes(Encoding.UTF8.GetBytes(sb.ToString()));
+        writer.WriteBytes(s_encoding.GetBytes(sb.ToString()));
     }
 
     /// <inheritdoc/>
