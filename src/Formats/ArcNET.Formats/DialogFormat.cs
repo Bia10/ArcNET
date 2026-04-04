@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -177,16 +178,31 @@ public sealed class DialogFormat : IFormatReader<DlgFile>, IFormatWriter<DlgFile
     /// <inheritdoc/>
     public static void Write(in DlgFile value, ref SpanWriter writer)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[1024];
+        var sb = new ValueStringBuilder(buf);
         foreach (var e in value.Entries)
         {
-            sb.Append('{').Append(e.Num).Append('}');
-            sb.Append('{').Append(e.Text).Append('}');
-            sb.Append('{').Append(e.GenderField).Append('}');
-            sb.Append('{').Append(e.Iq).Append('}');
-            sb.Append('{').Append(e.Conditions).Append('}');
-            sb.Append('{').Append(e.ResponseVal).Append('}');
-            sb.Append('{').Append(e.Actions).Append('}');
+            sb.Append('{');
+            sb.Append(e.Num);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.Text);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.GenderField);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.Iq);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.Conditions);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.ResponseVal);
+            sb.Append('}');
+            sb.Append('{');
+            sb.Append(e.Actions);
+            sb.Append('}');
             sb.AppendLine();
         }
 

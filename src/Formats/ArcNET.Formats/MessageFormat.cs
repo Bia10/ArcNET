@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -92,13 +93,23 @@ public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFil
     /// <summary>Serializes <paramref name="entries"/> to .mes text format.</summary>
     public static string Serialize(IEnumerable<MessageEntry> entries)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var sb = new ValueStringBuilder(buf);
         foreach (var entry in entries)
         {
+            sb.Append('{');
+            sb.Append(entry.Index);
+            sb.Append('}');
             if (entry.SoundId != null)
-                sb.AppendLine($"{{{entry.Index}}}{{{entry.SoundId}}}{{{entry.Text}}}");
-            else
-                sb.AppendLine($"{{{entry.Index}}}{{{entry.Text}}}");
+            {
+                sb.Append('{');
+                sb.Append(entry.SoundId);
+                sb.Append('}');
+            }
+            sb.Append('{');
+            sb.Append(entry.Text);
+            sb.Append('}');
+            sb.AppendLine();
         }
         return sb.ToString();
     }

@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -57,9 +58,15 @@ public sealed class TextDataFormat : IFormatReader<TextDataFile>, IFormatWriter<
     /// <inheritdoc/>
     public static void Write(in TextDataFile value, ref SpanWriter writer)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var sb = new ValueStringBuilder(buf);
         foreach (var (key, val) in value.Entries)
-            sb.Append(key).Append(':').Append(val).Append('\n');
+        {
+            sb.Append(key);
+            sb.Append(':');
+            sb.Append(val);
+            sb.Append('\n');
+        }
         writer.WriteBytes(s_encoding.GetBytes(sb.ToString()));
     }
 

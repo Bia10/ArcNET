@@ -32,6 +32,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Bia.ValueBuffers" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../Core/ArcNET.Core/ArcNET.Core.csproj" />
     <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
   </ItemGroup>
