@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,13 +10,14 @@ public static class DialogDumper
 {
     public static string Dump(DlgFile dlg)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== DIALOG FILE ===");
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== DIALOG FILE ===");
 
         var npcLines = dlg.Entries.Count(e => e.Iq == 0);
         var pcOptions = dlg.Entries.Count(e => e.Iq != 0);
-        sb.AppendLine($"  Entries    : {dlg.Entries.Count} ({npcLines} NPC, {pcOptions} PC)");
-        sb.AppendLine();
+        vsb.AppendLine($"  Entries    : {dlg.Entries.Count} ({npcLines} NPC, {pcOptions} PC)");
+        vsb.AppendLine();
 
         foreach (var e in dlg.Entries)
         {
@@ -38,21 +39,21 @@ public static class DialogDumper
                 _ => "",
             };
 
-            sb.AppendLine($"  --- Entry {e.Num} [{kind}]{controlTag} ---");
-            sb.AppendLine($"    Text       : {e.Text}");
+            vsb.AppendLine($"  --- Entry {e.Num} [{kind}]{controlTag} ---");
+            vsb.AppendLine($"    Text       : {e.Text}");
             if (!string.IsNullOrEmpty(e.GenderField))
-                sb.AppendLine(e.Iq == 0 ? $"    FemaleText : {e.GenderField}" : $"    Gender     : {e.GenderField}");
+                vsb.AppendLine(e.Iq == 0 ? $"    FemaleText : {e.GenderField}" : $"    Gender     : {e.GenderField}");
             if (!string.IsNullOrEmpty(e.Conditions))
-                sb.AppendLine($"    Conditions : {e.Conditions}  [Arcanum script]");
+                vsb.AppendLine($"    Conditions : {e.Conditions}  [Arcanum script]");
             else
-                sb.AppendLine("    Conditions : (always available)");
-            sb.AppendLine($"    Response   : {(e.ResponseVal == 0 ? "(end)" : e.ResponseVal.ToString())}");
+                vsb.AppendLine("    Conditions : (always available)");
+            vsb.AppendLine($"    Response   : {(e.ResponseVal == 0 ? "(end)" : e.ResponseVal.ToString())}");
             if (!string.IsNullOrEmpty(e.Actions))
-                sb.AppendLine($"    Actions    : {e.Actions}  [Arcanum script]");
-            sb.AppendLine();
+                vsb.AppendLine($"    Actions    : {e.Actions}  [Arcanum script]");
+            vsb.AppendLine();
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(DlgFile dlg, TextWriter writer) => writer.Write(Dump(dlg));

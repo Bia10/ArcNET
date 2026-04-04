@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -12,11 +12,12 @@ public static class ProtoDumper
 {
     public static string Dump(ProtoData proto)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[1024];
+        var vsb = new ValueStringBuilder(buf);
         var asMob = new MobData { Header = proto.Header, Properties = proto.Properties };
-        MobDumper.DumpHeader(sb, proto.Header, "=== PROTO HEADER ===");
-        MobDumper.DumpProperties(sb, asMob);
-        return sb.ToString();
+        MobDumper.DumpHeader(ref vsb, proto.Header, "=== PROTO HEADER ===");
+        MobDumper.DumpProperties(ref vsb, asMob);
+        return vsb.ToString();
     }
 
     public static void Dump(ProtoData proto, TextWriter writer) => writer.Write(Dump(proto));

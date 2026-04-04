@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -11,8 +11,9 @@ public static class ArtDumper
 {
     public static string Dump(ArtFile art)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== ART FILE ===");
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== ART FILE ===");
 
         var typeLabel = art.Flags switch
         {
@@ -22,17 +23,17 @@ public static class ArtDumper
             _ when art.Flags == ArtFlags.None => "unknown type (no flags set)",
             _ => $"{art.Flags}  (0x{(uint)art.Flags:X8})",
         };
-        sb.AppendLine($"  Type           : {typeLabel}");
-        sb.AppendLine(
+        vsb.AppendLine($"  Type           : {typeLabel}");
+        vsb.AppendLine(
             $"  Animation      : {art.FrameCount} frame(s) at {art.FrameRate} fps"
                 + (art.ActionFrame > 0 ? $", key frame at index {art.ActionFrame}" : "")
         );
-        sb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
+        vsb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
         if (art.PaletteData1.Any(v => v != 0))
-            sb.AppendLine($"  Palette data 1 : [{string.Join(", ", art.PaletteData1.Select(v => $"0x{v:X8}"))}]");
+            vsb.AppendLine($"  Palette data 1 : [{string.Join(", ", art.PaletteData1.Select(v => $"0x{v:X8}"))}]");
         if (art.PaletteData2.Any(v => v != 0))
-            sb.AppendLine($"  Palette data 2 : [{string.Join(", ", art.PaletteData2.Select(v => $"0x{v:X8}"))}]");
-        sb.AppendLine();
+            vsb.AppendLine($"  Palette data 2 : [{string.Join(", ", art.PaletteData2.Select(v => $"0x{v:X8}"))}]");
+        vsb.AppendLine();
 
         // Palettes
         for (var slot = 0; slot < 4; slot++)
@@ -41,23 +42,23 @@ public static class ArtDumper
             if (pal is null)
             {
                 if (art.PaletteIds[slot] != 0)
-                    sb.AppendLine($"  Palette {slot}      : absent  (id={art.PaletteIds[slot]})");
+                    vsb.AppendLine($"  Palette {slot}      : absent  (id={art.PaletteIds[slot]})");
             }
             else
             {
-                sb.AppendLine($"  Palette {slot}      : {pal.Length} entries  (id={art.PaletteIds[slot]})");
-                sb.AppendLine($"    [ 0] BGR=({pal[0].Blue},{pal[0].Green},{pal[0].Red})  (transparency)");
+                vsb.AppendLine($"  Palette {slot}      : {pal.Length} entries  (id={art.PaletteIds[slot]})");
+                vsb.AppendLine($"    [ 0] BGR=({pal[0].Blue},{pal[0].Green},{pal[0].Red})  (transparency)");
                 if (pal.Length > 1)
-                    sb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
+                    vsb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
             }
         }
 
-        sb.AppendLine();
+        vsb.AppendLine();
 
         // Frames
         for (var r = 0; r < art.EffectiveRotationCount; r++)
         {
-            sb.AppendLine(
+            vsb.AppendLine(
                 art.EffectiveRotationCount > 1 ? $"  --- Rotation {r} (direction {r * 45}°) ---" : "  --- Frames ---"
             );
             for (var f = 0; f < (int)art.FrameCount; f++)
@@ -65,14 +66,14 @@ public static class ArtDumper
                 var frame = art.Frames[r][f];
                 var h = frame.Header;
                 var compressed = h.DataSize < h.Width * h.Height;
-                sb.AppendLine(
+                vsb.AppendLine(
                     $"    [{f, 3}] {h.Width}×{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})"
                         + $"  {h.DataSize}B {(compressed ? "RLE" : "raw")}  pixels={frame.Pixels.Length}B"
                 );
             }
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(ArtFile art, TextWriter writer) => writer.Write(Dump(art));

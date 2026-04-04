@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,23 +10,24 @@ public static class ScriptDumper
 {
     public static string Dump(ScrFile scr)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== SCRIPT FILE ===");
-        sb.AppendLine($"  Description : \"{scr.Description}\"");
-        sb.AppendLine($"  Behaviour   : {scr.Flags}  (0x{(uint)scr.Flags:X4})");
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== SCRIPT FILE ===");
+        vsb.AppendLine($"  Description : \"{scr.Description}\"");
+        vsb.AppendLine($"  Behaviour   : {scr.Flags}  (0x{(uint)scr.Flags:X4})");
         // Count active (non-empty) slots for the summary line
         var activeSlots = scr.Entries.Count(e =>
             !IsEmptyCondition(e) || !IsEmptyAction(e.Action) || !IsEmptyAction(e.Else)
         );
         var emptySlots = scr.Entries.Count - activeSlots;
-        sb.Append($"  Entries     : {scr.Entries.Count} attachment slot(s)");
+        vsb.Append($"  Entries     : {scr.Entries.Count} attachment slot(s)");
         if (activeSlots < scr.Entries.Count)
-            sb.Append($"  ({activeSlots} active, {emptySlots} unused/empty)");
-        sb.AppendLine();
+            vsb.Append($"  ({activeSlots} active, {emptySlots} unused/empty)");
+        vsb.AppendLine();
         // HeaderFlags and HeaderCounters are runtime state only (not meaningful off-disk)
         if (scr.HeaderFlags != 0 || scr.HeaderCounters != 0)
-            sb.AppendLine($"  Runtime state  : flags=0x{scr.HeaderFlags:X8}  counters=0x{scr.HeaderCounters:X8}");
-        sb.AppendLine();
+            vsb.AppendLine($"  Runtime state  : flags=0x{scr.HeaderFlags:X8}  counters=0x{scr.HeaderCounters:X8}");
+        vsb.AppendLine();
 
         for (var i = 0; i < scr.Entries.Count; i++)
         {
@@ -37,15 +38,15 @@ public static class ScriptDumper
 
             var condName = FormatEnum<ScriptConditionType>(cond.Type);
             var apName = Enum.IsDefined((ScriptAttachmentPoint)i) ? ((ScriptAttachmentPoint)i).ToString() : $"Slot{i}";
-            sb.AppendLine($"  [{apName}]  when {condName}");
-            DumpOperands(sb, "    condition", cond.OpTypes, cond.OpValues);
-            DumpAction(sb, "      then", cond.Action);
+            vsb.AppendLine($"  [{apName}]  when {condName}");
+            DumpOperands(ref vsb, "    condition", cond.OpTypes, cond.OpValues);
+            DumpAction(ref vsb, "      then", cond.Action);
             if (!IsEmptyAction(cond.Else))
-                DumpAction(sb, "      else", cond.Else);
-            sb.AppendLine();
+                DumpAction(ref vsb, "      else", cond.Else);
+            vsb.AppendLine();
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(ScrFile scr, TextWriter writer) => writer.Write(Dump(scr));
@@ -58,14 +59,14 @@ public static class ScriptDumper
         && action.OpTypes.All(t => t == 0)
         && action.OpValues.All(v => v == 0);
 
-    private static void DumpAction(StringBuilder sb, string prefix, ScriptActionData action)
+    private static void DumpAction(ref ValueStringBuilder vsb, string prefix, ScriptActionData action)
     {
         var actionName = FormatEnum<ScriptActionType>(action.Type);
-        sb.AppendLine($"{prefix}: {actionName}");
-        DumpOperands(sb, $"{prefix}  ", action.OpTypes, action.OpValues);
+        vsb.AppendLine($"{prefix}: {actionName}");
+        DumpOperands(ref vsb, $"{prefix}  ", action.OpTypes, action.OpValues);
     }
 
-    private static void DumpOperands(StringBuilder sb, string prefix, byte[] opTypes, int[] opValues)
+    private static void DumpOperands(ref ValueStringBuilder vsb, string prefix, byte[] opTypes, int[] opValues)
     {
         for (var j = 0; j < 8; j++)
         {
@@ -73,7 +74,7 @@ public static class ScriptDumper
                 continue;
 
             var typeName = FormatOperandType(opTypes[j]);
-            sb.AppendLine($"{prefix}  [{j}] {typeName} = {opValues[j]}  (0x{opValues[j]:X8})");
+            vsb.AppendLine($"{prefix}  [{j}] {typeName} = {opValues[j]}  (0x{opValues[j]:X8})");
         }
     }
 

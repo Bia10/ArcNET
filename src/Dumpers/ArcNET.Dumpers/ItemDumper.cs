@@ -1,9 +1,9 @@
-﻿using System.Buffers.Binary;
-using System.Text;
+using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -106,16 +106,17 @@ public static class ItemDumper
         ArcanumInstallationType installation
     )
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
         var name = ResolveItemName(mob, protoId, nameLookup, installation);
-        sb.AppendLine($"=== ITEM: {name} ===");
-        sb.AppendLine($"  Proto    : {protoId}");
-        sb.AppendLine($"  ObjectId : {mob.Header.ObjectId}");
-        sb.AppendLine($"  Type     : {mob.Header.GameObjectType}");
-        sb.AppendLine();
-        AppendItemBase(sb, mob);
-        AppendTypeSpecific(sb, mob);
-        return sb.ToString();
+        vsb.AppendLine($"=== ITEM: {name} ===");
+        vsb.AppendLine($"  Proto    : {protoId}");
+        vsb.AppendLine($"  ObjectId : {mob.Header.ObjectId}");
+        vsb.AppendLine($"  Type     : {mob.Header.GameObjectType}");
+        vsb.AppendLine();
+        AppendItemBase(ref vsb, mob);
+        AppendTypeSpecific(ref vsb, mob);
+        return vsb.ToString();
     }
 
     /// <inheritdoc cref="DumpItem(MobData, int, Dictionary{int,string}, ArcanumInstallationType)"/>
@@ -153,14 +154,15 @@ public static class ItemDumper
             return null;
 
         var proto = ProtoFormat.ParseFile(match);
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
 
         var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoId, installation);
         if (nameLookup.TryGetValue(vanillaId, out var name) || nameLookup.TryGetValue(protoId, out name))
-            sb.AppendLine($"  Name : {name}");
+            vsb.AppendLine($"  Name : {name}");
 
-        sb.Append(ProtoDumper.Dump(proto));
-        return sb.ToString();
+        vsb.Append(ProtoDumper.Dump(proto));
+        return vsb.ToString();
     }
 
     /// <summary>
@@ -257,7 +259,8 @@ public static class ItemDumper
         Dictionary<int, string> nameLookup
     )
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
 
         var invNumProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventoryNum);
         var invSrcProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventorySource);
@@ -268,18 +271,18 @@ public static class ItemDumper
         var invNum = invNumProp?.GetInt32() ?? 0;
         var invSrc = invSrcProp?.GetInt32() ?? 0;
 
-        sb.AppendLine($"  InvNum    = {invNum}");
-        sb.AppendLine($"  InvSource = {invSrc}");
+        vsb.AppendLine($"  InvNum    = {invNum}");
+        vsb.AppendLine($"  InvSource = {invSrc}");
 
         if (invListProp is null || invNum == 0)
         {
-            sb.AppendLine("  (empty inventory)");
-            return sb.ToString();
+            vsb.AppendLine("  (empty inventory)");
+            return vsb.ToString();
         }
 
         var items = invListProp.GetObjectIdArrayFull();
-        sb.AppendLine($"  Items: {items.Length}");
-        sb.AppendLine();
+        vsb.AppendLine($"  Items: {items.Length}");
+        vsb.AppendLine();
 
         for (var i = 0; i < items.Length; i++)
         {
@@ -297,19 +300,19 @@ public static class ItemDumper
             }
             catch
             {
-                sb.AppendLine($"  [{i + 1}] {guid} — could not load");
+                vsb.AppendLine($"  [{i + 1}] {guid} — could not load");
                 continue;
             }
 
             var protoId = BinaryPrimitives.ReadInt32LittleEndian(itemMob.Header.ProtoId.Id.ToByteArray());
-            sb.AppendLine($"  [{i + 1}]");
-            sb.Append(DumpItem(itemMob, protoId, nameLookup, ArcanumInstallationType.Vanilla));
+            vsb.AppendLine($"  [{i + 1}]");
+            vsb.Append(DumpItem(itemMob, protoId, nameLookup, ArcanumInstallationType.Vanilla));
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
-    private static void AppendItemBase(StringBuilder sb, MobData mob)
+    private static void AppendItemBase(ref ValueStringBuilder vsb, MobData mob)
     {
         var weight = GetPropInt32(mob, ObjectField.ObjFItemWeight);
         var worth = GetPropInt32(mob, ObjectField.ObjFItemWorth);
@@ -329,15 +332,15 @@ public static class ItemDumper
             (weight is > 0) || (worth is > 0) || discipline is > 0 || complexity is > 0 || spells.Any(s => s is > 0);
         if (hasContent)
         {
-            sb.AppendLine("  --- Item Base ---");
+            vsb.AppendLine("  --- Item Base ---");
             if (weight is > 0)
-                sb.AppendLine($"  Weight       : {weight.Value / 10.0:F1} lbs");
+                vsb.AppendLine($"  Weight       : {weight.Value / 10.0:F1} lbs");
             if (worth is > 0)
-                sb.AppendLine($"  Worth        : {worth.Value} gp");
+                vsb.AppendLine($"  Worth        : {worth.Value} gp");
             if (flags is > 0)
             {
                 var flagNames = AppendFlagSummary<ObjFItemFlags>((uint)flags.Value);
-                sb.AppendLine($"  Item flags   : 0x{flags.Value:X8}  {flagNames}");
+                vsb.AppendLine($"  Item flags   : 0x{flags.Value:X8}  {flagNames}");
             }
             if (discipline is > 0)
             {
@@ -348,16 +351,16 @@ public static class ItemDumper
                     2 => "technological",
                     _ => discipline.Value.ToString(),
                 };
-                sb.AppendLine($"  Discipline   : {discLabel}");
+                vsb.AppendLine($"  Discipline   : {discLabel}");
             }
             if (complexity is > 0)
-                sb.AppendLine($"  Tech complexity : {complexity.Value}  (schematic difficulty)");
+                vsb.AppendLine($"  Tech complexity : {complexity.Value}  (schematic difficulty)");
             for (var s = 0; s < spells.Length; s++)
             {
                 if (spells[s] is int spellId and > 0)
-                    sb.AppendLine($"  Spell effect {s + 1} : ID {spellId}  (see spell.mes)");
+                    vsb.AppendLine($"  Spell effect {s + 1} : ID {spellId}  (see spell.mes)");
             }
-            sb.AppendLine();
+            vsb.AppendLine();
         }
     }
 
@@ -376,41 +379,41 @@ public static class ItemDumper
         return parts.Count > 0 ? string.Join(" | ", parts) : "(unknown flags)";
     }
 
-    private static void AppendTypeSpecific(StringBuilder sb, MobData mob)
+    private static void AppendTypeSpecific(ref ValueStringBuilder vsb, MobData mob)
     {
         switch (mob.Header.GameObjectType)
         {
             case ObjectType.Weapon:
-                AppendWeapon(sb, mob);
+                AppendWeapon(ref vsb, mob);
                 break;
             case ObjectType.Armor:
-                AppendArmor(sb, mob);
+                AppendArmor(ref vsb, mob);
                 break;
             case ObjectType.Gold:
-                AppendGold(sb, mob);
+                AppendGold(ref vsb, mob);
                 break;
             case ObjectType.Food:
-                AppendFood(sb, mob);
+                AppendFood(ref vsb, mob);
                 break;
             case ObjectType.Scroll:
-                AppendScroll(sb, mob);
+                AppendScroll(ref vsb, mob);
                 break;
             case ObjectType.Ammo:
-                AppendAmmo(sb, mob);
+                AppendAmmo(ref vsb, mob);
                 break;
             case ObjectType.Key:
-                AppendKey(sb, mob);
+                AppendKey(ref vsb, mob);
                 break;
             case ObjectType.Written:
-                AppendWritten(sb, mob);
+                AppendWritten(ref vsb, mob);
                 break;
             case ObjectType.Generic:
-                AppendGeneric(sb, mob);
+                AppendGeneric(ref vsb, mob);
                 break;
         }
     }
 
-    private static void AppendWeapon(StringBuilder sb, MobData mob)
+    private static void AppendWeapon(ref ValueStringBuilder vsb, MobData mob)
     {
         var dmgLo = GetPropInt32(mob, ObjectField.ObjFWeaponDamageLowerIdx);
         var dmgHi = GetPropInt32(mob, ObjectField.ObjFWeaponDamageUpperIdx);
@@ -424,24 +427,24 @@ public static class ItemDumper
 
         if ((dmgLo is > 0) || (dmgHi is > 0) || (speed is > 0) || (range is > 0))
         {
-            sb.AppendLine("  --- Weapon ---");
+            vsb.AppendLine("  --- Weapon ---");
             if ((dmgLo is > 0) || (dmgHi is > 0))
-                sb.AppendLine(
+                vsb.AppendLine(
                     $"  Damage  : {dmgLo ?? 0}\u2013{dmgHi ?? 0}{(magDmg is > 0 ? $" (+{magDmg} magic)" : "")}"
                 );
             if (speed is > 0)
-                sb.AppendLine($"  Speed   : {speed.Value}{(magSpd is > 0 ? $" (+{magSpd})" : "")}");
+                vsb.AppendLine($"  Speed   : {speed.Value}{(magSpd is > 0 ? $" (+{magSpd})" : "")}");
             if (range is > 0)
-                sb.AppendLine($"  Range   : {range.Value}");
+                vsb.AppendLine($"  Range   : {range.Value}");
             if ((toHit is > 0) || (magHit is > 0))
-                sb.AppendLine($"  To-Hit  : {toHit ?? 0}{(magHit is > 0 ? $" (+{magHit} magic)" : "")}");
+                vsb.AppendLine($"  To-Hit  : {toHit ?? 0}{(magHit is > 0 ? $" (+{magHit} magic)" : "")}");
             if (minStr is > 0)
-                sb.AppendLine($"  Min STR : {minStr.Value}");
-            sb.AppendLine();
+                vsb.AppendLine($"  Min STR : {minStr.Value}");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendArmor(StringBuilder sb, MobData mob)
+    private static void AppendArmor(ref ValueStringBuilder vsb, MobData mob)
     {
         var ac = GetPropInt32(mob, ObjectField.ObjFArmorAcAdj);
         var magAc = GetPropInt32(mob, ObjectField.ObjFArmorMagicAcAdj);
@@ -449,85 +452,85 @@ public static class ItemDumper
 
         if (ac is not null || magAc is not null)
         {
-            sb.AppendLine("  --- Armor ---");
+            vsb.AppendLine("  --- Armor ---");
             if (ac.HasValue)
-                sb.AppendLine($"  AC Adj      : {ac.Value}{(magAc is > 0 ? $" (+{magAc} magic)" : "")}");
+                vsb.AppendLine($"  AC Adj      : {ac.Value}{(magAc is > 0 ? $" (+{magAc} magic)" : "")}");
             if (silent is > 0)
-                sb.AppendLine($"  Silent Move : {silent.Value}");
-            sb.AppendLine();
+                vsb.AppendLine($"  Silent Move : {silent.Value}");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendGold(StringBuilder sb, MobData mob)
+    private static void AppendGold(ref ValueStringBuilder vsb, MobData mob)
     {
         var qty = GetPropInt32(mob, ObjectField.ObjFGoldQuantity);
         if (qty is > 0)
         {
-            sb.AppendLine("  --- Gold ---");
-            sb.AppendLine($"  Quantity : {qty.Value}");
-            sb.AppendLine();
+            vsb.AppendLine("  --- Gold ---");
+            vsb.AppendLine($"  Quantity : {qty.Value}");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendFood(StringBuilder sb, MobData mob)
+    private static void AppendFood(ref ValueStringBuilder vsb, MobData mob)
     {
         var flags = GetPropInt32(mob, ObjectField.ObjFFoodFlags);
         // Food type flags bits are undocumented; we show the raw value only when non-zero
         if (flags is not null)
         {
-            sb.AppendLine("  --- Food ---");
+            vsb.AppendLine("  --- Food ---");
             if (flags.Value != 0)
-                sb.AppendLine($"  Flags : 0x{flags.Value:X8}  (food type flags)");
-            sb.AppendLine();
+                vsb.AppendLine($"  Flags : 0x{flags.Value:X8}  (food type flags)");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendScroll(StringBuilder sb, MobData mob)
+    private static void AppendScroll(ref ValueStringBuilder vsb, MobData mob)
     {
         var flags = GetPropInt32(mob, ObjectField.ObjFScrollFlags);
         if (flags is not null)
         {
-            sb.AppendLine("  --- Scroll ---");
+            vsb.AppendLine("  --- Scroll ---");
             if (flags.Value != 0)
-                sb.AppendLine($"  Flags : 0x{flags.Value:X8}  (scroll type flags)");
-            sb.AppendLine();
+                vsb.AppendLine($"  Flags : 0x{flags.Value:X8}  (scroll type flags)");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendAmmo(StringBuilder sb, MobData mob)
+    private static void AppendAmmo(ref ValueStringBuilder vsb, MobData mob)
     {
         var qty = GetPropInt32(mob, ObjectField.ObjFAmmoQuantity);
         var type = GetPropInt32(mob, ObjectField.ObjFAmmoType);
         if (qty is not null || type is not null)
         {
-            sb.AppendLine("  --- Ammo ---");
+            vsb.AppendLine("  --- Ammo ---");
             if (qty.HasValue)
-                sb.AppendLine($"  Quantity : {qty.Value}");
+                vsb.AppendLine($"  Quantity : {qty.Value}");
             if (type.HasValue)
-                sb.AppendLine($"  Type     : {type.Value}  (ammo type — matches ObjFWeaponAmmoType)");
-            sb.AppendLine();
+                vsb.AppendLine($"  Type     : {type.Value}  (ammo type — matches ObjFWeaponAmmoType)");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendKey(StringBuilder sb, MobData mob)
+    private static void AppendKey(ref ValueStringBuilder vsb, MobData mob)
     {
         var keyId = GetPropInt32(mob, ObjectField.ObjFKeyKeyId);
         if (keyId is not null)
         {
-            sb.AppendLine("  --- Key ---");
-            sb.AppendLine($"  Key ID : {keyId.Value}  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
-            sb.AppendLine();
+            vsb.AppendLine("  --- Key ---");
+            vsb.AppendLine($"  Key ID : {keyId.Value}  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendWritten(StringBuilder sb, MobData mob)
+    private static void AppendWritten(ref ValueStringBuilder vsb, MobData mob)
     {
         var subtype = GetPropInt32(mob, ObjectField.ObjFWrittenSubtype);
         var startLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextStartLine);
         var endLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextEndLine);
         if (subtype is not null || startLine is not null)
         {
-            sb.AppendLine("  --- Written Item ---");
+            vsb.AppendLine("  --- Written Item ---");
             if (subtype.HasValue)
             {
                 // 0=book, 1=note, 2=letter, 3=manual
@@ -539,28 +542,28 @@ public static class ItemDumper
                     3 => "manual",
                     _ => subtype.Value.ToString(),
                 };
-                sb.AppendLine($"  Subtype    : {subtypeLabel}");
+                vsb.AppendLine($"  Subtype    : {subtypeLabel}");
             }
             if (startLine is not null || endLine is not null)
-                sb.AppendLine(
+                vsb.AppendLine(
                     $"  Text lines : {startLine ?? 0}..{endLine ?? 0}  (line indices into the text MES file)"
                 );
-            sb.AppendLine();
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendGeneric(StringBuilder sb, MobData mob)
+    private static void AppendGeneric(ref ValueStringBuilder vsb, MobData mob)
     {
         var bonus = GetPropInt32(mob, ObjectField.ObjFGenericUsageBonus);
         var count = GetPropInt32(mob, ObjectField.ObjFGenericUsageCountRemaining);
         if (bonus is > 0 || count is not null)
         {
-            sb.AppendLine("  --- Generic Item ---");
+            vsb.AppendLine("  --- Generic Item ---");
             if (bonus is > 0)
-                sb.AppendLine($"  Usage bonus     : +{bonus.Value}");
+                vsb.AppendLine($"  Usage bonus     : +{bonus.Value}");
             if (count is not null)
-                sb.AppendLine($"  Uses remaining  : {count.Value}");
-            sb.AppendLine();
+                vsb.AppendLine($"  Uses remaining  : {count.Value}");
+            vsb.AppendLine();
         }
     }
 

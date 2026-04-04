@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,24 +10,25 @@ public static class SaveIndexDumper
 {
     public static string Dump(SaveIndex index)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== SAVE INDEX (TFAI) ===");
-        sb.AppendLine($"  Root entries: {index.Root.Count}");
-        sb.AppendLine();
+        Span<char> buf = stackalloc char[1024];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== SAVE INDEX (TFAI) ===");
+        vsb.AppendLine($"  Root entries: {index.Root.Count}");
+        vsb.AppendLine();
 
         var (fileCount, dirCount, totalSize) = CountStats(index.Root);
-        sb.AppendLine($"  Total files       : {fileCount}");
-        sb.AppendLine($"  Total directories : {dirCount}");
-        sb.AppendLine($"  Total payload     : {totalSize:N0} bytes");
-        sb.AppendLine();
+        vsb.AppendLine($"  Total files       : {fileCount}");
+        vsb.AppendLine($"  Total directories : {dirCount}");
+        vsb.AppendLine($"  Total payload     : {totalSize:N0} bytes");
+        vsb.AppendLine();
 
-        DumpEntries(sb, index.Root, indent: 2);
-        return sb.ToString();
+        DumpEntries(ref vsb, index.Root, indent: 2);
+        return vsb.ToString();
     }
 
     public static void Dump(SaveIndex index, TextWriter writer) => writer.Write(Dump(index));
 
-    private static void DumpEntries(StringBuilder sb, IReadOnlyList<TfaiEntry> entries, int indent)
+    private static void DumpEntries(ref ValueStringBuilder vsb, IReadOnlyList<TfaiEntry> entries, int indent)
     {
         var pad = new string(' ', indent);
         foreach (var entry in entries)
@@ -35,11 +36,11 @@ public static class SaveIndexDumper
             switch (entry)
             {
                 case TfaiFileEntry file:
-                    sb.AppendLine($"{pad}{file.Name}  ({file.Size:N0} bytes)");
+                    vsb.AppendLine($"{pad}{file.Name}  ({file.Size:N0} bytes)");
                     break;
                 case TfaiDirectoryEntry dir:
-                    sb.AppendLine($"{pad}{dir.Name}/");
-                    DumpEntries(sb, dir.Children, indent + 2);
+                    vsb.AppendLine($"{pad}{dir.Name}/");
+                    DumpEntries(ref vsb, dir.Children, indent + 2);
                     break;
             }
         }

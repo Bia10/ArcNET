@@ -35,5 +35,6 @@
     <ProjectReference Include="../../Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
     <ProjectReference Include="../../Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
     <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
+    <ProjectReference Include="../../../../Bia.ValueBuffers/src/Bia.ValueBuffers/Bia.ValueBuffers.csproj" />
   </ItemGroup>
 </Project>

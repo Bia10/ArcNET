@@ -1,9 +1,9 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Frozen;
-using System.Text;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using ArcNET.GameObjects.Classes;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -33,10 +33,11 @@ public static class MobDumper
     /// </summary>
     public static string Dump(MobData mob)
     {
-        var sb = new StringBuilder();
-        DumpHeader(sb, mob.Header);
-        DumpProperties(sb, mob);
-        return sb.ToString();
+        Span<char> buf = stackalloc char[1024];
+        var vsb = new ValueStringBuilder(buf);
+        DumpHeader(ref vsb, mob.Header);
+        DumpProperties(ref vsb, mob);
+        return vsb.ToString();
     }
 
     /// <summary>
@@ -46,33 +47,33 @@ public static class MobDumper
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    internal static void DumpHeader(StringBuilder sb, GameObjectHeader h, string label = "=== MOB HEADER ===")
+    internal static void DumpHeader(ref ValueStringBuilder vsb, GameObjectHeader h, string label = "=== MOB HEADER ===")
     {
-        sb.AppendLine(label);
-        sb.AppendLine(
+        vsb.AppendLine(label);
+        vsb.AppendLine(
             $"  Format       : 0x{h.Version:X2}  ({(h.Version == 0x77 ? "Object File Format — standard Arcanum/ToEE" : "unknown version")})"
         );
-        sb.AppendLine(
+        vsb.AppendLine(
             $"  Type         : {h.GameObjectType}  ({(h.IsPrototype ? "prototype definition" : "object instance")})"
         );
-        sb.AppendLine(
+        vsb.AppendLine(
             $"  Proto ID     : {h.ProtoId}  [{(h.ProtoId.IsProto ? "is a .PRO file itself" : "references prototype")}]"
         );
         if (!h.IsPrototype)
-            sb.AppendLine($"  Object ID    : {h.ObjectId}");
+            vsb.AppendLine($"  Object ID    : {h.ObjectId}");
         var setBits = Enumerable.Range(0, h.Bitmap.Length).Where(i => h.Bitmap[i]).ToList();
-        sb.AppendLine(
+        vsb.AppendLine(
             $"  Properties   : {setBits.Count}/{h.Bitmap.Length} present  (bits: [{string.Join(", ", setBits)}])"
         );
-        sb.AppendLine();
+        vsb.AppendLine();
     }
 
-    internal static void DumpProperties(StringBuilder sb, MobData mob)
+    internal static void DumpProperties(ref ValueStringBuilder vsb, MobData mob)
     {
-        sb.AppendLine("=== PROPERTIES ===");
+        vsb.AppendLine("=== PROPERTIES ===");
         if (mob.Properties.Count == 0)
         {
-            sb.AppendLine("  (none)");
+            vsb.AppendLine("  (none)");
             return;
         }
 
@@ -81,13 +82,13 @@ public static class MobDumper
         {
             var fieldName = ResolveFieldName(objectType, (int)prop.Field);
             var bytes = prop.RawBytes;
-            sb.Append($"  [{(int)prop.Field, 3}] {fieldName, -32} ({bytes.Length, 3} B)  ");
-            AppendDecodedValue(sb, prop, objectType);
-            sb.AppendLine();
+            vsb.Append($"  [{(int)prop.Field, 3}] {fieldName, -32} ({bytes.Length, 3} B)  ");
+            AppendDecodedValue(ref vsb, prop, objectType);
+            vsb.AppendLine();
         }
     }
 
-    private static void AppendDecodedValue(StringBuilder sb, ObjectProperty prop, ObjectType objectType)
+    private static void AppendDecodedValue(ref ValueStringBuilder vsb, ObjectProperty prop, ObjectType objectType)
     {
         var bytes = prop.RawBytes;
         var fieldBit = (int)prop.Field;
@@ -95,7 +96,7 @@ public static class MobDumper
         // ── Absent field (presence byte = 0) ──
         if (bytes.Length == 1 && bytes[0] == 0)
         {
-            sb.Append("(absent)");
+            vsb.Append("(absent)");
             return;
         }
 
@@ -109,20 +110,20 @@ public static class MobDumper
             // ── Common flag fields ──
             if (fieldBit == 8) // ObjFBlitFlags
             {
-                sb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFBlitFlags>(sb, u32);
+                vsb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFBlitFlags>(ref vsb, u32);
                 return;
             }
             if (fieldBit == 18) // ObjFFlags
             {
-                sb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFFlags>(sb, u32);
+                vsb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFFlags>(ref vsb, u32);
                 return;
             }
             if (fieldBit == 19) // ObjFSpellFlags
             {
-                sb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFSpellFlags>(sb, u32);
+                vsb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFSpellFlags>(ref vsb, u32);
                 return;
             }
 
@@ -130,29 +131,29 @@ public static class MobDumper
             if (fieldBit is 34 or 36 or 37 or 38 or 39 or 40)
             {
                 if (fieldBit == 34) // rotation
-                    sb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
+                    vsb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
                 else
-                    sb.Append($"= {f32:G6}");
+                    vsb.Append($"= {f32:G6}");
                 return;
             }
 
             // ── Type-specific flag fields (bit 64 = first type-specific slot) ──
             if (fieldBit == 64)
             {
-                sb.Append($"= 0x{u32:X8}  ");
+                vsb.Append($"= 0x{u32:X8}  ");
                 switch (objectType)
                 {
                     case ObjectType.Npc or ObjectType.Pc:
-                        AppendFlagNames<ObjFCritterFlags>(sb, u32);
+                        AppendFlagNames<ObjFCritterFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Container:
-                        AppendFlagNames<ObjFContainerFlags>(sb, u32);
+                        AppendFlagNames<ObjFContainerFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Portal:
-                        AppendFlagNames<ObjFPortalFlags>(sb, u32);
+                        AppendFlagNames<ObjFPortalFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Scenery:
-                        AppendFlagNames<ObjFSceneryFlags>(sb, u32);
+                        AppendFlagNames<ObjFSceneryFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Weapon
                     or ObjectType.Ammo
@@ -164,18 +165,18 @@ public static class MobDumper
                     or ObjectType.KeyRing
                     or ObjectType.Written
                     or ObjectType.Generic:
-                        AppendFlagNames<ObjFItemFlags>(sb, u32);
+                        AppendFlagNames<ObjFItemFlags>(ref vsb, u32);
                         break;
                     default:
-                        sb.Append("(unknown type flags)");
+                        vsb.Append("(unknown type flags)");
                         break;
                 }
                 return;
             }
             if (fieldBit == 65 && objectType is ObjectType.Npc or ObjectType.Pc)
             {
-                sb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFCritterFlags2>(sb, u32);
+                vsb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFCritterFlags2>(ref vsb, u32);
                 return;
             }
 
@@ -185,19 +186,19 @@ public static class MobDumper
                 switch (objectType)
                 {
                     case ObjectType.Weapon:
-                        sb.Append($"= 0x{u32:X8}  ");
-                        AppendFlagNames<ObjFWeaponFlags>(sb, u32);
+                        vsb.Append($"= 0x{u32:X8}  ");
+                        AppendFlagNames<ObjFWeaponFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Armor:
-                        sb.Append($"= 0x{u32:X8}  ");
-                        AppendFlagNames<ObjFArmorFlags>(sb, u32);
+                        vsb.Append($"= 0x{u32:X8}  ");
+                        AppendFlagNames<ObjFArmorFlags>(ref vsb, u32);
                         break;
                     case ObjectType.Key:
                         // ObjFKeyKeyId — not flags, it's the key identifier
-                        sb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
+                        vsb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
                         break;
                     default:
-                        sb.Append($"= 0x{u32:X8}  (type-specific flags)");
+                        vsb.Append($"= 0x{u32:X8}  (type-specific flags)");
                         break;
                 }
                 return;
@@ -205,25 +206,25 @@ public static class MobDumper
 
             if (fieldBit == 128 && objectType is ObjectType.Npc)
             {
-                sb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFNpcFlags>(sb, u32);
+                vsb.Append($"= 0x{u32:X8}  ");
+                AppendFlagNames<ObjFNpcFlags>(ref vsb, u32);
                 return;
             }
             if (fieldBit == 128 && objectType is ObjectType.Pc)
             {
-                sb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
+                vsb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
                 return;
             }
 
             // ── Inventory fields ──
             if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
             {
-                sb.Append($"= {i32}  (item count)");
+                vsb.Append($"= {i32}  (item count)");
                 return;
             }
             if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
             {
-                sb.Append(
+                vsb.Append(
                     i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
                 );
                 return;
@@ -244,13 +245,13 @@ public static class MobDumper
             };
             if (wellKnownLabel is not null)
             {
-                sb.Append($"= {i32}  ({wellKnownLabel})");
+                vsb.Append($"= {i32}  ({wellKnownLabel})");
                 return;
             }
 
-            sb.Append($"= {i32}  (0x{u32:X8})");
+            vsb.Append($"= {i32}  (0x{u32:X8})");
             if (!float.IsNaN(f32) && !float.IsInfinity(f32) && Math.Abs(f32) is > 0.00001f and < 1e7f)
-                sb.Append($"  [float={f32:G6}]");
+                vsb.Append($"  [float={f32:G6}]");
             return;
         }
 
@@ -262,11 +263,11 @@ public static class MobDumper
             {
                 var x = (int)(i64 & 0xFFFFFFFF);
                 var y = (int)((i64 >> 32) & 0xFFFFFFFF);
-                sb.Append($"= tile ({x}, {y})");
+                vsb.Append($"= tile ({x}, {y})");
                 return;
             }
 
-            sb.Append($"= 0x{(ulong)i64:X16}");
+            vsb.Append($"= 0x{(ulong)i64:X16}");
             return;
         }
 
@@ -276,18 +277,18 @@ public static class MobDumper
             // SA header at offsets 1..12: { int32 size, int32 count, int32 bitset_id }
             var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(1));
             var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(5));
-            sb.Append($"SAR[{elementCount} × {elementSize}B]");
+            vsb.Append($"SAR[{elementCount} × {elementSize}B]");
 
             if (elementCount == 0)
             {
-                sb.Append("  (empty)");
+                vsb.Append("  (empty)");
                 return;
             }
 
             if (elementSize == ObjectPropertyExtensions.ObjectIdWireSize)
             {
                 // ObjectID (handle) array — expand full OidType + proto/guid inline
-                sb.AppendLine();
+                vsb.AppendLine();
                 var items = prop.GetObjectIdArrayFull();
                 foreach (var (oidType, protoOrData1, guid) in items)
                 {
@@ -302,7 +303,7 @@ public static class MobDumper
                         _ => $"type{oidType}",
                     };
                     var extra = oidType == 1 ? $"proto={protoOrData1}" : $"d.a=0x{protoOrData1:X8}";
-                    sb.AppendLine($"      [{oidLabel}] {extra}  guid={guid}");
+                    vsb.AppendLine($"      [{oidLabel}] {extra}  guid={guid}");
                 }
                 return;
             }
@@ -317,22 +318,22 @@ public static class MobDumper
                     && objectType is ObjectType.Npc or ObjectType.Pc
                 )
                 {
-                    sb.AppendLine();
+                    vsb.AppendLine();
                     for (var idx = 0; idx < vals.Length; idx++)
                     {
                         var statLabel = Enum.IsDefined((BasicStatType)idx)
                             ? ((BasicStatType)idx).ToString()
                             : $"Stat{idx}";
-                        sb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
+                        vsb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
                     }
                     return;
                 }
 
-                sb.Append("  [");
-                sb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
+                vsb.Append("  [");
+                vsb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
                 if (vals.Length > 8)
-                    sb.Append($", +{vals.Length - 8} more");
-                sb.Append(']');
+                    vsb.Append($", +{vals.Length - 8} more");
+                vsb.Append(']');
                 return;
             }
 
@@ -341,7 +342,7 @@ public static class MobDumper
             if (elementSize == 12)
             {
                 var dataSpan = bytes.AsSpan(13, elementCount * 12);
-                sb.AppendLine();
+                vsb.AppendLine();
                 for (var idx = 0; idx < elementCount; idx++)
                 {
                     var elem = dataSpan.Slice(idx * 12, 12);
@@ -353,7 +354,7 @@ public static class MobDumper
                     var apName = Enum.IsDefined((ScriptAttachmentPoint)idx)
                         ? ((ScriptAttachmentPoint)idx).ToString()
                         : $"Slot{idx}";
-                    sb.AppendLine(
+                    vsb.AppendLine(
                         $"      [{apName}] scriptId={scriptId}  hdrFlags=0x{hdrFlags:X8}  hdrCounters=0x{hdrCounters:X8}"
                     );
                 }
@@ -364,35 +365,35 @@ public static class MobDumper
             if (elementSize == 8 && fieldBit == 135) // ObjFNpcWaypointsIdx
             {
                 var dataSpan = bytes.AsSpan(13, elementCount * 8);
-                sb.AppendLine();
+                vsb.AppendLine();
                 for (var idx = 0; idx < elementCount; idx++)
                 {
                     var loc = BinaryPrimitives.ReadInt64LittleEndian(dataSpan.Slice(idx * 8));
                     var tx = (int)(loc & 0xFFFFFFFF);
                     var ty = (int)((loc >> 32) & 0xFFFFFFFF);
-                    sb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
+                    vsb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
                 }
                 return;
             }
 
-            sb.Append($"  [{elementCount} elem(s)]");
+            vsb.Append($"  [{elementCount} elem(s)]");
             return;
         }
 
         // ── String (1-byte presence + int32 length + (length+1) bytes) ──
-        sb.Append($"= \"{prop.GetString()}\"");
+        vsb.Append($"= \"{prop.GetString()}\"");
     }
 
     private static bool IsLocationField(ObjectField field, ObjectType objectType) =>
         field is ObjectField.ObjFLocation or ObjectField.ObjFCritterTeleportDest
         || (objectType is ObjectType.Npc && (int)field is 137 or 138); // ObjFNpcStandpointDay/Night
 
-    private static void AppendFlagNames<T>(StringBuilder sb, uint value)
+    private static void AppendFlagNames<T>(ref ValueStringBuilder vsb, uint value)
         where T : struct, Enum
     {
         if (value == 0)
         {
-            sb.Append("(none)");
+            vsb.Append("(none)");
             return;
         }
 
@@ -404,7 +405,10 @@ public static class MobDumper
                 names.Add(flag.ToString());
         }
 
-        sb.Append(names.Count > 0 ? string.Join(" | ", names) : "(unknown flags)");
+        if (names.Count > 0)
+            vsb.AppendJoin(" | ".AsSpan(), (IEnumerable<string?>)names);
+        else
+            vsb.Append("(unknown flags)");
     }
 
     // ── Type-aware field name resolution ──────────────────────────────────────

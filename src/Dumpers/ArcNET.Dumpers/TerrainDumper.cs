@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,19 +10,20 @@ public static class TerrainDumper
 {
     public static string Dump(TerrainData terrain)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== TERRAIN FILE ===");
-        sb.AppendLine($"  Version      : {terrain.Version:F1}  (standard TDF format)");
-        sb.AppendLine($"  Base terrain : {terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
-        sb.AppendLine(
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== TERRAIN FILE ===");
+        vsb.AppendLine($"  Version      : {terrain.Version:F1}  (standard TDF format)");
+        vsb.AppendLine($"  Base terrain : {terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
+        vsb.AppendLine(
             $"  Dimensions   : {terrain.Width} \u00d7 {terrain.Height} tiles  ({terrain.Tiles.Length} total)"
         );
-        sb.AppendLine(
+        vsb.AppendLine(
             terrain.Compressed
                 ? "  Storage      : compressed (row-by-row zlib)"
                 : "  Storage      : uncompressed (raw tile array)"
         );
-        sb.AppendLine();
+        vsb.AppendLine();
 
         // Terrain type distribution
         var distribution = new Dictionary<ushort, int>();
@@ -32,17 +33,17 @@ public static class TerrainDumper
             distribution[tile] = count + 1;
         }
 
-        sb.AppendLine("  Terrain Distribution:");
+        vsb.AppendLine("  Terrain Distribution:");
         foreach (var kvp in distribution.OrderByDescending(k => k.Value))
         {
             var pct = 100.0 * kvp.Value / terrain.Tiles.Length;
             var label = Enum.IsDefined((TerrainType)kvp.Key)
                 ? $"{(TerrainType)kvp.Key} ({kvp.Key})"
                 : $"0x{kvp.Key:X4}";
-            sb.AppendLine($"    {label, -25} : {kvp.Value, 7} tiles ({pct:F1}%)");
+            vsb.AppendLine($"    {label, -25} : {kvp.Value, 7} tiles ({pct:F1}%)");
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(TerrainData terrain, TextWriter writer) => writer.Write(Dump(terrain));

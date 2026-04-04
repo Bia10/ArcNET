@@ -1,5 +1,5 @@
-using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -40,22 +40,23 @@ public static class SaveDumper
     /// </summary>
     public static string Dump(string gsiPath, string tfaiPath, string tfafPath)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[1024];
+        var vsb = new ValueStringBuilder(buf);
 
         // ── Section 1: Save metadata ─────────────────────────────────────────
         var saveInfo = SaveInfoFormat.ParseFile(gsiPath);
-        sb.AppendLine(SaveInfoDumper.Dump(saveInfo));
+        vsb.AppendLine(SaveInfoDumper.Dump(saveInfo));
 
         // ── Section 2: Archive structure (index tree) ────────────────────────
         var index = SaveIndexFormat.ParseFile(tfaiPath);
-        sb.AppendLine(SaveIndexDumper.Dump(index));
+        vsb.AppendLine(SaveIndexDumper.Dump(index));
 
         // ── Section 3: Extracted file contents ──────────────────────────────
         var tfafData = File.ReadAllBytes(tfafPath);
         var payloads = TfafFormat.ExtractAll(index, tfafData);
 
-        sb.AppendLine("=== SAVE FILE CONTENTS ===");
-        sb.AppendLine();
+        vsb.AppendLine("=== SAVE FILE CONTENTS ===");
+        vsb.AppendLine();
 
         // Group by directory for readability
         var grouped = payloads
@@ -66,7 +67,7 @@ public static class SaveDumper
         {
             if (!string.IsNullOrEmpty(group.Key))
             {
-                sb.AppendLine($"  ┌── {group.Key}/");
+                vsb.AppendLine($"  ┌── {group.Key}/");
             }
 
             foreach (var kvp in group)
@@ -76,7 +77,7 @@ public static class SaveDumper
                 var fileName = Path.GetFileName(virtualPath);
                 var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
-                sb.AppendLine($"  │  [{fileName}]  ({data.Length:N0} bytes)");
+                vsb.AppendLine($"  │  [{fileName}]  ({data.Length:N0} bytes)");
 
                 try
                 {
@@ -85,26 +86,26 @@ public static class SaveDumper
                     {
                         foreach (var line in parsed.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                         {
-                            sb.Append("  │    ");
-                            sb.AppendLine(line.TrimEnd('\r'));
+                            vsb.Append("  │    ");
+                            vsb.AppendLine(line.TrimEnd('\r'));
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    sb.AppendLine($"  │    (parse error: {ex.Message})");
+                    vsb.AppendLine($"  │    (parse error: {ex.Message})");
                 }
 
-                sb.AppendLine("  │");
+                vsb.AppendLine("  │");
             }
 
             if (!string.IsNullOrEmpty(group.Key))
-                sb.AppendLine("  └──");
+                vsb.AppendLine("  └──");
 
-            sb.AppendLine();
+            vsb.AppendLine();
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     /// <inheritdoc cref="Dump(string, string, string)"/>

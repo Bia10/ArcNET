@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,35 +10,36 @@ public static class FacWalkDumper
 {
     public static string Dump(FacadeWalk fac)
     {
-        var sb = new StringBuilder();
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
         var h = fac.Header;
-        sb.AppendLine("=== FACADE WALK ===");
+        vsb.AppendLine("=== FACADE WALK ===");
         var terrainLabel = Enum.IsDefined((TerrainType)h.Terrain)
             ? $"{(TerrainType)h.Terrain} ({h.Terrain})"
             : h.Terrain.ToString();
-        sb.AppendLine($"  Terrain    : {terrainLabel}");
-        sb.AppendLine($"  Outdoor    : {(h.Outdoor != 0 ? "yes" : "no")}");
-        sb.AppendLine($"  Flippable  : {(h.Flippable != 0 ? "yes" : "no")}");
-        sb.AppendLine($"  Width      : {h.Width}  (isometric facade tile columns)");
-        sb.AppendLine($"  Height     : {h.Height}  (isometric facade tile rows)");
-        sb.AppendLine($"  Entries    : {fac.Entries.Length}  ({h.Width}\u00d7{h.Height} grid)");
-        sb.AppendLine();
+        vsb.AppendLine($"  Terrain    : {terrainLabel}");
+        vsb.AppendLine($"  Outdoor    : {(h.Outdoor != 0 ? "yes" : "no")}");
+        vsb.AppendLine($"  Flippable  : {(h.Flippable != 0 ? "yes" : "no")}");
+        vsb.AppendLine($"  Width      : {h.Width}  (isometric facade tile columns)");
+        vsb.AppendLine($"  Height     : {h.Height}  (isometric facade tile rows)");
+        vsb.AppendLine($"  Entries    : {fac.Entries.Length}  ({h.Width}\u00d7{h.Height} grid)");
+        vsb.AppendLine();
 
         var walkable = fac.Entries.Count(e => e.Walkable);
         var blocked = fac.Entries.Length - walkable;
-        sb.AppendLine($"  Walkable   : {walkable} / {fac.Entries.Length} tiles  ({blocked} blocked)");
-        sb.AppendLine();
+        vsb.AppendLine($"  Walkable   : {walkable} / {fac.Entries.Length} tiles  ({blocked} blocked)");
+        vsb.AppendLine();
 
         const int maxEntriesToList = 64;
         if (fac.Entries.Length <= maxEntriesToList)
         {
             foreach (var e in fac.Entries)
-                sb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
+                vsb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
         }
         else
         {
-            sb.AppendLine($"  (listing suppressed — {fac.Entries.Length} entries; showing {h.Width}×{h.Height} grid)");
-            sb.AppendLine();
+            vsb.AppendLine($"  (listing suppressed — {fac.Entries.Length} entries; showing {h.Width}×{h.Height} grid)");
+            vsb.AppendLine();
 
             var grid = new bool[h.Height, h.Width];
             foreach (var e in fac.Entries)
@@ -47,14 +48,14 @@ public static class FacWalkDumper
 
             for (var row = 0; row < h.Height; row++)
             {
-                sb.Append("  ");
+                vsb.Append("  ");
                 for (var col = 0; col < h.Width; col++)
-                    sb.Append(grid[row, col] ? '.' : '#');
-                sb.AppendLine();
+                    vsb.Append(grid[row, col] ? '.' : '#');
+                vsb.AppendLine();
             }
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(FacadeWalk fac, TextWriter writer) => writer.Write(Dump(fac));

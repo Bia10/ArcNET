@@ -1,5 +1,5 @@
-﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
 
@@ -10,23 +10,24 @@ public static class JmpDumper
 {
     public static string Dump(JmpFile jmp)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== JUMP POINT FILE ===");
-        sb.AppendLine($"  {jmp.Jumps.Count} transition point(s) defined.");
-        sb.AppendLine();
+        Span<char> buf = stackalloc char[512];
+        var vsb = new ValueStringBuilder(buf);
+        vsb.AppendLine("=== JUMP POINT FILE ===");
+        vsb.AppendLine($"  {jmp.Jumps.Count} transition point(s) defined.");
+        vsb.AppendLine();
 
         for (var i = 0; i < jmp.Jumps.Count; i++)
         {
             var j = jmp.Jumps[i];
-            sb.Append(
+            vsb.Append(
                 $"  [{i, 3}] From tile ({j.SourceX},{j.SourceY}) → map {j.DestinationMapId} at tile ({j.DestX},{j.DestY})"
             );
             if (j.Flags != 0)
-                sb.Append($"  [flags=0x{j.Flags:X8}]");
-            sb.AppendLine();
+                vsb.Append($"  [flags=0x{j.Flags:X8}]");
+            vsb.AppendLine();
         }
 
-        return sb.ToString();
+        return vsb.ToString();
     }
 
     public static void Dump(JmpFile jmp, TextWriter writer) => writer.Write(Dump(jmp));
