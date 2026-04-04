@@ -4,7 +4,6 @@ using ArcNET.BinaryPatch.State;
 using ArcNET.Core;
 using ArcNET.Dumpers;
 using ArcNET.Formats;
-using ArcNET.GameData;
 using ArcNET.GameObjects;
 using ArcNET.Patch;
 using Spectre.Console;
@@ -14,156 +13,6 @@ namespace ArcNET.App;
 /// <summary>Top-level command implementations for the ArcNET CLI.</summary>
 internal static class AppCommands
 {
-    internal const string ParseExtractedData = "Parse extracted game data";
-    internal const string InstallHighResPatch = "Install High-Res patch";
-    internal const string UninstallHighResPatch = "Uninstall High-Res patch";
-    internal const string ApplyGameDataFixes = "Apply game data fixes (bug corrections)";
-    internal const string RevertGameDataFixes = "Revert game data fixes";
-    internal const string CheckPatchStatus = "Check patch status";
-    internal const string DumpMobFiles = "Dump mob files (diagnostic)";
-
-    // ── File dumper commands ───────────────────────────────────────────────
-    internal const string DumpArt = "Dump ART file";
-    internal const string DumpDialog = "Dump DLG dialog file";
-    internal const string DumpFacWalk = "Dump FacadeWalk file";
-    internal const string DumpJmp = "Dump JMP jump-point file";
-    internal const string DumpMapProps = "Dump map properties (PRP) file";
-    internal const string DumpMessage = "Dump MES message file";
-    internal const string DumpProto = "Dump proto (PRO) file";
-    internal const string DumpSaveIndex = "Dump save-game index (TFAI) file";
-    internal const string DumpSaveInfo = "Dump save-game info (GSI) file";
-    internal const string DumpScript = "Dump script (SCR) file";
-    internal const string DumpSector = "Dump sector (SEC) file";
-    internal const string DumpTerrain = "Dump terrain (TDF) file";
-    internal const string DumpTextData = "Dump text-data file";
-
-    internal static async Task RunAsync(string command)
-    {
-        switch (command)
-        {
-            case ParseExtractedData:
-                await RunParseExtractedDataAsync();
-                break;
-
-            case InstallHighResPatch:
-                await RunInstallHighResPatchAsync();
-                break;
-
-            case UninstallHighResPatch:
-                AnsiConsole.MarkupLine("[yellow]Uninstall High-Res patch is not yet implemented.[/]");
-                break;
-
-            case ApplyGameDataFixes:
-                await RunApplyGameDataFixesAsync();
-                break;
-
-            case RevertGameDataFixes:
-                await RunRevertGameDataFixesAsync();
-                break;
-
-            case CheckPatchStatus:
-                await RunCheckPatchStatusAsync();
-                break;
-
-            case DumpMobFiles:
-                await RunDumpMobFilesAsync();
-                break;
-
-            case DumpArt:
-                await RunDumpFileAsync(DumpArt, path => ArtDumper.Dump(ArtFormat.ParseFile(path)));
-                break;
-            case DumpDialog:
-                await RunDumpFileAsync(DumpDialog, path => DialogDumper.Dump(DialogFormat.ParseFile(path)));
-                break;
-            case DumpFacWalk:
-                await RunDumpFileAsync(DumpFacWalk, path => FacWalkDumper.Dump(FacWalkFormat.ParseFile(path)));
-                break;
-            case DumpJmp:
-                await RunDumpFileAsync(DumpJmp, path => JmpDumper.Dump(JmpFormat.ParseFile(path)));
-                break;
-            case DumpMapProps:
-                await RunDumpFileAsync(
-                    DumpMapProps,
-                    path => MapPropertiesDumper.Dump(MapPropertiesFormat.ParseFile(path))
-                );
-                break;
-            case DumpMessage:
-                await RunDumpFileAsync(DumpMessage, path => MessageDumper.Dump(MessageFormat.ParseFile(path)));
-                break;
-            case DumpProto:
-                await RunDumpFileAsync(DumpProto, path => ProtoDumper.Dump(ProtoFormat.ParseFile(path)));
-                break;
-            case DumpSaveIndex:
-                await RunDumpFileAsync(DumpSaveIndex, path => SaveIndexDumper.Dump(SaveIndexFormat.ParseFile(path)));
-                break;
-            case DumpSaveInfo:
-                await RunDumpFileAsync(DumpSaveInfo, path => SaveInfoDumper.Dump(SaveInfoFormat.ParseFile(path)));
-                break;
-            case DumpScript:
-                await RunDumpFileAsync(DumpScript, path => ScriptDumper.Dump(ScriptFormat.ParseFile(path)));
-                break;
-            case DumpSector:
-                await RunDumpFileAsync(DumpSector, path => SectorDumper.Dump(SectorFormat.ParseFile(path)));
-                break;
-            case DumpTerrain:
-                await RunDumpFileAsync(DumpTerrain, path => TerrainDumper.Dump(TerrainFormat.ParseFile(path)));
-                break;
-            case DumpTextData:
-                await RunDumpFileAsync(DumpTextData, path => TextDataDumper.Dump(TextDataFormat.ParseFile(path)));
-                break;
-
-            default:
-                AnsiConsole.MarkupLine($"[red]Unknown command: {command}[/]");
-                break;
-        }
-    }
-
-    private static async Task RunParseExtractedDataAsync()
-    {
-        var inputPath = AnsiConsole.Ask<string>("[green]Insert path to extracted game data directory[/]:");
-
-        if (!Directory.Exists(inputPath))
-        {
-            AnsiConsole.MarkupLine("[red]Directory not found![/]");
-            return;
-        }
-
-        await Task.Run(() =>
-        {
-            var files = GameDataLoader.DiscoverFiles(inputPath);
-            var table = new Table().RoundedBorder().AddColumn("Format").AddColumn("File count");
-
-            foreach (var (format, paths) in files)
-                table.AddRow(format.ToString(), paths.Count.ToString());
-
-            AnsiConsole.Write(table);
-        });
-    }
-
-    private static async Task RunInstallHighResPatchAsync()
-    {
-        var arcDir = AnsiConsole.Ask<string>("[green]Insert path to Arcanum installation directory[/]:");
-        var highResDir = Path.Combine(arcDir, "HighRes");
-
-        if (!Directory.Exists(highResDir))
-        {
-            AnsiConsole.MarkupLine("[red]HighRes directory not found inside Arcanum dir![/]");
-            return;
-        }
-
-        var configPath = Path.Combine(highResDir, "config.ini");
-        if (!File.Exists(configPath))
-        {
-            AnsiConsole.MarkupLine("[red]config.ini not found in HighRes directory![/]");
-            return;
-        }
-
-        var config = HighResConfig.ParseFile(configPath);
-        AnsiConsole.MarkupLine($"[green]Loaded config: {config.Width}x{config.Height} @ {config.BitDepth}bpp[/]");
-
-        await Task.CompletedTask;
-    }
-
     // ── helpers ────────────────────────────────────────────────────────────
 
     private static string ResolveFullPath(string gameDir, IBinaryPatch patch) =>
@@ -336,10 +185,8 @@ internal static class AppCommands
         });
     }
 
-    private static async Task RunCheckPatchStatusAsync()
+    internal static async Task RunCheckPatchStatusAsync(string gameDir)
     {
-        var gameDir = AnsiConsole.Ask<string>("[green]Arcanum installation directory[/] (e.g. C:\\Games\\Arcanum):");
-
         if (!Directory.Exists(gameDir))
         {
             AnsiConsole.MarkupLine("[red]Directory not found.[/]");
@@ -429,61 +276,11 @@ internal static class AppCommands
         });
     }
 
+    // ── Save game dumper ───────────────────────────────────────────────────
+
     // ── Generic file dumper ────────────────────────────────────────────────
 
-    /// <summary>
-    /// Interactive: prompts for a file path and writes the dump to stdout.
-    /// Non-interactive variant: call <see cref="RunDumpFileAsync(string, Func{string,string}, string?)"/> directly.
-    /// </summary>
-    private static async Task RunDumpFileAsync(string commandLabel, Func<string, string> dump)
-    {
-        var path = AnsiConsole.Ask<string>($"[green]Path to file[/] ({Markup.Escape(commandLabel)}):");
-        await RunDumpFileAsync(commandLabel, dump, path);
-    }
-
-    /// <summary>
-    /// Parses and dumps a single file to <paramref name="outputFile"/> (or stdout when null).
-    /// </summary>
-    internal static async Task RunDumpFileAsync(string commandLabel, Func<string, string> dump, string? outputFile)
-    {
-        if (outputFile is null)
-        {
-            AnsiConsole.MarkupLine("[red]No file path provided.[/]");
-            return;
-        }
-
-        if (!File.Exists(outputFile))
-        {
-            AnsiConsole.MarkupLine($"[red]File not found: {Markup.Escape(outputFile)}[/]");
-            return;
-        }
-
-        await Task.Run(() =>
-        {
-            try
-            {
-                var result = dump(outputFile);
-                Console.Write(result);
-            }
-            catch (Exception ex)
-            {
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(commandLabel)} failed: {Markup.Escape(ex.Message)}[/]");
-            }
-        });
-    }
-
     // ── Diagnostic: dump mob files ─────────────────────────────────────────
-
-    private static async Task RunDumpMobFilesAsync()
-    {
-        var gameDir = AnsiConsole.Ask<string>(
-            "[green]Arcanum installation directory[/] (e.g. C:\\Games\\Arcanum\\ArcanumClean):"
-        );
-        var mapPath = AnsiConsole.Ask<string>(
-            "[green]Map path prefix in DAT[/] (e.g. maps\\Cave of the Bangellian Scourge\\):"
-        );
-        await RunDumpMobFilesAsync(gameDir, mapPath);
-    }
 
     internal static async Task RunDumpMobFilesAsync(string gameDir, string? mapPath = null)
     {
@@ -893,25 +690,6 @@ internal static class AppCommands
     }
 
     // ── Private helpers for dump-map ───────────────────────────────────────
-
-    private static Dictionary<int, string> LoadNameLookupFromArchive(DatArchive archive)
-    {
-        var lookup = new Dictionary<int, string>();
-        foreach (var mesPath in new[] { "mes\\description.mes", "oemes\\oname.mes" })
-        {
-            try
-            {
-                var mes = MessageFormat.ParseMemory(archive.GetEntryData(mesPath));
-                foreach (var e in mes.Entries)
-                    lookup.TryAdd(e.Index, e.Text);
-            }
-            catch
-            {
-                // Not found or parse error — skip
-            }
-        }
-        return lookup;
-    }
 
     private static int? ExtractProtoNum(MobData mob)
     {

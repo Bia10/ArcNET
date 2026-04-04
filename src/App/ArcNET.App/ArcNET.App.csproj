@@ -5,6 +5,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <PublishAot>true</PublishAot>
+    <!-- Suppress AOT analysis warnings from JsonSerializer.Serialize on anonymous objects.
+         Anonymous types cannot be registered with a JsonSerializerContext source generator,
+         so reflection-based serialization is required here. -->
+    <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="ConsoleAppFramework">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Spectre.Console" />
   </ItemGroup>
 
