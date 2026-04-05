@@ -1,4 +1,5 @@
 ﻿using System.Collections.Frozen;
+using System.Numerics;
 using ArcNET.Core;
 using ArcNET.GameObjects;
 
@@ -16,8 +17,15 @@ public sealed class ObjectProperty
     /// <summary>
     /// Raw bytes as read from disk, in full wire representation
     /// (including SAR headers for array types).
+    /// Empty when <see cref="ParseNote"/> is set (the field could not be read).
     /// </summary>
     public required byte[] RawBytes { get; init; }
+
+    /// <summary>
+    /// Non-null when this property is a sentinel indicating the parse stopped here.
+    /// All subsequent bitmap bits were skipped because the wire type for this bit is unknown.
+    /// </summary>
+    public string? ParseNote { get; init; }
 }
 
 // ─── Dispatch tables ───────────────────────────────────────────────────────────
@@ -75,6 +83,34 @@ internal static class ObjectPropertyIo
         [38] = ObjectWireType.Float, // ObjFPadFloat1
         [39] = ObjectWireType.Float, // ObjFRadius
         [40] = ObjectWireType.Float, // ObjFHeight
+        // ── Bits 41–63: arcanum-CE / ToEE common extension fields ─────────────
+        // These are NOT present in original Arcanum (0x08) saves — bits 41–63
+        // are reserved/gap there.  arcanum-CE (0x77) inherits the ToEE engine's
+        // common field layout which fills these slots.
+        // Source: GrognardsFromHell/TemplePlus temple_enums.h obj_f enum.
+        [41] = ObjectWireType.Int32Array, // ObjFConditions        (SAR of condition handles)
+        [42] = ObjectWireType.Int32Array, // ObjFConditionArg0     (SAR of condition arguments)
+        [43] = ObjectWireType.Int32Array, // ObjFPermanentMods     (SAR of permanent condition handles)
+        [44] = ObjectWireType.Int32, // ObjFInitiative
+        [45] = ObjectWireType.Int32, // ObjFDispatcher        (runtime handle — 0 in saves)
+        [46] = ObjectWireType.Int32, // ObjFSubinitiative
+        [47] = ObjectWireType.Int32, // ObjFSecretdoorFlags
+        [48] = ObjectWireType.String, // ObjFSecretdoorEffectName
+        [49] = ObjectWireType.Int32, // ObjFSecretdoorDc
+        [50] = ObjectWireType.Int32, // ObjFPadI7
+        [51] = ObjectWireType.Int32, // ObjFPadI8
+        [52] = ObjectWireType.Int32, // ObjFPadI9
+        [53] = ObjectWireType.Int32, // ObjFPadI0
+        [54] = ObjectWireType.Float, // ObjFOffsetZ
+        [55] = ObjectWireType.Float, // ObjFRotationPitch
+        [56] = ObjectWireType.Float, // ObjFPadF3
+        [57] = ObjectWireType.Float, // ObjFPadF4
+        [58] = ObjectWireType.Float, // ObjFPadF5
+        [59] = ObjectWireType.Float, // ObjFPadF6
+        [60] = ObjectWireType.Float, // ObjFPadF7
+        [61] = ObjectWireType.Float, // ObjFPadF8
+        [62] = ObjectWireType.Float, // ObjFPadF9
+        [63] = ObjectWireType.Float, // ObjFPadF0
     }.ToFrozenDictionary();
 
     // ── Type-specific fields (bit indices 64+, keyed on ObjectType) ───────
@@ -90,6 +126,13 @@ internal static class ObjectPropertyIo
                 66 => ObjectWireType.Int32, // WallPadI2
                 67 => ObjectWireType.Int32Array, // WallPadIas1
                 68 => ObjectWireType.Int64Array, // WallPadI64As1
+                // Original Arcanum (0x08) saves contain additional Wall type-specific
+                // fields at bits 69-95 that arcanum-CE (0x77) removed.  Map as Int32
+                // (the dominant Arcanum field type); the trailing two positions follow
+                // the Arcanum section-ending pad convention (IAS then I64AS).
+                >= 69 and <= 93 => ObjectWireType.Int32,
+                94 => ObjectWireType.Int32Array, // WallPadIasX (original)
+                95 => ObjectWireType.Int64Array, // WallPadI64AsX (original)
                 _ => null,
             },
 
@@ -103,6 +146,11 @@ internal static class ObjectPropertyIo
                 69 => ObjectWireType.Int32, // PortalPadI2
                 70 => ObjectWireType.Int32Array, // PortalPadIas1
                 71 => ObjectWireType.Int64Array, // PortalPadI64As1
+                // Original Arcanum (0x08) saves contain additional Portal type-specific
+                // fields at bits 72-95 that arcanum-CE (0x77) removed.
+                >= 72 and <= 93 => ObjectWireType.Int32,
+                94 => ObjectWireType.Int32Array, // PortalPadIasX (original)
+                95 => ObjectWireType.Int64Array, // PortalPadI64AsX (original)
                 _ => null,
             },
 
@@ -458,26 +506,50 @@ internal static class ObjectPropertyIo
         var bitmap = header.Bitmap;
         var objectType = header.GameObjectType;
 
-        // Count set bits upfront to allocate the exact-size array and avoid List<> overhead.
+        // Count set bits in one pass using hw PopCount across all bytes.
         var capacity = 0;
-        for (var i = 0; i < bitmap.Length; i++)
-            if (bitmap[i])
-                capacity++;
+        foreach (var b in bitmap)
+            capacity += int.PopCount(b);
 
         if (capacity == 0)
             return [];
 
-        var props = new ObjectProperty[capacity];
-        var idx = 0;
+        // Use List so we can do early return on unknown wire type without wasting the allocation.
+        var props = new List<ObjectProperty>(capacity);
 
-        for (var bit = 0; bit < bitmap.Length; bit++)
+        // Iterate only set bits via TrailingZeroCount — O(set-bits), not O(all-bits).
+        for (var by = 0; by < bitmap.Length; by++)
         {
-            if (!bitmap[bit])
-                continue;
+            var word = (uint)bitmap[by];
+            while (word != 0)
+            {
+                var lsb = BitOperations.TrailingZeroCount(word);
+                var bit = by * 8 + lsb;
 
-            var wireType = ResolveWireType(objectType, bit);
-            var raw = ReadField(ref reader, wireType);
-            props[idx++] = new ObjectProperty { Field = (ObjectField)bit, RawBytes = raw };
+                ObjectWireType wireType;
+                try
+                {
+                    wireType = ResolveWireType(objectType, bit);
+                }
+                catch (NotSupportedException ex)
+                {
+                    // Wire type for this bit is not yet mapped.  We cannot safely advance the
+                    // reader without knowing the field size, so we stop here and surface a note.
+                    props.Add(
+                        new ObjectProperty
+                        {
+                            Field = (ObjectField)bit,
+                            RawBytes = [],
+                            ParseNote = ex.Message,
+                        }
+                    );
+                    return props;
+                }
+
+                var raw = ReadField(ref reader, wireType);
+                props.Add(new ObjectProperty { Field = (ObjectField)bit, RawBytes = raw });
+                word &= word - 1; // clear lowest set bit
+            }
         }
 
         return props;
