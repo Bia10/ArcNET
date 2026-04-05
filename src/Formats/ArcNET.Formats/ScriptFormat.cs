@@ -1,8 +1,24 @@
 ﻿using System.Buffers;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
+
+/// <summary>Eight operand-type bytes stored inline — zero heap allocation per action.</summary>
+[InlineArray(8)]
+public struct OpTypeBuffer
+{
+    private byte _element;
+}
+
+/// <summary>Eight operand-value ints stored inline — zero heap allocation per action.</summary>
+[InlineArray(8)]
+public struct OpValueBuffer
+{
+    private int _element;
+}
 
 /// <summary>
 /// A single script action (the "then" or "else" branch of a condition).
@@ -10,8 +26,8 @@ namespace ArcNET.Formats;
 /// </summary>
 public readonly record struct ScriptActionData(
     int Type,
-    byte[] OpTypes, // [8] operand type tags
-    int[] OpValues // [8] operand values
+    OpTypeBuffer OpTypes, // [8] operand type tags — inline, no heap alloc
+    OpValueBuffer OpValues // [8] operand values — inline, no heap alloc
 )
 {
     /// <summary>
@@ -27,8 +43,8 @@ public readonly record struct ScriptActionData(
 /// </summary>
 public readonly record struct ScriptConditionData(
     int Type,
-    byte[] OpTypes, // [8]
-    int[] OpValues, // [8]
+    OpTypeBuffer OpTypes, // [8] — inline, no heap alloc
+    OpValueBuffer OpValues, // [8] — inline, no heap alloc
     ScriptActionData Action, // "then" branch
     ScriptActionData Else // "else" branch
 )
@@ -104,28 +120,22 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
     private static ScriptActionData ReadAction(scoped ref SpanReader reader)
     {
         var type = reader.ReadInt32();
-        // Read 8 op-type bytes into a pooled/stack-local copy then materialise as array once.
-        var opTypeSpan = reader.ReadBytes(8);
-        var opTypes = opTypeSpan.ToArray();
-        var opVals = new int[8];
-        for (var i = 0; i < 8; i++)
-            opVals[i] = reader.ReadInt32();
-
+        OpTypeBuffer opTypes = default;
+        reader.ReadBytes(8).CopyTo((Span<byte>)opTypes);
+        OpValueBuffer opVals = default;
+        reader.ReadBytes(32).CopyTo(MemoryMarshal.AsBytes((Span<int>)opVals));
         return new ScriptActionData(type, opTypes, opVals);
     }
 
     private static ScriptConditionData ReadCondition(scoped ref SpanReader reader)
     {
         var type = reader.ReadInt32();
-        var opTypeSpan = reader.ReadBytes(8);
-        var opTypes = opTypeSpan.ToArray();
-        var opVals = new int[8];
-        for (var i = 0; i < 8; i++)
-            opVals[i] = reader.ReadInt32();
-
+        OpTypeBuffer opTypes = default;
+        reader.ReadBytes(8).CopyTo((Span<byte>)opTypes);
+        OpValueBuffer opVals = default;
+        reader.ReadBytes(32).CopyTo(MemoryMarshal.AsBytes((Span<int>)opVals));
         var action = ReadAction(ref reader);
         var els = ReadAction(ref reader);
-
         return new ScriptConditionData(type, opTypes, opVals, action, els);
     }
 
@@ -147,7 +157,7 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
         writer.WriteUInt32(value.HeaderCounters);
 
         // Description — 40 bytes, zero-padded
-        var descBuf = new byte[DescriptionLength];
+        Span<byte> descBuf = stackalloc byte[DescriptionLength]; // 40 bytes — safe on stack
         Encoding.ASCII.GetBytes(
             value.Description.AsSpan(0, Math.Min(value.Description.Length, DescriptionLength)),
             descBuf
@@ -166,7 +176,8 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
     private static void WriteAction(ScriptActionData a, ref SpanWriter writer)
     {
         writer.WriteInt32(a.Type);
-        writer.WriteBytes(a.OpTypes);
+        var opTypes = a.OpTypes;
+        writer.WriteBytes((ReadOnlySpan<byte>)opTypes);
         foreach (var v in a.OpValues)
             writer.WriteInt32(v);
     }
@@ -174,7 +185,8 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
     private static void WriteCondition(ScriptConditionData c, ref SpanWriter writer)
     {
         writer.WriteInt32(c.Type);
-        writer.WriteBytes(c.OpTypes);
+        var opTypes = c.OpTypes;
+        writer.WriteBytes((ReadOnlySpan<byte>)opTypes);
         foreach (var v in c.OpValues)
             writer.WriteInt32(v);
 
