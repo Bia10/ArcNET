@@ -81,12 +81,34 @@ public static class DatPacker
         // entries_count
         dirWriter.WriteInt32(entryInfos.Count);
 
+        Span<byte> stackNameBuf = stackalloc byte[StackAllocPolicy.MaxStackAllocBytes];
         foreach (var (virtualPath, size, startOffset) in entryInfos)
         {
-            var nameBytes = Encoding.ASCII.GetBytes(virtualPath);
-            var nameLen = nameBytes.Length + 1; // includes null terminator
+            // Encode the virtual path as ASCII without a heap allocation.
+            // Arcanum paths are always ASCII and well under MaxStackAllocBytes (256).
+            var byteCount = Encoding.ASCII.GetByteCount(virtualPath);
+            var nameLen = byteCount + 1; // includes null terminator
             dirWriter.WriteInt32(nameLen);
-            dirWriter.WriteBytes(nameBytes);
+            if (byteCount <= StackAllocPolicy.MaxStackAllocBytes)
+            {
+                var nameBuf = stackNameBuf[..byteCount];
+                Encoding.ASCII.GetBytes(virtualPath, nameBuf);
+                dirWriter.WriteBytes(nameBuf);
+            }
+            else
+            {
+                var rented = ArrayPool<byte>.Shared.Rent(byteCount);
+                try
+                {
+                    Encoding.ASCII.GetBytes(virtualPath, rented.AsSpan(0, byteCount));
+                    dirWriter.WriteBytes(rented.AsSpan(0, byteCount));
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
+
             dirWriter.WriteByte(0); // null terminator
             dirWriter.WriteUInt32(0u); // unknown skip field
             dirWriter.WriteUInt32(0x001u); // flags: Plain
@@ -105,7 +127,8 @@ public static class DatPacker
         BinaryPrimitives.WriteUInt32LittleEndian(footer, 0x44415420u); // 'DAT ' magic
         BinaryPrimitives.WriteUInt32LittleEndian(footer[4..], 0u); // nameTableSize (unused)
         BinaryPrimitives.WriteUInt32LittleEndian(footer[8..], (uint)entryTableOffset);
-        await output.WriteAsync(footer.ToArray(), cancellationToken).ConfigureAwait(false);
+        // 12 bytes into a 65 KiB-buffered FileStream — write synchronously to avoid heap allocation.
+        output.Write(footer);
 
         progress?.Report(1f);
     }

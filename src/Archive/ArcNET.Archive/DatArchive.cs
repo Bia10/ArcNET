@@ -123,7 +123,7 @@ public sealed class DatArchive : IDisposable
         //   filesize−8  : uint32  name_table_size (malloc hint only)
         //   filesize−4  : uint32  entry_table_offset
         using var footerView = mmf.CreateViewStream(fileLength - 12, 12, MemoryMappedFileAccess.Read);
-        var footerBuf = new byte[12];
+        Span<byte> footerBuf = stackalloc byte[12];
         footerView.ReadExactly(footerBuf);
         var footerReader = new SpanReader(footerBuf);
         var magic = footerReader.ReadUInt32();
@@ -139,7 +139,7 @@ public sealed class DatArchive : IDisposable
         // Position: filesize − 4 − entry_table_offset
         var tableSizePos = fileLength - 4 - entryTableOffset;
         using var sizeView = mmf.CreateViewStream(tableSizePos, 4, MemoryMappedFileAccess.Read);
-        var sizeBuf = new byte[4];
+        Span<byte> sizeBuf = stackalloc byte[4];
         sizeView.ReadExactly(sizeBuf);
         var entryTableSize = BinaryPrimitives.ReadUInt32LittleEndian(sizeBuf);
 
@@ -172,8 +172,9 @@ public sealed class DatArchive : IDisposable
                 break;
 
             var nameBytes = r.ReadBytes(nameLen);
-            // Trim null terminator — nameLen in the archive includes the trailing '\0'
-            var path = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+            // nameLen includes the null terminator — find it to avoid a TrimEnd string allocation.
+            var nullIdx = nameBytes.IndexOf((byte)0);
+            var path = System.Text.Encoding.ASCII.GetString(nullIdx >= 0 ? nameBytes[..nullIdx] : nameBytes);
 
             r.Skip(4); // unknown field (unused)
 
