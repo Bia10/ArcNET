@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -109,19 +109,35 @@ public static class SectorDumper
         foreach (var mask in sector.BlockMask)
             blockedTiles += int.PopCount((int)mask);
         vsb.AppendLine($"  --- Walkability ({4096 - blockedTiles}/4096 walkable, {blockedTiles}/4096 blocked) ---");
-        if (blockedTiles > 0)
+        if (blockedTiles > 0 && blockedTiles < 4096)
         {
-            for (var row = 0; row < 64; row++)
+            // Compact: list blocked tile indices grouped into runs, up to 20 runs shown.
+            var runs = new List<(int Start, int End)>();
+            var inRun = false;
+            var runStart = 0;
+            for (var tile = 0; tile < 4096; tile++)
             {
-                var loWord = sector.BlockMask[row * 2];
-                var hiWord = sector.BlockMask[row * 2 + 1];
-                vsb.Append("    ");
-                for (var col = 0; col < 32; col++)
-                    vsb.Append((loWord & (1u << col)) != 0 ? '#' : '.');
-                for (var col = 0; col < 32; col++)
-                    vsb.Append((hiWord & (1u << col)) != 0 ? '#' : '.');
-                vsb.AppendLine();
+                var wordIdx = tile / 32;
+                var bitIdx = tile % 32;
+                var blocked = (sector.BlockMask[wordIdx] & (1u << bitIdx)) != 0;
+                if (blocked && !inRun) { runStart = tile; inRun = true; }
+                else if (!blocked && inRun) { runs.Add((runStart, tile - 1)); inRun = false; }
             }
+            if (inRun) runs.Add((runStart, 4095));
+
+            var shown = Math.Min(runs.Count, 20);
+            for (var ri = 0; ri < shown; ri++)
+            {
+                var (s, e) = runs[ri];
+                var tileDesc = s == e ? $"tile {s}" : $"tiles {s}–{e} ({e - s + 1})";
+                vsb.AppendLine($"    blocked: {tileDesc}");
+            }
+            if (runs.Count > 20)
+                vsb.AppendLine($"    ... and {runs.Count - 20} more blocked run(s)");
+        }
+        else if (blockedTiles == 4096)
+        {
+            vsb.AppendLine("    (all tiles blocked)");
         }
 
         vsb.AppendLine();

@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -40,7 +40,7 @@ public static class SaveDumper
     /// </summary>
     public static string Dump(string gsiPath, string tfaiPath, string tfafPath)
     {
-        Span<char> buf = stackalloc char[1024];
+        Span<char> buf = stackalloc char[2048];
         var vsb = new ValueStringBuilder(buf);
 
         // ── Section 1: Save metadata ─────────────────────────────────────────
@@ -55,7 +55,18 @@ public static class SaveDumper
         var tfafData = File.ReadAllBytes(tfafPath);
         var payloads = TfafFormat.ExtractAll(index, tfafData);
 
+        // Build content summary (count by extension)
+        var byExt = payloads
+            .GroupBy(kvp => Path.GetExtension(kvp.Key).ToLowerInvariant())
+            .OrderBy(g => g.Key)
+            .Select(g => (Ext: g.Key.Length > 0 ? g.Key : "(no ext)", Count: g.Count(), TotalBytes: g.Sum(x => (long)x.Value.Length)))
+            .ToList();
+
         vsb.AppendLine("=== SAVE FILE CONTENTS ===");
+        vsb.Append($"  {payloads.Count} embedded file(s):");
+        foreach (var (ext, count, totalBytes) in byExt)
+            vsb.Append($"  {count} {ext} ({totalBytes:N0} B)");
+        vsb.AppendLine();
         vsb.AppendLine();
 
         // Group by directory for readability
@@ -65,10 +76,8 @@ public static class SaveDumper
 
         foreach (var group in grouped)
         {
-            if (!string.IsNullOrEmpty(group.Key))
-            {
-                vsb.AppendLine($"  ┌── {group.Key}/");
-            }
+            var dirLabel = string.IsNullOrEmpty(group.Key) ? "(root)" : group.Key + "/";
+            vsb.AppendLine($"  ┌── {dirLabel}");
 
             foreach (var kvp in group)
             {
@@ -90,6 +99,10 @@ public static class SaveDumper
                             vsb.AppendLine(line.TrimEnd('\r'));
                         }
                     }
+                    else
+                    {
+                        vsb.AppendLine($"  │    (binary / unrecognised format)");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -99,9 +112,7 @@ public static class SaveDumper
                 vsb.AppendLine("  │");
             }
 
-            if (!string.IsNullOrEmpty(group.Key))
-                vsb.AppendLine("  └──");
-
+            vsb.AppendLine("  └──");
             vsb.AppendLine();
         }
 
@@ -131,7 +142,6 @@ public static class SaveDumper
                     + "Expected a directory containing .gsi, .tfai, and .tfaf files."
             );
 
-        // Prefer the file whose base name matches a sibling .gsi if multiple exist
         return matches[0];
     }
 
@@ -155,7 +165,7 @@ public static class SaveDumper
             ".tdf" => TerrainDumper.Dump(TerrainFormat.ParseMemory(mem)),
             ".dlg" => DialogDumper.Dump(DialogFormat.ParseMemory(mem)),
             ".art" => ArtDumper.Dump(ArtFormat.ParseMemory(mem)),
-            _ => null, // Binary or unknown — size already shown above
+            _ => null,
         };
     }
 
