@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.GameObjects;
+﻿using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
 
@@ -144,10 +143,13 @@ public static class MobDataExtensions
     {
         var type = existing.GameObjectType;
         var bitmapByteLength = ObjectFieldBitmapSize.For(type);
-        var bitmap = new BitArray(bitmapByteLength * 8);
+        var bitmap = new byte[bitmapByteLength];
 
         foreach (var prop in properties)
-            bitmap[(int)prop.Field] = true;
+        {
+            var f = (int)prop.Field;
+            bitmap[f >> 3] |= (byte)(1 << (f & 7));
+        }
 
         return new GameObjectHeader
         {

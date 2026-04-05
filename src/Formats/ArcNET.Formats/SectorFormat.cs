@@ -8,7 +8,7 @@ namespace ArcNET.Formats;
 /// A light source inside a sector.
 /// Corresponds to <c>LightSerializedData</c> (48 bytes).
 /// </summary>
-public sealed class SectorLight
+public readonly record struct SectorLight
 {
     /// <summary>Handle of the object this light is attached to; <c>-1</c> when standalone.</summary>
     public required long ObjHandle { get; init; }
@@ -58,7 +58,7 @@ public sealed class SectorLight
 /// Serialised as <c>TileScriptListNodeSerializedData</c> (0x18 = 24 bytes):
 /// <c>uint flags + uint id + Script(12) + int next</c>.
 /// </summary>
-public sealed class TileScript
+public readonly record struct TileScript
 {
     /// <summary>Node flags (e.g. TILE_SCRIPT_LIST_NODE_MODIFIED).</summary>
     public required uint NodeFlags { get; init; }
@@ -80,7 +80,7 @@ public sealed class TileScript
 /// Sound configuration for a sector.
 /// Wire size: 12 bytes.
 /// </summary>
-public sealed class SectorSoundList
+public readonly record struct SectorSoundList
 {
     /// <summary>Runtime flags (not used by editor tools).</summary>
     public required uint Flags { get; init; }
@@ -190,14 +190,14 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         if (version < 0xAA0000 || version > 0xAA0004)
             throw new InvalidDataException($"Unsupported sector version: 0x{version:X8}");
 
-        List<TileScript> tileScripts = [];
+        TileScript[] tileScripts = [];
         GameObjectScript? sectorScript = null;
         var townmapInfo = 0;
         var aptitudeAdj = 0;
         var lightSchemeIdx = 0;
         var soundList = SectorSoundList.Default;
         var blockMask = new uint[BlockMaskUints];
-        List<MobData> objects = [];
+        MobData[] objects = [];
 
         if (version >= 0xAA0001)
             tileScripts = ReadTileScripts(ref reader);
@@ -261,14 +261,7 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         WriteTileScripts(value.TileScripts, ref writer);
 
         // Sector script (always emit — empty if absent so 0xAA0002+ reads correctly)
-        var script =
-            value.SectorScript
-            ?? new GameObjectScript
-            {
-                Counters = [0, 0, 0, 0],
-                Flags = 0,
-                ScriptId = 0,
-            };
+        var script = value.SectorScript ?? new GameObjectScript(Counters: 0u, Flags: 0, ScriptId: 0);
         script.Write(ref writer);
 
         // 0xAA0003 block
@@ -298,12 +291,12 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
 
     // ── Readers ───────────────────────────────────────────────────────────────
 
-    private static List<SectorLight> ReadLights(ref SpanReader reader)
+    private static SectorLight[] ReadLights(ref SpanReader reader)
     {
         var count = reader.ReadInt32();
-        var lights = new List<SectorLight>(count);
+        var lights = new SectorLight[count];
         for (var i = 0; i < count; i++)
-            lights.Add(ReadLight(ref reader));
+            lights[i] = ReadLight(ref reader);
         return lights;
     }
 
@@ -345,8 +338,7 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
     private static uint[] ReadTiles(ref SpanReader reader)
     {
         var tiles = new uint[TileCount];
-        for (var i = 0; i < TileCount; i++)
-            tiles[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(tiles);
         return tiles;
     }
 
@@ -358,17 +350,16 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
             return (false, null);
 
         var roofs = new uint[RoofCount];
-        for (var i = 0; i < RoofCount; i++)
-            roofs[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(roofs);
         return (true, roofs);
     }
 
-    private static List<TileScript> ReadTileScripts(ref SpanReader reader)
+    private static TileScript[] ReadTileScripts(ref SpanReader reader)
     {
         // Each node: TileScriptListNodeSerializedData (0x18 = 24 bytes)
         //   uint flags + uint id + Script(12) + int next
         var count = reader.ReadInt32();
-        var scripts = new List<TileScript>(count);
+        var scripts = new TileScript[count];
         for (var i = 0; i < count; i++)
         {
             var nodeFlags = reader.ReadUInt32();
@@ -378,16 +369,14 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
             var scriptNum = reader.ReadInt32();
             reader.ReadInt32(); // next — always 0 on disk
 
-            scripts.Add(
-                new TileScript
-                {
-                    NodeFlags = nodeFlags,
-                    TileId = tileId,
-                    ScriptFlags = scriptFlags,
-                    ScriptCounters = scriptCounters,
-                    ScriptNum = scriptNum,
-                }
-            );
+            scripts[i] = new TileScript
+            {
+                NodeFlags = nodeFlags,
+                TileId = tileId,
+                ScriptFlags = scriptFlags,
+                ScriptCounters = scriptCounters,
+                ScriptNum = scriptNum,
+            };
         }
 
         return scripts;
@@ -404,12 +393,11 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
     private static uint[] ReadBlockMask(ref SpanReader reader)
     {
         var mask = new uint[BlockMaskUints];
-        for (var i = 0; i < BlockMaskUints; i++)
-            mask[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(mask);
         return mask;
     }
 
-    private static List<MobData> ReadObjects(ref SpanReader reader)
+    private static MobData[] ReadObjects(ref SpanReader reader)
     {
         // Object count is stored as the LAST 4 bytes of the file.
         // objlist_load: fseek(stream, -sizeof(int), SEEK_END) then fread(&cnt).
@@ -419,9 +407,9 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         // Peek at the last 4 bytes to get the count.
         var countOffset = reader.Remaining - 4;
         var count = reader.PeekInt32At(countOffset);
-        var objects = new List<MobData>(count);
+        var objects = new MobData[count];
         for (var i = 0; i < count; i++)
-            objects.Add(MobFormat.Parse(ref reader));
+            objects[i] = MobFormat.Parse(ref reader);
 
         // Skip past the trailing count we already peeked.
         if (reader.Remaining >= 4)
@@ -453,11 +441,9 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         }
     }
 
-    private static void WriteTiles(uint[] tiles, ref SpanWriter writer)
-    {
-        for (var i = 0; i < TileCount; i++)
-            writer.WriteUInt32(i < tiles.Length ? tiles[i] : 0u);
-    }
+    private static void WriteTiles(uint[] tiles, ref SpanWriter writer) =>
+        // tiles always has exactly TileCount elements (allocated in ReadTiles / SectorBuilder)
+        writer.WriteUnmanaged<uint>(tiles);
 
     private static void WriteRoofList(bool hasRoofs, uint[]? roofs, ref SpanWriter writer)
     {
@@ -468,8 +454,8 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         }
 
         writer.WriteInt32(0); // zero = roofs present
-        for (var i = 0; i < RoofCount; i++)
-            writer.WriteUInt32(i < roofs.Length ? roofs[i] : 0u);
+        // roofs always has exactly RoofCount elements (allocated in ReadRoofList / SectorBuilder)
+        writer.WriteUnmanaged<uint>(roofs);
     }
 
     private static void WriteTileScripts(IReadOnlyList<TileScript> scripts, ref SpanWriter writer)
@@ -493,11 +479,9 @@ public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
         writer.WriteInt32(soundList.AmbientSchemeIdx);
     }
 
-    private static void WriteBlockMask(uint[] mask, ref SpanWriter writer)
-    {
-        for (var i = 0; i < BlockMaskUints; i++)
-            writer.WriteUInt32(i < mask.Length ? mask[i] : 0u);
-    }
+    private static void WriteBlockMask(uint[] mask, ref SpanWriter writer) =>
+        // mask always has exactly BlockMaskUints elements (allocated in ReadBlockMask / SectorBuilder)
+        writer.WriteUnmanaged<uint>(mask);
 
     private static void WriteObjects(IReadOnlyList<MobData> objects, ref SpanWriter writer)
     {

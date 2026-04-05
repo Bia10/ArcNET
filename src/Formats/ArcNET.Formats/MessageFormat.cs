@@ -39,7 +39,7 @@ public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFil
     public static MesFile Parse(scoped ref SpanReader reader)
     {
         var text = Encoding.UTF8.GetString(reader.ReadBytes(reader.Remaining));
-        return new MesFile { Entries = ParseLines(text.Split('\n')) };
+        return new MesFile { Entries = ParseText(text.AsSpan()) };
     }
 
     /// <inheritdoc/>
@@ -82,6 +82,23 @@ public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFil
             if (string.IsNullOrWhiteSpace(line) || !line.StartsWith('{'))
                 continue;
 
+            var entry = ParseLine(line.AsSpan());
+            if (entry.HasValue)
+                results.Add(entry.Value);
+        }
+
+        return results;
+    }
+
+    // Span-based parse: uses EnumerateLines to avoid string[] allocation from Split.
+    private static IReadOnlyList<MessageEntry> ParseText(ReadOnlySpan<char> text)
+    {
+        var results = new List<MessageEntry>();
+        foreach (var line in text.EnumerateLines())
+        {
+            if (line.IsEmpty || line.IsWhiteSpace() || line[0] != '{')
+                continue;
+
             var entry = ParseLine(line);
             if (entry.HasValue)
                 results.Add(entry.Value);
@@ -114,9 +131,9 @@ public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFil
         return sb.ToString();
     }
 
-    private static MessageEntry? ParseLine(string line)
+    private static MessageEntry? ParseLine(ReadOnlySpan<char> line)
     {
-        var tokens = ReadAllBracedTokens(line.AsSpan());
+        var tokens = ReadAllBracedTokens(line);
         if (tokens.Count < 2)
             return null;
 

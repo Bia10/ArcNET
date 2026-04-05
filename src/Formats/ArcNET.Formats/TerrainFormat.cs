@@ -81,37 +81,55 @@ public sealed class TerrainFormat : IFormatReader<TerrainData>, IFormatWriter<Te
 
     private static void ReadRawTiles(ref SpanReader reader, ushort[] tiles, int count)
     {
-        for (var i = 0; i < count; i++)
-            tiles[i] = reader.ReadUInt16();
+        reader.ReadUInt16Array(tiles.AsSpan(0, count));
     }
 
     private static void ReadCompressedRows(ref SpanReader reader, ushort[] tiles, long width, long height)
     {
         var rowWidthBytes = checked((int)(width * 2));
-        var rowBuf = new byte[rowWidthBytes];
-
-        for (var row = 0; row < height; row++)
+        var rowBuf = ArrayPool<byte>.Shared.Rent(rowWidthBytes);
+        try
         {
-            var compressedSize = reader.ReadInt32();
-            var compressed = reader.ReadBytes(compressedSize).ToArray();
-
-            using var compressedStream = new MemoryStream(compressed);
-            using var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress);
-
-            var totalRead = 0;
-            while (totalRead < rowWidthBytes)
+            for (var row = 0; row < height; row++)
             {
-                var n = zlib.Read(rowBuf, totalRead, rowWidthBytes - totalRead);
-                if (n == 0)
-                    throw new InvalidDataException(
-                        $"TDF compressed row {row} decompressed to fewer bytes than expected."
-                    );
-                totalRead += n;
-            }
+                var compressedSize = reader.ReadInt32();
+                var compressedSpan = reader.ReadBytes(compressedSize);
 
-            var tileOffset = (int)(row * width);
-            for (var col = 0; col < width; col++)
-                tiles[tileOffset + col] = (ushort)(rowBuf[col * 2] | (rowBuf[col * 2 + 1] << 8));
+                // Rent a pooled buffer instead of ToArray() to avoid per-row heap allocation.
+                var rentedCompressed = ArrayPool<byte>.Shared.Rent(compressedSize);
+                try
+                {
+                    compressedSpan.CopyTo(rentedCompressed);
+                    using var compressedStream = new MemoryStream(rentedCompressed, 0, compressedSize, writable: false);
+                    using var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress);
+
+                    var totalRead = 0;
+                    while (totalRead < rowWidthBytes)
+                    {
+                        var n = zlib.Read(rowBuf, totalRead, rowWidthBytes - totalRead);
+                        if (n == 0)
+                            throw new InvalidDataException(
+                                $"TDF compressed row {row} decompressed to fewer bytes than expected."
+                            );
+                        totalRead += n;
+                    }
+
+                    var tileOffset = (int)(row * width);
+                    // MemoryMarshal reinterprets the byte pairs as LE uint16 — zero copy on LE hosts.
+                    var rowSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>(
+                        rowBuf.AsSpan(0, rowWidthBytes)
+                    );
+                    rowSpan.CopyTo(tiles.AsSpan(tileOffset));
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rentedCompressed);
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rowBuf);
         }
     }
 
@@ -140,32 +158,39 @@ public sealed class TerrainFormat : IFormatReader<TerrainData>, IFormatWriter<Te
         {
             // Body — row-by-row zlib compression
             var rowWidth = (int)value.Width;
-            var rowBuf = new byte[rowWidth * 2];
-
-            for (var row = 0; row < value.Height; row++)
+            var rowWidthBytes = rowWidth * 2;
+            var rowBuf = ArrayPool<byte>.Shared.Rent(rowWidthBytes);
+            try
             {
-                var tileOffset = (int)(row * value.Width);
-                for (var col = 0; col < rowWidth; col++)
+                for (var row = 0; row < value.Height; row++)
                 {
-                    var t = value.Tiles[tileOffset + col];
-                    rowBuf[col * 2] = (byte)t;
-                    rowBuf[col * 2 + 1] = (byte)(t >> 8);
+                    var tileOffset = (int)(row * value.Width);
+                    // MemoryMarshal cast writes tiles as LE uint16 pairs — zero copy on LE hosts.
+                    System
+                        .Runtime.InteropServices.MemoryMarshal.Cast<ushort, byte>(
+                            value.Tiles.AsSpan(tileOffset, rowWidth)
+                        )
+                        .CopyTo(rowBuf.AsSpan(0, rowWidthBytes));
+
+                    using var compressedStream = new MemoryStream();
+                    using (var zlib = new ZLibStream(compressedStream, CompressionLevel.Optimal, leaveOpen: true))
+                        zlib.Write(rowBuf, 0, rowWidthBytes);
+
+                    var compressed = compressedStream.ToArray();
+                    writer.WriteInt32(compressed.Length);
+                    writer.WriteBytes(compressed);
                 }
-
-                using var compressedStream = new MemoryStream();
-                using (var zlib = new ZLibStream(compressedStream, CompressionLevel.Optimal, leaveOpen: true))
-                    zlib.Write(rowBuf);
-
-                var compressed = compressedStream.ToArray();
-                writer.WriteInt32(compressed.Length);
-                writer.WriteBytes(compressed);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rowBuf);
+                // Note: rentedCompressed is returned inside the loop body below; declared per-iteration
             }
         }
         else
         {
-            // Body — raw uint16 tiles
-            foreach (var t in value.Tiles)
-                writer.WriteUInt16(t);
+            // Body — raw uint16 tiles; single bulk copy via MemoryMarshal (zero copy on LE hosts)
+            writer.WriteUnmanaged<ushort>(value.Tiles);
         }
     }
 

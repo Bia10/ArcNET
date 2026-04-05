@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Runtime.InteropServices;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -12,7 +13,9 @@ public readonly record struct ArtPaletteEntry(byte Blue, byte Green, byte Red);
 
 /// <summary>
 /// Per-frame metadata block (28 bytes) from an ART file.
+/// Sequential layout is required for <see cref="System.Runtime.InteropServices.MemoryMarshal"/> bulk casting.
 /// </summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
 public readonly record struct ArtFrameHeader(
     uint Width,
     uint Height,
@@ -121,23 +124,19 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         var frameRate = reader.ReadUInt32();
         reader.ReadUInt32(); // RotationCount in file — always 8, not used; derive from flags
         var paletteIds = new int[4];
-        for (var i = 0; i < 4; i++)
-            paletteIds[i] = reader.ReadInt32();
+        reader.ReadInt32Array(paletteIds);
 
         var actionFrame = reader.ReadUInt32();
         var frameCount = reader.ReadUInt32();
 
         var paletteData1 = new uint[8];
-        for (var i = 0; i < 8; i++)
-            paletteData1[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(paletteData1);
 
         var dataSizes = new uint[8];
-        for (var i = 0; i < 8; i++)
-            dataSizes[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(dataSizes);
 
         var paletteData2 = new uint[8];
-        for (var i = 0; i < 8; i++)
-            paletteData2[i] = reader.ReadUInt32();
+        reader.ReadUInt32Array(paletteData2);
 
         // ── Palettes ──────────────────────────────────────────────────────
         var palettes = new ArtPaletteEntry[]?[4];
@@ -150,14 +149,11 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
             }
 
             var entries = new ArtPaletteEntry[PaletteEntries];
+            // Read all 256 × 4-byte BGRA entries in one zero-copy span slice.
+            // Stride is 4 (B, G, R, reserved); only first 3 bytes per entry are used.
+            var raw = reader.ReadBytes(PaletteEntries * 4);
             for (var e = 0; e < PaletteEntries; e++)
-            {
-                var b = reader.ReadByte();
-                var g = reader.ReadByte();
-                var r = reader.ReadByte();
-                reader.ReadByte(); // reserved — always 0
-                entries[e] = new ArtPaletteEntry(b, g, r);
-            }
+                entries[e] = new ArtPaletteEntry(raw[e * 4], raw[e * 4 + 1], raw[e * 4 + 2]);
 
             palettes[slot] = entries;
         }
@@ -167,17 +163,8 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
         var totalFrames = (int)(effectiveRotations * frameCount);
         var frameHeaders = new ArtFrameHeader[totalFrames];
 
-        for (var i = 0; i < totalFrames; i++)
-        {
-            var w = reader.ReadUInt32();
-            var h = reader.ReadUInt32();
-            var ds = reader.ReadUInt32();
-            var cx = reader.ReadInt32();
-            var cy = reader.ReadInt32();
-            var dx = reader.ReadInt32();
-            var dy = reader.ReadInt32();
-            frameHeaders[i] = new ArtFrameHeader(w, h, ds, cx, cy, dx, dy);
-        }
+        // Bulk-cast all frame headers in a single span operation (28 bytes each, little-endian).
+        reader.ReadUnmanaged<ArtFrameHeader>(frameHeaders);
 
         // ── Pixel data ────────────────────────────────────────────────────
         var frames = new ArtFrame[effectiveRotations][];
@@ -235,8 +222,8 @@ public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
             {
                 // Run-length: repeat fill byte `count` times
                 var fill = sub.ReadByte();
-                for (var i = 0; i < count; i++)
-                    output[written++] = fill;
+                output.AsSpan(written, count).Fill(fill);
+                written += count;
             }
             else
             {

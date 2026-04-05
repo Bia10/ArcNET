@@ -53,14 +53,17 @@ public sealed class SaveInfo
 /// </summary>
 public sealed class SaveInfoFormat : IFormatReader<SaveInfo>, IFormatWriter<SaveInfo>
 {
-    private const int ExpectedVersion = 0;
+    private const int MinSupportedVersion = 0;
+    private const int MaxSupportedVersion = 25;
 
     /// <inheritdoc/>
     public static SaveInfo Parse(scoped ref SpanReader reader)
     {
         var version = reader.ReadInt32();
-        if (version != ExpectedVersion)
-            throw new InvalidDataException($"Unsupported GSI version {version}; expected {ExpectedVersion}.");
+        if (version is < MinSupportedVersion or > MaxSupportedVersion)
+            throw new InvalidDataException(
+                $"Unsupported GSI version {version}; expected {MinSupportedVersion}–{MaxSupportedVersion}."
+            );
 
         var moduleName = ReadPrefixed(ref reader);
         var leaderName = ReadPrefixed(ref reader);
@@ -111,7 +114,7 @@ public sealed class SaveInfoFormat : IFormatReader<SaveInfo>, IFormatWriter<Save
     /// <inheritdoc/>
     public static void Write(in SaveInfo value, ref SpanWriter writer)
     {
-        writer.WriteInt32(ExpectedVersion);
+        writer.WriteInt32(MinSupportedVersion);
 
         WritePrefixed(value.ModuleName, ref writer);
         WritePrefixed(value.LeaderName, ref writer);
