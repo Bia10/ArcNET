@@ -125,11 +125,11 @@ public class ScriptBuilderTests
     [Test]
     public async Task Build_RoundTripsThroughScriptFormat()
     {
-        var action = new ScriptActionData((int)ScriptActionType.Attack, new byte[8], new int[8]);
+        var action = new ScriptActionData((int)ScriptActionType.Attack, default, default);
         var condition = new ScriptConditionData(
             (int)ScriptConditionType.ObjIsDead,
-            new byte[8],
-            new int[8],
+            default,
+            default,
             action,
             MakeAction()
         );
