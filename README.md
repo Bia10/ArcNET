@@ -27,6 +27,7 @@ Span-based, zero-allocation binary parsing with a UI-agnostic library API — us
 | `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | ✅ Ready | HighRes patch configuration, installer, and uninstaller |
 | `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | ✅ Ready | Human-readable text dumpers for all game data formats (MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP) |
 | `ArcNET.BinaryPatch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | ✅ Ready | JSON-driven binary patching for bug fixes and mod authoring — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify |
+| `ArcNET.Editor` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Editor?label=NuGet)](https://www.nuget.org/packages/ArcNET.Editor) | ✅ Ready | Save-game editing pipeline (`SaveGame`, `SaveGameLoader`, `SaveGameWriter`) and fluent builders (`MobDataBuilder`, `CharacterBuilder`, `DialogBuilder`, `SectorBuilder`, `ScriptBuilder`) |
 
 All packages target `net10.0`, carry no dependencies outside the BCL, and are AOT / trim compatible.
 
@@ -64,6 +65,7 @@ The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples
 - **ArcNET.Patch** — install / uninstall the HighRes patch, read and modify `HighResConfig`
 - **ArcNET.Dumpers** — human-readable text dumps for all parsed formats (mob, proto, sector, art, dialog, script, message, etc.)
 - **ArcNET.BinaryPatch** — JSON-driven binary patching: field-level PRO/MOB mutations, raw byte offsets, backup/revert/verify, patch state tracking
+- **ArcNET.Editor** — save-game round-trip: load a save slot (`SaveGameLoader`), inspect and mutate parsed mobiles / sectors / scripts, write back (`SaveGameWriter`); fluent `MobDataBuilder`, `CharacterBuilder`, `DialogBuilder`, `SectorBuilder`, and `ScriptBuilder` for constructing or editing objects
 - **ArcNET.Core** — low-level `SpanReader` / `SpanWriter`, primitive round-trips, `EnumLookup`
 
 ---
@@ -78,6 +80,14 @@ ArcNET.App (exe)
   │     │     └── ArcNET.Core
   │     └── ArcNET.Archive → ArcNET.Core
   ├── ArcNET.Dumpers
+  │     ├── ArcNET.Formats  (→ see above)
+  │     ├── ArcNET.GameObjects → ArcNET.Core
+  │     └── ArcNET.Archive  → ArcNET.Core
+  ├── ArcNET.Editor
+  │     ├── ArcNET.GameData
+  │     │     ├── ArcNET.Formats  (→ see above)
+  │     │     ├── ArcNET.GameObjects → ArcNET.Core
+  │     │     └── ArcNET.Core
   │     ├── ArcNET.Formats  (→ see above)
   │     ├── ArcNET.GameObjects → ArcNET.Core
   │     └── ArcNET.Archive  → ArcNET.Core
@@ -110,6 +120,7 @@ dotnet run --project src/GameData/ArcNET.GameData.Tests -c Release
 dotnet run --project src/Archive/ArcNET.Archive.Tests -c Release
 dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
 dotnet run --project src/BinaryPatch/ArcNET.BinaryPatch.Tests -c Release
+dotnet run --project src/Editor/ArcNET.Editor.Tests -c Release
 ```
 
 ## Formatting
