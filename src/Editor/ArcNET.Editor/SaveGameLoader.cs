@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 
 namespace ArcNET.Editor;
 
@@ -45,10 +45,36 @@ public static class SaveGameLoader
         var files = TfafFormat.ExtractAll(index, tfafData);
 
         var mobiles = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase);
+        var sectors = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
+        var jumpFiles = new Dictionary<string, JmpFile>(StringComparer.OrdinalIgnoreCase);
+        var mapProperties = new Dictionary<string, MapProperties>(StringComparer.OrdinalIgnoreCase);
+        var scripts = new Dictionary<string, ScrFile>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var (path, bytes) in files)
         {
-            if (path.EndsWith(".mob", StringComparison.OrdinalIgnoreCase))
-                mobiles[path] = MobFormat.ParseMemory(bytes);
+            var mem = (ReadOnlyMemory<byte>)bytes;
+            var ext = Path.GetExtension(path);
+
+            // Each format is parsed independently; a corrupt/stub file of one type
+            // does not prevent the rest of the save from loading.
+            try
+            {
+                if (ext.Equals(".mob", StringComparison.OrdinalIgnoreCase))
+                    mobiles[path] = MobFormat.ParseMemory(mem);
+                else if (ext.Equals(".sec", StringComparison.OrdinalIgnoreCase))
+                    sectors[path] = SectorFormat.ParseMemory(mem);
+                else if (ext.Equals(".jmp", StringComparison.OrdinalIgnoreCase))
+                    jumpFiles[path] = JmpFormat.ParseMemory(mem);
+                else if (ext.Equals(".prp", StringComparison.OrdinalIgnoreCase))
+                    mapProperties[path] = MapPropertiesFormat.ParseMemory(mem);
+                else if (ext.Equals(".scr", StringComparison.OrdinalIgnoreCase))
+                    scripts[path] = ScriptFormat.ParseMemory(mem);
+            }
+            catch (Exception)
+            {
+                // Silently skip files that fail to parse.
+                // The raw bytes remain accessible via SaveGame.Files for manual inspection.
+            }
         }
 
         return new SaveGame
@@ -57,6 +83,10 @@ public static class SaveGameLoader
             Index = index,
             Files = files,
             Mobiles = mobiles,
+            Sectors = sectors,
+            JumpFiles = jumpFiles,
+            MapPropertiesList = mapProperties,
+            Scripts = scripts,
         };
     }
 }
