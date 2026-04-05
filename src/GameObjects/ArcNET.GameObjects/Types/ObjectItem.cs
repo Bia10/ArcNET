@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -31,7 +30,7 @@ public class ObjectItem : ObjectCommon
     public int ItemPadIas1 { get; set; }
     public long ItemPadI64As1 { get; set; }
 
-    internal static ObjectItem ReadItem(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectItem ReadItem(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectItem();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
@@ -39,9 +38,9 @@ public class ObjectItem : ObjectCommon
         return obj;
     }
 
-    protected void ReadItemFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    protected void ReadItemFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFItemFlags))
             ItemFlags = reader.ReadInt32();
@@ -91,9 +90,9 @@ public class ObjectItem : ObjectCommon
             ItemPadI64As1 = reader.ReadInt64();
     }
 
-    protected void WriteItemFields(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    protected void WriteItemFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFItemFlags))
             writer.WriteInt32(ItemFlags);

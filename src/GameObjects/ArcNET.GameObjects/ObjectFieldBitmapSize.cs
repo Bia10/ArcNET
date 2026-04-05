@@ -25,6 +25,7 @@ internal static class ObjectFieldBitmapSize
             ObjectType.Generic => 16,
             ObjectType.Pc => 20,
             ObjectType.Npc => 20,
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown object type"),
+            // Fail gracefully for unknown types rather than crashing the parser.
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, $"Unknown object type: {(int)type}"),
         };
 }

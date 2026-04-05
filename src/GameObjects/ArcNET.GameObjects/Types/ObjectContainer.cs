@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -18,11 +17,11 @@ public sealed class ObjectContainer : ObjectCommon
     public int ContainerPadIas1 { get; set; }
     public long ContainerPadI64As1 { get; set; }
 
-    internal static ObjectContainer Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectContainer Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectContainer();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFContainerFlags))
             obj.ContainerFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFContainerLockDifficulty))
@@ -58,10 +57,10 @@ public sealed class ObjectContainer : ObjectCommon
         return result;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFContainerFlags))
             writer.WriteInt32(ContainerFlags);
         if (Bit(ObjectField.ObjFContainerLockDifficulty))

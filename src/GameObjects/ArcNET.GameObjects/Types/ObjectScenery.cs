@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -13,11 +12,11 @@ public sealed class ObjectScenery : ObjectCommon
     public int SceneryPadIas1 { get; set; }
     public long SceneryPadI64As1 { get; set; }
 
-    internal static ObjectScenery Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectScenery Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectScenery();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFSceneryFlags))
             obj.SceneryFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFSceneryWhosInMe))
@@ -33,10 +32,10 @@ public sealed class ObjectScenery : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFSceneryFlags))
             writer.WriteInt32(SceneryFlags);
         if (Bit(ObjectField.ObjFSceneryWhosInMe))

@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -11,11 +10,11 @@ public sealed class ObjectWall : ObjectCommon
     public int WallPadIas1 { get; set; }
     public long WallPadI64As1 { get; set; }
 
-    internal static ObjectWall Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectWall Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectWall();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFWallFlags))
             obj.WallFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWallPadI1))
@@ -29,10 +28,10 @@ public sealed class ObjectWall : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFWallFlags))
             writer.WriteInt32(WallFlags);
         if (Bit(ObjectField.ObjFWallPadI1))

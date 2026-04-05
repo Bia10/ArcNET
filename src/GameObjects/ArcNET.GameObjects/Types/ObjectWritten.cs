@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -14,12 +13,12 @@ public sealed class ObjectWritten : ObjectItem
     public int WrittenPadIas1 { get; set; }
     public long WrittenPadI64As1 { get; set; }
 
-    internal static ObjectWritten Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectWritten Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectWritten();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFWrittenFlags))
             obj.WrittenFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenSubtype))
@@ -39,11 +38,11 @@ public sealed class ObjectWritten : ObjectItem
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFWrittenFlags))
             writer.WriteInt32(WrittenFlags);
         if (Bit(ObjectField.ObjFWrittenSubtype))

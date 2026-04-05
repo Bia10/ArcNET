@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.BinaryPatch.Patches;
+﻿using ArcNET.BinaryPatch.Patches;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -17,8 +16,10 @@ public sealed class ProtoFieldPatchTests
 
     private static byte[] BuildContainerProtoBytes(int inventorySource)
     {
-        var bitmap = new BitArray(12 * 8);
-        bitmap[(int)ObjectField.ObjFContainerInventorySource] = true;
+        var bitmap = new byte[12]; // 12 bytes = 96 bits
+        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        );
 
         var header = new GameObjectHeader
         {
@@ -84,7 +85,7 @@ public sealed class ProtoFieldPatchTests
     [Test]
     public async Task NeedsApply_ReturnsFalseWhenFieldAbsentFromProto()
     {
-        var bitmap = new BitArray(12 * 8); // no bits set
+        var bitmap = new byte[12]; // 12 bytes = 96 bits, no bits set
         var header = new GameObjectHeader
         {
             Version = 0x77,
@@ -137,9 +138,11 @@ public sealed class ProtoFieldPatchTests
     [Test]
     public async Task Apply_PreservesOtherFields_WhenMultiplePropsPresent()
     {
-        var bitmap = new BitArray(12 * 8);
-        bitmap[(int)ObjectField.ObjFContainerFlags] = true;
-        bitmap[(int)ObjectField.ObjFContainerInventorySource] = true;
+        var bitmap = new byte[12]; // 12 bytes = 96 bits
+        bitmap[(int)ObjectField.ObjFContainerFlags >> 3] |= (byte)(1 << ((int)ObjectField.ObjFContainerFlags & 7));
+        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        );
 
         var header = new GameObjectHeader
         {

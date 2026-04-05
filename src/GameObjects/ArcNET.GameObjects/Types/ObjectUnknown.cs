@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -9,6 +8,6 @@ namespace ArcNET.GameObjects.Types;
 /// </summary>
 public sealed class ObjectUnknown : ObjectCommon
 {
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype) =>
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype) =>
         WriteCommonFields(ref writer, bitmap, isPrototype);
 }

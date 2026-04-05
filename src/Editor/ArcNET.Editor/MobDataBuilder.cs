@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -94,9 +93,12 @@ public sealed class MobDataBuilder
     public MobData Build()
     {
         var bitmapByteLength = ObjectFieldBitmapSizeHelper.For(_type);
-        var bitmap = new BitArray(bitmapByteLength * 8);
+        var bitmap = new byte[bitmapByteLength];
         foreach (var prop in _properties)
-            bitmap[(int)prop.Field] = true;
+        {
+            var f = (int)prop.Field;
+            bitmap[f >> 3] |= (byte)(1 << (f & 7));
+        }
 
         var header = new GameObjectHeader
         {

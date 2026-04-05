@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -12,12 +11,12 @@ public sealed class ObjectKeyRing : ObjectItem
     public int KeyRingPadIas1 { get; set; }
     public long KeyRingPadI64As1 { get; set; }
 
-    internal static ObjectKeyRing Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectKeyRing Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectKeyRing();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFKeyRingFlags))
             obj.KeyRingFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFKeyRingListIdx))
@@ -33,11 +32,11 @@ public sealed class ObjectKeyRing : ObjectItem
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFKeyRingFlags))
             writer.WriteInt32(KeyRingFlags);
         if (Bit(ObjectField.ObjFKeyRingListIdx))

@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -15,11 +14,11 @@ public sealed class ObjectProjectile : ObjectCommon
     public int ProjectilePadIas1 { get; set; }
     public long ProjectilePadI64As1 { get; set; }
 
-    internal static ObjectProjectile Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectProjectile Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectProjectile();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFProjectileFlagsCombat))
             obj.ProjectileFlagsCombat = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))
@@ -39,10 +38,10 @@ public sealed class ObjectProjectile : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFProjectileFlagsCombat))
             writer.WriteInt32(ProjectileFlagsCombat);
         if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))

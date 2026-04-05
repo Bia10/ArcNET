@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -11,12 +10,12 @@ public sealed class ObjectFood : ObjectItem
     public int FoodPadIas1 { get; set; }
     public long FoodPadI64As1 { get; set; }
 
-    internal static ObjectFood Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectFood Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectFood();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFFoodFlags))
             obj.FoodFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFFoodPadI1))
@@ -30,11 +29,11 @@ public sealed class ObjectFood : ObjectItem
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFFoodFlags))
             writer.WriteInt32(FoodFlags);
         if (Bit(ObjectField.ObjFFoodPadI1))

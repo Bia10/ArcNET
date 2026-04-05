@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -32,7 +31,7 @@ public sealed class ObjectPc : ObjectCritter
     public int PcPadIas1 { get; set; }
     public long PcPadI64As1 { get; set; }
 
-    internal static new ObjectPc Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static new ObjectPc Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectPc();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
@@ -41,16 +40,16 @@ public sealed class ObjectPc : ObjectCritter
         return obj;
     }
 
-    internal new void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal new void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteCritterFields(ref writer, bitmap, isPrototype);
         WritePcFields(ref writer, bitmap, isPrototype);
     }
 
-    private void WritePcFields(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    private void WritePcFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFPcFlags))
             writer.WriteInt32(PcFlags);
@@ -104,9 +103,9 @@ public sealed class ObjectPc : ObjectCritter
             writer.WriteInt64(PcPadI64As1);
     }
 
-    private void ReadPcFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    private void ReadPcFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFPcFlags))
             PcFlags = reader.ReadInt32();

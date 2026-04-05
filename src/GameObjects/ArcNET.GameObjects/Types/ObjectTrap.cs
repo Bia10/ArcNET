@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -11,11 +10,11 @@ public sealed class ObjectTrap : ObjectCommon
     public int TrapPadIas1 { get; set; }
     public long TrapPadI64As1 { get; set; }
 
-    internal static ObjectTrap Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectTrap Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectTrap();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFTrapFlags))
             obj.TrapFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFTrapDifficulty))
@@ -29,10 +28,10 @@ public sealed class ObjectTrap : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFTrapFlags))
             writer.WriteInt32(TrapFlags);
         if (Bit(ObjectField.ObjFTrapDifficulty))

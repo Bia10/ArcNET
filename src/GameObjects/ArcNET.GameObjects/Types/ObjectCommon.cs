@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -62,9 +61,9 @@ public class ObjectCommon
     public int PadIas1 { get; set; }
     public long PadI64As1 { get; set; }
 
-    protected void ReadCommonFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    protected void ReadCommonFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFCurrentAid))
             CurrentAid = reader.ReadArtId();
@@ -150,8 +149,7 @@ public class ObjectCommon
         if (count == 0)
             return [];
         var result = new int[count];
-        for (var i = 0; i < count; i++)
-            result[i] = reader.ReadInt32();
+        reader.ReadInt32Array(result);
         return result;
     }
 
@@ -166,9 +164,9 @@ public class ObjectCommon
         return result;
     }
 
-    protected void WriteCommonFields(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    protected void WriteCommonFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFCurrentAid))
             CurrentAid.Write(ref writer);

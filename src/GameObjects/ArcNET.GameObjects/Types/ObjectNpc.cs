@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -32,7 +31,7 @@ public sealed class ObjectNpc : ObjectCritter
     public int[] NpcDamage { get; set; } = [];
     public int[] NpcShitList { get; set; } = [];
 
-    internal static new ObjectNpc Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static new ObjectNpc Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectNpc();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
@@ -41,16 +40,16 @@ public sealed class ObjectNpc : ObjectCritter
         return obj;
     }
 
-    internal new void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal new void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteCritterFields(ref writer, bitmap, isPrototype);
         WriteNpcFields(ref writer, bitmap, isPrototype);
     }
 
-    private void WriteNpcFields(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    private void WriteNpcFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFNpcFlags))
             writer.WriteInt32(NpcFlags);
@@ -104,9 +103,9 @@ public sealed class ObjectNpc : ObjectCritter
             WriteIndexedInts(ref writer, NpcShitList);
     }
 
-    private void ReadNpcFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    private void ReadNpcFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFNpcFlags))
             NpcFlags = reader.ReadInt32();

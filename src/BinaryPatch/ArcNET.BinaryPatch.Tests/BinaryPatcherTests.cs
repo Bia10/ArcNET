@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.BinaryPatch.Patches;
+﻿using ArcNET.BinaryPatch.Patches;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -27,8 +26,10 @@ public sealed class BinaryPatcherTests : IDisposable
 
     private static byte[] BuildContainerProtoBytes(int inventorySource)
     {
-        var bitmap = new BitArray(12 * 8);
-        bitmap[(int)ObjectField.ObjFContainerInventorySource] = true;
+        var bitmap = new byte[12]; // 12 bytes = 96 bits
+        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        );
 
         var header = new GameObjectHeader
         {

@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -14,11 +13,11 @@ public sealed class ObjectPortal : ObjectCommon
     public int PortalPadIas1 { get; set; }
     public long PortalPadI64As1 { get; set; }
 
-    internal static ObjectPortal Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectPortal Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectPortal();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFPortalFlags))
             obj.PortalFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFPortalLockDifficulty))
@@ -38,10 +37,10 @@ public sealed class ObjectPortal : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
         if (Bit(ObjectField.ObjFPortalFlags))
             writer.WriteInt32(PortalFlags);
         if (Bit(ObjectField.ObjFPortalLockDifficulty))

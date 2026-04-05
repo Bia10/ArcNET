@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -40,7 +39,7 @@ public class ObjectCritter : ObjectCommon
     public int CritterPadIas1 { get; set; }
     public long CritterPadI64As1 { get; set; }
 
-    internal static ObjectCritter Read(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    internal static ObjectCritter Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectCritter();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
@@ -48,15 +47,15 @@ public class ObjectCritter : ObjectCommon
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteCritterFields(ref writer, bitmap, isPrototype);
     }
 
-    protected void ReadCritterFields(ref SpanReader reader, BitArray bitmap, bool isPrototype)
+    protected void ReadCritterFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFCritterFlags))
             CritterFlags = reader.ReadInt32();
@@ -136,9 +135,9 @@ public class ObjectCritter : ObjectCommon
         return result;
     }
 
-    protected void WriteCritterFields(ref SpanWriter writer, BitArray bitmap, bool isPrototype)
+    protected void WriteCritterFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => bitmap[(int)f] || isPrototype;
+        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
 
         if (Bit(ObjectField.ObjFCritterFlags))
             writer.WriteInt32(CritterFlags);
