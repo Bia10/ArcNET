@@ -66,6 +66,56 @@ public enum ObjectField : byte
     /// <summary>Collision height (float). Bit 40 in the common bitmap.</summary>
     ObjFHeight = 40,
 
+    // ── Common extension (bits 41–63) — arcanum-CE / ToEE fields ─────────────
+    /// <summary>Active condition handles SAR. Bit 41 (arcanum-CE/ToEE).</summary>
+    ObjFConditions = 41,
+
+    /// <summary>Condition argument SAR. Bit 42 (arcanum-CE/ToEE).</summary>
+    ObjFConditionArg0 = 42,
+
+    /// <summary>Permanent mod handles SAR. Bit 43 (arcanum-CE/ToEE).</summary>
+    ObjFPermanentMods = 43,
+
+    /// <summary>Combat initiative. Bit 44 (arcanum-CE/ToEE).</summary>
+    ObjFInitiative = 44,
+
+    /// <summary>Runtime dispatcher handle (0 in saves). Bit 45.</summary>
+    ObjFDispatcher = 45,
+
+    /// <summary>Sub-initiative tiebreaker. Bit 46.</summary>
+    ObjFSubinitiative = 46,
+
+    /// <summary>Secret-door flags. Bit 47.</summary>
+    ObjFSecretdoorFlags = 47,
+
+    /// <summary>Secret-door animation effect name. Bit 48.</summary>
+    ObjFSecretdoorEffectName = 48,
+
+    /// <summary>Secret-door detection DC. Bit 49.</summary>
+    ObjFSecretdoorDc = 49,
+
+    /// <summary>Padding int32 fields. Bits 50–53.</summary>
+    ObjFPadI7 = 50,
+    ObjFPadI8 = 51,
+    ObjFPadI9 = 52,
+    ObjFPadI0 = 53,
+
+    /// <summary>Z-axis offset (float). Bit 54.</summary>
+    ObjFOffsetZ = 54,
+
+    /// <summary>Pitch rotation (float). Bit 55.</summary>
+    ObjFRotationPitch = 55,
+
+    /// <summary>Padding float fields. Bits 56–63.</summary>
+    ObjFPadF3 = 56,
+    ObjFPadF4 = 57,
+    ObjFPadF5 = 58,
+    ObjFPadF6 = 59,
+    ObjFPadF7 = 60,
+    ObjFPadF8 = 61,
+    ObjFPadF9 = 62,
+    ObjFPadF0 = 63,
+
     // ── Wall (bits 64–68) ────────────────────────────────────────────────────
     ObjFWallFlags = 64,
     ObjFWallPadI1 = 65,
