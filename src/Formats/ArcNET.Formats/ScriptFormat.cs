@@ -12,7 +12,14 @@ public readonly record struct ScriptActionData(
     int Type,
     byte[] OpTypes, // [8] operand type tags
     int[] OpValues // [8] operand values
-);
+)
+{
+    /// <summary>
+    /// The action opcode as a typed enum.
+    /// Values not present in <see cref="ScriptActionType"/> are returned as their raw cast.
+    /// </summary>
+    public ScriptActionType ActionType => (ScriptActionType)Type;
+}
 
 /// <summary>
 /// A condition/action node in a compiled script.
@@ -24,7 +31,14 @@ public readonly record struct ScriptConditionData(
     int[] OpValues, // [8]
     ScriptActionData Action, // "then" branch
     ScriptActionData Else // "else" branch
-);
+)
+{
+    /// <summary>
+    /// The condition opcode as a typed enum.
+    /// Values not present in <see cref="ScriptConditionType"/> are returned as their raw cast.
+    /// </summary>
+    public ScriptConditionType ConditionType => (ScriptConditionType)Type;
+}
 
 /// <summary>
 /// Parsed contents of an Arcanum compiled script (.scr) file.
