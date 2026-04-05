@@ -104,7 +104,9 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
     private static ScriptActionData ReadAction(scoped ref SpanReader reader)
     {
         var type = reader.ReadInt32();
-        var opTypes = reader.ReadBytes(8).ToArray();
+        // Read 8 op-type bytes into a pooled/stack-local copy then materialise as array once.
+        var opTypeSpan = reader.ReadBytes(8);
+        var opTypes = opTypeSpan.ToArray();
         var opVals = new int[8];
         for (var i = 0; i < 8; i++)
             opVals[i] = reader.ReadInt32();
@@ -115,7 +117,8 @@ public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile
     private static ScriptConditionData ReadCondition(scoped ref SpanReader reader)
     {
         var type = reader.ReadInt32();
-        var opTypes = reader.ReadBytes(8).ToArray();
+        var opTypeSpan = reader.ReadBytes(8);
+        var opTypes = opTypeSpan.ToArray();
         var opVals = new int[8];
         for (var i = 0; i < 8; i++)
             opVals[i] = reader.ReadInt32();

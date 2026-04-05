@@ -457,7 +457,18 @@ internal static class ObjectPropertyIo
     {
         var bitmap = header.Bitmap;
         var objectType = header.GameObjectType;
-        var list = new List<ObjectProperty>();
+
+        // Count set bits upfront to allocate the exact-size array and avoid List<> overhead.
+        var capacity = 0;
+        for (var i = 0; i < bitmap.Length; i++)
+            if (bitmap[i])
+                capacity++;
+
+        if (capacity == 0)
+            return [];
+
+        var props = new ObjectProperty[capacity];
+        var idx = 0;
 
         for (var bit = 0; bit < bitmap.Length; bit++)
         {
@@ -466,10 +477,10 @@ internal static class ObjectPropertyIo
 
             var wireType = ResolveWireType(objectType, bit);
             var raw = ReadField(ref reader, wireType);
-            list.Add(new ObjectProperty { Field = (ObjectField)bit, RawBytes = raw });
+            props[idx++] = new ObjectProperty { Field = (ObjectField)bit, RawBytes = raw };
         }
 
-        return list;
+        return props;
     }
 
     /// <summary>
@@ -526,10 +537,9 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
-        var data = reader.ReadBytes(dataSize).ToArray();
         var raw = new byte[1 + dataSize];
         raw[0] = presence;
-        data.CopyTo(raw, 1);
+        reader.ReadBytes(dataSize).CopyTo(raw.AsSpan(1));
         return raw;
     }
 
@@ -543,18 +553,18 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
-        var lengthBytes = reader.ReadBytes(4).ToArray();
-        var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(lengthBytes);
+        // Read length directly off the span — no intermediate ToArray().
+        var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(reader.ReadBytes(4));
 
         // The game writes strlen() as the length, then writes strlen()+1 bytes (including NUL).
         var strDataSize = length + 1;
-        var strBytes = reader.ReadBytes(strDataSize).ToArray();
 
+        // Allocate the single final buffer and fill in one pass.
         var total = 1 + 4 + strDataSize;
         var raw = new byte[total];
         raw[0] = presence;
-        lengthBytes.CopyTo(raw, 1);
-        strBytes.CopyTo(raw, 5);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(1), length);
+        reader.ReadBytes(strDataSize).CopyTo(raw.AsSpan(5));
         return raw;
     }
 
@@ -581,15 +591,16 @@ internal static class ObjectPropertyIo
         var bitsetId = reader.ReadUInt32(); // in-memory reference, preserved for round-trip
 
         var dataLen = (int)(elementSize * elementCount);
-        var data = reader.ReadBytes(dataLen).ToArray();
 
-        // Bitset serialization: int32 cnt + cnt × int32 storage
+        // Read both variable-length regions as zero-copy spans before allocating the output buffer.
+        var dataSpan = reader.ReadBytes(dataLen);
         var bitsetCnt = reader.ReadUInt32();
-        var bitset = reader.ReadBytes((int)(bitsetCnt * 4)).ToArray();
+        var bitsetLen = (int)(bitsetCnt * 4);
+        var bitsetSpan = reader.ReadBytes(bitsetLen);
 
-        // Assemble raw bytes preserving the on-disk layout exactly.
+        // Single allocation for the full wire representation.
         // presence(1) + SA header(12) + data + bitsetCnt(4) + bitset
-        var total = 1 + 12 + dataLen + 4 + (int)(bitsetCnt * 4);
+        var total = 1 + 12 + dataLen + 4 + bitsetLen;
         var raw = new byte[total];
         var p = 0;
         raw[p++] = presence;
@@ -599,11 +610,11 @@ internal static class ObjectPropertyIo
         p += 4;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetId);
         p += 4;
-        data.CopyTo(raw, p);
+        dataSpan.CopyTo(raw.AsSpan(p));
         p += dataLen;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetCnt);
         p += 4;
-        bitset.CopyTo(raw, p);
+        bitsetSpan.CopyTo(raw.AsSpan(p));
 
         return raw;
     }
