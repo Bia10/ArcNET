@@ -40,5 +40,9 @@
     <Folder Name="/DocTest/">
       <Project Path="src/DocTest/ArcNET.DocTest/ArcNET.DocTest.csproj" />
     </Folder>
+    <Folder Name="/Editor/">
+      <Project Path="src/Editor/ArcNET.Editor/ArcNET.Editor.csproj" />
+      <Project Path="src/Editor/ArcNET.Editor.Tests/ArcNET.Editor.Tests.csproj" />
+    </Folder>
   </Folder>
 </Solution>
