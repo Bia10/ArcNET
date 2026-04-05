@@ -1,5 +1,4 @@
-using System.Collections;
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
 
@@ -14,7 +13,7 @@ public class GameDataStoreQueryTests
             ProtoId = new GameObjectGuid(1, 0, (int)protoSeed, Guid.Empty),
             ObjectId = new GameObjectGuid(2, 0, (int)objectSeed, Guid.Empty),
             GameObjectType = type,
-            Bitmap = new BitArray(16),
+            Bitmap = new byte[2], // 2 bytes = 16 bits
         };
 
     // ── FindByType ────────────────────────────────────────────────────────────

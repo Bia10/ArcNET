@@ -1,5 +1,4 @@
-using System.Collections;
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -35,7 +34,7 @@ public class MobDataExtensionsTests
             ObjectId = new GameObjectGuid(2, 0, 1, Guid.Empty),
             GameObjectType = type,
             PropCollectionItems = isProto ? (short)0 : (short)0,
-            Bitmap = new BitArray(bitmapBytes * 8),
+            Bitmap = new byte[bitmapBytes],
         };
     }
 

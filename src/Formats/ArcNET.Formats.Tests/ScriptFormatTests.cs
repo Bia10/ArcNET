@@ -54,8 +54,8 @@ public sealed class ScriptFormatTests
     [Test]
     public async Task RoundTrip_WithOneCondition_Preserved()
     {
-        var action = new ScriptActionData(7, new byte[8], new int[8]);
-        var cond = new ScriptConditionData(3, new byte[8], new int[8], action, action);
+        var action = new ScriptActionData(7, default, default);
+        var cond = new ScriptConditionData(3, default, default, action, action);
 
         var src = new ScrFile
         {
@@ -82,8 +82,8 @@ public sealed class ScriptFormatTests
     public async Task Write_ConditionIs132Bytes()
     {
         // Each ScriptCondition must be exactly 0x84 = 132 bytes.
-        var action = new ScriptActionData(0, new byte[8], new int[8]);
-        var cond = new ScriptConditionData(0, new byte[8], new int[8], action, action);
+        var action = new ScriptActionData(0, default, default);
+        var cond = new ScriptConditionData(0, default, default, action, action);
 
         var src = new ScrFile
         {

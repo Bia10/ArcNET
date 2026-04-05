@@ -1,5 +1,4 @@
 ﻿using System.Buffers;
-using System.Collections;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects.Types;
@@ -13,8 +12,8 @@ namespace ArcNET.GameObjects.Tests;
 /// </summary>
 public class ObjectTypeRoundTripTests
 {
-    // A bitmap large enough for all ObjectField values (max = 152).
-    private static BitArray EmptyBitmap => new(160);
+    // A bitmap large enough for all ObjectField values (max = 152) — 20 bytes = 160 bits.
+    private static byte[] EmptyBitmap => new byte[20];
 
     private static readonly ArtId TestArtId = new(0xABCDEF01u);
     private static readonly Location TestLocation = new(10, 20);
@@ -61,12 +60,8 @@ public class ObjectTypeRoundTripTests
         obj.ResistanceIdx = [1, 2, 3];
         obj.ScriptsIdx =
         [
-            new GameObjectScript
-            {
-                Counters = [0x01, 0x02, 0x03, 0x04],
-                Flags = 1,
-                ScriptId = 777,
-            },
+            // 0x04030201u = bytes [0x01, 0x02, 0x03, 0x04] in LE layout
+            new GameObjectScript(Counters: 0x04030201u, Flags: 1, ScriptId: 777),
         ];
         obj.SoundEffect = 55;
         obj.Category = 7;

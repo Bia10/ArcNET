@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
@@ -15,7 +14,7 @@ public class GameDataStoreTests
             ProtoId = new GameObjectGuid(-1, 0, 0, Guid.Empty),
             ObjectId = new GameObjectGuid(2, 0, (int)guid, Guid.Empty),
             GameObjectType = ObjectType.Generic,
-            Bitmap = new BitArray(16),
+            Bitmap = new byte[2], // 2 bytes = 16 bits
         };
 
     [Test]
