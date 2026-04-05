@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -51,13 +51,29 @@ public static class ScriptDumper
 
     public static void Dump(ScrFile scr, TextWriter writer) => writer.Write(Dump(scr));
 
-    private static bool IsEmptyCondition(ScriptConditionData cond) =>
-        cond.Type == (int)ScriptConditionType.True && cond.OpTypes.All(t => t == 0) && cond.OpValues.All(v => v == 0);
+    private static bool IsEmptyCondition(ScriptConditionData cond)
+    {
+        if (cond.Type != (int)ScriptConditionType.True)
+            return false;
+        var opTypes = cond.OpTypes;
+        var opValues = cond.OpValues;
+        for (var i = 0; i < 8; i++)
+            if (opTypes[i] != 0 || opValues[i] != 0)
+                return false;
+        return true;
+    }
 
-    private static bool IsEmptyAction(ScriptActionData action) =>
-        action.Type == (int)ScriptActionType.DoNothing
-        && action.OpTypes.All(t => t == 0)
-        && action.OpValues.All(v => v == 0);
+    private static bool IsEmptyAction(ScriptActionData action)
+    {
+        if (action.Type != (int)ScriptActionType.DoNothing)
+            return false;
+        var opTypes = action.OpTypes;
+        var opValues = action.OpValues;
+        for (var i = 0; i < 8; i++)
+            if (opTypes[i] != 0 || opValues[i] != 0)
+                return false;
+        return true;
+    }
 
     private static void DumpAction(ref ValueStringBuilder vsb, string prefix, ScriptActionData action)
     {
@@ -66,7 +82,12 @@ public static class ScriptDumper
         DumpOperands(ref vsb, $"{prefix}  ", action.OpTypes, action.OpValues);
     }
 
-    private static void DumpOperands(ref ValueStringBuilder vsb, string prefix, byte[] opTypes, int[] opValues)
+    private static void DumpOperands(
+        ref ValueStringBuilder vsb,
+        string prefix,
+        OpTypeBuffer opTypes,
+        OpValueBuffer opValues
+    )
     {
         for (var j = 0; j < 8; j++)
         {

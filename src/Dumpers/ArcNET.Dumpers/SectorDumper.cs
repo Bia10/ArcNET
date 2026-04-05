@@ -38,11 +38,24 @@ public static class SectorDumper
             vsb.AppendLine("  --- Sector Script ---");
             vsb.AppendLine($"    Script ID  : {script.ScriptId}");
             vsb.AppendLine($"    Flags      : {script.Flags}  (0x{(uint)script.Flags:X8})");
-            var nonZeroCounters = script.Counters.Select((c, i) => (c, i)).Where(p => p.c != 0).ToList();
-            if (nonZeroCounters.Count > 0)
-                vsb.AppendLine(
-                    $"    Counters   : " + string.Join(", ", nonZeroCounters.Select(p => $"[{p.i}]=0x{p.c:X2}"))
-                );
+            // Counters is uint (4 LE bytes); extract individual bytes for display.
+            var counters = script.Counters;
+            var hasNonZeroCounter = counters != 0;
+            if (hasNonZeroCounter)
+            {
+                var counterParts = new System.Text.StringBuilder();
+                for (var ci = 0; ci < 4; ci++)
+                {
+                    var b = (byte)(counters >> (ci * 8));
+                    if (b != 0)
+                    {
+                        if (counterParts.Length > 0)
+                            counterParts.Append(", ");
+                        counterParts.Append($"[{ci}]=0x{b:X2}");
+                    }
+                }
+                vsb.AppendLine($"    Counters   : {counterParts}");
+            }
             else
                 vsb.AppendLine("    Counters   : (all zero)");
             vsb.AppendLine();
@@ -120,10 +133,19 @@ public static class SectorDumper
                 var wordIdx = tile / 32;
                 var bitIdx = tile % 32;
                 var blocked = (sector.BlockMask[wordIdx] & (1u << bitIdx)) != 0;
-                if (blocked && !inRun) { runStart = tile; inRun = true; }
-                else if (!blocked && inRun) { runs.Add((runStart, tile - 1)); inRun = false; }
+                if (blocked && !inRun)
+                {
+                    runStart = tile;
+                    inRun = true;
+                }
+                else if (!blocked && inRun)
+                {
+                    runs.Add((runStart, tile - 1));
+                    inRun = false;
+                }
             }
-            if (inRun) runs.Add((runStart, 4095));
+            if (inRun)
+                runs.Add((runStart, 4095));
 
             var shown = Math.Min(runs.Count, 20);
             for (var ri = 0; ri < shown; ri++)

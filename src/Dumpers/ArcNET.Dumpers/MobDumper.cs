@@ -1,5 +1,6 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Frozen;
+using System.Numerics;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using ArcNET.GameObjects.Classes;
@@ -50,20 +51,42 @@ public static class MobDumper
     internal static void DumpHeader(ref ValueStringBuilder vsb, GameObjectHeader h, string label = "=== MOB HEADER ===")
     {
         vsb.AppendLine(label);
-        vsb.AppendLine(
-            $"  Format       : 0x{h.Version:X2}  ({(h.Version == 0x77 ? "Object File Format — standard Arcanum/ToEE" : "unknown version")})"
-        );
-        vsb.AppendLine(
-            $"  Type         : {h.GameObjectType}  ({(h.IsPrototype ? "prototype definition" : "object instance")})"
-        );
-        vsb.AppendLine(
-            $"  Proto ID     : {h.ProtoId}  [{(h.ProtoId.IsProto ? "is a .PRO file itself" : "references prototype")}]"
-        );
+
+        // Object type + format version
+        var fmtLabel = h.Version switch
+        {
+            0x08 => "Arcanum original (0x08)",
+            0x77 => "Arcanum/ToEE extended (0x77)",
+            _ => $"unknown (0x{h.Version:X2})",
+        };
+        var kindLabel = h.IsPrototype ? "prototype definition" : "instance";
+        vsb.AppendLine($"  Object type  : {h.GameObjectType}  ({kindLabel}, format {fmtLabel})");
+
+        // Proto ID — show proto number prominently for A-type refs
+        var protoNum = h.ProtoId.GetProtoNumber();
+        if (protoNum is not null)
+            vsb.AppendLine($"  Proto        : #{protoNum}  (type {h.GameObjectType})");
+        else
+            vsb.AppendLine($"  Proto ID     : {h.ProtoId}");
+
+        // Object GUID (only for instances)
         if (!h.IsPrototype)
-            vsb.AppendLine($"  Object ID    : {h.ObjectId}");
-        var setBits = Enumerable.Range(0, h.Bitmap.Length).Where(i => h.Bitmap[i]).ToList();
+            vsb.AppendLine($"  Object GUID  : {h.ObjectId.Id}");
+
+        // Bitmap summary
+        var setBits = new System.Collections.Generic.List<int>();
+        for (var by = 0; by < h.Bitmap.Length; by++)
+        {
+            var word = (uint)h.Bitmap[by];
+            while (word != 0)
+            {
+                var lsb = BitOperations.TrailingZeroCount(word);
+                setBits.Add(by * 8 + lsb);
+                word &= word - 1;
+            }
+        }
         vsb.AppendLine(
-            $"  Properties   : {setBits.Count}/{h.Bitmap.Length} present  (bits: [{string.Join(", ", setBits)}])"
+            $"  Fields set   : {setBits.Count}/{h.Bitmap.Length * 8}  (bits: [{string.Join(", ", setBits)}])"
         );
         vsb.AppendLine();
     }
@@ -82,6 +105,12 @@ public static class MobDumper
         {
             var fieldName = ResolveFieldName(objectType, (int)prop.Field);
             var bytes = prop.RawBytes;
+            if (prop.ParseNote is not null)
+            {
+                vsb.AppendLine($"  [{(int)prop.Field, 3}] {fieldName, -32}  *** parse stopped: {prop.ParseNote} ***");
+                vsb.AppendLine("  (subsequent fields in bitmap were not read — wire type unknown)");
+                break;
+            }
             vsb.Append($"  [{(int)prop.Field, 3}] {fieldName, -32} ({bytes.Length, 3} B)  ");
             AppendDecodedValue(ref vsb, prop, objectType);
             vsb.AppendLine();
