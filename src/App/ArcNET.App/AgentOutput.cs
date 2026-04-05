@@ -243,10 +243,17 @@ internal static class AgentOutput
             flagNames = scr.Flags.ToString(),
             entryCount = scr.Entries.Count,
             activeEntries = scr.Entries.Count(e =>
-                e.Type != (int)ScriptConditionType.True
-                || e.OpValues.Any(v => v != 0)
-                || e.Action.Type != (int)ScriptActionType.DoNothing
-            ),
+            {
+                if (e.Type != (int)ScriptConditionType.True)
+                    return true;
+                if (e.Action.Type != (int)ScriptActionType.DoNothing)
+                    return true;
+                var opVals = e.OpValues;
+                for (var i = 0; i < 8; i++)
+                    if (opVals[i] != 0)
+                        return true;
+                return false;
+            }),
             entries = scr
                 .Entries.Select(
                     (e, i) =>
