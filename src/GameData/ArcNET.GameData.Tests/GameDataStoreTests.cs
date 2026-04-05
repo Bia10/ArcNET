@@ -15,6 +15,10 @@ public class GameDataStoreTests
             ObjectId = new GameObjectGuid(2, 0, (int)guid, Guid.Empty),
             GameObjectType = ObjectType.Generic,
             Bitmap = new byte[2], // 2 bytes = 16 bits
+<<<<<<< HEAD
+=======
+        };
+>>>>>>> 0cde2023f1eed925c2b6dd5e92be1ec65779daa8
         };
 
     [Test]

@@ -23,6 +23,10 @@ public class GameObjectStoreTests
             ObjectId = new GameObjectGuid(2, 0, 0, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)),
             GameObjectType = ObjectType.Npc,
             Bitmap = new byte[20], // 20 bytes = 160 bits, covers all NPC fields
+<<<<<<< HEAD
+=======
+        };
+>>>>>>> 0cde2023f1eed925c2b6dd5e92be1ec65779daa8
         };
         store.Add(header);
         await Assert.That(store.Headers.Count).IsEqualTo(1);
