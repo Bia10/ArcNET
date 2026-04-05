@@ -135,6 +135,32 @@ public sealed class GameDataStore
     }
 
     /// <summary>
+    /// Returns all loaded object headers whose <see cref="GameObjectHeader.GameObjectType"/>
+    /// matches <paramref name="type"/>.
+    /// </summary>
+    public IReadOnlyList<GameObjectHeader> FindByType(ObjectType type)
+    {
+        var result = new List<GameObjectHeader>();
+        foreach (var h in _objects)
+            if (h.GameObjectType == type)
+                result.Add(h);
+        return result;
+    }
+
+    /// <summary>
+    /// Returns all loaded object headers whose <see cref="GameObjectHeader.ProtoId"/>
+    /// matches <paramref name="protoId"/>.
+    /// </summary>
+    public IReadOnlyList<GameObjectHeader> FindByProtoId(in GameObjectGuid protoId)
+    {
+        var result = new List<GameObjectHeader>();
+        foreach (var h in _objects)
+            if (h.ProtoId == protoId)
+                result.Add(h);
+        return result;
+    }
+
+    /// <summary>
     /// Looks up an object header by its <see cref="GameObjectGuid"/> in O(1).
     /// Returns <see langword="null"/> when not found.
     /// </summary>
