@@ -19,9 +19,28 @@ public readonly record struct PrefixedString(string Value) : IBinarySerializable
     /// <inheritdoc/>
     public void Write(ref SpanWriter writer)
     {
-        var bytes = Encoding.ASCII.GetBytes(Value);
-        writer.WriteUInt16((ushort)bytes.Length);
-        writer.WriteBytes(bytes);
+        var byteCount = Encoding.ASCII.GetByteCount(Value);
+        writer.WriteUInt16((ushort)byteCount);
+        // Use stackalloc for short strings; fall back to ArrayPool for long ones.
+        if (byteCount <= Core.StackAllocPolicy.MaxStackAllocBytes)
+        {
+            Span<byte> buf = stackalloc byte[byteCount];
+            Encoding.ASCII.GetBytes(Value, buf);
+            writer.WriteBytes(buf);
+        }
+        else
+        {
+            var buf = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
+            try
+            {
+                Encoding.ASCII.GetBytes(Value, buf);
+                writer.WriteBytes(buf.AsSpan(0, byteCount));
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(buf);
+            }
+        }
     }
 
     /// <inheritdoc/>

@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 
 namespace ArcNET.Core;
 
@@ -119,6 +120,49 @@ public ref struct SpanReader(ReadOnlySpan<byte> data)
 
     /// <summary>Reads a little-endian <see cref="int"/> at the given offset from current position without advancing.</summary>
     public int PeekInt32At(int offset) => BinaryPrimitives.ReadInt32LittleEndian(_remaining[offset..]);
+
+    /// <summary>
+    /// Bulk-reads <paramref name="dest"/><c>.Length</c> little-endian <see cref="uint"/> values
+    /// using a single <see cref="MemoryMarshal"/> cast (zero-copy on little-endian hosts).
+    /// </summary>
+    public void ReadUInt32Array(Span<uint> dest)
+    {
+        MemoryMarshal.Cast<byte, uint>(_remaining[..(dest.Length * 4)]).CopyTo(dest);
+        Advance(dest.Length * 4);
+    }
+
+    /// <summary>
+    /// Bulk-reads <paramref name="dest"/><c>.Length</c> little-endian <see cref="ushort"/> values
+    /// using a single <see cref="MemoryMarshal"/> cast (zero-copy on little-endian hosts).
+    /// </summary>
+    public void ReadUInt16Array(Span<ushort> dest)
+    {
+        MemoryMarshal.Cast<byte, ushort>(_remaining[..(dest.Length * 2)]).CopyTo(dest);
+        Advance(dest.Length * 2);
+    }
+
+    /// <summary>
+    /// Bulk-reads <paramref name="dest"/><c>.Length</c> little-endian <see cref="int"/> values
+    /// using a single <see cref="MemoryMarshal"/> cast (zero-copy on little-endian hosts).
+    /// </summary>
+    public void ReadInt32Array(Span<int> dest)
+    {
+        MemoryMarshal.Cast<byte, int>(_remaining[..(dest.Length * 4)]).CopyTo(dest);
+        Advance(dest.Length * 4);
+    }
+
+    /// <summary>
+    /// Bulk-reads <paramref name="dest"/><c>.Length</c> unmanaged values of type
+    /// <typeparamref name="T"/> via a single <see cref="MemoryMarshal"/> cast.
+    /// Zero-copy on little-endian hosts; caller ensures correct field endianness.
+    /// </summary>
+    public void ReadUnmanaged<T>(Span<T> dest)
+        where T : unmanaged
+    {
+        var byteCount = dest.Length * System.Runtime.CompilerServices.Unsafe.SizeOf<T>();
+        MemoryMarshal.Cast<byte, T>(_remaining[..byteCount]).CopyTo(dest);
+        Advance(byteCount);
+    }
 
     private void Advance(int count)
     {

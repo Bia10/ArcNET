@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ArcNET.Core;
 
@@ -81,9 +83,21 @@ public ref struct SpanWriter(IBufferWriter<byte> output)
     }
 
     /// <summary>Writes all bytes from <paramref name="data"/>.</summary>
-    public void WriteBytes(ReadOnlySpan<byte> data)
+    public void WriteBytes(scoped ReadOnlySpan<byte> data)
     {
         data.CopyTo(_output.GetSpan(data.Length));
         _output.Advance(data.Length);
+    }
+
+    /// <summary>
+    /// Writes all unmanaged values from <paramref name="data"/> as their raw little-endian byte representation.
+    /// Zero-copy on all little-endian hosts (x86/x64/ARM) via <see cref="MemoryMarshal.Cast{TFrom,TTo}(ReadOnlySpan{TFrom})"/>.
+    /// </summary>
+    public void WriteUnmanaged<T>(ReadOnlySpan<T> data)
+        where T : unmanaged
+    {
+        var bytes = MemoryMarshal.Cast<T, byte>(data);
+        bytes.CopyTo(_output.GetSpan(bytes.Length));
+        _output.Advance(bytes.Length);
     }
 }
