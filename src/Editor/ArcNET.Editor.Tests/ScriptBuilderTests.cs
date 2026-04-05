@@ -1,4 +1,4 @@
-using ArcNET.Editor;
+﻿using ArcNET.Editor;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor.Tests;
@@ -6,10 +6,10 @@ namespace ArcNET.Editor.Tests;
 public class ScriptBuilderTests
 {
     private static ScriptActionData MakeAction(ScriptActionType type = ScriptActionType.DoNothing) =>
-        new((int)type, new byte[8], new int[8]);
+        new((int)type, default, default);
 
     private static ScriptConditionData MakeCondition(ScriptConditionType condType = ScriptConditionType.True) =>
-        new((int)condType, new byte[8], new int[8], MakeAction(), MakeAction());
+        new((int)condType, default, default, MakeAction(), MakeAction());
 
     // ── Empty build ───────────────────────────────────────────────────────────
 

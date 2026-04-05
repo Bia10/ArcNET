@@ -1,11 +1,10 @@
-using System.Collections;
-using ArcNET.GameObjects;
+﻿using ArcNET.GameObjects;
 
 namespace ArcNET.GameObjects.Tests;
 
 public class BitArrayObjectExtensionsTests
 {
-    private static BitArray MakeBitmap(int byteLength) => new(byteLength * 8);
+    private static byte[] MakeBitmap(int byteLength) => new byte[byteLength];
 
     [Test]
     public async Task HasField_UnsetBit_ReturnsFalse()
