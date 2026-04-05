@@ -1,4 +1,6 @@
-﻿namespace ArcNET.Core.Primitives;
+﻿using System.Buffers.Binary;
+
+namespace ArcNET.Core.Primitives;
 
 /// <summary>
 /// The 24-byte <c>ObjectID</c> struct as laid out in Arcanum save files and mob files.
@@ -22,6 +24,44 @@ public readonly record struct GameObjectGuid(short OidType, short Padding2, int 
     /// <summary>Returns <see langword="true"/> if this is a prototype definition (OID_TYPE_BLOCKED).</summary>
     public bool IsProto => OidType == OidTypeBlocked;
 
+    /// <summary>
+    /// For A-type OIDs (<c>OidType == 1</c>), returns the embedded proto number stored in
+    /// the first 4 bytes of the union (<c>d.a</c> = little-endian int32).  Returns
+    /// <see langword="null"/> for all other OID types.
+    /// </summary>
+    public int? GetProtoNumber()
+    {
+        if (OidType != 1)
+            return null;
+        Span<byte> bytes = stackalloc byte[16];
+        Id.TryWriteBytes(bytes);
+        return BinaryPrimitives.ReadInt32LittleEndian(bytes);
+    }
+
+    /// <summary>
+    /// Returns a short human-readable identifier:
+    /// <list type="bullet">
+    ///   <item><c>OidType == -2</c> → <c>"handle"</c></item>
+    ///   <item><c>OidType == -1</c> → <c>"proto:self"</c></item>
+    ///   <item><c>OidType ==  0</c> → <c>"null"</c></item>
+    ///   <item><c>OidType ==  1</c> → <c>"proto#NNNN"</c> (proto number extracted from d.a)</item>
+    ///   <item><c>OidType ==  2</c> → <c>"mob:{short-guid}"</c></item>
+    ///   <item>other             → <c>"oid{type}:{guid}"</c></item>
+    /// </list>
+    /// </summary>
+    public string ToLabel()
+    {
+        return OidType switch
+        {
+            -2 => "handle",
+            -1 => "proto:self",
+            0 => "null",
+            1 => $"proto#{GetProtoNumber()}",
+            2 => $"mob:{Id.ToString()[..8]}…",
+            _ => $"oid{OidType}:{Id.ToString()[..8]}…",
+        };
+    }
+
     /// <inheritdoc/>
     public static GameObjectGuid Read(ref SpanReader reader)
     {
@@ -29,8 +69,7 @@ public readonly record struct GameObjectGuid(short OidType, short Padding2, int 
         var padding2 = reader.ReadInt16();
         var padding4 = reader.ReadInt32();
         // TigGuid / Windows GUID: Data1(4) + Data2(2) + Data3(2) + Data4(8) in little-endian layout.
-        var guidBytes = reader.ReadBytes(16).ToArray();
-        var id = new Guid(guidBytes);
+        var id = new Guid(reader.ReadBytes(16));
         return new GameObjectGuid(oidType, padding2, padding4, id);
     }
 
@@ -40,16 +79,18 @@ public readonly record struct GameObjectGuid(short OidType, short Padding2, int 
         writer.WriteInt16(OidType);
         writer.WriteInt16(Padding2);
         writer.WriteInt32(Padding4);
-        writer.WriteBytes(Id.ToByteArray());
+        Span<byte> guidBuf = stackalloc byte[16];
+        Id.TryWriteBytes(guidBuf);
+        writer.WriteBytes(guidBuf);
     }
 
     /// <inheritdoc/>
     public bool TryFormat(Span<char> dest, out int written, ReadOnlySpan<char> format, IFormatProvider? provider) =>
-        dest.TryWrite($"OID({OidType}):{Id}", out written);
+        dest.TryWrite($"{ToLabel()} [{Id}]", out written);
 
     /// <inheritdoc/>
-    public string ToString(string? format, IFormatProvider? provider) => $"OID({OidType}):{Id}";
+    public string ToString(string? format, IFormatProvider? provider) => $"{ToLabel()} [{Id}]";
 
     /// <inheritdoc/>
-    public override string ToString() => $"OID({OidType}):{Id}";
+    public override string ToString() => $"{ToLabel()} [{Id}]";
 }
