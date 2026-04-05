@@ -147,12 +147,16 @@ public class GameDataLoaderTests
         var blobs = new Dictionary<string, ReadOnlyMemory<byte>> { ["game.mes"] = bytes };
 
         float lastProgress = 0f;
-        var progress = new Progress<float>(p => lastProgress = p);
+        var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var progress = new Progress<float>(p =>
+        {
+            lastProgress = p;
+            if (p >= 1f)
+                reached.TrySetResult(true);
+        });
 
         await GameDataLoader.LoadFromMemoryAsync(blobs, progress: progress);
-
-        // Give the Progress<T> callback time to fire (it uses SynchronizationContext)
-        await Task.Delay(50);
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(lastProgress).IsGreaterThanOrEqualTo(1f);
     }
 
