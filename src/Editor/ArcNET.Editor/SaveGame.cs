@@ -60,4 +60,35 @@ public sealed class SaveGame
     /// Scripts define condition/action trees that drive NPC and environment behaviour.
     /// </summary>
     public required IReadOnlyDictionary<string, ScrFile> Scripts { get; init; }
+
+    /// <summary>
+    /// Pre-parsed dialogue files keyed by the same virtual path as <see cref="Files"/>.
+    /// Only entries whose path ends with <c>.dlg</c> (case-insensitive) appear here.
+    /// Dialogue files define NPC conversation trees with condition/action expressions.
+    /// </summary>
+    public required IReadOnlyDictionary<string, DlgFile> Dialogs { get; init; }
+
+    /// <summary>
+    /// Pre-parsed <c>mobile.md</c> files keyed by the same virtual path as <see cref="Files"/>.
+    /// Only entries whose file name is <c>mobile.md</c> (case-insensitive) appear here.
+    /// Each entry lists static world objects whose state was modified at run-time
+    /// (containers looted, portals unlocked, scenery altered, etc.).
+    /// </summary>
+    public required IReadOnlyDictionary<string, MobileMdFile> MobileMds { get; init; }
+
+    /// <summary>
+    /// Pre-parsed <c>mobile.mdy</c> files keyed by the same virtual path as <see cref="Files"/>.
+    /// Only entries whose file name is <c>mobile.mdy</c> (case-insensitive) appear here.
+    /// Each entry lists dynamically spawned mobile objects (NPCs, monsters, dropped items)
+    /// present in the map at save time — including the player character on their current map.
+    /// </summary>
+    public required IReadOnlyDictionary<string, MobileMdyFile> MobileMdys { get; init; }
+
+    /// <summary>
+    /// Per-file parse errors collected during load, keyed by virtual path.
+    /// A file that appears here failed to parse into its typed representation;
+    /// its raw bytes remain accessible via <see cref="Files"/> for round-trip fidelity.
+    /// Empty when all files loaded successfully.
+    /// </summary>
+    public required IReadOnlyDictionary<string, string> ParseErrors { get; init; }
 }
