@@ -361,3 +361,6 @@ artifacts/
 
 # BenchmarkDotNet local output
 BenchmarkDotNet.Artifacts/
+
+# Local task planning
+tasks/

@@ -118,8 +118,17 @@ public ref struct SpanReader(ReadOnlySpan<byte> data)
         return true;
     }
 
+    /// <summary>Gets the remaining unread bytes as a span without advancing the position.</summary>
+    public readonly ReadOnlySpan<byte> RemainingSpan => _remaining;
+
+    /// <summary>Peeks at the next <paramref name="count"/> bytes without advancing.</summary>
+    public readonly ReadOnlySpan<byte> PeekSpan(int count) => _remaining[..count];
+
     /// <summary>Reads a little-endian <see cref="int"/> at the given offset from current position without advancing.</summary>
-    public int PeekInt32At(int offset) => BinaryPrimitives.ReadInt32LittleEndian(_remaining[offset..]);
+    public readonly int PeekInt32At(int offset) => BinaryPrimitives.ReadInt32LittleEndian(_remaining[offset..]);
+
+    /// <summary>Reads a little-endian <see cref="uint"/> at the given offset from current position without advancing.</summary>
+    public readonly uint PeekUInt32At(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(_remaining[offset..]);
 
     /// <summary>
     /// Bulk-reads <paramref name="dest"/><c>.Length</c> little-endian <see cref="uint"/> values
