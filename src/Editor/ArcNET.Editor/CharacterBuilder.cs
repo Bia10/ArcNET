@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -75,8 +75,12 @@ public sealed class CharacterBuilder
     // ── Critter base fields (shared by PC and NPC) ────────────────────────────
 
     /// <summary>
-    /// Sets ability-score base values (<c>ObjFCritterStatBaseIdx</c>, Int32 array).
-    /// Arcanum uses six values: [Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma].
+    /// Sets ability-score base values (<c>ObjFCritterStatBaseIdx</c>, Int32 array, 28 elements).
+    /// Arcanum's stat array contains all 28 critter stats in this order:
+    /// STR, DEX, CON, BEAUT, INT, PERC, WILL, CHA, CARRY_WT, DMG_BONUS, AC_ADJ, SPEED,
+    /// HEAL_RATE, POISON_REC, REACT_MOD, MAX_FOLL, MAGIC_TECH_APT, LEVEL, XP_TOTAL,
+    /// ALIGNMENT, FATE_PTS, UNSPENT_PTS, MAGIC_PTS, TECH_PTS, POISON_LVL, AGE, GENDER, RACE.
+    /// For PC records stored in the v2 mobile.mdy format, use <see cref="SaveGameEditor"/> instead.
     /// </summary>
     public CharacterBuilder WithBaseStats(ReadOnlySpan<int> stats)
     {
@@ -125,8 +129,11 @@ public sealed class CharacterBuilder
     }
 
     /// <summary>
-    /// Sets the character's carried gold amount (<c>ObjFCritterGold</c>).
-    /// This is the gold directly on the critter; bank deposits are <see cref="WithBankMoney"/>.
+    /// Sets the character's carried gold link (<c>ObjFCritterGold</c>).
+    /// In the compact mob format gold is stored as a handle (OID) pointing to a gold-object;
+    /// this setter writes the raw handle field for use with v1 records.
+    /// For PC records in the v2 mobile.mdy format the gold handle is separate;
+    /// edit the linked gold object's quantity directly via the raw bytes.
     /// </summary>
     public CharacterBuilder WithGold(int amount)
     {

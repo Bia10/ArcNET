@@ -18,6 +18,17 @@ public sealed class MobDataBuilder
     private readonly GameObjectGuid _objectId;
     private readonly List<ObjectProperty> _properties;
 
+    // Preserved from the original header so that bits for fields we could not decode
+    // (because their wire type is unknown) are not silently dropped when Build() is called.
+    // Build() seeds the new bitmap from this array and then ORs in bits for every
+    // property in _properties, so known + unknown bits are both retained.
+    private readonly byte[]? _originalBitmap;
+
+    // Preserved from the original header when building from an existing MobData.
+    // null means "new from scratch" — Build() will use 0x77 / _properties.Count in that case.
+    private readonly int? _originalVersion;
+    private readonly short? _originalPropCollItems;
+
     /// <summary>
     /// Starts a builder from an existing <see cref="MobData"/>.
     /// All properties are copied; modifications do not affect the original.
@@ -28,6 +39,9 @@ public sealed class MobDataBuilder
         _protoId = existing.Header.ProtoId;
         _objectId = existing.Header.ObjectId;
         _properties = new List<ObjectProperty>(existing.Properties);
+        _originalBitmap = (byte[])existing.Header.Bitmap.Clone();
+        _originalVersion = existing.Header.Version;
+        _originalPropCollItems = existing.Header.PropCollectionItems;
     }
 
     /// <summary>
@@ -42,6 +56,9 @@ public sealed class MobDataBuilder
         _objectId = objectId;
         _protoId = protoId;
         _properties = [];
+        _originalBitmap = null;
+        _originalVersion = null;
+        _originalPropCollItems = null;
     }
 
     // ── Property mutations ────────────────────────────────────────────────────
@@ -94,6 +111,15 @@ public sealed class MobDataBuilder
     {
         var bitmapByteLength = ObjectFieldBitmapSizeHelper.For(_type);
         var bitmap = new byte[bitmapByteLength];
+
+        // Seed from the original bitmap so that bits for fields whose wire type is unknown
+        // (and therefore excluded from _properties) are not silently discarded.
+        if (_originalBitmap is not null)
+        {
+            var copyLen = Math.Min(_originalBitmap.Length, bitmapByteLength);
+            _originalBitmap.AsSpan(0, copyLen).CopyTo(bitmap);
+        }
+
         foreach (var prop in _properties)
         {
             var f = (int)prop.Field;
@@ -102,11 +128,15 @@ public sealed class MobDataBuilder
 
         var header = new GameObjectHeader
         {
-            Version = 0x77,
+            // Preserve the source version (0x08 = retail Arcanum) when editing an existing object.
+            // For new-from-scratch objects use 0x77 (arcanum-ce convention).
+            Version = _originalVersion ?? 0x77,
             ProtoId = _protoId,
             ObjectId = _objectId,
             GameObjectType = _type,
-            PropCollectionItems = (short)_properties.Count,
+            // Preserve the original PropCollectionItems when editing an existing object so that
+            // the game-internal counter is not inadvertently changed by our decoded property count.
+            PropCollectionItems = _originalPropCollItems ?? (short)_properties.Count,
             Bitmap = bitmap,
         };
 

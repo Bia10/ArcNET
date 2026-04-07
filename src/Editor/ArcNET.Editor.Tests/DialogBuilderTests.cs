@@ -1,4 +1,4 @@
-using ArcNET.Editor;
+﻿using ArcNET.Editor;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor.Tests;
