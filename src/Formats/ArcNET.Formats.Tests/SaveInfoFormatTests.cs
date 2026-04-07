@@ -19,11 +19,13 @@ public sealed class SaveInfoFormatTests
         int level = 7,
         int tileX = 100,
         int tileY = 200,
-        int storyState = 0
+        int storyState = 0,
+        int version = 0
     )
     {
         var src = new SaveInfo
         {
+            Version = version,
             ModuleName = moduleName,
             LeaderName = leaderName,
             DisplayName = displayName,
@@ -168,6 +170,7 @@ public sealed class SaveInfoFormatTests
 
         var result = SaveInfoFormat.ParseMemory(buf.WrittenSpan.ToArray().AsMemory());
 
+        await Assert.That(result.Version).IsEqualTo(0);
         await Assert.That(result.ModuleName).IsEqualTo("module1");
         await Assert.That(result.LeaderName).IsEqualTo("Oskar");
         await Assert.That(result.MapId).IsEqualTo(3);
@@ -175,5 +178,20 @@ public sealed class SaveInfoFormatTests
         await Assert.That(result.LeaderTileX).IsEqualTo(10);
         await Assert.That(result.LeaderTileY).IsEqualTo(20);
         await Assert.That(result.DisplayName).IsEqualTo("Test Save");
+    }
+
+    [Test]
+    public async Task RoundTrip_Version25_Preserved()
+    {
+        // UAP/patched Arcanum uses version 25; it must survive a parse → write round-trip.
+        var bytes = BuildGsi(version: 25, moduleName: "arcanum", leaderName: "Hero", displayName: "UAP Save");
+        var back = SaveInfoFormat.ParseMemory(bytes);
+
+        await Assert.That(back.Version).IsEqualTo(25);
+        // Verify the first 4 bytes written are 0x19 00 00 00 (25 LE).
+        await Assert.That(bytes[0]).IsEqualTo((byte)25);
+        await Assert.That(bytes[1]).IsEqualTo((byte)0);
+        await Assert.That(bytes[2]).IsEqualTo((byte)0);
+        await Assert.That(bytes[3]).IsEqualTo((byte)0);
     }
 }

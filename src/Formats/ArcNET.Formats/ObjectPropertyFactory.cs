@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text;
 using ArcNET.GameObjects;
 
@@ -26,7 +26,19 @@ public static class ObjectPropertyFactory
         var postOffset = 13 + elements.Length;
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
         for (var i = 0; i < (int)bitsetCnt; i++)
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), 0xFFFFFFFF);
+        {
+            // Last (possibly partial) word: only bits 0..(elementCount%32 - 1) set.
+            // All preceding words are fully occupied (0xFFFFFFFF).
+            uint word;
+            if (i < (int)bitsetCnt - 1)
+                word = 0xFFFFFFFF;
+            else
+            {
+                var rem = elementCount % 32;
+                word = rem == 0 ? 0xFFFFFFFF : (1u << rem) - 1u;
+            }
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), word);
+        }
         return bytes;
     }
 

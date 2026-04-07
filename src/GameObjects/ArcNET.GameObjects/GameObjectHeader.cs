@@ -79,4 +79,55 @@ public sealed class GameObjectHeader
             Bitmap = bitmap,
         };
     }
+
+    /// <summary>
+    /// Reads a <em>compact</em> game-object header — used by <c>mobile.md</c> records that store
+    /// only a single OID in the body (no separate ObjectId field).
+    /// Wire layout: <c>[version 4B][protoId 24B][objectType 4B][propCollItems 2B?][bitmap N B]</c>.
+    /// The caller provides <paramref name="objectId"/> (typically the file-level MapObjectId).
+    /// </summary>
+    internal static GameObjectHeader ReadCompact(ref SpanReader reader, GameObjectGuid objectId)
+    {
+        var version = reader.ReadInt32();
+        if (version != 0x77 && version != 0x08)
+            throw new InvalidDataException($"Unknown object file version: 0x{version:X2} (expected 0x08 or 0x77)");
+
+        // Compact format: only ONE OID in the body (serves as both proto and instance reference).
+        var protoId = GameObjectGuid.Read(ref reader);
+        var objectType = (ObjectType)reader.ReadUInt32();
+
+        short propCollectionItems = 0;
+        if (!protoId.IsProto)
+            propCollectionItems = reader.ReadInt16();
+
+        var bitmapLength = ObjectFieldBitmapSize.For(objectType);
+        var bitmap = reader.ReadBytes(bitmapLength).ToArray();
+
+        return new GameObjectHeader
+        {
+            Version = version,
+            ProtoId = protoId,
+            ObjectId = objectId,
+            GameObjectType = objectType,
+            PropCollectionItems = propCollectionItems,
+            Bitmap = bitmap,
+        };
+    }
+
+    /// <summary>
+    /// Writes this header in <em>compact</em> form — emits only <c>ProtoId</c> (no <c>ObjectId</c>).
+    /// Used together with <see cref="ReadCompact"/> to round-trip compact <c>mobile.md</c> records.
+    /// </summary>
+    internal void WriteCompact(ref SpanWriter writer)
+    {
+        writer.WriteInt32(Version);
+        ProtoId.Write(ref writer);
+        // ObjectId is NOT written — compact format has only one OID.
+        writer.WriteUInt32((uint)GameObjectType);
+
+        if (!IsPrototype)
+            writer.WriteInt16(PropCollectionItems);
+
+        writer.WriteBytes(Bitmap);
+    }
 }

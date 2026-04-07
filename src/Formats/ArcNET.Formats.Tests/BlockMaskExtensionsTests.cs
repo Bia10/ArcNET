@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 
 namespace ArcNET.Formats.Tests;
 

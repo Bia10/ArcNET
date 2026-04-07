@@ -53,6 +53,20 @@ public sealed class MobFormat : IFormatReader<MobData>, IFormatWriter<MobData>
         ObjectPropertyIo.WriteProperties(value.Properties, ref writer);
     }
 
+    /// <summary>
+    /// Serialises <paramref name="value"/> using the <em>compact</em> header format (one OID, no
+    /// separate ObjectId). Use this when the source record was read with
+    /// <c>GameObjectHeader.ReadCompact</c> so the on-disk layout is preserved.
+    /// </summary>
+    internal static byte[] WriteCompactToArray(in MobData value)
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        var writer = new SpanWriter(buf);
+        value.Header.WriteCompact(ref writer);
+        ObjectPropertyIo.WriteProperties(value.Properties, ref writer);
+        return buf.WrittenSpan.ToArray();
+    }
+
     /// <inheritdoc/>
     public static byte[] WriteToArray(in MobData value)
     {

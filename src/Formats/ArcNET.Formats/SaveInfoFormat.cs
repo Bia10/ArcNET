@@ -9,6 +9,13 @@ namespace ArcNET.Formats;
 /// </summary>
 public sealed class SaveInfo
 {
+    /// <summary>
+    /// GSI format version read from the file. Preserved during round-trips.
+    /// Vanilla Arcanum uses 0; UAP/patched installations use 25.
+    /// Defaults to 0 for newly constructed instances.
+    /// </summary>
+    public int Version { get; init; } = 0;
+
     /// <summary>Name of the module (campaign) associated with this save.</summary>
     public required string ModuleName { get; init; }
 
@@ -78,6 +85,7 @@ public sealed class SaveInfoFormat : IFormatReader<SaveInfo>, IFormatWriter<Save
 
         return new SaveInfo
         {
+            Version = version,
             ModuleName = moduleName,
             LeaderName = leaderName,
             DisplayName = displayName,
@@ -114,7 +122,7 @@ public sealed class SaveInfoFormat : IFormatReader<SaveInfo>, IFormatWriter<Save
     /// <inheritdoc/>
     public static void Write(in SaveInfo value, ref SpanWriter writer)
     {
-        writer.WriteInt32(MinSupportedVersion);
+        writer.WriteInt32(value.Version);
 
         WritePrefixed(value.ModuleName, ref writer);
         WritePrefixed(value.LeaderName, ref writer);

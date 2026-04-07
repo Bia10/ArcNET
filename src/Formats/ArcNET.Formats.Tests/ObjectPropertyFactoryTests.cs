@@ -1,4 +1,4 @@
-using ArcNET.GameObjects;
+﻿using ArcNET.GameObjects;
 
 namespace ArcNET.Formats.Tests;
 
