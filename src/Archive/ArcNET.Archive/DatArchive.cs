@@ -53,7 +53,7 @@ public sealed class DatArchive : IDisposable
             var entries = ReadDirectory(mmf, fi.Length);
             return new DatArchive(mmf, fi.Length, entries);
         }
-        catch
+        catch (Exception)
         {
             mmf.Dispose();
             throw;
