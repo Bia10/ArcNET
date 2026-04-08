@@ -18,20 +18,36 @@ public readonly record struct GameObjectGuid(short OidType, short Padding2, int 
     : IBinarySerializable<GameObjectGuid, SpanReader>,
         ISpanFormattable
 {
-    // OID_TYPE_BLOCKED = (int16_t)(-1) — indicates this slot IS a prototype definition.
-    private const short OidTypeBlocked = -1;
+    // OID_TYPE_* constants — match the int16_t values used in Arcanum's binary format.
+    /// <summary>OID_TYPE_HANDLE (-2) — placeholder/handle reference.</summary>
+    public const short OidTypeHandle = -2;
+
+    /// <summary>OID_TYPE_BLOCKED (-1) — indicates this slot IS a prototype definition.</summary>
+    public const short OidTypeBlocked = -1;
+
+    /// <summary>OID_TYPE_NULL (0) — null/empty reference.</summary>
+    public const short OidTypeNull = 0;
+
+    /// <summary>OID_TYPE_A (1) — A-type OID; the union encodes a proto index (<c>d.a</c>).</summary>
+    public const short OidTypeA = 1;
+
+    /// <summary>OID_TYPE_GUID (2) — instance identified by a GUID (<c>d.g</c>).</summary>
+    public const short OidTypeGuid = 2;
+
+    /// <summary>OID_TYPE_P (3) — P-type packed OID (<c>d.p</c>).</summary>
+    public const short OidTypeP = 3;
 
     /// <summary>Returns <see langword="true"/> if this is a prototype definition (OID_TYPE_BLOCKED).</summary>
     public bool IsProto => OidType == OidTypeBlocked;
 
     /// <summary>
-    /// For A-type OIDs (<c>OidType == 1</c>), returns the embedded proto number stored in
+    /// For A-type OIDs (<c>OidType == OidTypeA</c>), returns the embedded proto number stored in
     /// the first 4 bytes of the union (<c>d.a</c> = little-endian int32).  Returns
     /// <see langword="null"/> for all other OID types.
     /// </summary>
     public int? GetProtoNumber()
     {
-        if (OidType != 1)
+        if (OidType != OidTypeA)
             return null;
         Span<byte> bytes = stackalloc byte[16];
         Id.TryWriteBytes(bytes);
@@ -41,23 +57,23 @@ public readonly record struct GameObjectGuid(short OidType, short Padding2, int 
     /// <summary>
     /// Returns a short human-readable identifier:
     /// <list type="bullet">
-    ///   <item><c>OidType == -2</c> → <c>"handle"</c></item>
-    ///   <item><c>OidType == -1</c> → <c>"proto:self"</c></item>
-    ///   <item><c>OidType ==  0</c> → <c>"null"</c></item>
-    ///   <item><c>OidType ==  1</c> → <c>"proto#NNNN"</c> (proto number extracted from d.a)</item>
-    ///   <item><c>OidType ==  2</c> → <c>"mob:{short-guid}"</c></item>
-    ///   <item>other             → <c>"oid{type}:{guid}"</c></item>
+    ///   <item><c>OidType == OidTypeHandle</c> → <c>"handle"</c></item>
+    ///   <item><c>OidType == OidTypeBlocked</c> → <c>"proto:self"</c></item>
+    ///   <item><c>OidType == OidTypeNull</c> → <c>"null"</c></item>
+    ///   <item><c>OidType == OidTypeA</c> → <c>"proto#NNNN"</c> (proto number extracted from d.a)</item>
+    ///   <item><c>OidType == OidTypeGuid</c> → <c>"mob:{short-guid}"</c></item>
+    ///   <item>other → <c>"oid{type}:{guid}"</c></item>
     /// </list>
     /// </summary>
     public string ToLabel()
     {
         return OidType switch
         {
-            -2 => "handle",
-            -1 => "proto:self",
-            0 => "null",
-            1 => $"proto#{GetProtoNumber()}",
-            2 => $"mob:{Id.ToString()[..8]}…",
+            OidTypeHandle => "handle",
+            OidTypeBlocked => "proto:self",
+            OidTypeNull => "null",
+            OidTypeA => $"proto#{GetProtoNumber()}",
+            OidTypeGuid => $"mob:{Id.ToString()[..8]}…",
             _ => $"oid{OidType}:{Id.ToString()[..8]}…",
         };
     }

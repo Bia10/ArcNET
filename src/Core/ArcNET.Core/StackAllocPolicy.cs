@@ -8,5 +8,5 @@
 public static class StackAllocPolicy
 {
     /// <summary>Maximum number of bytes that may be stack-allocated.</summary>
-    internal const int MaxStackAllocBytes = 256;
+    public const int MaxStackAllocBytes = 256;
 }
