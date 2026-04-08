@@ -34,13 +34,25 @@ public static class PatchInstaller
 
         progress?.Report(0.1f);
 
-        // For now we download the release zip to a temp file, then extract it.
+        // Pick the first .zip asset from the release; Assets is populated from the GitHub API
+        // "assets" array which contains the actual binary downloads (not the HTML release page).
+        var zipAsset = release.Assets.FirstOrDefault(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        if (zipAsset is null)
+            throw new InvalidOperationException(
+                $"HighRes patch release '{release.TagName}' has no .zip asset. "
+                    + $"Assets found: {(release.Assets.Count == 0 ? "(none)" : string.Join(", ", release.Assets.Select(a => a.Name)))}"
+            );
+
+        // Validate that the asset URL points to an expected GitHub host over HTTPS before
+        // establishing any network connection. This guards against a compromised or malformed
+        // API response redirecting the download to an arbitrary server.
+        var downloadUrl = zipAsset.BrowserDownloadUrl;
+        ValidateDownloadUrl(downloadUrl);
+
+        // Download the release zip to a temp file, then extract it.
         var tempZip = Path.GetTempFileName() + ".zip";
         try
         {
-            // The download URL is the first zip asset of the release (convention for this repo).
-            // Fall back to html_url if no direct asset URL is stored.
-            var downloadUrl = release.HtmlUrl;
             await GitHubReleaseClient.DownloadFileAsync(downloadUrl, tempZip, cancellationToken).ConfigureAwait(false);
             progress?.Report(0.7f);
 
@@ -63,5 +75,28 @@ public static class PatchInstaller
         }
 
         progress?.Report(1f);
+    }
+
+    /// <summary>
+    /// Validates that <paramref name="url"/> uses HTTPS and targets a known GitHub host.
+    /// Throws <see cref="InvalidOperationException"/> when the URL fails validation.
+    /// </summary>
+    private static void ValidateDownloadUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            throw new InvalidOperationException($"Asset download URL is not a valid URI: '{url}'");
+
+        if (!uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Asset download URL must use HTTPS. Got: '{url}'");
+
+        if (
+            !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+            && !uri.Host.Equals("objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            && !uri.Host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase)
+            && !uri.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+        )
+            throw new InvalidOperationException(
+                $"Asset download URL must point to github.com or githubusercontent.com. Got host: '{uri.Host}'"
+            );
     }
 }
