@@ -1,4 +1,5 @@
-﻿using ArcNET.Core;
+﻿using System.Buffers;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects.Types;
 
@@ -53,5 +54,80 @@ public sealed class GameObject : IGameObject
         };
 
         return new GameObject { Header = header, Common = common };
+    }
+
+    /// <summary>
+    /// Serialises this game object back to its binary on-disk representation.
+    /// The format is identical to the OFF format used by <c>MobFormat</c> and <c>ProtoFormat</c>:
+    /// a <see cref="GameObjectHeader"/> followed by type-specific field data in bitmap order.
+    /// </summary>
+    public byte[] WriteToArray()
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        var writer = new SpanWriter(buf);
+        Header.Write(ref writer);
+        var bitmap = Header.Bitmap;
+        var isProto = Header.IsPrototype;
+        switch (Common)
+        {
+            case ObjectPc pc:
+                pc.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectNpc npc:
+                npc.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectWall wall:
+                wall.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectPortal portal:
+                portal.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectContainer container:
+                container.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectScenery scenery:
+                scenery.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectTrap trap:
+                trap.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectProjectile projectile:
+                projectile.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectWeapon weapon:
+                weapon.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectAmmo ammo:
+                ammo.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectArmor armor:
+                armor.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectGold gold:
+                gold.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectFood food:
+                food.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectScroll scroll:
+                scroll.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectKey key:
+                key.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectKeyRing keyRing:
+                keyRing.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectWritten written:
+                written.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectGeneric generic:
+                generic.Write(ref writer, bitmap, isProto);
+                break;
+            case ObjectUnknown unknown:
+                unknown.Write(ref writer, bitmap, isProto);
+                break;
+        }
+        return buf.WrittenSpan.ToArray();
     }
 }
