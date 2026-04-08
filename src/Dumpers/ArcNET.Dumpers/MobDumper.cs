@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Collections.Frozen;
 using System.Numerics;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using ArcNET.GameObjects.Classes;
@@ -74,7 +75,7 @@ public static class MobDumper
             vsb.AppendLine($"  Object GUID  : {h.ObjectId.Id}");
 
         // Bitmap summary
-        var setBits = new System.Collections.Generic.List<int>();
+        var setBits = new List<int>();
         for (var by = 0; by < h.Bitmap.Length; by++)
         {
             var word = (uint)h.Bitmap[by];
@@ -120,7 +121,6 @@ public static class MobDumper
     private static void AppendDecodedValue(ref ValueStringBuilder vsb, ObjectProperty prop, ObjectType objectType)
     {
         var bytes = prop.RawBytes;
-        var fieldBit = (int)prop.Field;
 
         // ── Absent field (presence byte = 0) ──
         if (bytes.Length == 1 && bytes[0] == 0)
@@ -129,283 +129,19 @@ public static class MobDumper
             return;
         }
 
-        // ── Int32 scalar (no presence byte, always 4 bytes) ──
         if (bytes.Length == 4)
         {
-            var i32 = BinaryPrimitives.ReadInt32LittleEndian(bytes);
-            var u32 = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
-            var f32 = BinaryPrimitives.ReadSingleLittleEndian(bytes);
-
-            // ── Common flag fields ──
-            if (fieldBit == 8) // ObjFBlitFlags
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFBlitFlags>(ref vsb, u32);
-                return;
-            }
-            if (fieldBit == 18) // ObjFFlags
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFFlags>(ref vsb, u32);
-                return;
-            }
-            if (fieldBit == 19) // ObjFSpellFlags
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFSpellFlags>(ref vsb, u32);
-                return;
-            }
-
-            // ── Float fields (rotation, speed, radius, height) ──
-            if (fieldBit is 34 or 36 or 37 or 38 or 39 or 40)
-            {
-                if (fieldBit == 34) // rotation
-                    vsb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
-                else
-                    vsb.Append($"= {f32:G6}");
-                return;
-            }
-
-            // ── Type-specific flag fields (bit 64 = first type-specific slot) ──
-            if (fieldBit == 64)
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                switch (objectType)
-                {
-                    case ObjectType.Npc or ObjectType.Pc:
-                        AppendFlagNames<ObjFCritterFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Container:
-                        AppendFlagNames<ObjFContainerFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Portal:
-                        AppendFlagNames<ObjFPortalFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Scenery:
-                        AppendFlagNames<ObjFSceneryFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Weapon
-                    or ObjectType.Ammo
-                    or ObjectType.Armor
-                    or ObjectType.Gold
-                    or ObjectType.Food
-                    or ObjectType.Scroll
-                    or ObjectType.Key
-                    or ObjectType.KeyRing
-                    or ObjectType.Written
-                    or ObjectType.Generic:
-                        AppendFlagNames<ObjFItemFlags>(ref vsb, u32);
-                        break;
-                    default:
-                        vsb.Append("(unknown type flags)");
-                        break;
-                }
-                return;
-            }
-            if (fieldBit == 65 && objectType is ObjectType.Npc or ObjectType.Pc)
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFCritterFlags2>(ref vsb, u32);
-                return;
-            }
-
-            // ── Weapon / armor type-specific flags (bit 96) ──
-            if (fieldBit == 96)
-            {
-                switch (objectType)
-                {
-                    case ObjectType.Weapon:
-                        vsb.Append($"= 0x{u32:X8}  ");
-                        AppendFlagNames<ObjFWeaponFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Armor:
-                        vsb.Append($"= 0x{u32:X8}  ");
-                        AppendFlagNames<ObjFArmorFlags>(ref vsb, u32);
-                        break;
-                    case ObjectType.Key:
-                        // ObjFKeyKeyId — not flags, it's the key identifier
-                        vsb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
-                        break;
-                    default:
-                        vsb.Append($"= 0x{u32:X8}  (type-specific flags)");
-                        break;
-                }
-                return;
-            }
-
-            if (fieldBit == 128 && objectType is ObjectType.Npc)
-            {
-                vsb.Append($"= 0x{u32:X8}  ");
-                AppendFlagNames<ObjFNpcFlags>(ref vsb, u32);
-                return;
-            }
-            if (fieldBit == 128 && objectType is ObjectType.Pc)
-            {
-                vsb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
-                return;
-            }
-
-            // ── Inventory fields ──
-            if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
-            {
-                vsb.Append($"= {i32}  (item count)");
-                return;
-            }
-            if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
-            {
-                vsb.Append(
-                    i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
-                );
-                return;
-            }
-
-            // ── Well-known common scalar fields ──
-            var wellKnownLabel = fieldBit switch
-            {
-                23 => "art resource ID",
-                24 => "destroyed-art resource ID",
-                25 => "armor class",
-                26 => "max HP",
-                27 => "HP adjustment",
-                28 => "HP damage taken",
-                32 => "sound effect ID",
-                33 => "object category",
-                _ => null,
-            };
-            if (wellKnownLabel is not null)
-            {
-                vsb.Append($"= {i32}  ({wellKnownLabel})");
-                return;
-            }
-
-            vsb.Append($"= {i32}  (0x{u32:X8})");
-            if (!float.IsNaN(f32) && !float.IsInfinity(f32) && Math.Abs(f32) is > 0.00001f and < 1e7f)
-                vsb.Append($"  [float={f32:G6}]");
+            AppendInt32Value(ref vsb, prop, objectType);
             return;
         }
-
-        // ── Int64 scalar (1-byte presence + 8-byte value) ──
         if (bytes.Length == 9)
         {
-            var i64 = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(1));
-            if (IsLocationField(prop.Field, objectType))
-            {
-                var x = (int)(i64 & 0xFFFFFFFF);
-                var y = (int)((i64 >> 32) & 0xFFFFFFFF);
-                vsb.Append($"= tile ({x}, {y})");
-                return;
-            }
-
-            vsb.Append($"= 0x{(ulong)i64:X16}");
+            AppendInt64Value(ref vsb, prop, objectType);
             return;
         }
-
-        // ── SAR arrays (1-byte presence + 12-byte SA header + data + bitset) ──
         if (bytes.Length >= 14 && bytes[0] != 0)
         {
-            // SA header at offsets 1..12: { int32 size, int32 count, int32 bitset_id }
-            var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(1));
-            var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(5));
-            vsb.Append($"SAR[{elementCount} × {elementSize}B]");
-
-            if (elementCount == 0)
-            {
-                vsb.Append("  (empty)");
-                return;
-            }
-
-            if (elementSize == ObjectPropertyExtensions.ObjectIdWireSize)
-            {
-                // ObjectID (handle) array — expand full OidType + proto/guid inline
-                vsb.AppendLine();
-                var items = prop.GetObjectIdArrayFull();
-                foreach (var (oidType, protoOrData1, guid) in items)
-                {
-                    var oidLabel = oidType switch
-                    {
-                        -2 => "HANDLE",
-                        -1 => "BLOCKED",
-                        0 => "NULL",
-                        1 => "A(proto)",
-                        2 => "GUID",
-                        3 => "P",
-                        _ => $"type{oidType}",
-                    };
-                    var extra = oidType == 1 ? $"proto={protoOrData1}" : $"d.a=0x{protoOrData1:X8}";
-                    vsb.AppendLine($"      [{oidLabel}] {extra}  guid={guid}");
-                }
-                return;
-            }
-
-            if (elementSize == 4)
-            {
-                var vals = prop.GetInt32Array();
-
-                // ── Critter base stats — index maps to BasicStatType ──
-                if (
-                    fieldBit == (int)ObjectField.ObjFCritterStatBaseIdx
-                    && objectType is ObjectType.Npc or ObjectType.Pc
-                )
-                {
-                    vsb.AppendLine();
-                    for (var idx = 0; idx < vals.Length; idx++)
-                    {
-                        var statLabel = Enum.IsDefined((BasicStatType)idx)
-                            ? ((BasicStatType)idx).ToString()
-                            : $"Stat{idx}";
-                        vsb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
-                    }
-                    return;
-                }
-
-                vsb.Append("  [");
-                vsb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
-                if (vals.Length > 8)
-                    vsb.Append($", +{vals.Length - 8} more");
-                vsb.Append(']');
-                return;
-            }
-
-            // Script slots: 12B per element — { uint hdrFlags, uint hdrCounters, int scriptId }
-            // Element index maps to ScriptAttachmentPoint
-            if (elementSize == 12)
-            {
-                var dataSpan = bytes.AsSpan(13, elementCount * 12);
-                vsb.AppendLine();
-                for (var idx = 0; idx < elementCount; idx++)
-                {
-                    var elem = dataSpan.Slice(idx * 12, 12);
-                    var hdrFlags = BinaryPrimitives.ReadUInt32LittleEndian(elem);
-                    var hdrCounters = BinaryPrimitives.ReadUInt32LittleEndian(elem.Slice(4));
-                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(elem.Slice(8));
-                    if (scriptId == 0 && hdrFlags == 0 && hdrCounters == 0)
-                        continue; // empty slot
-                    var apName = Enum.IsDefined((ScriptAttachmentPoint)idx)
-                        ? ((ScriptAttachmentPoint)idx).ToString()
-                        : $"Slot{idx}";
-                    vsb.AppendLine(
-                        $"      [{apName}] scriptId={scriptId}  hdrFlags=0x{hdrFlags:X8}  hdrCounters=0x{hdrCounters:X8}"
-                    );
-                }
-                return;
-            }
-
-            // NPC waypoints: 8B per element — each is an Int64 tile location
-            if (elementSize == 8 && fieldBit == 135) // ObjFNpcWaypointsIdx
-            {
-                var dataSpan = bytes.AsSpan(13, elementCount * 8);
-                vsb.AppendLine();
-                for (var idx = 0; idx < elementCount; idx++)
-                {
-                    var loc = BinaryPrimitives.ReadInt64LittleEndian(dataSpan.Slice(idx * 8));
-                    var tx = (int)(loc & 0xFFFFFFFF);
-                    var ty = (int)((loc >> 32) & 0xFFFFFFFF);
-                    vsb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
-                }
-                return;
-            }
-
-            vsb.Append($"  [{elementCount} elem(s)]");
+            AppendSarValue(ref vsb, prop, objectType);
             return;
         }
 
@@ -413,9 +149,298 @@ public static class MobDumper
         vsb.Append($"= \"{prop.GetString()}\"");
     }
 
+    /// <summary>Appends human-readable representation of a 4-byte (Int32) property value.</summary>
+    private static void AppendInt32Value(ref ValueStringBuilder vsb, ObjectProperty prop, ObjectType objectType)
+    {
+        var bytes = prop.RawBytes;
+        var fieldBit = (int)prop.Field;
+        var i32 = BinaryPrimitives.ReadInt32LittleEndian(bytes);
+        var u32 = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+        var f32 = BinaryPrimitives.ReadSingleLittleEndian(bytes);
+
+        // ── Common flag fields ──
+        if (prop.Field == ObjectField.ObjFBlitFlags)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            AppendFlagNames<ObjFBlitFlags>(ref vsb, u32);
+            return;
+        }
+        if (prop.Field == ObjectField.ObjFFlags)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            AppendFlagNames<ObjFFlags>(ref vsb, u32);
+            return;
+        }
+        if (prop.Field == ObjectField.ObjFSpellFlags)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            AppendFlagNames<ObjFSpellFlags>(ref vsb, u32);
+            return;
+        }
+
+        // ── Float fields (rotation, speed, radius, height) ──
+        if (
+            prop.Field
+            is ObjectField.ObjFPadIas1
+                or ObjectField.ObjFSpeedRun
+                or ObjectField.ObjFSpeedWalk
+                or ObjectField.ObjFPadFloat1
+                or ObjectField.ObjFRadius
+                or ObjectField.ObjFHeight
+        )
+        {
+            if (prop.Field == ObjectField.ObjFPadIas1) // ObjFRotation — stored as radians
+                vsb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
+            else
+                vsb.Append($"= {f32:G6}");
+            return;
+        }
+
+        // ── Type-specific flag fields (bit 64 = first type-specific slot) ──
+        if (fieldBit == 64)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            switch (objectType)
+            {
+                case ObjectType.Npc or ObjectType.Pc:
+                    AppendFlagNames<ObjFCritterFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Container:
+                    AppendFlagNames<ObjFContainerFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Portal:
+                    AppendFlagNames<ObjFPortalFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Scenery:
+                    AppendFlagNames<ObjFSceneryFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Weapon
+                or ObjectType.Ammo
+                or ObjectType.Armor
+                or ObjectType.Gold
+                or ObjectType.Food
+                or ObjectType.Scroll
+                or ObjectType.Key
+                or ObjectType.KeyRing
+                or ObjectType.Written
+                or ObjectType.Generic:
+                    AppendFlagNames<ObjFItemFlags>(ref vsb, u32);
+                    break;
+                default:
+                    vsb.Append("(unknown type flags)");
+                    break;
+            }
+            return;
+        }
+        if (prop.Field == ObjectField.ObjFCritterFlags2 && objectType is ObjectType.Npc or ObjectType.Pc)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            AppendFlagNames<ObjFCritterFlags2>(ref vsb, u32);
+            return;
+        }
+
+        // ── Weapon / armor type-specific flags (bit 96) ──
+        if (fieldBit == 96)
+        {
+            switch (objectType)
+            {
+                case ObjectType.Weapon:
+                    vsb.Append($"= 0x{u32:X8}  ");
+                    AppendFlagNames<ObjFWeaponFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Armor:
+                    vsb.Append($"= 0x{u32:X8}  ");
+                    AppendFlagNames<ObjFArmorFlags>(ref vsb, u32);
+                    break;
+                case ObjectType.Key:
+                    // ObjFKeyKeyId — not flags, it's the key identifier
+                    vsb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
+                    break;
+                default:
+                    vsb.Append($"= 0x{u32:X8}  (type-specific flags)");
+                    break;
+            }
+            return;
+        }
+
+        if (prop.Field == ObjectField.ObjFNpcFlags && objectType is ObjectType.Npc)
+        {
+            vsb.Append($"= 0x{u32:X8}  ");
+            AppendFlagNames<ObjFNpcFlags>(ref vsb, u32);
+            return;
+        }
+        if (prop.Field == ObjectField.ObjFPcFlags && objectType is ObjectType.Pc)
+        {
+            vsb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
+            return;
+        }
+
+        // ── Inventory fields ──
+        if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
+        {
+            vsb.Append($"= {i32}  (item count)");
+            return;
+        }
+        if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
+        {
+            vsb.Append(
+                i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
+            );
+            return;
+        }
+
+        // ── Well-known common scalar fields ──
+        var wellKnownLabel = prop.Field switch
+        {
+            ObjectField.ObjFAid => "art resource ID",
+            ObjectField.ObjFDestroyedAid => "destroyed-art resource ID",
+            ObjectField.ObjFAc => "armor class",
+            ObjectField.ObjFHpPts => "max HP",
+            ObjectField.ObjFHpAdj => "HP adjustment",
+            ObjectField.ObjFHpDamage => "HP damage taken",
+            ObjectField.ObjFSoundEffect => "sound effect ID",
+            ObjectField.ObjFCategory => "object category",
+            _ => null,
+        };
+        if (wellKnownLabel is not null)
+        {
+            vsb.Append($"= {i32}  ({wellKnownLabel})");
+            return;
+        }
+
+        vsb.Append($"= {i32}  (0x{u32:X8})");
+        if (!float.IsNaN(f32) && !float.IsInfinity(f32) && Math.Abs(f32) is > 0.00001f and < 1e7f)
+            vsb.Append($"  [float={f32:G6}]");
+    }
+
+    /// <summary>Appends human-readable representation of a 9-byte (Int64 with presence byte) property value.</summary>
+    private static void AppendInt64Value(ref ValueStringBuilder vsb, ObjectProperty prop, ObjectType objectType)
+    {
+        var bytes = prop.RawBytes;
+        var i64 = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(1));
+        if (IsLocationField(prop.Field, objectType))
+        {
+            var x = (int)(i64 & 0xFFFFFFFF);
+            var y = (int)((i64 >> 32) & 0xFFFFFFFF);
+            vsb.Append($"= tile ({x}, {y})");
+            return;
+        }
+
+        vsb.Append($"= 0x{(ulong)i64:X16}");
+    }
+
+    /// <summary>Appends human-readable representation of a SAR (Sparse Array) property value.</summary>
+    private static void AppendSarValue(ref ValueStringBuilder vsb, ObjectProperty prop, ObjectType objectType)
+    {
+        var bytes = prop.RawBytes;
+        var fieldBit = (int)prop.Field;
+
+        // SA header at offsets 1..12: { int32 size, int32 count, int32 bitset_id }
+        var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(1));
+        var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(5));
+        vsb.Append($"SAR[{elementCount} × {elementSize}B]");
+
+        if (elementCount == 0)
+        {
+            vsb.Append("  (empty)");
+            return;
+        }
+
+        if (elementSize == ObjectPropertyExtensions.ObjectIdWireSize)
+        {
+            // ObjectID (handle) array — expand full OidType + proto/guid inline
+            vsb.AppendLine();
+            var items = prop.GetObjectIdArrayFull();
+            foreach (var (oidType, protoOrData1, guid) in items)
+            {
+                var oidLabel = oidType switch
+                {
+                    GameObjectGuid.OidTypeHandle => "HANDLE",
+                    GameObjectGuid.OidTypeBlocked => "BLOCKED",
+                    GameObjectGuid.OidTypeNull => "NULL",
+                    GameObjectGuid.OidTypeA => "A(proto)",
+                    GameObjectGuid.OidTypeGuid => "GUID",
+                    GameObjectGuid.OidTypeP => "P",
+                    _ => $"type{oidType}",
+                };
+                var extra = oidType == GameObjectGuid.OidTypeA ? $"proto={protoOrData1}" : $"d.a=0x{protoOrData1:X8}";
+                vsb.AppendLine($"      [{oidLabel}] {extra}  guid={guid}");
+            }
+            return;
+        }
+
+        if (elementSize == 4)
+        {
+            var vals = prop.GetInt32Array();
+
+            // ── Critter base stats — index maps to BasicStatType ──
+            if (fieldBit == (int)ObjectField.ObjFCritterStatBaseIdx && objectType is ObjectType.Npc or ObjectType.Pc)
+            {
+                vsb.AppendLine();
+                for (var idx = 0; idx < vals.Length; idx++)
+                {
+                    var statLabel = Enum.IsDefined((BasicStatType)idx) ? ((BasicStatType)idx).ToString() : $"Stat{idx}";
+                    vsb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
+                }
+                return;
+            }
+
+            vsb.Append("  [");
+            vsb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
+            if (vals.Length > 8)
+                vsb.Append($", +{vals.Length - 8} more");
+            vsb.Append(']');
+            return;
+        }
+
+        // Script slots: 12B per element — { uint hdrFlags, uint hdrCounters, int scriptId }
+        // Element index maps to ScriptAttachmentPoint
+        if (elementSize == 12)
+        {
+            var dataSpan = bytes.AsSpan(13, elementCount * 12);
+            vsb.AppendLine();
+            for (var idx = 0; idx < elementCount; idx++)
+            {
+                var elem = dataSpan.Slice(idx * 12, 12);
+                var hdrFlags = BinaryPrimitives.ReadUInt32LittleEndian(elem);
+                var hdrCounters = BinaryPrimitives.ReadUInt32LittleEndian(elem.Slice(4));
+                var scriptId = BinaryPrimitives.ReadInt32LittleEndian(elem.Slice(8));
+                if (scriptId == 0 && hdrFlags == 0 && hdrCounters == 0)
+                    continue; // empty slot
+                var apName = Enum.IsDefined((ScriptAttachmentPoint)idx)
+                    ? ((ScriptAttachmentPoint)idx).ToString()
+                    : $"Slot{idx}";
+                vsb.AppendLine(
+                    $"      [{apName}] scriptId={scriptId}  hdrFlags=0x{hdrFlags:X8}  hdrCounters=0x{hdrCounters:X8}"
+                );
+            }
+            return;
+        }
+
+        // NPC waypoints: 8B per element — each is an Int64 tile location
+        if (elementSize == 8 && objectType is ObjectType.Npc && prop.Field == ObjectField.ObjFNpcWaypointsIdx)
+        {
+            var dataSpan = bytes.AsSpan(13, elementCount * 8);
+            vsb.AppendLine();
+            for (var idx = 0; idx < elementCount; idx++)
+            {
+                var loc = BinaryPrimitives.ReadInt64LittleEndian(dataSpan.Slice(idx * 8));
+                var tx = (int)(loc & 0xFFFFFFFF);
+                var ty = (int)((loc >> 32) & 0xFFFFFFFF);
+                vsb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
+            }
+            return;
+        }
+
+        vsb.Append($"  [{elementCount} elem(s)]");
+    }
+
     private static bool IsLocationField(ObjectField field, ObjectType objectType) =>
         field is ObjectField.ObjFLocation or ObjectField.ObjFCritterTeleportDest
-        || (objectType is ObjectType.Npc && (int)field is 137 or 138); // ObjFNpcStandpointDay/Night
+        || (
+            objectType is ObjectType.Npc
+            && field is ObjectField.ObjFNpcStandpointDay or ObjectField.ObjFNpcStandpointNight
+        );
 
     private static void AppendFlagNames<T>(ref ValueStringBuilder vsb, uint value)
         where T : struct, Enum

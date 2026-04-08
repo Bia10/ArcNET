@@ -1,4 +1,5 @@
-﻿using ArcNET.Formats;
+﻿using System.Text;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -43,7 +44,7 @@ public static class SectorDumper
             var hasNonZeroCounter = counters != 0;
             if (hasNonZeroCounter)
             {
-                var counterParts = new System.Text.StringBuilder();
+                var counterParts = new StringBuilder();
                 for (var ci = 0; ci < 4; ci++)
                 {
                     var b = (byte)(counters >> (ci * 8));

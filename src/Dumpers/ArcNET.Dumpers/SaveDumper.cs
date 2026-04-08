@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Collections.Frozen;
 using System.Numerics;
 using System.Text;
 using ArcNET.Core;
@@ -320,7 +321,7 @@ public static class SaveDumper
                 if (pos + 4 <= data.Length && BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(pos, 4)) == EndMarker)
                     pos += 4;
             }
-            catch
+            catch (Exception)
             {
                 // Parse failed — scan byte-by-byte for END marker so we can continue counting.
                 var found = false;
@@ -360,61 +361,65 @@ public static class SaveDumper
         return matches[0];
     }
 
+    // ── Extension → dump handler registry (OCP: register new formats here, no changes elsewhere) ──
+    // Handler signature: (fileName, rawBytes) → string?   null = no text representation
+    private static readonly FrozenDictionary<string, Func<string, byte[], string?>> s_handlers = new Dictionary<
+        string,
+        Func<string, byte[], string?>
+    >(StringComparer.OrdinalIgnoreCase)
+    {
+        // ── Formats shared with base-map files ────────────────────────────────────────────────
+        [".mob"] = static (_, d) => MobDumper.Dump(MobFormat.ParseMemory(d)),
+        [".pro"] = static (_, d) => ProtoDumper.Dump(ProtoFormat.ParseMemory(d)),
+        [".sec"] = static (_, d) => SectorDumper.Dump(SectorFormat.ParseMemory(d)),
+        [".jmp"] = static (_, d) => JmpDumper.Dump(JmpFormat.ParseMemory(d)),
+        [".prp"] = static (_, d) => MapPropertiesDumper.Dump(MapPropertiesFormat.ParseMemory(d)),
+        [".scr"] = static (_, d) => ScriptDumper.Dump(ScriptFormat.ParseMemory(d)),
+        [".mes"] = static (_, d) => MessageDumper.Dump(MessageFormat.ParseMemory(d)),
+        [".tdf"] = static (_, d) => TerrainDumper.Dump(TerrainFormat.ParseMemory(d)),
+        [".dlg"] = static (_, d) => DialogDumper.Dump(DialogFormat.ParseMemory(d)),
+        [".art"] = static (_, d) => ArtDumper.Dump(ArtFormat.ParseMemory(d)),
+
+        // ── Save-specific formats ────────────────────────────────────────────────────────────
+        // .dif  — solitary object diff file.
+        //         Large files: full obj_write format (same as .mob).
+        //         Small files: compact obj_dif_write format (byte[8-11] == 0x80000001).
+        [".dif"] = static (_, d) =>
+            IsCompactDifFormat(d) ? DumpCompactDif(d) : MobDumper.Dump(MobFormat.ParseMemory(d)),
+
+        // .mdy  — sequence of dynamic mobile objects (same obj_write per object)
+        [".mdy"] = static (_, d) => DumpMultipleMobs(d),
+
+        // .des  — list of ObjectIDs of destroyed/extinct objects
+        [".des"] = static (_, d) => DumpDestroyedObjects(d),
+
+        // .md   — modified-object diffs: [ObjectID][obj_dif_write block] pairs
+        [".md"] = static (_, d) => DumpModifiedObjects(d),
+
+        // .dat  — TimeEvent.dat (time-scheduled events); other .dat files have no known text representation
+        [".dat"] = static (n, d) =>
+            n.Equals("TimeEvent.dat", StringComparison.OrdinalIgnoreCase) ? DumpTimeEvents(d) : null,
+
+        // .tmf  — town-map fog-of-war bitmask (1 bit per map tile)
+        [".tmf"] = static (_, d) => DumpTownMapFog(d),
+
+        // .tmn  — town-map player notes (format not yet reversed)
+        [".tmn"] = static (_, d) => $"Town map notes: {d.Length} bytes  (binary — format not yet reversed)",
+
+        // .sav  — per-slot global state (quests, flags; format not yet reversed)
+        [".sav"] = static (_, d) => $"Global save data: {d.Length} bytes  (binary — format not yet reversed)",
+
+        // .sbf  — unknown save binary (format not yet reversed)
+        [".sbf"] = static (_, d) => $"Save binary: {d.Length} bytes  (binary — format not yet reversed)",
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Attempts to parse and dump <paramref name="data"/> according to its file name / extension.
     /// Returns <see langword="null"/> for formats that do not have a text representation.
+    /// To add support for a new format, register its handler in <see cref="s_handlers"/>.
     /// </summary>
-    private static string? ParseAndDump(string fileName, string ext, byte[] data)
-    {
-        var mem = (ReadOnlyMemory<byte>)data;
-
-        return ext switch
-        {
-            // ── Formats shared with base-map files ───────────────────────────
-            ".mob" => MobDumper.Dump(MobFormat.ParseMemory(mem)),
-            ".pro" => ProtoDumper.Dump(ProtoFormat.ParseMemory(mem)),
-            ".sec" => SectorDumper.Dump(SectorFormat.ParseMemory(mem)),
-            ".jmp" => JmpDumper.Dump(JmpFormat.ParseMemory(mem)),
-            ".prp" => MapPropertiesDumper.Dump(MapPropertiesFormat.ParseMemory(mem)),
-            ".scr" => ScriptDumper.Dump(ScriptFormat.ParseMemory(mem)),
-            ".mes" => MessageDumper.Dump(MessageFormat.ParseMemory(mem)),
-            ".tdf" => TerrainDumper.Dump(TerrainFormat.ParseMemory(mem)),
-            ".dlg" => DialogDumper.Dump(DialogFormat.ParseMemory(mem)),
-            ".art" => ArtDumper.Dump(ArtFormat.ParseMemory(mem)),
-
-            // ── Save-specific formats ────────────────────────────────────────
-            // .dif  — solitary object diff file.
-            //         Large files: full obj_write format (same as .mob).
-            //         Small files: compact obj_dif_write format (byte[8-11] == 0x80000001).
-            ".dif" => IsCompactDifFormat(data) ? DumpCompactDif(data) : MobDumper.Dump(MobFormat.ParseMemory(mem)),
-
-            // .mdy  — sequence of dynamic mobile objects (same obj_write per object)
-            ".mdy" => DumpMultipleMobs(mem),
-
-            // .des  — list of ObjectIDs of destroyed/extinct objects
-            ".des" => DumpDestroyedObjects(mem),
-
-            // .md   — modified-object diffs: [ObjectID][obj_dif_write block] pairs
-            ".md" => DumpModifiedObjects(mem),
-
-            // .dat  — TimeEvent.dat (time-scheduled events)
-            ".dat" when fileName.Equals("TimeEvent.dat", StringComparison.OrdinalIgnoreCase) => DumpTimeEvents(mem),
-
-            // .tmf  — town-map fog-of-war bitmask (1 bit per map tile)
-            ".tmf" => DumpTownMapFog(mem),
-
-            // .tmn  — town-map player notes (format not yet reversed)
-            ".tmn" => $"Town map notes: {mem.Length} bytes  (binary — format not yet reversed)",
-
-            // .sav  — per-slot global state (quests, flags; format not yet reversed)
-            ".sav" => $"Global save data: {mem.Length} bytes  (binary — format not yet reversed)",
-
-            // .sbf  — unknown save binary (format not yet reversed)
-            ".sbf" => $"Save binary: {mem.Length} bytes  (binary — format not yet reversed)",
-
-            _ => null,
-        };
-    }
+    private static string? ParseAndDump(string fileName, string ext, byte[] data) =>
+        s_handlers.TryGetValue(ext, out var handler) ? handler(fileName, data) : null;
 
     // ── Save-specific format parsers ──────────────────────────────────────────
 

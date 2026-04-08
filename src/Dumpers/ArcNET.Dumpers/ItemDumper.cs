@@ -32,8 +32,9 @@ public static class ItemDumper
             {
                 archive = DatArchive.Open(datFile);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"[warning] Could not open archive '{datFile}': {ex.Message}");
                 continue;
             }
 
@@ -55,9 +56,11 @@ public static class ItemDumper
                         foreach (var msg in mesFile.Entries)
                             result.TryAdd(msg.Index, msg.Text);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Skip corrupt files
+                        Console.Error.WriteLine(
+                            $"[warning] Could not parse '{entry.Path}' in '{datFile}': {ex.Message}"
+                        );
                     }
                 }
             }
@@ -200,11 +203,13 @@ public static class ItemDumper
     /// <param name="containerMobPath">DAT entry path of the container mob (e.g. <c>maps\Cave\G_GUID.mob</c>).</param>
     /// <param name="mapDirPrefix">Directory prefix used to locate child item mobs (e.g. <c>maps\Cave of the Bangellian Scourge\</c>).</param>
     /// <param name="nameLookup">Proto → name lookup built by <see cref="LoadProtoNameLookup"/>.</param>
+    /// <param name="installation">Installation variant used to translate proto IDs for name resolution.</param>
     public static string DumpContainerItems(
         DatArchive archive,
         string containerMobPath,
         string mapDirPrefix,
-        Dictionary<int, string> nameLookup
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation = ArcanumInstallationType.Vanilla
     )
     {
         ReadOnlyMemory<byte> containerData;
@@ -218,7 +223,7 @@ public static class ItemDumper
         }
 
         var container = MobFormat.ParseMemory(containerData);
-        return DumpContainerItemsCore(container, archive, mapDirPrefix, nameLookup);
+        return DumpContainerItemsCore(container, archive, mapDirPrefix, nameLookup, installation);
     }
 
     /// <summary>
@@ -229,26 +234,29 @@ public static class ItemDumper
         MobData container,
         DatArchive archiveForItems,
         string mapDirPrefix,
-        Dictionary<int, string> nameLookup
-    ) => DumpContainerItemsCore(container, archiveForItems, mapDirPrefix, nameLookup);
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation = ArcanumInstallationType.Vanilla
+    ) => DumpContainerItemsCore(container, archiveForItems, mapDirPrefix, nameLookup, installation);
 
-    /// <inheritdoc cref="DumpContainerItems(DatArchive, string, string, Dictionary{int,string})"/>
+    /// <inheritdoc cref="DumpContainerItems(DatArchive, string, string, Dictionary{int,string}, ArcanumInstallationType)"/>
     public static void DumpContainerItems(
         DatArchive archive,
         string containerMobPath,
         string mapDirPrefix,
         Dictionary<int, string> nameLookup,
-        TextWriter writer
-    ) => writer.Write(DumpContainerItems(archive, containerMobPath, mapDirPrefix, nameLookup));
+        TextWriter writer,
+        ArcanumInstallationType installation = ArcanumInstallationType.Vanilla
+    ) => writer.Write(DumpContainerItems(archive, containerMobPath, mapDirPrefix, nameLookup, installation));
 
-    /// <inheritdoc cref="DumpContainerItems(MobData, DatArchive, string, Dictionary{int,string})"/>
+    /// <inheritdoc cref="DumpContainerItems(MobData, DatArchive, string, Dictionary{int,string}, ArcanumInstallationType)"/>
     public static void DumpContainerItems(
         MobData container,
         DatArchive archiveForItems,
         string mapDirPrefix,
         Dictionary<int, string> nameLookup,
-        TextWriter writer
-    ) => writer.Write(DumpContainerItemsCore(container, archiveForItems, mapDirPrefix, nameLookup));
+        TextWriter writer,
+        ArcanumInstallationType installation = ArcanumInstallationType.Vanilla
+    ) => writer.Write(DumpContainerItemsCore(container, archiveForItems, mapDirPrefix, nameLookup, installation));
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
@@ -256,7 +264,8 @@ public static class ItemDumper
         MobData container,
         DatArchive archiveForItems,
         string mapDirPrefix,
-        Dictionary<int, string> nameLookup
+        Dictionary<int, string> nameLookup,
+        ArcanumInstallationType installation
     )
     {
         Span<char> buf = stackalloc char[512];
@@ -298,15 +307,15 @@ public static class ItemDumper
                 var itemData = archiveForItems.GetEntryData(itemDatPath);
                 itemMob = MobFormat.ParseMemory(itemData);
             }
-            catch
+            catch (Exception ex)
             {
-                vsb.AppendLine($"  [{i + 1}] {guid} — could not load");
+                vsb.AppendLine($"  [{i + 1}] {guid} — could not load: {ex.Message}");
                 continue;
             }
 
             var protoId = BinaryPrimitives.ReadInt32LittleEndian(itemMob.Header.ProtoId.Id.ToByteArray());
             vsb.AppendLine($"  [{i + 1}]");
-            vsb.Append(DumpItem(itemMob, protoId, nameLookup, ArcanumInstallationType.Vanilla));
+            vsb.Append(DumpItem(itemMob, protoId, nameLookup, installation));
         }
 
         return vsb.ToString();
@@ -369,14 +378,18 @@ public static class ItemDumper
     {
         if (value == 0)
             return "(none)";
-        var parts = new List<string>();
+        var vsb = new ValueStringBuilder(stackalloc char[256]);
         foreach (var flag in Enum.GetValues<T>())
         {
             var fv = Convert.ToUInt32(flag);
             if (fv != 0 && (value & fv) == fv)
-                parts.Add(flag.ToString());
+            {
+                if (vsb.Length > 0)
+                    vsb.Append(" | ");
+                vsb.Append(flag.ToString());
+            }
         }
-        return parts.Count > 0 ? string.Join(" | ", parts) : "(unknown flags)";
+        return vsb.Length > 0 ? vsb.ToString() : "(unknown flags)";
     }
 
     private static void AppendTypeSpecific(ref ValueStringBuilder vsb, MobData mob)
