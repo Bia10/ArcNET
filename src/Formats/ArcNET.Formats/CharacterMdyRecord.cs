@@ -52,6 +52,7 @@ public sealed record CharacterMdyRecord
     // Confirmed element layout: [0]=MaxFollowersComputed, [1]=PortraitIndex, [2]=0.
     private const int PortraitBsId = 0x4DA4;
     private const int PortraitElementCount = 3;
+    private const int PortraitMaxFollowersElement = 0;
     private const int PortraitIndexElement = 1;
 
     // ── Public state ──────────────────────────────────────────────────────────
@@ -138,11 +139,26 @@ public sealed record CharacterMdyRecord
     internal int PortraitDataOffset { get; init; } = -1;
 
     /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of element [0] (MaxFollowers) in the
+    /// 3-element portrait SAR (bsId=0x4DA4).  −1 when absent.
+    /// </summary>
+    internal int MaxFollowersDataOffset => PortraitDataOffset >= 0 ? PortraitDataOffset - PortraitIndexElement * 4 : -1;
+
+    /// <summary>
     /// The character's portrait index (bsId=0x4DA4[1]).
     /// Returns −1 when the portrait SAR is absent from this record.
     /// </summary>
     public int PortraitIndex =>
         PortraitDataOffset >= 0 ? BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(PortraitDataOffset, 4)) : -1;
+
+    /// <summary>
+    /// The computed max-followers value (bsId=0x4DA4[0]).
+    /// Returns −1 when the portrait SAR is absent from this record.
+    /// </summary>
+    public int MaxFollowers =>
+        MaxFollowersDataOffset >= 0
+            ? BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(MaxFollowersDataOffset, 4))
+            : -1;
 
     /// <summary>
     /// Byte offset within <see cref="RawBytes"/> of the 4-byte length prefix of the
@@ -506,6 +522,21 @@ public sealed record CharacterMdyRecord
             return this;
         var raw = (byte[])RawBytes.Clone();
         BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(PortraitDataOffset, 4), portraitIndex);
+        return this with { RawBytes = raw };
+    }
+
+    /// <summary>
+    /// Returns a new record with the max-followers computed value set to <paramref name="maxFollowers"/>
+    /// (bsId=0x4DA4[0]).
+    /// Returns this record unchanged when the portrait SAR is absent.
+    /// </summary>
+    public CharacterMdyRecord WithMaxFollowers(int maxFollowers)
+    {
+        var off = MaxFollowersDataOffset;
+        if (off < 0)
+            return this;
+        var raw = (byte[])RawBytes.Clone();
+        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(off, 4), maxFollowers);
         return this with { RawBytes = raw };
     }
 
