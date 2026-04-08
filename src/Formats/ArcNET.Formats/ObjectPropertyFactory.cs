@@ -11,37 +11,6 @@ namespace ArcNET.Formats;
 /// </summary>
 public static class ObjectPropertyFactory
 {
-    // ── SAR helpers (duplicated from ObjectPropertyExtensions to stay in this file) ──────
-
-    private static byte[] BuildSarBytes(int elementSize, int elementCount, ReadOnlySpan<byte> elements)
-    {
-        var bitsetCnt = (uint)((elementCount + 31) / 32);
-        var totalSize = 1 + 12 + elements.Length + 4 + (int)(bitsetCnt * 4);
-        var bytes = new byte[totalSize];
-        bytes[0] = 1; // presence
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(1), (uint)elementSize);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(5), (uint)elementCount);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(9), 0); // sa.bitset_id
-        elements.CopyTo(bytes.AsSpan(13));
-        var postOffset = 13 + elements.Length;
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
-        for (var i = 0; i < (int)bitsetCnt; i++)
-        {
-            // Last (possibly partial) word: only bits 0..(elementCount%32 - 1) set.
-            // All preceding words are fully occupied (0xFFFFFFFF).
-            uint word;
-            if (i < (int)bitsetCnt - 1)
-                word = 0xFFFFFFFF;
-            else
-            {
-                var rem = elementCount % 32;
-                word = rem == 0 ? 0xFFFFFFFF : (1u << rem) - 1u;
-            }
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), word);
-        }
-        return bytes;
-    }
-
     // ── Scalars ───────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -115,7 +84,7 @@ public static class ObjectPropertyFactory
         var elements = new byte[values.Length * 4];
         for (var i = 0; i < values.Length; i++)
             BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
-        return new ObjectProperty { Field = field, RawBytes = BuildSarBytes(4, values.Length, elements) };
+        return new ObjectProperty { Field = field, RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements) };
     }
 
     /// <summary>
@@ -127,7 +96,7 @@ public static class ObjectPropertyFactory
         var elements = new byte[values.Length * 8];
         for (var i = 0; i < values.Length; i++)
             BinaryPrimitives.WriteInt64LittleEndian(elements.AsSpan(i * 8), values[i]);
-        return new ObjectProperty { Field = field, RawBytes = BuildSarBytes(8, values.Length, elements) };
+        return new ObjectProperty { Field = field, RawBytes = SarEncoding.BuildSarBytes(8, values.Length, elements) };
     }
 
     /// <summary>
@@ -148,7 +117,11 @@ public static class ObjectPropertyFactory
             BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0);
             ids[i].ToByteArray().CopyTo(elements, o + 8);
         }
-        return new ObjectProperty { Field = field, RawBytes = BuildSarBytes(wireSize, ids.Length, elements) };
+        return new ObjectProperty
+        {
+            Field = field,
+            RawBytes = SarEncoding.BuildSarBytes(wireSize, ids.Length, elements),
+        };
     }
 
     /// <summary>

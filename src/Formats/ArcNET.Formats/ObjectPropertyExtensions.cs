@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Formats;
 
@@ -20,35 +21,20 @@ public static class ObjectPropertyExtensions
     //   int32   bitset_cnt    after data  (number of bitset words)
     //   int32[] bitset_data   bitset_cnt × 4 bytes
 
+    /// <summary>Byte offset where SAR element data begins (after 1-byte presence + 12-byte SA header).</summary>
+    private const int SarDataOffset = 13;
+
     // Returns elementSize, elementCount, and dataOffset into rawBytes.
     private static (int ElementSize, int ElementCount, int DataOffset) ParseSarHeader(byte[] rawBytes)
     {
-        if (rawBytes.Length < 13)
+        if (rawBytes.Length < SarDataOffset)
             throw new InvalidOperationException(
-                $"SAR raw bytes too short: need at least 13 header bytes, got {rawBytes.Length}."
+                $"SAR raw bytes too short: need at least {SarDataOffset} header bytes, got {rawBytes.Length}."
             );
         // presence at [0]; SA header { size, count, bitset_id } at [1..12]
         var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(1));
         var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(5));
-        return (elementSize, elementCount, 13);
-    }
-
-    private static byte[] BuildSarBytes(int elementSize, int elementCount, ReadOnlySpan<byte> elements)
-    {
-        var bitsetCnt = (uint)((elementCount + 31) / 32);
-        // presence(1) + SA header(12) + data + bitsetCnt(4) + bitsetData
-        var totalSize = 1 + 12 + elements.Length + 4 + (int)(bitsetCnt * 4);
-        var bytes = new byte[totalSize];
-        bytes[0] = 1; // presence
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(1), (uint)elementSize); // sa.size
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(5), (uint)elementCount); // sa.count
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(9), 0); // sa.bitset_id
-        elements.CopyTo(bytes.AsSpan(13));
-        var postOffset = 13 + elements.Length;
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
-        for (var i = 0; i < (int)bitsetCnt; i++)
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), 0xFFFFFFFF);
-        return bytes;
+        return (elementSize, elementCount, SarDataOffset);
     }
 
     // ── Scalar readers ────────────────────────────────────────────────────────
@@ -280,7 +266,11 @@ public static class ObjectPropertyExtensions
         var elements = new byte[values.Length * 4];
         for (var i = 0; i < values.Length; i++)
             BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
-        return new ObjectProperty { Field = property.Field, RawBytes = BuildSarBytes(4, values.Length, elements) };
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements),
+        };
     }
 
     /// <summary>
@@ -292,7 +282,11 @@ public static class ObjectPropertyExtensions
         var elements = new byte[values.Length * 4];
         for (var i = 0; i < values.Length; i++)
             BinaryPrimitives.WriteUInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
-        return new ObjectProperty { Field = property.Field, RawBytes = BuildSarBytes(4, values.Length, elements) };
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements),
+        };
     }
 
     /// <summary>
@@ -304,7 +298,11 @@ public static class ObjectPropertyExtensions
         var elements = new byte[values.Length * 8];
         for (var i = 0; i < values.Length; i++)
             BinaryPrimitives.WriteInt64LittleEndian(elements.AsSpan(i * 8), values[i]);
-        return new ObjectProperty { Field = property.Field, RawBytes = BuildSarBytes(8, values.Length, elements) };
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = SarEncoding.BuildSarBytes(8, values.Length, elements),
+        };
     }
 
     /// <summary>
@@ -324,7 +322,11 @@ public static class ObjectPropertyExtensions
             BinaryPrimitives.WriteUInt32LittleEndian(elements.AsSpan(o + 4), scripts[i].Counters);
             BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 8), scripts[i].ScriptId);
         }
-        return new ObjectProperty { Field = property.Field, RawBytes = BuildSarBytes(12, scripts.Length, elements) };
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = SarEncoding.BuildSarBytes(12, scripts.Length, elements),
+        };
     }
 
     // ── ObjectID (Handle) array readers / writers ─────────────────────────────
@@ -391,12 +393,11 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithObjectIdArray(this ObjectProperty property, ReadOnlySpan<Guid> ids)
     {
-        const short OidTypeGuid = 2;
         var elements = new byte[ids.Length * ObjectIdWireSize];
         for (var i = 0; i < ids.Length; i++)
         {
             var o = i * ObjectIdWireSize;
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), OidTypeGuid);
+            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), GameObjectGuid.OidTypeGuid);
             BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0); // padding_2
             BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0); // padding_4
             ids[i].ToByteArray().CopyTo(elements, o + 8);
@@ -404,7 +405,7 @@ public static class ObjectPropertyExtensions
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
         };
     }
 

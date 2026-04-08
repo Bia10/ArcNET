@@ -93,7 +93,7 @@ public sealed class MobileMdFile
 /// before the START sentinel so care is taken when serialising and deserialising.
 /// </para>
 /// </summary>
-public sealed class MobileMdFormat : IFormatReader<MobileMdFile>, IFormatWriter<MobileMdFile>
+public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFileWriter<MobileMdFile>
 {
     private const int OidSize = 24;
     private const uint StartMarker = 0x12344321u;

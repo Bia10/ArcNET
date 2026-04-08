@@ -58,7 +58,7 @@ public sealed class SaveInfo
 /// int32 MapId | int32 GameTimeDays | int32 GameTimeMs | int32 LeaderPortraitId |
 /// int32 LeaderLevel | int64 LeaderLoc | int32 StoryState | PrefixedString DisplayName</c>.
 /// </summary>
-public sealed class SaveInfoFormat : IFormatReader<SaveInfo>, IFormatWriter<SaveInfo>
+public sealed class SaveInfoFormat : IFormatFileReader<SaveInfo>, IFormatFileWriter<SaveInfo>
 {
     private const int MinSupportedVersion = 0;
     private const int MaxSupportedVersion = 25;

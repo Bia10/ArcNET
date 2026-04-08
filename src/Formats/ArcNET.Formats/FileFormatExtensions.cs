@@ -30,5 +30,9 @@ public static class FileFormatExtensions
         s_byExtension.TryGetValue(extension, out var fmt) ? fmt : FileFormat.Unknown;
 
     /// <summary>Infers the format from a file path.</summary>
-    public static FileFormat FromPath(string path) => FromExtension(Path.GetExtension(path));
+    public static FileFormat FromPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        return FromExtension(Path.GetExtension(path));
+    }
 }

@@ -26,7 +26,7 @@ public sealed class MapProperties
 /// Span-based parser and writer for Arcanum map properties (.prp) files.
 /// The format is a fixed 24-byte flat struct with no magic number or version field.
 /// </summary>
-public sealed class MapPropertiesFormat : IFormatReader<MapProperties>, IFormatWriter<MapProperties>
+public sealed class MapPropertiesFormat : IFormatFileReader<MapProperties>, IFormatFileWriter<MapProperties>
 {
     private const int FileSize = 24;
 

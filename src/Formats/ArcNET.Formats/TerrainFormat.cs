@@ -40,7 +40,7 @@ public sealed class TerrainData
 /// Header: 32-byte <c>TerrainHeader</c>; body: <c>width × height × uint16</c> tile array.
 /// When <c>flags &amp; 0x1</c> the body is row-by-row zlib-compressed.
 /// </summary>
-public sealed class TerrainFormat : IFormatReader<TerrainData>, IFormatWriter<TerrainData>
+public sealed class TerrainFormat : IFormatFileReader<TerrainData>, IFormatFileWriter<TerrainData>
 {
     private const float SupportedVersion = 1.2f;
     private const uint CompressedFlag = 0x1;

@@ -51,7 +51,7 @@ public sealed class JmpFile
 /// Span-based parser and writer for Arcanum jump-point (.jmp) files.
 /// Format: <c>int32 count</c> followed by <c>count × 32-byte JumpPoint structs</c>.
 /// </summary>
-public sealed class JmpFormat : IFormatReader<JmpFile>, IFormatWriter<JmpFile>
+public sealed class JmpFormat : IFormatFileReader<JmpFile>, IFormatFileWriter<JmpFile>
 {
     /// <inheritdoc/>
     public static JmpFile Parse(scoped ref SpanReader reader)

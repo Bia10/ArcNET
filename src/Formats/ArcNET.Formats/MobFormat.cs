@@ -25,7 +25,7 @@ public sealed class MobData
 /// The MOB format begins with a <see cref="GameObjectHeader"/> (OFF header) followed by
 /// a sequential property collection — one value per set bit in the header bitmap.
 /// </summary>
-public sealed class MobFormat : IFormatReader<MobData>, IFormatWriter<MobData>
+public sealed class MobFormat : IFormatFileReader<MobData>, IFormatFileWriter<MobData>
 {
     /// <inheritdoc/>
     public static MobData Parse(scoped ref SpanReader reader)

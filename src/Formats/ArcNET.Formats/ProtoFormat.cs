@@ -30,7 +30,7 @@ public sealed class ProtoData
 ///   <item>All bitmap bits are treated as present — prototypes define every field.</item>
 /// </list>
 /// </summary>
-public sealed class ProtoFormat : IFormatReader<ProtoData>, IFormatWriter<ProtoData>
+public sealed class ProtoFormat : IFormatFileReader<ProtoData>, IFormatFileWriter<ProtoData>
 {
     /// <inheritdoc/>
     public static ProtoData Parse(scoped ref SpanReader reader)

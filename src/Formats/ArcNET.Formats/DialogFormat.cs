@@ -62,7 +62,7 @@ public sealed class DlgFile
 /// DLG is a <b>plain-text</b> format: each entry consists of exactly 7 brace-delimited fields
 /// in the order <c>{num}{str}{gender}{iq}{conditions}{response_val}{actions}</c>.
 /// </summary>
-public sealed class DialogFormat : IFormatReader<DlgFile>, IFormatWriter<DlgFile>
+public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter<DlgFile>
 {
     // Arcanum .dlg files are encoded in Windows-1252 (cp1252).
     // Registering the provider once allows GetEncoding(1252) on all platforms.

@@ -30,9 +30,9 @@ public sealed class FacadeWalk
 
 /// <summary>
 /// Span-based parser and writer for Arcanum FacadeWalk files.
-/// Implements both <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/>.
+/// Implements both <see cref="IFormatFileReader{T}"/> and <see cref="IFormatFileWriter{T}"/>.
 /// </summary>
-public sealed class FacWalkFormat : IFormatReader<FacadeWalk>, IFormatWriter<FacadeWalk>
+public sealed class FacWalkFormat : IFormatFileReader<FacadeWalk>, IFormatFileWriter<FacadeWalk>
 {
     private const string ExpectedMarker = "FacWalk V101  ";
     private const int MarkerLength = 14;

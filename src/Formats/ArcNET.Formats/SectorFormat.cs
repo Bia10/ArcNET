@@ -172,7 +172,7 @@ public sealed class Sector
 /// Write order: lights → tiles → roofs → version(0xAA0004) → tile scripts →
 /// sector script → townmap/aptitude/light-scheme → sound list → block mask → objects.
 /// </summary>
-public sealed class SectorFormat : IFormatReader<Sector>, IFormatWriter<Sector>
+public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<Sector>
 {
     private const int TileCount = 4096;
     private const int RoofCount = 256;

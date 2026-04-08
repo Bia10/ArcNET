@@ -1,4 +1,5 @@
-using System.Buffers;
+﻿using System.Buffers;
+using System.Buffers.Binary;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -36,7 +37,7 @@ public sealed class MobileMdyFile
 /// <c>0xFFFFFFFF</c>; these are silently skipped when reading.
 /// </para>
 /// </summary>
-public sealed class MobileMdyFormat : IFormatReader<MobileMdyFile>, IFormatWriter<MobileMdyFile>
+public sealed class MobileMdyFormat : IFormatFileReader<MobileMdyFile>, IFormatFileWriter<MobileMdyFile>
 {
     private const uint Sentinel = 0xFFFFFFFF;
 
@@ -61,22 +62,79 @@ public sealed class MobileMdyFormat : IFormatReader<MobileMdyFile>, IFormatWrite
             )
             {
                 var remaining = reader.RemainingSpan;
-                var character = CharacterMdyRecord.Parse(remaining, out var consumed);
-                reader.Skip(consumed);
-                records.Add(MobileMdyRecord.FromCharacter(character));
+                try
+                {
+                    var character = CharacterMdyRecord.Parse(remaining, out var consumed);
+                    reader.Skip(consumed);
+                    records.Add(MobileMdyRecord.FromCharacter(character));
+                }
+                catch (Exception ex)
+                {
+                    // False-positive magic hit (the pattern appeared inside mob data).
+                    // Advance one byte and resync.
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[MobileMdyFormat] V2 magic false-positive at offset {reader.Position}: {ex.Message}"
+                    );
+                    int skip = FindResyncOffset(reader.RemainingSpan, skipFirst: 1);
+                    reader.Skip(skip);
+                }
                 continue;
             }
 
             // Standard mob record: version must be 0x08 or 0x77.
             var nextVersion = reader.PeekInt32At(0);
             if (nextVersion != 0x08 && nextVersion != 0x77)
-                break;
+            {
+                // Unknown dword — not a sentinel, v2 magic, or standard record version.
+                // Advance 1 byte and keep scanning so we don't miss records that follow.
+                reader.Skip(1);
+                continue;
+            }
 
-            var mob = MobFormat.Parse(ref reader);
-            records.Add(MobileMdyRecord.FromMob(mob));
+            try
+            {
+                var mob = MobFormat.Parse(ref reader);
+                records.Add(MobileMdyRecord.FromMob(mob));
+            }
+            catch (Exception ex)
+            {
+                // Mob parse failed mid-record. Scan forward (past current position)
+                // for the next valid record start: sentinel, v2 magic, or version word.
+                System.Diagnostics.Debug.WriteLine(
+                    $"[MobileMdyFormat] Mob parse failed at offset {reader.Position}: {ex.Message}"
+                );
+                int skip = FindResyncOffset(reader.RemainingSpan, skipFirst: 1);
+                reader.Skip(skip);
+            }
         }
 
         return new MobileMdyFile { Records = records };
+    }
+
+    // ── Resync helper ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Scans <paramref name="data"/> for the first position ≥ <paramref name="skipFirst"/>
+    /// that looks like a valid record boundary: a 0xFFFFFFFF sentinel, the v2 magic,
+    /// or a version dword of 0x00000008 or 0x00000077.
+    /// Returns <paramref name="data"/>.Length (skip to end) if nothing is found.
+    /// </summary>
+    private static int FindResyncOffset(ReadOnlySpan<byte> data, int skipFirst = 0)
+    {
+        for (var i = skipFirst; i + 4 <= data.Length; i++)
+        {
+            var dword = BinaryPrimitives.ReadUInt32LittleEndian(data[i..]);
+            if (dword == Sentinel)
+                return i;
+            if (
+                i + CharacterMdyRecord.V2Magic.Length <= data.Length
+                && data.Slice(i, CharacterMdyRecord.V2Magic.Length).SequenceEqual(CharacterMdyRecord.V2Magic)
+            )
+                return i;
+            if (dword is 0x00000008 or 0x00000077)
+                return i;
+        }
+        return data.Length;
     }
 
     /// <inheritdoc/>

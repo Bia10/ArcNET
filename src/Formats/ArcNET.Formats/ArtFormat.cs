@@ -110,7 +110,7 @@ public sealed class ArtFile
 /// Binary layout: 132-byte header → present palettes → all frame headers → all pixel data.
 /// Pixel data uses a custom RLE codec defined in <c>artconverter.cpp</c>.
 /// </summary>
-public sealed class ArtFormat : IFormatReader<ArtFile>, IFormatWriter<ArtFile>
+public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<ArtFile>
 {
     private const int PaletteEntries = 256;
     private const int FrameHeaderSize = 28;

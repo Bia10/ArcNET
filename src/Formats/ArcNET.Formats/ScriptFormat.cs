@@ -84,7 +84,7 @@ public sealed class ScrFile
 /// Layout: 8-byte <c>ScriptHeader</c> then 52 bytes of metadata then
 /// <c>n × 132-byte ScriptCondition</c> entries.
 /// </summary>
-public sealed class ScriptFormat : IFormatReader<ScrFile>, IFormatWriter<ScrFile>
+public sealed class ScriptFormat : IFormatFileReader<ScrFile>, IFormatFileWriter<ScrFile>
 {
     private const int DescriptionLength = 40;
 

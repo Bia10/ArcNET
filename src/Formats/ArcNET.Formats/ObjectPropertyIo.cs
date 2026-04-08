@@ -546,7 +546,26 @@ internal static class ObjectPropertyIo
                     return props;
                 }
 
-                var raw = ReadField(ref reader, wireType);
+                byte[] raw;
+                try
+                {
+                    raw = ReadField(ref reader, wireType);
+                }
+                catch (NotSupportedException ex)
+                {
+                    // Field data is malformed or truncated — we cannot safely advance the
+                    // reader, so stop here and surface a note.
+                    props.Add(
+                        new ObjectProperty
+                        {
+                            Field = (ObjectField)bit,
+                            RawBytes = [],
+                            ParseNote = ex.Message,
+                        }
+                    );
+                    return props;
+                }
+
                 props.Add(new ObjectProperty { Field = (ObjectField)bit, RawBytes = raw });
                 word &= word - 1; // clear lowest set bit
             }
@@ -662,17 +681,32 @@ internal static class ObjectPropertyIo
         var elementCount = reader.ReadUInt32();
         var bitsetId = reader.ReadUInt32(); // in-memory reference, preserved for round-trip
 
-        var dataLen = (int)(elementSize * elementCount);
+        // Use long arithmetic to avoid uint overflow when multiplying large values.
+        var dataLen = (long)elementSize * elementCount;
+        if (dataLen > reader.Remaining)
+            throw new NotSupportedException(
+                $"SAR element data ({dataLen}B) exceeds available bytes ({reader.Remaining}B). "
+                    + $"elementSize={elementSize}, elementCount={elementCount}"
+            );
 
         // Read both variable-length regions as zero-copy spans before allocating the output buffer.
-        var dataSpan = reader.ReadBytes(dataLen);
+        var dataSpan = reader.ReadBytes((int)dataLen);
         var bitsetCnt = reader.ReadUInt32();
-        var bitsetLen = (int)(bitsetCnt * 4);
-        var bitsetSpan = reader.ReadBytes(bitsetLen);
+        var bitsetLen = (long)bitsetCnt * 4;
+        if (bitsetLen > reader.Remaining)
+            throw new NotSupportedException(
+                $"SAR bitset data ({bitsetLen}B) exceeds available bytes ({reader.Remaining}B). "
+                    + $"bitsetCnt={bitsetCnt}"
+            );
+        var bitsetSpan = reader.ReadBytes((int)bitsetLen);
+
+        // Both dataLen and bitsetLen are known to fit in int (already checked against Remaining).
+        var dataLenI = (int)dataLen;
+        var bitsetLenI = (int)bitsetLen;
 
         // Single allocation for the full wire representation.
         // presence(1) + SA header(12) + data + bitsetCnt(4) + bitset
-        var total = 1 + 12 + dataLen + 4 + bitsetLen;
+        var total = 1 + 12 + dataLenI + 4 + bitsetLenI;
         var raw = new byte[total];
         var p = 0;
         raw[p++] = presence;
@@ -683,7 +717,7 @@ internal static class ObjectPropertyIo
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetId);
         p += 4;
         dataSpan.CopyTo(raw.AsSpan(p));
-        p += dataLen;
+        p += dataLenI;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(p), bitsetCnt);
         p += 4;
         bitsetSpan.CopyTo(raw.AsSpan(p));

@@ -40,7 +40,7 @@ public sealed class SaveIndex
 /// The TFAI stream is a sequence of typed entries terminated by <see cref="TfaiEntryType.EndOfFile"/>.
 /// The companion TFAF file is a raw concatenation of file payloads in depth-first order.
 /// </summary>
-public sealed class SaveIndexFormat : IFormatReader<SaveIndex>, IFormatWriter<SaveIndex>
+public sealed class SaveIndexFormat : IFormatFileReader<SaveIndex>, IFormatFileWriter<SaveIndex>
 {
     /// <inheritdoc/>
     public static SaveIndex Parse(scoped ref SpanReader reader)

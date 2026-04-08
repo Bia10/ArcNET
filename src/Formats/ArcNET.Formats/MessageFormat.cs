@@ -30,10 +30,10 @@ public sealed class MesFile
 /// Span-based parser and writer for Arcanum message (.mes) text files.
 /// The format is plain text: each line with at least two brace-delimited tokens is an entry.
 /// Format: <c>{index}{text}</c> — or with optional sound field: <c>{index}{sound}{text}</c>.
-/// Implements <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/> using
+/// Implements <see cref="IFormatFileReader{T}"/> and <see cref="IFormatFileWriter{T}"/> using
 /// UTF-8 encoding for <see cref="SpanReader"/> / <see cref="SpanWriter"/> integration.
 /// </summary>
-public sealed class MessageFormat : IFormatReader<MesFile>, IFormatWriter<MesFile>
+public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWriter<MesFile>
 {
     /// <inheritdoc/>
     public static MesFile Parse(scoped ref SpanReader reader)

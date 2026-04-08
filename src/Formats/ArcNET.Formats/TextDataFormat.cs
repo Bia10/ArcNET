@@ -20,13 +20,13 @@ public sealed class TextDataFile
 /// <summary>
 /// Span-based parser and writer for Arcanum text data files (entity definitions, etc.).
 /// These files use <c>key:value</c> lines with optional inline <c>//</c> comments.
-/// Implements both <see cref="IFormatReader{T}"/> and <see cref="IFormatWriter{T}"/> over
+/// Implements both <see cref="IFormatFileReader{T}"/> and <see cref="IFormatFileWriter{T}"/> over
 /// <see cref="TextDataFile"/>.
 /// </summary>
 /// <remarks>
 /// Arcanum shipped as a Win32 title; its text files are encoded in Windows-1252 (code page 1252).
 /// </remarks>
-public sealed class TextDataFormat : IFormatReader<TextDataFile>, IFormatWriter<TextDataFile>
+public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFileWriter<TextDataFile>
 {
     // Arcanum text-data files use Windows-1252. Register the provider so the encoding is
     // available on non-Windows runtimes (no-op on Windows where it is built-in).
