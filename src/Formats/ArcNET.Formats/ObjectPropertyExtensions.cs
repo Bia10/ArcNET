@@ -415,6 +415,39 @@ public static class ObjectPropertyExtensions
     /// Use this to clear container or critter inventory lists in mob overrides.
     /// </summary>
     public static ObjectProperty WithEmptyObjectIdArray(this ObjectProperty property) => property.WithObjectIdArray([]);
+
+    /// <summary>
+    /// Returns a new <see cref="ObjectProperty"/> encoding <paramref name="ids"/> as a
+    /// <c>OD_TYPE_HANDLE_ARRAY</c> SAR block preserving each entry's full ObjectID:
+    /// type field, proto-or-data field, and GUID.  Use this instead of
+    /// <see cref="WithObjectIdArray"/> when the list contains <c>OID_TYPE_A</c> (type=1) entries
+    /// that store a prototype index in <c>ProtoOrData1</c> — writing those via
+    /// <see cref="WithObjectIdArray"/> would corrupt the OID type to <c>OID_TYPE_GUID</c>.
+    /// </summary>
+    public static ObjectProperty WithObjectIdArrayFull(
+        this ObjectProperty property,
+        ReadOnlySpan<(short OidType, int ProtoOrData1, Guid Id)> ids
+    )
+    {
+        var elements = new byte[ids.Length * ObjectIdWireSize];
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var o = i * ObjectIdWireSize;
+            var (oidType, protoOrData1, id) = ids[i];
+            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), oidType);
+            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0); // padding_2
+            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0); // padding_4
+            // The 16-byte TigGuid starts at byte 8.  For OID_TYPE_A the first 4 bytes of
+            // TigGuid overlap d.a (the proto index), so we must write protoOrData1 there.
+            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 8), protoOrData1);
+            id.ToByteArray().AsSpan(4).CopyTo(elements.AsSpan(o + 12)); // remaining 12 GUID bytes
+        }
+        return new ObjectProperty
+        {
+            Field = property.Field,
+            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
+        };
+    }
 }
 
 /// <summary>
