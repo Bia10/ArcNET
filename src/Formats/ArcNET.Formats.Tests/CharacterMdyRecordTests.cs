@@ -359,4 +359,390 @@ public class CharacterMdyRecordTests
         await Assert.That(rec.Gold).IsEqualTo(0);
         await Assert.That(rec.HasCompleteData).IsTrue();
     }
+
+    // ── MaxFollowers (bsId=0x4DA4[0]) ────────────────────────────────────────
+
+    [Test]
+    public async Task Parse_WithPortraitSar_ReadsMaxFollowersCorrectly()
+    {
+        // BuildRecordWithPortrait sets MaxFollowers=2. Verify element [0] is exposed.
+        var bytes = BuildRecordWithPortrait(portraitIndex: 5, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.MaxFollowers).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task WithMaxFollowers_PatchesCorrectly()
+    {
+        var bytes = BuildRecordWithPortrait(portraitIndex: 5, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithMaxFollowers(6);
+
+        await Assert.That(patched.MaxFollowers).IsEqualTo(6);
+        await Assert.That(rec.MaxFollowers).IsEqualTo(2); // original unchanged
+    }
+
+    [Test]
+    public async Task WithMaxFollowers_RoundTrips_ViaReparse()
+    {
+        var bytes = BuildRecordWithPortrait(portraitIndex: 3, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = rec.WithMaxFollowers(4);
+
+        var reparsed = CharacterMdyRecord.Parse(patched.RawBytes, out _);
+        await Assert.That(reparsed.MaxFollowers).IsEqualTo(4);
+        await Assert.That(reparsed.PortraitIndex).IsEqualTo(3); // portrait unaffected
+    }
+
+    [Test]
+    public async Task Parse_WithoutPortraitSar_MaxFollowersIsMinusOne()
+    {
+        var bytes = BuildRecord(gold: 0, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.MaxFollowers).IsEqualTo(-1);
+    }
+
+    // ── WithName ─────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task WithName_ChangesName()
+    {
+        var bytes = BuildRecordWithName("OldName", stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithName("NewName");
+
+        await Assert.That(patched.Name).IsEqualTo("NewName");
+        await Assert.That(rec.Name).IsEqualTo("OldName"); // original unchanged
+    }
+
+    [Test]
+    public async Task WithName_ShorterName_ShrinksRawBytes()
+    {
+        var bytes = BuildRecordWithName("LongName123", stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithName("A");
+
+        await Assert.That(patched.RawBytes.Length).IsLessThan(rec.RawBytes.Length);
+    }
+
+    [Test]
+    public async Task WithName_LongerName_GrowsRawBytes()
+    {
+        var bytes = BuildRecordWithName("A", stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithName("LongerName");
+
+        await Assert.That(patched.RawBytes.Length).IsGreaterThan(rec.RawBytes.Length);
+    }
+
+    [Test]
+    public async Task WithName_RoundTrips_ViaReparse()
+    {
+        var bytes = BuildRecordWithName("Percival", stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = rec.WithName("Torian");
+
+        var reparsed = CharacterMdyRecord.Parse(patched.RawBytes, out _);
+        await Assert.That(reparsed.Name).IsEqualTo("Torian");
+    }
+
+    [Test]
+    public async Task WithName_NullName_ReturnsUnchanged()
+    {
+        var bytes = BuildRecordWithName("Unchanged", stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithName(null);
+
+        await Assert.That(patched.Name).IsEqualTo("Unchanged");
+        await Assert.That(ReferenceEquals(patched, rec)).IsTrue();
+    }
+
+    // ── HP Damage SAR (bsId=0x4046, INT32[4]) ────────────────────────────────
+    // These SARs appear in the pre-stat region (between the v2 magic and the stats SAR).
+
+    private static byte[] BuildRecordWithHpSar(int acBonus, int hpPtsBonus, int hpAdj, int hpDamage)
+    {
+        byte[] magic = [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        var hpData = new byte[4 * 4];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(hpData.AsSpan(0, 4), acBonus);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(hpData.AsSpan(4, 4), hpPtsBonus);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(hpData.AsSpan(8, 4), hpAdj);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(hpData.AsSpan(12, 4), hpDamage);
+        var hpSar = Sar(4, 4, 0x4046, hpData);
+        var statsSar = Sar(4, 28, 0x4DA5, IntArray(28));
+        var basicSar = Sar(4, 12, 0x43C3, IntArray(12));
+        var techSar = Sar(4, 4, 0x4A07, IntArray(4));
+        var spellSar = Sar(4, 25, 0x4A08, IntArray(25));
+        var goldSar = Sar(4, 1, 0x4B13, IntBytes(0));
+        // HP SAR is in the pre-stat region (before the stats SAR).
+        return [.. magic, .. hpSar, .. statsSar, .. basicSar, .. techSar, .. spellSar, .. goldSar];
+    }
+
+    [Test]
+    public async Task Parse_WithHpSar_ReadsHpDamageCorrectly()
+    {
+        var bytes = BuildRecordWithHpSar(acBonus: 0, hpPtsBonus: 0, hpAdj: 0, hpDamage: 25);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.HpDamage).IsEqualTo(25);
+    }
+
+    [Test]
+    public async Task Parse_WithHpSar_ReadsAllElements()
+    {
+        var bytes = BuildRecordWithHpSar(acBonus: 1, hpPtsBonus: 2, hpAdj: 3, hpDamage: 4);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var raw = rec.HpDamageRaw;
+        await Assert.That(raw).IsNotNull();
+        await Assert.That(raw![0]).IsEqualTo(1);
+        await Assert.That(raw[1]).IsEqualTo(2);
+        await Assert.That(raw[2]).IsEqualTo(3);
+        await Assert.That(raw[3]).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task Parse_WithoutHpSar_HpDamageIsZero()
+    {
+        var bytes = BuildRecord(gold: 0, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.HpDamage).IsEqualTo(0);
+        await Assert.That(rec.HpDamageRaw).IsNull();
+    }
+
+    [Test]
+    public async Task WithHpDamageValue_PatchesCorrectly()
+    {
+        var bytes = BuildRecordWithHpSar(0, 0, 0, hpDamage: 10);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithHpDamageValue(50);
+
+        await Assert.That(patched.HpDamage).IsEqualTo(50);
+        await Assert.That(rec.HpDamage).IsEqualTo(10); // original unchanged
+    }
+
+    [Test]
+    public async Task WithHpDamageValue_PreservesOtherElements()
+    {
+        var bytes = BuildRecordWithHpSar(acBonus: 1, hpPtsBonus: 2, hpAdj: 3, hpDamage: 10);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithHpDamageValue(99);
+        var raw = patched.HpDamageRaw!;
+
+        await Assert.That(raw[0]).IsEqualTo(1);
+        await Assert.That(raw[1]).IsEqualTo(2);
+        await Assert.That(raw[2]).IsEqualTo(3);
+        await Assert.That(raw[3]).IsEqualTo(99);
+    }
+
+    [Test]
+    public async Task WithHpDamageValue_RoundTrips_ViaReparse()
+    {
+        var bytes = BuildRecordWithHpSar(0, 0, 0, hpDamage: 10);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = rec.WithHpDamageValue(77);
+
+        var reparsed = CharacterMdyRecord.Parse(patched.RawBytes, out _);
+        await Assert.That(reparsed.HpDamage).IsEqualTo(77);
+    }
+
+    [Test]
+    public async Task WithHpDamage_PatchesAllElements()
+    {
+        var bytes = BuildRecordWithHpSar(0, 0, 0, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithHpDamage([5, 6, 7, 8]);
+        var raw = patched.HpDamageRaw!;
+
+        await Assert.That(raw[0]).IsEqualTo(5);
+        await Assert.That(raw[1]).IsEqualTo(6);
+        await Assert.That(raw[2]).IsEqualTo(7);
+        await Assert.That(raw[3]).IsEqualTo(8);
+    }
+
+    // ── Fatigue Damage SAR (bsId=0x423E, INT32[4]) ───────────────────────────
+
+    private static byte[] BuildRecordWithFatigueSar(int ptsBonus, int adj, int fatigueDamage, int unknown)
+    {
+        byte[] magic = [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        var fatData = new byte[4 * 4];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(fatData.AsSpan(0, 4), ptsBonus);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(fatData.AsSpan(4, 4), adj);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(fatData.AsSpan(8, 4), fatigueDamage);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(fatData.AsSpan(12, 4), unknown);
+        var fatSar = Sar(4, 4, 0x423E, fatData);
+        var statsSar = Sar(4, 28, 0x4DA5, IntArray(28));
+        var basicSar = Sar(4, 12, 0x43C3, IntArray(12));
+        var techSar = Sar(4, 4, 0x4A07, IntArray(4));
+        var spellSar = Sar(4, 25, 0x4A08, IntArray(25));
+        var goldSar = Sar(4, 1, 0x4B13, IntBytes(0));
+        // Fatigue SAR is in the pre-stat region (before the stats SAR).
+        return [.. magic, .. fatSar, .. statsSar, .. basicSar, .. techSar, .. spellSar, .. goldSar];
+    }
+
+    [Test]
+    public async Task Parse_WithFatigueSar_ReadsFatigueDamageCorrectly()
+    {
+        var bytes = BuildRecordWithFatigueSar(ptsBonus: 0, adj: 0, fatigueDamage: 15, unknown: 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.FatigueDamage).IsEqualTo(15);
+    }
+
+    [Test]
+    public async Task Parse_WithoutFatigueSar_FatigueDamageIsZero()
+    {
+        var bytes = BuildRecord(gold: 0, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.FatigueDamage).IsEqualTo(0);
+        await Assert.That(rec.FatigueDamageRaw).IsNull();
+    }
+
+    [Test]
+    public async Task WithFatigueDamageValue_PatchesCorrectly()
+    {
+        var bytes = BuildRecordWithFatigueSar(0, 0, fatigueDamage: 5, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithFatigueDamageValue(30);
+
+        await Assert.That(patched.FatigueDamage).IsEqualTo(30);
+        await Assert.That(rec.FatigueDamage).IsEqualTo(5); // original unchanged
+    }
+
+    [Test]
+    public async Task WithFatigueDamageValue_PreservesOtherElements()
+    {
+        var bytes = BuildRecordWithFatigueSar(ptsBonus: 1, adj: 2, fatigueDamage: 3, unknown: 4);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithFatigueDamageValue(99);
+        var raw = patched.FatigueDamageRaw!;
+
+        await Assert.That(raw[0]).IsEqualTo(1);
+        await Assert.That(raw[1]).IsEqualTo(2);
+        await Assert.That(raw[2]).IsEqualTo(99);
+        await Assert.That(raw[3]).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task WithFatigueDamageValue_RoundTrips_ViaReparse()
+    {
+        var bytes = BuildRecordWithFatigueSar(0, 0, fatigueDamage: 5, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = rec.WithFatigueDamageValue(42);
+
+        var reparsed = CharacterMdyRecord.Parse(patched.RawBytes, out _);
+        await Assert.That(reparsed.FatigueDamage).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task WithFatigueDamage_PatchesAllElements()
+    {
+        var bytes = BuildRecordWithFatigueSar(0, 0, 0, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithFatigueDamage([10, 20, 30, 40]);
+        var raw = patched.FatigueDamageRaw!;
+
+        await Assert.That(raw[0]).IsEqualTo(10);
+        await Assert.That(raw[1]).IsEqualTo(20);
+        await Assert.That(raw[2]).IsEqualTo(30);
+        await Assert.That(raw[3]).IsEqualTo(40);
+    }
+
+    // ── Position / AI SAR (bsId=0x4DA3, INT32[3]) ────────────────────────────
+
+    private static byte[] BuildRecordWithPositionAiSar(int currentAid, int location, int offsetX)
+    {
+        byte[] magic = [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        var posData = new byte[3 * 4];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(posData.AsSpan(0, 4), currentAid);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(posData.AsSpan(4, 4), location);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(posData.AsSpan(8, 4), offsetX);
+        var posSar = Sar(4, 3, 0x4DA3, posData);
+        var statsSar = Sar(4, 28, 0x4DA5, IntArray(28));
+        var basicSar = Sar(4, 12, 0x43C3, IntArray(12));
+        var techSar = Sar(4, 4, 0x4A07, IntArray(4));
+        var spellSar = Sar(4, 25, 0x4A08, IntArray(25));
+        var goldSar = Sar(4, 1, 0x4B13, IntBytes(0));
+        // Position/AI SAR is in the pre-stat region (before the stats SAR).
+        return [.. magic, .. posSar, .. statsSar, .. basicSar, .. techSar, .. spellSar, .. goldSar];
+    }
+
+    [Test]
+    public async Task Parse_WithPositionAiSar_ReadsValuesCorrectly()
+    {
+        var bytes = BuildRecordWithPositionAiSar(currentAid: 42, location: 1800, offsetX: 7);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var raw = rec.PositionAiRaw;
+        await Assert.That(raw).IsNotNull();
+        await Assert.That(raw![0]).IsEqualTo(42);
+        await Assert.That(raw[1]).IsEqualTo(1800);
+        await Assert.That(raw[2]).IsEqualTo(7);
+    }
+
+    [Test]
+    public async Task Parse_WithoutPositionAiSar_ReturnsNull()
+    {
+        var bytes = BuildRecord(gold: 0, stats: new int[28]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.PositionAiRaw).IsNull();
+    }
+
+    [Test]
+    public async Task WithPositionAi_PatchesCorrectly()
+    {
+        var bytes = BuildRecordWithPositionAiSar(currentAid: 0, location: 100, offsetX: 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var patched = rec.WithPositionAi([1, 2000, 5]);
+
+        var raw = patched.PositionAiRaw!;
+        await Assert.That(raw[0]).IsEqualTo(1);
+        await Assert.That(raw[1]).IsEqualTo(2000);
+        await Assert.That(raw[2]).IsEqualTo(5);
+        // original unchanged
+        await Assert.That(rec.PositionAiRaw![0]).IsEqualTo(0);
+        await Assert.That(rec.PositionAiRaw[1]).IsEqualTo(100);
+    }
+
+    [Test]
+    public async Task WithPositionAi_RoundTrips_ViaReparse()
+    {
+        var bytes = BuildRecordWithPositionAiSar(currentAid: 0, location: 500, offsetX: 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = rec.WithPositionAi([10, 1500, 3]);
+
+        var reparsed = CharacterMdyRecord.Parse(patched.RawBytes, out _);
+        await Assert.That(reparsed.PositionAiRaw![0]).IsEqualTo(10);
+        await Assert.That(reparsed.PositionAiRaw[1]).IsEqualTo(1500);
+        await Assert.That(reparsed.PositionAiRaw[2]).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task WithPositionAi_WrongLength_ReturnsUnchanged()
+    {
+        var bytes = BuildRecordWithPositionAiSar(currentAid: 1, location: 200, offsetX: 3);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        // WithPositionAi requires exactly 3 elements; passing 2 should be a no-op.
+        var patched = rec.WithPositionAi([10, 20]);
+
+        await Assert.That(patched.PositionAiRaw![0]).IsEqualTo(1);
+    }
 }
