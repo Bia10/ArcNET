@@ -1,4 +1,5 @@
-﻿using ArcNET.GameObjects;
+﻿using ArcNET.Core;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
 
@@ -135,6 +136,39 @@ public static class MobDataExtensions
     {
         var header = RebuildHeader(proto.Header, proto.Properties);
         return new ProtoData { Header = header, Properties = proto.Properties };
+    }
+
+    // ── GameObject bridge ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Converts a raw <see cref="MobData"/> property bag into a fully typed
+    /// <see cref="GameObject"/>.  The conversion serialises the <see cref="MobData"/> to its
+    /// binary representation and re-parses it through <see cref="GameObject.Read"/>.
+    /// </summary>
+    /// <param name="data">The raw mob data to convert.</param>
+    /// <returns>A typed game object with all fields extracted from the property collection.</returns>
+    public static GameObject ToGameObject(this MobData data)
+    {
+        var bytes = MobFormat.WriteToArray(in data);
+        var reader = new SpanReader(bytes);
+        return GameObject.Read(ref reader);
+    }
+
+    /// <summary>
+    /// Converts a typed <see cref="GameObject"/> back into a raw <see cref="MobData"/>
+    /// property bag.  The conversion serialises the <see cref="GameObject"/> to its binary
+    /// representation and re-parses it through <see cref="MobFormat.Parse"/>.
+    /// </summary>
+    /// <param name="obj">The typed game object to convert.</param>
+    /// <returns>
+    /// A <see cref="MobData"/> with <see cref="ObjectProperty"/> entries for every set bit
+    /// in the object's bitmap.
+    /// </returns>
+    public static MobData ToMobData(this GameObject obj)
+    {
+        var bytes = obj.WriteToArray();
+        var reader = new SpanReader(bytes);
+        return MobFormat.Parse(ref reader);
     }
 
     // ── Shared ────────────────────────────────────────────────────────────────
