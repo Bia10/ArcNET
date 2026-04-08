@@ -6,7 +6,7 @@ namespace ArcNET.GameData;
 /// Saves a <see cref="GameDataStore"/> back to disk or to in-memory byte arrays.
 /// Symmetric counterpart to <see cref="GameDataLoader"/>.
 /// </summary>
-public sealed class GameDataSaver
+public static class GameDataSaver
 {
     /// <summary>
     /// Writes all message entries from <paramref name="store"/> into a single .mes file

@@ -25,6 +25,12 @@ public sealed class GameDataStore
     private readonly Dictionary<string, List<ProtoData>> _protosBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<MobData>> _mobsBySource = new(StringComparer.OrdinalIgnoreCase);
 
+    // Lazy read-only views — rebuilt only when a new source entry is added or the store is cleared.
+    private IReadOnlyDictionary<string, IReadOnlyList<MessageEntry>>? _messagesBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<Sector>>? _sectorsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<ProtoData>>? _protosBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<MobData>>? _mobsBySourceView;
+
     /// <summary>Gets all loaded object headers.</summary>
     public IReadOnlyList<GameObjectHeader> Objects => _objects;
 
@@ -46,44 +52,28 @@ public sealed class GameDataStore
     /// Use this to restore per-file structure during save.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<MessageEntry>> MessagesBySource =>
-        _messagesBySource.ToDictionary(
-            kv => kv.Key,
-            kv => (IReadOnlyList<MessageEntry>)kv.Value.AsReadOnly(),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _messagesBySourceView ??= BuildView(_messagesBySource);
 
     /// <summary>
     /// Gets sectors grouped by their source filename.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<Sector>> SectorsBySource =>
-        _sectorsBySource.ToDictionary(
-            kv => kv.Key,
-            kv => (IReadOnlyList<Sector>)kv.Value.AsReadOnly(),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _sectorsBySourceView ??= BuildView(_sectorsBySource);
 
     /// <summary>
     /// Gets prototypes grouped by their source filename.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ProtoData>> ProtosBySource =>
-        _protosBySource.ToDictionary(
-            kv => kv.Key,
-            kv => (IReadOnlyList<ProtoData>)kv.Value.AsReadOnly(),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _protosBySourceView ??= BuildView(_protosBySource);
 
     /// <summary>
     /// Gets mobile objects grouped by their source filename.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<MobData>> MobsBySource =>
-        _mobsBySource.ToDictionary(
-            kv => kv.Key,
-            kv => (IReadOnlyList<MobData>)kv.Value.AsReadOnly(),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _mobsBySourceView ??= BuildView(_mobsBySource);
 
     /// <summary>Gets the set of GUIDs that have been marked dirty since the last <see cref="ClearDirty"/>.</summary>
     public IReadOnlySet<GameObjectGuid> DirtyObjects => _dirty;
@@ -94,44 +84,57 @@ public sealed class GameDataStore
     /// <summary>Adds an object header to the store and invalidates the GUID index.</summary>
     public void AddObject(GameObjectHeader header)
     {
+        ArgumentNullException.ThrowIfNull(header);
         _objects.Add(header);
         _indexByGuid = null;
     }
 
     /// <summary>Appends a fully-parsed message entry (preserving index and optional sound ID).</summary>
-    public void AddMessage(MessageEntry entry) => _messages.Add(entry);
+    public void AddMessage(MessageEntry entry) => AddMessage(entry, null);
 
-    internal void AddMessage(MessageEntry entry, string sourcePath)
+    internal void AddMessage(MessageEntry entry, string? sourcePath)
     {
         _messages.Add(entry);
+        if (sourcePath is null)
+            return;
         GetOrCreate(_messagesBySource, sourcePath).Add(entry);
+        _messagesBySourceView = null;
     }
 
     /// <summary>Appends a parsed sector.</summary>
-    public void AddSector(Sector sector) => _sectors.Add(sector);
+    public void AddSector(Sector sector) => AddSector(sector, null);
 
-    internal void AddSector(Sector sector, string sourcePath)
+    internal void AddSector(Sector sector, string? sourcePath)
     {
         _sectors.Add(sector);
+        if (sourcePath is null)
+            return;
         GetOrCreate(_sectorsBySource, sourcePath).Add(sector);
+        _sectorsBySourceView = null;
     }
 
     /// <summary>Appends a parsed prototype.</summary>
-    public void AddProto(ProtoData proto) => _protos.Add(proto);
+    public void AddProto(ProtoData proto) => AddProto(proto, null);
 
-    internal void AddProto(ProtoData proto, string sourcePath)
+    internal void AddProto(ProtoData proto, string? sourcePath)
     {
         _protos.Add(proto);
+        if (sourcePath is null)
+            return;
         GetOrCreate(_protosBySource, sourcePath).Add(proto);
+        _protosBySourceView = null;
     }
 
     /// <summary>Appends a parsed mobile object.</summary>
-    public void AddMob(MobData mob) => _mobs.Add(mob);
+    public void AddMob(MobData mob) => AddMob(mob, null);
 
-    internal void AddMob(MobData mob, string sourcePath)
+    internal void AddMob(MobData mob, string? sourcePath)
     {
         _mobs.Add(mob);
+        if (sourcePath is null)
+            return;
         GetOrCreate(_mobsBySource, sourcePath).Add(mob);
+        _mobsBySourceView = null;
     }
 
     /// <summary>
@@ -194,10 +197,21 @@ public sealed class GameDataStore
         _mobsBySource.Clear();
         _dirty.Clear();
         _indexByGuid = null;
+        _messagesBySourceView = null;
+        _sectorsBySourceView = null;
+        _protosBySourceView = null;
+        _mobsBySourceView = null;
     }
 
     private FrozenDictionary<GameObjectGuid, GameObjectHeader> BuildGuidIndex() =>
         _objects.ToFrozenDictionary(h => h.ObjectId);
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<T>> BuildView<T>(Dictionary<string, List<T>> source) =>
+        source.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<T>)kv.Value.AsReadOnly(),
+            StringComparer.OrdinalIgnoreCase
+        );
 
     private static List<T> GetOrCreate<T>(Dictionary<string, List<T>> dict, string key)
     {

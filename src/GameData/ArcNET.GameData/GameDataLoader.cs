@@ -28,12 +28,7 @@ public static class GameDataLoader
             var format = FileFormatExtensions.FromPath(file);
 
             // FacadeWalk uses filename pattern instead of extension
-            if (format == FileFormat.Unknown)
-            {
-                var name = Path.GetFileName(file);
-                if (name.StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase))
-                    format = FileFormat.FacadeWalk;
-            }
+            format = ResolveFacadeWalkFormat(format, Path.GetFileName(file));
 
             result[format].Add(file);
         }
@@ -104,12 +99,7 @@ public static class GameDataLoader
             var (name, memory) = (entries[i].Key, entries[i].Value);
             var format = FileFormatExtensions.FromPath(name);
 
-            if (format == FileFormat.Unknown)
-            {
-                var basename = Path.GetFileName(name);
-                if (basename.StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase))
-                    format = FileFormat.FacadeWalk;
-            }
+            format = ResolveFacadeWalkFormat(format, Path.GetFileName(name));
 
             await LoadEntryFromMemoryAsync(store, format, memory, name, ct).ConfigureAwait(false);
             progress?.Report((i + 1f) / total);
@@ -119,6 +109,16 @@ public static class GameDataLoader
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <see cref="FileFormat.FacadeWalk"/> when <paramref name="current"/> is
+    /// <see cref="FileFormat.Unknown"/> and <paramref name="fileName"/> matches the
+    /// <c>facwalk.*</c> naming convention; otherwise returns <paramref name="current"/> unchanged.
+    /// </summary>
+    private static FileFormat ResolveFacadeWalkFormat(FileFormat current, string fileName) =>
+        current == FileFormat.Unknown && fileName.StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase)
+            ? FileFormat.FacadeWalk
+            : current;
 
     private static async Task<GameDataStore> LoadFromDiscoveredFilesAsync(
         IReadOnlyDictionary<FileFormat, IReadOnlyList<string>> files,
@@ -145,52 +145,16 @@ public static class GameDataLoader
         return store;
     }
 
-    private static Task LoadEntryFromFileAsync(
+    private static async Task LoadEntryFromFileAsync(
         GameDataStore store,
         FileFormat format,
         string path,
         CancellationToken ct
-    ) =>
-        format switch
-        {
-            FileFormat.Message => Task.Run(
-                () =>
-                {
-                    var mesFile = MessageFormat.ParseFile(path);
-                    var name = Path.GetFileName(path);
-                    foreach (var e in mesFile.Entries)
-                        store.AddMessage(e, name);
-                },
-                ct
-            ),
-            FileFormat.Sector => Task.Run(
-                () =>
-                {
-                    var sector = SectorFormat.ParseFile(path);
-                    store.AddSector(sector, Path.GetFileName(path));
-                },
-                ct
-            ),
-            FileFormat.Proto => Task.Run(
-                () =>
-                {
-                    var proto = ProtoFormat.ParseFile(path);
-                    store.AddProto(proto, Path.GetFileName(path));
-                    store.AddObject(proto.Header);
-                },
-                ct
-            ),
-            FileFormat.Mob => Task.Run(
-                () =>
-                {
-                    var mob = MobFormat.ParseFile(path);
-                    store.AddMob(mob, Path.GetFileName(path));
-                    store.AddObject(mob.Header);
-                },
-                ct
-            ),
-            _ => Task.CompletedTask,
-        };
+    )
+    {
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        await LoadEntryFromMemoryAsync(store, format, bytes, Path.GetFileName(path), ct).ConfigureAwait(false);
+    }
 
     private static Task LoadEntryFromMemoryAsync(
         GameDataStore store,
