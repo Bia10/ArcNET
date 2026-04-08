@@ -1,17 +1,17 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectWritten : ObjectItem
 {
-    public int WrittenFlags { get; set; }
-    public int WrittenSubtype { get; set; }
-    public int WrittenTextStartLine { get; set; }
-    public int WrittenTextEndLine { get; set; }
-    public int WrittenPadI1 { get; set; }
-    public int WrittenPadI2 { get; set; }
-    public int WrittenPadIas1 { get; set; }
-    public long WrittenPadI64As1 { get; set; }
+    public int WrittenFlags { get; internal set; }
+    public int WrittenSubtype { get; internal set; }
+    public int WrittenTextStartLine { get; internal set; }
+    public int WrittenTextEndLine { get; internal set; }
+    public int WrittenPadI1 { get; internal set; }
+    public int WrittenPadI2 { get; internal set; }
+    public int WrittenPadIas1 { get; internal set; }
+    public long WrittenPadI64As1 { get; internal set; }
 
     internal static ObjectWritten Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

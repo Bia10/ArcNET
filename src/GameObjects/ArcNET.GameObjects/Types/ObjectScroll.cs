@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectScroll : ObjectItem
 {
-    public int ScrollFlags { get; set; }
-    public int ScrollPadI1 { get; set; }
-    public int ScrollPadI2 { get; set; }
-    public int ScrollPadIas1 { get; set; }
-    public long ScrollPadI64As1 { get; set; }
+    public int ScrollFlags { get; internal set; }
+    public int ScrollPadI1 { get; internal set; }
+    public int ScrollPadI2 { get; internal set; }
+    public int ScrollPadIas1 { get; internal set; }
+    public long ScrollPadI64As1 { get; internal set; }
 
     internal static ObjectScroll Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

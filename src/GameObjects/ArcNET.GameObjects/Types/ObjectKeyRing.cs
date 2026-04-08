@@ -1,15 +1,15 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectKeyRing : ObjectItem
 {
-    public int KeyRingFlags { get; set; }
-    public int[] KeyRingList { get; set; } = [];
-    public int KeyRingPadI1 { get; set; }
-    public int KeyRingPadI2 { get; set; }
-    public int KeyRingPadIas1 { get; set; }
-    public long KeyRingPadI64As1 { get; set; }
+    public int KeyRingFlags { get; internal set; }
+    public int[] KeyRingList { get; internal set; } = [];
+    public int KeyRingPadI1 { get; internal set; }
+    public int KeyRingPadI2 { get; internal set; }
+    public int KeyRingPadIas1 { get; internal set; }
+    public long KeyRingPadI64As1 { get; internal set; }
 
     internal static ObjectKeyRing Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

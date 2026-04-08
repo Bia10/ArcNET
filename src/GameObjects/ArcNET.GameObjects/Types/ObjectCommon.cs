@@ -7,59 +7,59 @@ namespace ArcNET.GameObjects.Types;
 /// Common fields shared by every game object type.  Field presence is controlled by the
 /// <see cref="GameObjectHeader.Bitmap"/>; absent fields retain their default (zero/null) value.
 /// </summary>
-public class ObjectCommon
+public abstract class ObjectCommon
 {
     // ── Visual ───────────────────────────────────────────────────────────────
-    public ArtId CurrentAid { get; set; }
-    public Location? Location { get; set; }
-    public int OffsetX { get; set; }
-    public int OffsetY { get; set; }
-    public ArtId Shadow { get; set; }
+    public ArtId CurrentAid { get; internal set; }
+    public Location? Location { get; internal set; }
+    public int OffsetX { get; internal set; }
+    public int OffsetY { get; internal set; }
+    public ArtId Shadow { get; internal set; }
 
     // Overlay lists — count + data pairs; exact format TBD during reverse engineering
-    public int[] OverlayFore { get; set; } = [];
-    public int[] OverlayBack { get; set; } = [];
-    public int[] Underlay { get; set; } = [];
+    public int[] OverlayFore { get; internal set; } = [];
+    public int[] OverlayBack { get; internal set; } = [];
+    public int[] Underlay { get; internal set; } = [];
 
     // ── Rendering ────────────────────────────────────────────────────────────
-    public int BlitFlags { get; set; }
-    public Color BlitColor { get; set; }
-    public int BlitAlpha { get; set; }
-    public int BlitScale { get; set; }
+    public int BlitFlags { get; internal set; }
+    public Color BlitColor { get; internal set; }
+    public int BlitAlpha { get; internal set; }
+    public int BlitScale { get; internal set; }
 
     // ── Lighting ─────────────────────────────────────────────────────────────
-    public int LightFlags { get; set; }
-    public ArtId LightAid { get; set; }
-    public Color LightColor { get; set; }
-    public int OverlayLightFlags { get; set; }
-    public int[] OverlayLightAid { get; set; } = [];
-    public int OverlayLightColor { get; set; }
+    public int LightFlags { get; internal set; }
+    public ArtId LightAid { get; internal set; }
+    public Color LightColor { get; internal set; }
+    public int OverlayLightFlags { get; internal set; }
+    public int[] OverlayLightAid { get; internal set; } = [];
+    public int OverlayLightColor { get; internal set; }
 
     // ── State & stats ─────────────────────────────────────────────────────────
-    public int Flags { get; set; }
-    public int SpellFlags { get; set; }
-    public int BlockingMask { get; set; }
-    public int Name { get; set; }
-    public int Description { get; set; }
-    public ArtId Aid { get; set; }
-    public ArtId DestroyedAid { get; set; }
-    public int Ac { get; set; }
-    public int HpPts { get; set; }
-    public int HpAdj { get; set; }
-    public int HpDamage { get; set; }
-    public int Material { get; set; }
+    public int Flags { get; internal set; }
+    public int SpellFlags { get; internal set; }
+    public int BlockingMask { get; internal set; }
+    public int Name { get; internal set; }
+    public int Description { get; internal set; }
+    public ArtId Aid { get; internal set; }
+    public ArtId DestroyedAid { get; internal set; }
+    public int Ac { get; internal set; }
+    public int HpPts { get; internal set; }
+    public int HpAdj { get; internal set; }
+    public int HpDamage { get; internal set; }
+    public int Material { get; internal set; }
 
     // ── Indexed arrays ────────────────────────────────────────────────────────
-    public int[] ResistanceIdx { get; set; } = [];
-    public GameObjectScript[] ScriptsIdx { get; set; } = [];
+    public int[] ResistanceIdx { get; internal set; } = [];
+    public GameObjectScript[] ScriptsIdx { get; internal set; } = [];
 
     // ── Misc ──────────────────────────────────────────────────────────────────
-    public int SoundEffect { get; set; }
-    public int Category { get; set; }
+    public int SoundEffect { get; internal set; }
+    public int Category { get; internal set; }
 
     // ── Padding (reserved by engine) ─────────────────────────────────────────
-    public int PadIas1 { get; set; }
-    public long PadI64As1 { get; set; }
+    public int PadIas1 { get; internal set; }
+    public long PadI64As1 { get; internal set; }
 
     protected void ReadCommonFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

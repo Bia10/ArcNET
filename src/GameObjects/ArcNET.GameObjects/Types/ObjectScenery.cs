@@ -1,16 +1,16 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectScenery : ObjectCommon
 {
-    public int SceneryFlags { get; set; }
-    public GameObjectGuid SceneryWhosInMe { get; set; }
-    public int SceneryRespawnDelay { get; set; }
-    public int SceneryPadI2 { get; set; }
-    public int SceneryPadIas1 { get; set; }
-    public long SceneryPadI64As1 { get; set; }
+    public int SceneryFlags { get; internal set; }
+    public GameObjectGuid SceneryWhosInMe { get; internal set; }
+    public int SceneryRespawnDelay { get; internal set; }
+    public int SceneryPadI2 { get; internal set; }
+    public int SceneryPadIas1 { get; internal set; }
+    public long SceneryPadI64As1 { get; internal set; }
 
     internal static ObjectScenery Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

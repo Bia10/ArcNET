@@ -1,21 +1,21 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectArmor : ObjectItem
 {
-    public int ArmorFlags { get; set; }
-    public int ArmorPaperDollAid { get; set; }
-    public int ArmorAcAdj { get; set; }
-    public int ArmorMagicAcAdj { get; set; }
-    public int[] ArmorResistanceAdj { get; set; } = [];
-    public int[] ArmorMagicResistanceAdj { get; set; } = [];
-    public int ArmorSilentMoveAdj { get; set; }
-    public int ArmorMagicSilentMoveAdj { get; set; }
-    public int ArmorUnarmedBonusDamage { get; set; }
-    public int ArmorPadI2 { get; set; }
-    public int ArmorPadIas1 { get; set; }
-    public long ArmorPadI64As1 { get; set; }
+    public int ArmorFlags { get; internal set; }
+    public int ArmorPaperDollAid { get; internal set; }
+    public int ArmorAcAdj { get; internal set; }
+    public int ArmorMagicAcAdj { get; internal set; }
+    public int[] ArmorResistanceAdj { get; internal set; } = [];
+    public int[] ArmorMagicResistanceAdj { get; internal set; } = [];
+    public int ArmorSilentMoveAdj { get; internal set; }
+    public int ArmorMagicSilentMoveAdj { get; internal set; }
+    public int ArmorUnarmedBonusDamage { get; internal set; }
+    public int ArmorPadI2 { get; internal set; }
+    public int ArmorPadIas1 { get; internal set; }
+    public long ArmorPadI64As1 { get; internal set; }
 
     internal static ObjectArmor Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

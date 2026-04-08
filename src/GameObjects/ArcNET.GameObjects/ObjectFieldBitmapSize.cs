@@ -1,10 +1,10 @@
 ﻿namespace ArcNET.GameObjects;
 
 /// <summary>Bitmap byte-length per object type used when reading object headers.</summary>
-internal static class ObjectFieldBitmapSize
+public static class ObjectFieldBitmapSize
 {
     /// <summary>Returns the number of bytes in the field bitmap for <paramref name="type"/>.</summary>
-    internal static int For(ObjectType type) =>
+    public static int For(ObjectType type) =>
         type switch
         {
             ObjectType.Wall => 12,

@@ -6,36 +6,36 @@
 /// </summary>
 public class Entity
 {
-    public (int Id, string Text) Description { get; set; }
-    public int InternalName { get; set; }
-    public int Level { get; set; }
-    public (int ArtNumber, int Palette) ArtNumberAndPalette { get; set; }
-    public int Scale { get; set; }
-    public int Alignment { get; set; }
+    public (int Id, string Text) Description { get; init; }
+    public int InternalName { get; init; }
+    public int Level { get; init; }
+    public (int ArtNumber, int Palette) ArtNumberAndPalette { get; init; }
+    public int Scale { get; init; }
+    public int Alignment { get; init; }
 
-    public List<ObjFFlags> ObjectFlags { get; set; } = [];
-    public List<ObjFCritterFlags> CritterFlags { get; set; } = [];
-    public List<ObjFCritterFlags2> CritterFlags2 { get; set; } = [];
-    public List<ObjFNpcFlags> NpcFlags { get; set; } = [];
-    public List<ObjFBlitFlags> BlitFlags { get; set; } = [];
-    public List<ObjFSpellFlags> SpellFlags { get; set; } = [];
+    public List<ObjFFlags> ObjectFlags { get; init; } = [];
+    public List<ObjFCritterFlags> CritterFlags { get; init; } = [];
+    public List<ObjFCritterFlags2> CritterFlags2 { get; init; } = [];
+    public List<ObjFNpcFlags> NpcFlags { get; init; } = [];
+    public List<ObjFBlitFlags> BlitFlags { get; init; } = [];
+    public List<ObjFSpellFlags> SpellFlags { get; init; } = [];
 
-    public int HitChart { get; set; }
-    public List<(BasicStatType Stat, int Value)> BasicStats { get; set; } = [];
-    public List<string> Spells { get; set; } = [];
-    public List<(int A, int B, int C, int D, int E, int F)> Scripts { get; set; } = [];
+    public int HitChart { get; init; }
+    public List<(BasicStatType Stat, int Value)> BasicStats { get; init; } = [];
+    public List<string> Spells { get; init; } = [];
+    public List<(int A, int B, int C, int D, int E, int F)> Scripts { get; init; } = [];
 
-    public int Faction { get; set; }
-    public int AIPacket { get; set; }
-    public int Material { get; set; }
-    public int HitPoints { get; set; }
-    public int Fatigue { get; set; }
+    public int Faction { get; init; }
+    public int AIPacket { get; init; }
+    public int Material { get; init; }
+    public int HitPoints { get; init; }
+    public int Fatigue { get; init; }
 
-    public List<(ResistanceType Type, int Value)> Resistances { get; set; } = [];
-    public List<(DamageType Type, int Min, int Max)> Damages { get; set; } = [];
+    public List<(ResistanceType Type, int Value)> Resistances { get; init; } = [];
+    public List<(DamageType Type, int Min, int Max)> Damages { get; init; } = [];
 
-    public int SoundBank { get; set; }
-    public int Category { get; set; }
-    public int AutoLevelScheme { get; set; }
-    public int InventorySource { get; set; }
+    public int SoundBank { get; init; }
+    public int Category { get; init; }
+    public int AutoLevelScheme { get; init; }
+    public int InventorySource { get; init; }
 }

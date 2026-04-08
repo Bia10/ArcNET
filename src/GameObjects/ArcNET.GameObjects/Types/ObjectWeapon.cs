@@ -1,36 +1,36 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectWeapon : ObjectItem
 {
-    public int WeaponFlags { get; set; }
-    public int WeaponPaperDollAid { get; set; }
-    public int WeaponBonusToHit { get; set; }
-    public int WeaponMagicHitAdj { get; set; }
-    public int[] WeaponDamageLower { get; set; } = [];
-    public int[] WeaponDamageUpper { get; set; } = [];
-    public int[] WeaponMagicDamageAdj { get; set; } = [];
-    public int WeaponSpeedFactor { get; set; }
-    public int WeaponMagicSpeedAdj { get; set; }
-    public int WeaponRange { get; set; }
-    public int WeaponMagicRangeAdj { get; set; }
-    public int WeaponMinStrength { get; set; }
-    public int WeaponMagicMinStrengthAdj { get; set; }
-    public int WeaponAmmoType { get; set; }
-    public int WeaponAmmoConsumption { get; set; }
-    public int WeaponMissileAid { get; set; }
-    public int WeaponVisualEffectAid { get; set; }
-    public int WeaponCritHitChart { get; set; }
-    public int WeaponMagicCritHitChance { get; set; }
-    public int WeaponMagicCritHitEffect { get; set; }
-    public int WeaponCritMissChart { get; set; }
-    public int WeaponMagicCritMissChance { get; set; }
-    public int WeaponMagicCritMissEffect { get; set; }
-    public int WeaponPadI1 { get; set; }
-    public int WeaponPadI2 { get; set; }
-    public int WeaponPadIas1 { get; set; }
-    public long WeaponPadI64As1 { get; set; }
+    public int WeaponFlags { get; internal set; }
+    public int WeaponPaperDollAid { get; internal set; }
+    public int WeaponBonusToHit { get; internal set; }
+    public int WeaponMagicHitAdj { get; internal set; }
+    public int[] WeaponDamageLower { get; internal set; } = [];
+    public int[] WeaponDamageUpper { get; internal set; } = [];
+    public int[] WeaponMagicDamageAdj { get; internal set; } = [];
+    public int WeaponSpeedFactor { get; internal set; }
+    public int WeaponMagicSpeedAdj { get; internal set; }
+    public int WeaponRange { get; internal set; }
+    public int WeaponMagicRangeAdj { get; internal set; }
+    public int WeaponMinStrength { get; internal set; }
+    public int WeaponMagicMinStrengthAdj { get; internal set; }
+    public int WeaponAmmoType { get; internal set; }
+    public int WeaponAmmoConsumption { get; internal set; }
+    public int WeaponMissileAid { get; internal set; }
+    public int WeaponVisualEffectAid { get; internal set; }
+    public int WeaponCritHitChart { get; internal set; }
+    public int WeaponMagicCritHitChance { get; internal set; }
+    public int WeaponMagicCritHitEffect { get; internal set; }
+    public int WeaponCritMissChart { get; internal set; }
+    public int WeaponMagicCritMissChance { get; internal set; }
+    public int WeaponMagicCritMissEffect { get; internal set; }
+    public int WeaponPadI1 { get; internal set; }
+    public int WeaponPadI2 { get; internal set; }
+    public int WeaponPadIas1 { get; internal set; }
+    public long WeaponPadI64As1 { get; internal set; }
 
     internal static ObjectWeapon Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

@@ -1,18 +1,18 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectProjectile : ObjectCommon
 {
-    public int ProjectileFlagsCombat { get; set; }
-    public int ProjectileFlagsCombatDamage { get; set; }
-    public Location ProjectileHitLoc { get; set; }
-    public int ProjectileParentWeapon { get; set; }
-    public int ProjectilePadI1 { get; set; }
-    public int ProjectilePadI2 { get; set; }
-    public int ProjectilePadIas1 { get; set; }
-    public long ProjectilePadI64As1 { get; set; }
+    public int ProjectileFlagsCombat { get; internal set; }
+    public int ProjectileFlagsCombatDamage { get; internal set; }
+    public Location ProjectileHitLoc { get; internal set; }
+    public int ProjectileParentWeapon { get; internal set; }
+    public int ProjectilePadI1 { get; internal set; }
+    public int ProjectilePadI2 { get; internal set; }
+    public int ProjectilePadIas1 { get; internal set; }
+    public long ProjectilePadI64As1 { get; internal set; }
 
     internal static ObjectProjectile Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

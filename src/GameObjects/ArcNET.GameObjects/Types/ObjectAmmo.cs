@@ -1,16 +1,16 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectAmmo : ObjectItem
 {
-    public int AmmoFlags { get; set; }
-    public int AmmoQuantity { get; set; }
-    public int AmmoType { get; set; }
-    public int AmmoPadI1 { get; set; }
-    public int AmmoPadI2 { get; set; }
-    public int AmmoPadIas1 { get; set; }
-    public long AmmoPadI64As1 { get; set; }
+    public int AmmoFlags { get; internal set; }
+    public int AmmoQuantity { get; internal set; }
+    public int AmmoType { get; internal set; }
+    public int AmmoPadI1 { get; internal set; }
+    public int AmmoPadI2 { get; internal set; }
+    public int AmmoPadIas1 { get; internal set; }
+    public long AmmoPadI64As1 { get; internal set; }
 
     internal static ObjectAmmo Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectFood : ObjectItem
 {
-    public int FoodFlags { get; set; }
-    public int FoodPadI1 { get; set; }
-    public int FoodPadI2 { get; set; }
-    public int FoodPadIas1 { get; set; }
-    public long FoodPadI64As1 { get; set; }
+    public int FoodFlags { get; internal set; }
+    public int FoodPadI1 { get; internal set; }
+    public int FoodPadI2 { get; internal set; }
+    public int FoodPadIas1 { get; internal set; }
+    public long FoodPadI64As1 { get; internal set; }
 
     internal static ObjectFood Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

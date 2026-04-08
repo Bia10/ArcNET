@@ -1,21 +1,21 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectContainer : ObjectCommon
 {
-    public int ContainerFlags { get; set; }
-    public int ContainerLockDifficulty { get; set; }
-    public int ContainerKeyId { get; set; }
-    public int ContainerInventoryNum { get; set; }
-    public GameObjectGuid[] ContainerInventoryList { get; set; } = [];
-    public int ContainerInventorySource { get; set; }
-    public int ContainerNotifyNpc { get; set; }
-    public int ContainerPadI1 { get; set; }
-    public int ContainerPadI2 { get; set; }
-    public int ContainerPadIas1 { get; set; }
-    public long ContainerPadI64As1 { get; set; }
+    public int ContainerFlags { get; internal set; }
+    public int ContainerLockDifficulty { get; internal set; }
+    public int ContainerKeyId { get; internal set; }
+    public int ContainerInventoryNum { get; internal set; }
+    public GameObjectGuid[] ContainerInventoryList { get; internal set; } = [];
+    public int ContainerInventorySource { get; internal set; }
+    public int ContainerNotifyNpc { get; internal set; }
+    public int ContainerPadI1 { get; internal set; }
+    public int ContainerPadI2 { get; internal set; }
+    public int ContainerPadIas1 { get; internal set; }
+    public long ContainerPadI64As1 { get; internal set; }
 
     internal static ObjectContainer Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

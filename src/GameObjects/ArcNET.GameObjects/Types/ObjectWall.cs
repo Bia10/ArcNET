@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectWall : ObjectCommon
 {
-    public int WallFlags { get; set; }
-    public int WallPadI1 { get; set; }
-    public int WallPadI2 { get; set; }
-    public int WallPadIas1 { get; set; }
-    public long WallPadI64As1 { get; set; }
+    public int WallFlags { get; internal set; }
+    public int WallPadI1 { get; internal set; }
+    public int WallPadI2 { get; internal set; }
+    public int WallPadIas1 { get; internal set; }
+    public long WallPadI64As1 { get; internal set; }
 
     internal static ObjectWall Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

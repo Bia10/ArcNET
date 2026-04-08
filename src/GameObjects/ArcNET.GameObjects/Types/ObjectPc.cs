@@ -1,35 +1,35 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectPc : ObjectCritter
 {
-    public int PcFlags { get; set; }
-    public int PcFlagsFate { get; set; }
-    public int[] PcReputation { get; set; } = [];
-    public int[] PcReputationTs { get; set; } = [];
-    public int PcBackground { get; set; }
-    public int PcBackgroundText { get; set; }
-    public int[] PcQuest { get; set; } = [];
-    public int[] PcBlessing { get; set; } = [];
-    public int[] PcBlessingTs { get; set; } = [];
-    public int[] PcCurse { get; set; } = [];
-    public int[] PcCurseTs { get; set; } = [];
-    public int PcPartyId { get; set; }
-    public int[] PcRumor { get; set; } = [];
-    public int PcPadIas2 { get; set; }
-    public int[] PcSchematicsFound { get; set; } = [];
-    public int[] PcLogbookEgo { get; set; } = [];
-    public int PcFogMask { get; set; }
-    public PrefixedString PcPlayerName { get; set; }
-    public int PcBankMoney { get; set; }
-    public int[] PcGlobalFlags { get; set; } = [];
-    public int[] PcGlobalVariables { get; set; } = [];
-    public int PcPadI1 { get; set; }
-    public int PcPadI2 { get; set; }
-    public int PcPadIas1 { get; set; }
-    public long PcPadI64As1 { get; set; }
+    public int PcFlags { get; internal set; }
+    public int PcFlagsFate { get; internal set; }
+    public int[] PcReputation { get; internal set; } = [];
+    public int[] PcReputationTs { get; internal set; } = [];
+    public int PcBackground { get; internal set; }
+    public int PcBackgroundText { get; internal set; }
+    public int[] PcQuest { get; internal set; } = [];
+    public int[] PcBlessing { get; internal set; } = [];
+    public int[] PcBlessingTs { get; internal set; } = [];
+    public int[] PcCurse { get; internal set; } = [];
+    public int[] PcCurseTs { get; internal set; } = [];
+    public int PcPartyId { get; internal set; }
+    public int[] PcRumor { get; internal set; } = [];
+    public int PcPadIas2 { get; internal set; }
+    public int[] PcSchematicsFound { get; internal set; } = [];
+    public int[] PcLogbookEgo { get; internal set; } = [];
+    public int PcFogMask { get; internal set; }
+    public PrefixedString PcPlayerName { get; internal set; }
+    public int PcBankMoney { get; internal set; }
+    public int[] PcGlobalFlags { get; internal set; } = [];
+    public int[] PcGlobalVariables { get; internal set; } = [];
+    public int PcPadI1 { get; internal set; }
+    public int PcPadI2 { get; internal set; }
+    public int PcPadIas1 { get; internal set; }
+    public long PcPadI64As1 { get; internal set; }
 
     internal static new ObjectPc Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

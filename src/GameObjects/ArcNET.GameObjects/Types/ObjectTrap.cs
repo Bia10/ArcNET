@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectTrap : ObjectCommon
 {
-    public int TrapFlags { get; set; }
-    public int TrapDifficulty { get; set; }
-    public int TrapPadI2 { get; set; }
-    public int TrapPadIas1 { get; set; }
-    public long TrapPadI64As1 { get; set; }
+    public int TrapFlags { get; internal set; }
+    public int TrapDifficulty { get; internal set; }
+    public int TrapPadI2 { get; internal set; }
+    public int TrapPadIas1 { get; internal set; }
+    public long TrapPadI64As1 { get; internal set; }
 
     internal static ObjectTrap Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

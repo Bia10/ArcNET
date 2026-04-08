@@ -1,15 +1,15 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectGold : ObjectItem
 {
-    public int GoldFlags { get; set; }
-    public int GoldQuantity { get; set; }
-    public int GoldPadI1 { get; set; }
-    public int GoldPadI2 { get; set; }
-    public int GoldPadIas1 { get; set; }
-    public long GoldPadI64As1 { get; set; }
+    public int GoldFlags { get; internal set; }
+    public int GoldQuantity { get; internal set; }
+    public int GoldPadI1 { get; internal set; }
+    public int GoldPadI2 { get; internal set; }
+    public int GoldPadIas1 { get; internal set; }
+    public long GoldPadI64As1 { get; internal set; }
 
     internal static ObjectGold Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

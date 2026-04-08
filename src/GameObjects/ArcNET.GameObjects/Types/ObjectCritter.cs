@@ -1,43 +1,43 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public class ObjectCritter : ObjectCommon
 {
-    public int CritterFlags { get; set; }
-    public int CritterFlags2 { get; set; }
-    public int[] CritterStatBase { get; set; } = [];
-    public int[] CritterBasicSkill { get; set; } = [];
-    public int[] CritterTechSkill { get; set; } = [];
-    public int[] CritterSpellTech { get; set; } = [];
-    public int CritterFatiguePts { get; set; }
-    public int CritterFatigueAdj { get; set; }
-    public int CritterFatigueDamage { get; set; }
-    public int CritterCritHitChart { get; set; }
-    public int[] CritterEffects { get; set; } = [];
-    public int[] CritterEffectCause { get; set; } = [];
-    public GameObjectGuid CritterFleeingFrom { get; set; }
-    public int CritterPortrait { get; set; }
-    public GameObjectGuid CritterGold { get; set; }
-    public GameObjectGuid CritterArrows { get; set; }
-    public GameObjectGuid CritterBullets { get; set; }
-    public GameObjectGuid CritterPowerCells { get; set; }
-    public GameObjectGuid CritterFuel { get; set; }
-    public int CritterInventoryNum { get; set; }
-    public GameObjectGuid[] CritterInventoryList { get; set; } = [];
-    public int CritterInventorySource { get; set; }
-    public int CritterDescriptionUnknown { get; set; }
-    public GameObjectGuid[] CritterFollowers { get; set; } = [];
-    public Location CritterTeleportDest { get; set; }
-    public int CritterTeleportMap { get; set; }
-    public int CritterDeathTime { get; set; }
-    public int CritterAutoLevelScheme { get; set; }
-    public int CritterPadI1 { get; set; }
-    public int CritterPadI2 { get; set; }
-    public int CritterPadI3 { get; set; }
-    public int CritterPadIas1 { get; set; }
-    public long CritterPadI64As1 { get; set; }
+    public int CritterFlags { get; internal set; }
+    public int CritterFlags2 { get; internal set; }
+    public int[] CritterStatBase { get; internal set; } = [];
+    public int[] CritterBasicSkill { get; internal set; } = [];
+    public int[] CritterTechSkill { get; internal set; } = [];
+    public int[] CritterSpellTech { get; internal set; } = [];
+    public int CritterFatiguePts { get; internal set; }
+    public int CritterFatigueAdj { get; internal set; }
+    public int CritterFatigueDamage { get; internal set; }
+    public int CritterCritHitChart { get; internal set; }
+    public int[] CritterEffects { get; internal set; } = [];
+    public int[] CritterEffectCause { get; internal set; } = [];
+    public GameObjectGuid CritterFleeingFrom { get; internal set; }
+    public int CritterPortrait { get; internal set; }
+    public GameObjectGuid CritterGold { get; internal set; }
+    public GameObjectGuid CritterArrows { get; internal set; }
+    public GameObjectGuid CritterBullets { get; internal set; }
+    public GameObjectGuid CritterPowerCells { get; internal set; }
+    public GameObjectGuid CritterFuel { get; internal set; }
+    public int CritterInventoryNum { get; internal set; }
+    public GameObjectGuid[] CritterInventoryList { get; internal set; } = [];
+    public int CritterInventorySource { get; internal set; }
+    public int CritterDescriptionUnknown { get; internal set; }
+    public GameObjectGuid[] CritterFollowers { get; internal set; } = [];
+    public Location CritterTeleportDest { get; internal set; }
+    public int CritterTeleportMap { get; internal set; }
+    public int CritterDeathTime { get; internal set; }
+    public int CritterAutoLevelScheme { get; internal set; }
+    public int CritterPadI1 { get; internal set; }
+    public int CritterPadI2 { get; internal set; }
+    public int CritterPadI3 { get; internal set; }
+    public int CritterPadIas1 { get; internal set; }
+    public long CritterPadI64As1 { get; internal set; }
 
     internal static ObjectCritter Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

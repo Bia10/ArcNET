@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -6,29 +6,29 @@ namespace ArcNET.GameObjects.Types;
 /// <summary>Item fields, shared by Weapon, Ammo, Armor, Gold, Food, Scroll, Key, KeyRing, Written, Generic.</summary>
 public class ObjectItem : ObjectCommon
 {
-    public int ItemFlags { get; set; }
-    public GameObjectGuid ItemParent { get; set; }
-    public int ItemWeight { get; set; }
-    public int ItemMagicWeightAdj { get; set; }
-    public int ItemWorth { get; set; }
-    public int ItemManaStore { get; set; }
-    public int ItemInvAid { get; set; }
-    public int ItemInvLocation { get; set; }
-    public int ItemUseAidFragment { get; set; }
-    public int ItemMagicTechComplexity { get; set; }
-    public int ItemDiscipline { get; set; }
-    public int ItemDescriptionUnknown { get; set; }
-    public int ItemDescriptionEffects { get; set; }
-    public int ItemSpell1 { get; set; }
-    public int ItemSpell2 { get; set; }
-    public int ItemSpell3 { get; set; }
-    public int ItemSpell4 { get; set; }
-    public int ItemSpell5 { get; set; }
-    public int ItemSpellManaStore { get; set; }
-    public int ItemAiAction { get; set; }
-    public int ItemPadI1 { get; set; }
-    public int ItemPadIas1 { get; set; }
-    public long ItemPadI64As1 { get; set; }
+    public int ItemFlags { get; internal set; }
+    public GameObjectGuid ItemParent { get; internal set; }
+    public int ItemWeight { get; internal set; }
+    public int ItemMagicWeightAdj { get; internal set; }
+    public int ItemWorth { get; internal set; }
+    public int ItemManaStore { get; internal set; }
+    public int ItemInvAid { get; internal set; }
+    public int ItemInvLocation { get; internal set; }
+    public int ItemUseAidFragment { get; internal set; }
+    public int ItemMagicTechComplexity { get; internal set; }
+    public int ItemDiscipline { get; internal set; }
+    public int ItemDescriptionUnknown { get; internal set; }
+    public int ItemDescriptionEffects { get; internal set; }
+    public int ItemSpell1 { get; internal set; }
+    public int ItemSpell2 { get; internal set; }
+    public int ItemSpell3 { get; internal set; }
+    public int ItemSpell4 { get; internal set; }
+    public int ItemSpell5 { get; internal set; }
+    public int ItemSpellManaStore { get; internal set; }
+    public int ItemAiAction { get; internal set; }
+    public int ItemPadI1 { get; internal set; }
+    public int ItemPadIas1 { get; internal set; }
+    public long ItemPadI64As1 { get; internal set; }
 
     internal static ObjectItem ReadItem(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

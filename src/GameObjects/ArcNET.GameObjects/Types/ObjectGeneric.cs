@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectGeneric : ObjectItem
 {
-    public int GenericFlags { get; set; }
-    public int GenericUsageBonus { get; set; }
-    public int GenericUsageCountRemaining { get; set; }
-    public int GenericPadIas1 { get; set; }
-    public long GenericPadI64As1 { get; set; }
+    public int GenericFlags { get; internal set; }
+    public int GenericUsageBonus { get; internal set; }
+    public int GenericUsageCountRemaining { get; internal set; }
+    public int GenericPadIas1 { get; internal set; }
+    public long GenericPadI64As1 { get; internal set; }
 
     internal static ObjectGeneric Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

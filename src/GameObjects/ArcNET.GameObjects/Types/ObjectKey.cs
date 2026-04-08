@@ -1,14 +1,14 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectKey : ObjectItem
 {
-    public int KeyKeyId { get; set; }
-    public int KeyPadI1 { get; set; }
-    public int KeyPadI2 { get; set; }
-    public int KeyPadIas1 { get; set; }
-    public long KeyPadI64As1 { get; set; }
+    public int KeyKeyId { get; internal set; }
+    public int KeyPadI1 { get; internal set; }
+    public int KeyPadI2 { get; internal set; }
+    public int KeyPadIas1 { get; internal set; }
+    public long KeyPadI64As1 { get; internal set; }
 
     internal static ObjectKey Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

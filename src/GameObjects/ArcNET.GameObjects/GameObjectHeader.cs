@@ -60,7 +60,10 @@ public sealed class GameObjectHeader
 
         var protoId = GameObjectGuid.Read(ref reader);
         var objectId = GameObjectGuid.Read(ref reader);
-        var objectType = (ObjectType)reader.ReadUInt32();
+        var rawObjectType = reader.ReadUInt32();
+        if (!Enum.IsDefined((ObjectType)rawObjectType))
+            throw new InvalidDataException($"Unknown ObjectType value: {rawObjectType}");
+        var objectType = (ObjectType)rawObjectType;
 
         short propCollectionItems = 0;
         if (!protoId.IsProto)
@@ -94,7 +97,10 @@ public sealed class GameObjectHeader
 
         // Compact format: only ONE OID in the body (serves as both proto and instance reference).
         var protoId = GameObjectGuid.Read(ref reader);
-        var objectType = (ObjectType)reader.ReadUInt32();
+        var rawObjectType = reader.ReadUInt32();
+        if (!Enum.IsDefined((ObjectType)rawObjectType))
+            throw new InvalidDataException($"Unknown ObjectType value: {rawObjectType}");
+        var objectType = (ObjectType)rawObjectType;
 
         short propCollectionItems = 0;
         if (!protoId.IsProto)

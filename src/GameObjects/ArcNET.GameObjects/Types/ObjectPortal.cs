@@ -1,17 +1,17 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectPortal : ObjectCommon
 {
-    public int PortalFlags { get; set; }
-    public int PortalLockDifficulty { get; set; }
-    public int PortalKeyId { get; set; }
-    public int PortalNotifyNpc { get; set; }
-    public int PortalPadI1 { get; set; }
-    public int PortalPadI2 { get; set; }
-    public int PortalPadIas1 { get; set; }
-    public long PortalPadI64As1 { get; set; }
+    public int PortalFlags { get; internal set; }
+    public int PortalLockDifficulty { get; internal set; }
+    public int PortalKeyId { get; internal set; }
+    public int PortalNotifyNpc { get; internal set; }
+    public int PortalPadI1 { get; internal set; }
+    public int PortalPadI2 { get; internal set; }
+    public int PortalPadIas1 { get; internal set; }
+    public long PortalPadI64As1 { get; internal set; }
 
     internal static ObjectPortal Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {

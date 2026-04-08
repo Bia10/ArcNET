@@ -1,35 +1,35 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectNpc : ObjectCritter
 {
-    public int NpcFlags { get; set; }
-    public GameObjectGuid NpcLeader { get; set; }
-    public int NpcAiData { get; set; }
-    public GameObjectGuid NpcCombatFocus { get; set; }
-    public GameObjectGuid NpcWhoHitMeLast { get; set; }
-    public int NpcExperienceWorth { get; set; }
-    public int NpcExperiencePool { get; set; }
-    public Location[] NpcWaypoints { get; set; } = [];
-    public int NpcWaypointCurrent { get; set; }
-    public Location NpcStandpointDay { get; set; }
-    public Location NpcStandpointNight { get; set; }
-    public int NpcOrigin { get; set; }
-    public int NpcFaction { get; set; }
-    public int NpcRetailPriceMultiplier { get; set; }
-    public GameObjectGuid NpcSubstituteInventory { get; set; }
-    public int NpcReactionBase { get; set; }
-    public int NpcSocialClass { get; set; }
-    public int[] NpcReactionPc { get; set; } = [];
-    public int[] NpcReactionLevel { get; set; } = [];
-    public int[] NpcReactionTime { get; set; } = [];
-    public int NpcWait { get; set; }
-    public int NpcGeneratorData { get; set; }
-    public int NpcPadI1 { get; set; }
-    public int[] NpcDamage { get; set; } = [];
-    public int[] NpcShitList { get; set; } = [];
+    public int NpcFlags { get; internal set; }
+    public GameObjectGuid NpcLeader { get; internal set; }
+    public int NpcAiData { get; internal set; }
+    public GameObjectGuid NpcCombatFocus { get; internal set; }
+    public GameObjectGuid NpcWhoHitMeLast { get; internal set; }
+    public int NpcExperienceWorth { get; internal set; }
+    public int NpcExperiencePool { get; internal set; }
+    public Location[] NpcWaypoints { get; internal set; } = [];
+    public int NpcWaypointCurrent { get; internal set; }
+    public Location NpcStandpointDay { get; internal set; }
+    public Location NpcStandpointNight { get; internal set; }
+    public int NpcOrigin { get; internal set; }
+    public int NpcFaction { get; internal set; }
+    public int NpcRetailPriceMultiplier { get; internal set; }
+    public GameObjectGuid NpcSubstituteInventory { get; internal set; }
+    public int NpcReactionBase { get; internal set; }
+    public int NpcSocialClass { get; internal set; }
+    public int[] NpcReactionPc { get; internal set; } = [];
+    public int[] NpcReactionLevel { get; internal set; } = [];
+    public int[] NpcReactionTime { get; internal set; } = [];
+    public int NpcWait { get; internal set; }
+    public int NpcGeneratorData { get; internal set; }
+    public int NpcPadI1 { get; internal set; }
+    public int[] NpcDamage { get; internal set; } = [];
+    public int[] NpcShitList { get; internal set; } = [];
 
     internal static new ObjectNpc Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
