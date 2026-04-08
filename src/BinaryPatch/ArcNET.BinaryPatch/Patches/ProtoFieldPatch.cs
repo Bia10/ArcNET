@@ -18,12 +18,8 @@ namespace ArcNET.BinaryPatch.Patches;
 /// Use the static factories (<see cref="SetInt32"/>, <see cref="Custom"/>) to create instances.
 /// </para>
 /// </remarks>
-public sealed class ProtoFieldPatch : IBinaryPatch
+public sealed class ProtoFieldPatch : ObjectFieldPatchBase
 {
-    private readonly ObjectField _field;
-    private readonly Func<ObjectProperty, bool>? _predicate;
-    private readonly Func<ObjectProperty, ObjectProperty> _transform;
-
     private ProtoFieldPatch(
         string id,
         string description,
@@ -32,26 +28,7 @@ public sealed class ProtoFieldPatch : IBinaryPatch
         Func<ObjectProperty, bool>? predicate,
         Func<ObjectProperty, ObjectProperty> transform
     )
-    {
-        Id = id;
-        Description = description;
-        Target = target;
-        _field = field;
-        _predicate = predicate;
-        _transform = transform;
-    }
-
-    /// <inheritdoc/>
-    public string Id { get; }
-
-    /// <inheritdoc/>
-    public string Description { get; }
-
-    /// <inheritdoc/>
-    public PatchTarget Target { get; }
-
-    /// <inheritdoc/>
-    public string PatchSummary => $"field {_field}";
+        : base(id, description, target, field, predicate, transform) { }
 
     // ── Factories ──────────────────────────────────────────────────────────
 
@@ -66,7 +43,7 @@ public sealed class ProtoFieldPatch : IBinaryPatch
     /// <param name="field">The <see cref="ObjectField"/> to modify.</param>
     /// <param name="expectedValue">
     /// The current (unpatched) value expected in the field.
-    /// <see cref="NeedsApply"/> returns <see langword="true"/> only when the field holds this
+    /// <see cref="IBinaryPatch.NeedsApply"/> returns <see langword="true"/> only when the field holds this
     /// value, providing idempotency and version-checking in one step.
     /// </param>
     /// <param name="newValue">The replacement value to write.</param>
@@ -127,46 +104,20 @@ public sealed class ProtoFieldPatch : IBinaryPatch
             transform
         );
 
-    // ── IBinaryPatch ───────────────────────────────────────────────────────
+    // ── ObjectFieldPatchBase ───────────────────────────────────────────────
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Returns <see langword="false"/> when the target field is absent from the proto
-    /// (bit not set in the header bitmap) or when the predicate reports the value is
-    /// already in the patched state.
-    /// </remarks>
-    public bool NeedsApply(ReadOnlyMemory<byte> original)
-    {
-        var proto = ProtoFormat.ParseMemory(original);
-        var prop = FindProperty(proto.Properties);
-
-        if (prop is null)
-            return false;
-
-        return _predicate is null || _predicate(prop);
-    }
+    protected override IReadOnlyList<ObjectProperty> ParseProperties(ReadOnlyMemory<byte> data) =>
+        ProtoFormat.ParseMemory(data).Properties;
 
     /// <inheritdoc/>
-    public byte[] Apply(ReadOnlyMemory<byte> original)
+    protected override byte[] ParseTransformSerialize(
+        ReadOnlyMemory<byte> original,
+        Func<IReadOnlyList<ObjectProperty>, IReadOnlyList<ObjectProperty>> transform
+    )
     {
         var proto = ProtoFormat.ParseMemory(original);
-
-        var props = proto.Properties;
-        var updatedProps = new ObjectProperty[props.Count];
-        for (var i = 0; i < props.Count; i++)
-            updatedProps[i] = props[i].Field == _field ? _transform(props[i]) : props[i];
-
-        var patched = new ProtoData { Header = proto.Header, Properties = updatedProps };
+        var patched = new ProtoData { Header = proto.Header, Properties = transform(proto.Properties) };
         return ProtoFormat.WriteToArray(in patched);
-    }
-
-    // ── helpers ────────────────────────────────────────────────────────────
-
-    private ObjectProperty? FindProperty(IReadOnlyList<ObjectProperty> properties)
-    {
-        foreach (var p in properties)
-            if (p.Field == _field)
-                return p;
-        return null;
     }
 }

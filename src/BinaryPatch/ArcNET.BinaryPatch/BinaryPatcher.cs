@@ -98,48 +98,75 @@ public static class BinaryPatcher
         return results;
     }
 
-    // ── private helpers ────────────────────────────────────────────────────
+    // ── public helpers ─────────────────────────────────────────────────────
 
-    private static string ResolvePath(string gameDir, string relativePath) =>
-        Path.GetFullPath(Path.Combine(gameDir, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+    /// <summary>
+    /// Resolves an absolute file path from <paramref name="gameDir"/> and a
+    /// forward-slash-separated <paramref name="relativePath"/>.
+    /// Throws if the resolved path would escape <paramref name="gameDir"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when <paramref name="relativePath"/> contains path-traversal segments (e.g. <c>../</c>)
+    /// that would place the target outside <paramref name="gameDir"/>.
+    /// </exception>
+    public static string ResolvePath(string gameDir, string relativePath)
+    {
+        var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(gameDir, normalized));
+        // Append the separator so that a game dir of "/foo" does not match "/foobar".
+        var gameRoot = Path.GetFullPath(gameDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Patch target '{relativePath}' resolves to '{fullPath}' which is outside the game directory '{gameDir}'."
+            );
+        return fullPath;
+    }
+
+    // Returns (Data: non-null, Error: null) on success; (Data: null, Error: non-null) on failure.
+    private static (byte[]? Data, string? Error) TryReadOriginalBytes(IBinaryPatch patch, string path, string gameDir)
+    {
+        if (File.Exists(path))
+        {
+            try
+            {
+                return (File.ReadAllBytes(path), null);
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Read failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        if (patch.Target.SourceDatPath is not null)
+            return ReadFromDat(patch, gameDir);
+
+        return (null, $"File not found: {path}");
+    }
 
     private static PatchResult ApplyOne(IBinaryPatch patch, string gameDir, PatchOptions options)
     {
         var path = ResolvePath(gameDir, patch.Target.RelativePath);
         var isDatSourced = patch.Target.SourceDatPath is not null;
 
-        byte[] original;
-        if (File.Exists(path))
-        {
-            try
-            {
-                original = File.ReadAllBytes(path);
-            }
-            catch (Exception ex)
-            {
-                return new PatchResult(patch.Id, PatchStatus.Failed, null, $"Read failed: {ex.Message}");
-            }
-        }
-        else if (isDatSourced)
-        {
-            var result = ReadFromDat(patch, gameDir);
-            if (result.Error is not null)
-                return new PatchResult(patch.Id, PatchStatus.Failed, null, result.Error);
-            original = result.Data!;
-        }
-        else
-        {
-            return new PatchResult(patch.Id, PatchStatus.Failed, null, $"File not found: {path}");
-        }
+        var (original, readError) = TryReadOriginalBytes(patch, path, gameDir);
+        if (readError is not null)
+            return new PatchResult(patch.Id, PatchStatus.Failed, null, readError);
+
+        var originalBytes = original!;
 
         bool needs;
         try
         {
-            needs = patch.NeedsApply(original);
+            needs = patch.NeedsApply(originalBytes);
         }
         catch (Exception ex)
         {
-            return new PatchResult(patch.Id, PatchStatus.Failed, null, $"NeedsApply threw: {ex.Message}");
+            return new PatchResult(
+                patch.Id,
+                PatchStatus.Failed,
+                null,
+                $"NeedsApply threw: {ex.GetType().Name}: {ex.Message}"
+            );
         }
 
         if (!needs)
@@ -160,29 +187,49 @@ public static class BinaryPatcher
             }
             catch (Exception ex)
             {
-                return new PatchResult(patch.Id, PatchStatus.Failed, null, $"Backup failed: {ex.Message}");
+                return new PatchResult(
+                    patch.Id,
+                    PatchStatus.Failed,
+                    null,
+                    $"Backup failed: {ex.GetType().Name}: {ex.Message}"
+                );
             }
         }
 
         byte[] patched;
         try
         {
-            patched = patch.Apply(original);
+            patched = patch.Apply(originalBytes);
         }
         catch (Exception ex)
         {
-            return new PatchResult(patch.Id, PatchStatus.Failed, backupPath, $"Apply threw: {ex.Message}");
+            return new PatchResult(
+                patch.Id,
+                PatchStatus.Failed,
+                backupPath,
+                $"Apply threw: {ex.GetType().Name}: {ex.Message}"
+            );
         }
 
+        // Write to a temp file and atomically move it into place so that a crash or
+        // cancellation during the write cannot leave the target in a half-written state.
+        var tempPath = path + ".tmp";
         try
         {
             if (isDatSourced)
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, patched);
+            File.WriteAllBytes(tempPath, patched);
+            File.Move(tempPath, path, overwrite: true);
         }
         catch (Exception ex)
         {
-            return new PatchResult(patch.Id, PatchStatus.Failed, backupPath, $"Write failed: {ex.Message}");
+            TryDeleteSilently(tempPath);
+            return new PatchResult(
+                patch.Id,
+                PatchStatus.Failed,
+                backupPath,
+                $"Write failed: {ex.GetType().Name}: {ex.Message}"
+            );
         }
 
         return new PatchResult(patch.Id, PatchStatus.Applied, backupPath, null);
@@ -205,7 +252,7 @@ public static class BinaryPatcher
             }
             catch (Exception ex)
             {
-                return new PatchResult(patch.Id, PatchStatus.Failed, null, ex.Message);
+                return new PatchResult(patch.Id, PatchStatus.Failed, null, $"{ex.GetType().Name}: {ex.Message}");
             }
         }
 
@@ -221,7 +268,7 @@ public static class BinaryPatcher
         }
         catch (Exception ex)
         {
-            return new PatchResult(patch.Id, PatchStatus.Failed, backupPath, ex.Message);
+            return new PatchResult(patch.Id, PatchStatus.Failed, backupPath, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -229,38 +276,32 @@ public static class BinaryPatcher
     {
         var path = ResolvePath(gameDir, patch.Target.RelativePath);
 
-        byte[] original;
-        if (File.Exists(path))
+        var (original, readError) = TryReadOriginalBytes(patch, path, gameDir);
+        if (readError is not null)
         {
-            try
-            {
-                original = File.ReadAllBytes(path);
-            }
-            catch (Exception ex)
-            {
-                return new PatchVerifyResult(patch.Id, false, true, $"Read failed: {ex.Message}");
-            }
-        }
-        else if (patch.Target.SourceDatPath is not null)
-        {
-            var result = ReadFromDat(patch, gameDir);
-            if (result.Error is not null)
-                return new PatchVerifyResult(patch.Id, false, false, result.Error);
-            original = result.Data!;
-        }
-        else
-        {
-            return new PatchVerifyResult(patch.Id, false, false, $"File not found: {path}");
+            var fileExists = File.Exists(path);
+            return new PatchVerifyResult(patch.Id, false, fileExists, readError);
         }
 
         try
         {
-            var needs = patch.NeedsApply(original);
+            var needs = patch.NeedsApply(original!);
             return new PatchVerifyResult(patch.Id, needs, true, null);
         }
         catch (Exception ex)
         {
-            return new PatchVerifyResult(patch.Id, false, true, $"NeedsApply threw: {ex.Message}");
+            return new PatchVerifyResult(patch.Id, false, true, $"NeedsApply threw: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static void TryDeleteSilently(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        { /* best effort */
         }
     }
 
@@ -280,7 +321,7 @@ public static class BinaryPatcher
         }
         catch (Exception ex)
         {
-            return (null, $"DAT read failed: {ex.Message}");
+            return (null, $"DAT read failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 }

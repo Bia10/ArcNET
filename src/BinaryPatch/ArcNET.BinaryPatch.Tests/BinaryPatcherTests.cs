@@ -239,4 +239,23 @@ public sealed class BinaryPatcherTests : IDisposable
 
         await Assert.That(File.ReadAllBytes(path).SequenceEqual(originalBytes)).IsTrue();
     }
+
+    // ── ResolvePath — path traversal guard ────────────────────────────────
+
+    [Test]
+    [Arguments("../outside.txt")]
+    [Arguments("../../etc/passwd")]
+    [Arguments("sub/../../outside.txt")]
+    public async Task ResolvePath_Throws_WhenRelativePathEscapesGameDir(string traversalPath)
+    {
+        await Assert.That(() => BinaryPatcher.ResolvePath(_gameDir, traversalPath)).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task ResolvePath_Succeeds_ForLegitimateRelativePath()
+    {
+        var result = BinaryPatcher.ResolvePath(_gameDir, "data/proto/containers/00000025.pro");
+
+        await Assert.That(result).StartsWith(_gameDir);
+    }
 }
