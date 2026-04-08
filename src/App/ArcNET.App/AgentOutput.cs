@@ -44,7 +44,6 @@ internal static class AgentOutput
     internal static void WriteError(string source, Exception ex)
     {
         Console.Error.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, source }, s_opts));
-        Environment.Exit(1);
     }
 
     // ── Format-specific projections ───────────────────────────────────────────

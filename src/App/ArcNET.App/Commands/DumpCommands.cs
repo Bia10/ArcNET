@@ -105,8 +105,6 @@ public sealed class DumpCommands
             var parsed = parse(file);
             if (json && project is not null)
                 AgentOutput.Write(format, file, project(parsed));
-            else if (json)
-                Console.Write(dump(parsed));
             else
                 Console.Write(dump(parsed));
         }
@@ -115,10 +113,8 @@ public sealed class DumpCommands
             if (json)
                 AgentOutput.WriteError(file, ex);
             else
-            {
                 Console.Error.WriteLine($"Failed to parse '{file}': {ex.Message}");
-                Environment.Exit(1);
-            }
+            Environment.Exit(1);
         }
     }
 }
