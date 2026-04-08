@@ -107,6 +107,56 @@ public sealed class CharacterRecord
     public int TechSmithy { get; private init; }
     public int TechTherapeutics { get; private init; }
 
+    // ── Other character data ──────────────────────────────────────────────────
+
+    /// <summary>The player's current gold amount.</summary>
+    public int Gold { get; private init; }
+
+    /// <summary>The player's current arrow count (bsId=0x4D68[8]).</summary>
+    public int Arrows { get; private init; }
+
+    /// <summary>The player's total kill count (bsId=0x4D68[0]).</summary>
+    public int TotalKills { get; private init; }
+
+    /// <summary>
+    /// The character's portrait index (bsId=0x4DA4[1]).
+    /// −1 when the portrait SAR is absent from the source record.
+    /// </summary>
+    public int PortraitIndex { get; private init; } = -1;
+
+    /// <summary>
+    /// The PC's name as stored in the save (non-SAR length-prefixed ASCII field).
+    /// <see langword="null"/> when absent (NPC records).
+    /// </summary>
+    public string? Name { get; private init; }
+
+    /// <summary>
+    /// Raw three-element position / AI SAR values (bsId=0x4DA3: CurrentAid, Location, OffsetX).
+    /// Preserved verbatim through the round-trip so the game can locate the PC.
+    /// Null when the SAR is absent (NPC records, incomplete parses).
+    /// </summary>
+    public int[]? PositionAiRaw { get; private init; }
+
+    /// <summary>
+    /// Raw four-element HP SAR values (bsId=0x4046: AcBonus, HpPtsBonus, HpAdj, HpDamage).
+    /// All zeros at full health.  Element [3] is the HP damage taken.
+    /// Null when the SAR is absent.
+    /// </summary>
+    public int[]? HpDamageRaw { get; private init; }
+
+    /// <summary>HP damage taken (bsId=0x4046[3]).  0 at full health.</summary>
+    public int HpDamage => HpDamageRaw is { } r ? r[3] : 0;
+
+    /// <summary>
+    /// Raw four-element Fatigue SAR values (bsId=0x423E: FatiguePtsBonus, FatigueAdj, FatigueDamage, ?).
+    /// All zeros at full fatigue.  Element [2] is the fatigue damage taken.
+    /// Null when the SAR is absent.
+    /// </summary>
+    public int[]? FatigueDamageRaw { get; private init; }
+
+    /// <summary>Fatigue damage taken (bsId=0x423E[2]).  0 at full fatigue.</summary>
+    public int FatigueDamage => FatigueDamageRaw is { } r ? r[2] : 0;
+
     // ── Metadata ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -209,7 +259,15 @@ public sealed class CharacterRecord
         int[] basicSkills,
         int[] techSkills,
         int[] spellTech,
-        bool hasCompleteData
+        bool hasCompleteData,
+        int gold = 0,
+        int arrows = 0,
+        int totalKills = 0,
+        int portraitIndex = -1,
+        string? name = null,
+        int[]? positionAiRaw = null,
+        int[]? hpDamageRaw = null,
+        int[]? fatigueDamageRaw = null
     )
     {
         static int At(int[] arr, int i) => i < arr.Length ? arr[i] : 0;
@@ -286,6 +344,14 @@ public sealed class CharacterRecord
             TechSmithy = At(spellTech, 23),
             TechTherapeutics = At(spellTech, 24),
             HasCompleteData = hasCompleteData,
+            Gold = gold,
+            Arrows = arrows,
+            TotalKills = totalKills,
+            PortraitIndex = portraitIndex,
+            Name = name,
+            PositionAiRaw = positionAiRaw,
+            HpDamageRaw = hpDamageRaw,
+            FatigueDamageRaw = fatigueDamageRaw,
         };
     }
 
@@ -296,7 +362,21 @@ public sealed class CharacterRecord
     /// <see cref="CharacterMdyRecord"/> decoded from a <c>mobile.mdy</c> file.
     /// </summary>
     public static CharacterRecord From(CharacterMdyRecord rec) =>
-        FromArrays(rec.Stats, rec.BasicSkills, rec.TechSkills, rec.SpellTech, rec.HasCompleteData);
+        FromArrays(
+            rec.Stats,
+            rec.BasicSkills,
+            rec.TechSkills,
+            rec.SpellTech,
+            rec.HasCompleteData,
+            rec.Gold,
+            rec.Arrows,
+            rec.TotalKills,
+            rec.PortraitIndex,
+            rec.Name,
+            rec.PositionAiRaw,
+            rec.HpDamageRaw,
+            rec.FatigueDamageRaw
+        );
 
     /// <summary>
     /// Produces a new <see cref="CharacterMdyRecord"/> derived from
@@ -308,7 +388,19 @@ public sealed class CharacterRecord
             .WithStats(ToStatArray())
             .WithBasicSkills(ToBasicSkillArray())
             .WithTechSkills(ToTechSkillArray())
-            .WithSpellTech(ToSpellTechArray());
+            .WithSpellTech(ToSpellTechArray())
+            .WithGold(Gold)
+            .WithArrows(Arrows)
+            .WithTotalKills(TotalKills)
+            .WithPortraitIndex(
+                PortraitIndex >= 0 ? PortraitIndex
+                : original.PortraitIndex >= 0 ? original.PortraitIndex
+                : 0
+            )
+            .WithPositionAi(PositionAiRaw ?? original.PositionAiRaw ?? [0, 0, 0])
+            .WithHpDamage(HpDamageRaw ?? original.HpDamageRaw ?? [0, 0, 0, 0])
+            .WithFatigueDamage(FatigueDamageRaw ?? original.FatigueDamageRaw ?? [0, 0, 0, 0])
+            .WithName(Name ?? original.Name);
 
     // ── Nested builder ────────────────────────────────────────────────────────
 
@@ -388,6 +480,15 @@ public sealed class CharacterRecord
             _tMech,
             _tSmith,
             _tTherap;
+        private int _gold;
+        private int _arrows;
+        private int _totalKills;
+        private int _portraitIndex = -1;
+        private string? _name;
+        private int[]? _positionAiRaw;
+        private int[]? _hpDamageRaw;
+        private int[]? _fatigueDamageRaw;
+        private bool _hasCompleteData = true;
 
         /// <summary>Creates an empty builder; all values default to zero.</summary>
         public Builder() { }
@@ -464,6 +565,14 @@ public sealed class CharacterRecord
             _tMech = from.TechMechanical;
             _tSmith = from.TechSmithy;
             _tTherap = from.TechTherapeutics;
+            _gold = from.Gold;
+            _arrows = from.Arrows;
+            _totalKills = from.TotalKills;
+            _portraitIndex = from.PortraitIndex;
+            _name = from.Name;
+            _positionAiRaw = from.PositionAiRaw;
+            _hpDamageRaw = from.HpDamageRaw;
+            _fatigueDamageRaw = from.FatigueDamageRaw;
         }
 
         // ── Attributes ────────────────────────────────────────────────────────
@@ -557,6 +666,12 @@ public sealed class CharacterRecord
         public Builder WithTechPoints(int v)
         {
             _techPts = v;
+            return this;
+        }
+
+        public Builder WithPoisonLevel(int v)
+        {
+            _poisonLvl = v;
             return this;
         }
 
@@ -832,6 +947,60 @@ public sealed class CharacterRecord
             return this;
         }
 
+        public Builder WithGold(int v)
+        {
+            _gold = v;
+            return this;
+        }
+
+        public Builder WithArrows(int v)
+        {
+            _arrows = v;
+            return this;
+        }
+
+        public Builder WithTotalKills(int v)
+        {
+            _totalKills = v;
+            return this;
+        }
+
+        public Builder WithPortraitIndex(int v)
+        {
+            _portraitIndex = v;
+            return this;
+        }
+
+        public Builder WithPositionAiRaw(int[] v)
+        {
+            _positionAiRaw = v;
+            return this;
+        }
+
+        public Builder WithHpDamageRaw(int[] v)
+        {
+            _hpDamageRaw = v;
+            return this;
+        }
+
+        public Builder WithFatigueDamageRaw(int[] v)
+        {
+            _fatigueDamageRaw = v;
+            return this;
+        }
+
+        public Builder WithName(string? v)
+        {
+            _name = v;
+            return this;
+        }
+
+        internal Builder WithHasCompleteData(bool v)
+        {
+            _hasCompleteData = v;
+            return this;
+        }
+
         // ── Build ─────────────────────────────────────────────────────────────
 
         public CharacterRecord Build() =>
@@ -906,7 +1075,15 @@ public sealed class CharacterRecord
                 TechMechanical = _tMech,
                 TechSmithy = _tSmith,
                 TechTherapeutics = _tTherap,
-                HasCompleteData = true,
+                HasCompleteData = _hasCompleteData,
+                Gold = _gold,
+                Arrows = _arrows,
+                TotalKills = _totalKills,
+                PortraitIndex = _portraitIndex,
+                Name = _name,
+                PositionAiRaw = _positionAiRaw,
+                HpDamageRaw = _hpDamageRaw,
+                FatigueDamageRaw = _fatigueDamageRaw,
             };
     }
 }

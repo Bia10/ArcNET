@@ -11,6 +11,9 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class SectorBuilder
 {
+    private const int TilesPerSectorAxis = 64;
+    private const int RoofsPerSectorAxis = 16;
+
     private readonly List<SectorLight> _lights;
     private readonly uint[] _tiles;
     private bool _hasRoofs;
@@ -30,7 +33,7 @@ public sealed class SectorBuilder
     public SectorBuilder()
     {
         _lights = [];
-        _tiles = new uint[4096];
+        _tiles = new uint[TilesPerSectorAxis * TilesPerSectorAxis];
         _hasRoofs = false;
         _roofs = null;
         _sectorScript = null;
@@ -39,7 +42,7 @@ public sealed class SectorBuilder
         _aptitudeAdjustment = 0;
         _lightSchemeIdx = 0;
         _soundList = SectorSoundList.Default;
-        _blockMask = new uint[128];
+        _blockMask = new uint[TilesPerSectorAxis * TilesPerSectorAxis / 32];
         _objects = [];
     }
 
@@ -90,7 +93,7 @@ public sealed class SectorBuilder
     /// <summary>Sets the art ID for tile (<paramref name="tileX"/>, <paramref name="tileY"/>).</summary>
     public SectorBuilder SetTile(int tileX, int tileY, uint artId)
     {
-        _tiles[tileY * 64 + tileX] = artId;
+        _tiles[tileY * TilesPerSectorAxis + tileX] = artId;
         return this;
     }
 
@@ -103,8 +106,8 @@ public sealed class SectorBuilder
     public SectorBuilder SetRoof(int roofX, int roofY, uint artId)
     {
         _hasRoofs = true;
-        _roofs ??= new uint[256];
-        _roofs[roofY * 16 + roofX] = artId;
+        _roofs ??= new uint[RoofsPerSectorAxis * RoofsPerSectorAxis];
+        _roofs[roofY * RoofsPerSectorAxis + roofX] = artId;
         return this;
     }
 

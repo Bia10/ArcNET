@@ -1,4 +1,5 @@
-﻿using ArcNET.Core.Primitives;
+﻿using System.Buffers.Binary;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -97,7 +98,7 @@ public sealed class MobDataBuilder
         // ObjFLocation wire type is Int64 — presence byte (1) + 8-byte value
         var bytes = new byte[9];
         bytes[0] = 1; // presence = present
-        BitConverter.TryWriteBytes(bytes.AsSpan(1), packed);
+        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(1), packed);
         return WithProperty(new ObjectProperty { Field = ObjectField.ObjFLocation, RawBytes = bytes });
     }
 
@@ -109,7 +110,7 @@ public sealed class MobDataBuilder
     /// </summary>
     public MobData Build()
     {
-        var bitmapByteLength = ObjectFieldBitmapSizeHelper.For(_type);
+        var bitmapByteLength = ObjectFieldBitmapSize.For(_type);
         var bitmap = new byte[bitmapByteLength];
 
         // Seed from the original bitmap so that bits for fields whose wire type is unknown

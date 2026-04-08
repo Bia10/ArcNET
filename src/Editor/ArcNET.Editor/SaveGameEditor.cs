@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 
 namespace ArcNET.Editor;
 
@@ -105,6 +105,16 @@ public sealed class SaveGameEditor
         return this;
     }
 
+    // ── Read-back / inspection ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the queued <see cref="MobileMdyFile"/> for <paramref name="mdyPath"/>,
+    /// or <see langword="null"/> if no update has been queued for that path.
+    /// Useful for round-trip verification before committing to disk.
+    /// </summary>
+    public MobileMdyFile? GetPendingMobileMdy(string mdyPath) =>
+        _pendingMdyUpdates.TryGetValue(mdyPath, out var f) ? f : null;
+
     // ── Saving ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -115,7 +125,7 @@ public sealed class SaveGameEditor
             _save,
             saveFolder,
             slotName,
-            updatedMobileMdys: _pendingMdyUpdates.Count > 0 ? _pendingMdyUpdates : null
+            _pendingMdyUpdates.Count > 0 ? new SaveGameUpdates { UpdatedMobileMdys = _pendingMdyUpdates } : null
         );
 
     /// <summary>
@@ -127,6 +137,6 @@ public sealed class SaveGameEditor
             gsiPath,
             tfaiPath,
             tfafPath,
-            updatedMobileMdys: _pendingMdyUpdates.Count > 0 ? _pendingMdyUpdates : null
+            _pendingMdyUpdates.Count > 0 ? new SaveGameUpdates { UpdatedMobileMdys = _pendingMdyUpdates } : null
         );
 }

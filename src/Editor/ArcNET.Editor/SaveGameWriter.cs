@@ -11,184 +11,67 @@ public static class SaveGameWriter
 {
     /// <summary>
     /// Writes a save slot to three explicit file paths.
-    /// Pass only the dictionaries whose contents have changed; <see langword="null"/> keeps originals.
     /// </summary>
     /// <param name="original">The save game loaded by <see cref="SaveGameLoader"/>.</param>
     /// <param name="gsiPath">Destination path for the <c>.gsi</c> metadata file.</param>
     /// <param name="tfaiPath">Destination path for the <c>.tfai</c> index file.</param>
     /// <param name="tfafPath">Destination path for the <c>.tfaf</c> data blob.</param>
-    /// <param name="updatedInfo">
-    /// Replacement <see cref="SaveInfo"/>; pass <see langword="null"/> to keep the original.
-    /// </param>
-    /// <param name="updatedMobiles">
-    /// Map of virtual path → updated <see cref="MobData"/> to replace in the save.
-    /// Only paths already present in <see cref="SaveGame.Files"/> are replaced.
-    /// </param>
-    /// <param name="updatedSectors">
-    /// Map of virtual path → updated <see cref="Sector"/> to replace in the save.
-    /// </param>
-    /// <param name="updatedJumpFiles">
-    /// Map of virtual path → updated <see cref="JmpFile"/> to replace in the save.
-    /// </param>
-    /// <param name="updatedMapProperties">
-    /// Map of virtual path → updated <see cref="MapProperties"/> to replace in the save.
-    /// </param>
-    /// <param name="updatedScripts">
-    /// Map of virtual path → updated <see cref="ScrFile"/> to replace in the save.
-    /// </param>
-    /// <param name="updatedDialogs">
-    /// Map of virtual path → updated <see cref="DlgFile"/> to replace in the save.
-    /// </param>
-    /// <param name="updatedMobileMds">
-    /// Map of virtual path → updated <see cref="MobileMdFile"/> to replace in the save.
-    /// Keys must be paths to <c>mobile.md</c> files already present in <see cref="SaveGame.Files"/>.
-    /// </param>
-    /// <param name="updatedMobileMdys">
-    /// Map of virtual path → updated <see cref="MobileMdyFile"/> to replace in the save.
-    /// Keys must be paths to <c>mobile.mdy</c> files already present in <see cref="SaveGame.Files"/>.
-    /// </param>
-    /// <param name="rawFileUpdates">
-    /// Map of virtual path → raw byte replacement applied after all typed updates.
-    /// Use this for files that cannot be round-tripped through the typed parsers, such as
-    /// <c>mobile.mdy</c> files containing v2 PC records edited via <see cref="SaveGameEditor"/>.
+    /// <param name="updates">
+    /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
+    /// write the save back unmodified; populate only the properties that changed.
     /// </param>
     public static void Save(
         SaveGame original,
         string gsiPath,
         string tfaiPath,
         string tfafPath,
-        SaveInfo? updatedInfo = null,
-        IReadOnlyDictionary<string, MobData>? updatedMobiles = null,
-        IReadOnlyDictionary<string, Sector>? updatedSectors = null,
-        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles = null,
-        IReadOnlyDictionary<string, MapProperties>? updatedMapProperties = null,
-        IReadOnlyDictionary<string, ScrFile>? updatedScripts = null,
-        IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
-        IReadOnlyDictionary<string, MobileMdFile>? updatedMobileMds = null,
-        IReadOnlyDictionary<string, MobileMdyFile>? updatedMobileMdys = null,
-        IReadOnlyDictionary<string, byte[]>? rawFileUpdates = null
+        SaveGameUpdates? updates = null
     )
     {
-        var (gsiBytes, tfaiBytes, tfafBytes) = Serialize(
-            original,
-            updatedInfo,
-            updatedMobiles,
-            updatedSectors,
-            updatedJumpFiles,
-            updatedMapProperties,
-            updatedScripts,
-            updatedDialogs,
-            updatedMobileMds,
-            updatedMobileMdys,
-            rawFileUpdates
-        );
+        var (gsiBytes, tfaiBytes, tfafBytes) = Serialize(original, updates);
 
-        File.WriteAllBytes(gsiPath, gsiBytes);
-        File.WriteAllBytes(tfaiPath, tfaiBytes);
-        File.WriteAllBytes(tfafPath, tfafBytes);
-    }
-
-    // ── Shared serialization ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// Builds the three byte payloads from the save game and all pending updates.
-    /// Pure CPU work — no I/O. Used by both <c>Save</c> and <c>SaveAsync</c>.
-    /// </summary>
-    private static (byte[] gsi, byte[] tfai, byte[] tfaf) Serialize(
-        SaveGame original,
-        SaveInfo? updatedInfo,
-        IReadOnlyDictionary<string, MobData>? updatedMobiles,
-        IReadOnlyDictionary<string, Sector>? updatedSectors,
-        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles,
-        IReadOnlyDictionary<string, MapProperties>? updatedMapProperties,
-        IReadOnlyDictionary<string, ScrFile>? updatedScripts,
-        IReadOnlyDictionary<string, DlgFile>? updatedDialogs,
-        IReadOnlyDictionary<string, MobileMdFile>? updatedMobileMds,
-        IReadOnlyDictionary<string, MobileMdyFile>? updatedMobileMdys,
-        IReadOnlyDictionary<string, byte[]>? rawFileUpdates
-    )
-    {
-        var files = new Dictionary<string, byte[]>(original.Files, StringComparer.OrdinalIgnoreCase);
-
-        if (updatedMobiles is not null)
-            foreach (var (path, mob) in updatedMobiles)
-                files[path] = MobFormat.WriteToArray(mob);
-
-        if (updatedSectors is not null)
-            foreach (var (path, sector) in updatedSectors)
-                files[path] = SectorFormat.WriteToArray(sector);
-
-        if (updatedJumpFiles is not null)
-            foreach (var (path, jmp) in updatedJumpFiles)
-                files[path] = JmpFormat.WriteToArray(jmp);
-
-        if (updatedMapProperties is not null)
-            foreach (var (path, props) in updatedMapProperties)
-                files[path] = MapPropertiesFormat.WriteToArray(props);
-
-        if (updatedScripts is not null)
-            foreach (var (path, scr) in updatedScripts)
-                files[path] = ScriptFormat.WriteToArray(scr);
-
-        if (updatedDialogs is not null)
-            foreach (var (path, dlg) in updatedDialogs)
-                files[path] = DialogFormat.WriteToArray(dlg);
-
-        if (updatedMobileMds is not null)
-            foreach (var (path, md) in updatedMobileMds)
-                files[path] = MobileMdFormat.WriteToArray(md);
-
-        if (updatedMobileMdys is not null)
-            foreach (var (path, mdy) in updatedMobileMdys)
-                files[path] = MobileMdyFormat.WriteToArray(mdy);
-
-        if (rawFileUpdates is not null)
-            foreach (var (path, raw) in rawFileUpdates)
-                files[path] = raw;
-
-        var index = RebuildIndex(original.Index, files);
-
-        return (
-            SaveInfoFormat.WriteToArray(updatedInfo ?? original.Info),
-            SaveIndexFormat.WriteToArray(index),
-            TfafFormat.Pack(index, files)
-        );
+        // Write each file to a temp path first, then atomically rename into place.
+        // This prevents a crash or I/O error between writes from leaving the three
+        // save-slot files in an inconsistent state.
+        var gsiTemp = gsiPath + ".tmp";
+        var tfaiTemp = tfaiPath + ".tmp";
+        var tfafTemp = tfafPath + ".tmp";
+        try
+        {
+            File.WriteAllBytes(gsiTemp, gsiBytes);
+            File.WriteAllBytes(tfaiTemp, tfaiBytes);
+            File.WriteAllBytes(tfafTemp, tfafBytes);
+            File.Move(gsiTemp, gsiPath, overwrite: true);
+            File.Move(tfaiTemp, tfaiPath, overwrite: true);
+            File.Move(tfafTemp, tfafPath, overwrite: true);
+        }
+        catch
+        {
+            TryDeleteSilently(gsiTemp);
+            TryDeleteSilently(tfaiTemp);
+            TryDeleteSilently(tfafTemp);
+            throw;
+        }
     }
 
     /// <summary>
     /// Writes a save slot by folder and slot name.
     /// Resolves paths as <c>{saveFolder}/{slotName}.gsi</c>, <c>.tfai</c>, and <c>.tfaf</c>.
     /// </summary>
-    public static void Save(
-        SaveGame original,
-        string saveFolder,
-        string slotName,
-        SaveInfo? updatedInfo = null,
-        IReadOnlyDictionary<string, MobData>? updatedMobiles = null,
-        IReadOnlyDictionary<string, Sector>? updatedSectors = null,
-        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles = null,
-        IReadOnlyDictionary<string, MapProperties>? updatedMapProperties = null,
-        IReadOnlyDictionary<string, ScrFile>? updatedScripts = null,
-        IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
-        IReadOnlyDictionary<string, MobileMdFile>? updatedMobileMds = null,
-        IReadOnlyDictionary<string, MobileMdyFile>? updatedMobileMdys = null,
-        IReadOnlyDictionary<string, byte[]>? rawFileUpdates = null
-    ) =>
+    /// <param name="original">The save game loaded by <see cref="SaveGameLoader"/>.</param>
+    /// <param name="saveFolder">Directory containing the three save slot files.</param>
+    /// <param name="slotName">Base file name without extension (e.g. <c>"slot1"</c>).</param>
+    /// <param name="updates">
+    /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
+    /// write the save back unmodified.
+    /// </param>
+    public static void Save(SaveGame original, string saveFolder, string slotName, SaveGameUpdates? updates = null) =>
         Save(
             original,
             Path.Combine(saveFolder, slotName + ".gsi"),
             Path.Combine(saveFolder, slotName + ".tfai"),
             Path.Combine(saveFolder, slotName + ".tfaf"),
-            updatedInfo,
-            updatedMobiles,
-            updatedSectors,
-            updatedJumpFiles,
-            updatedMapProperties,
-            updatedScripts,
-            updatedDialogs,
-            updatedMobileMds,
-            updatedMobileMdys,
-            rawFileUpdates
+            updates
         );
 
     // ── Asynchronous save ─────────────────────────────────────────────────────
@@ -197,71 +80,71 @@ public static class SaveGameWriter
     /// Asynchronously writes a save slot to three explicit file paths.
     /// Serialization is performed synchronously on a thread-pool thread;
     /// all three file writes are then issued as true async I/O.
-    /// Pass only the dictionaries whose contents have changed; <see langword="null"/> keeps originals.
     /// </summary>
+    /// <param name="original">The save game loaded by <see cref="SaveGameLoader"/>.</param>
+    /// <param name="gsiPath">Destination path for the <c>.gsi</c> metadata file.</param>
+    /// <param name="tfaiPath">Destination path for the <c>.tfai</c> index file.</param>
+    /// <param name="tfafPath">Destination path for the <c>.tfaf</c> data blob.</param>
+    /// <param name="updates">
+    /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
+    /// write the save back unmodified.
+    /// </param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static async Task SaveAsync(
         SaveGame original,
         string gsiPath,
         string tfaiPath,
         string tfafPath,
-        SaveInfo? updatedInfo = null,
-        IReadOnlyDictionary<string, MobData>? updatedMobiles = null,
-        IReadOnlyDictionary<string, Sector>? updatedSectors = null,
-        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles = null,
-        IReadOnlyDictionary<string, MapProperties>? updatedMapProperties = null,
-        IReadOnlyDictionary<string, ScrFile>? updatedScripts = null,
-        IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
-        IReadOnlyDictionary<string, MobileMdFile>? updatedMobileMds = null,
-        IReadOnlyDictionary<string, MobileMdyFile>? updatedMobileMdys = null,
-        IReadOnlyDictionary<string, byte[]>? rawFileUpdates = null,
+        SaveGameUpdates? updates = null,
         CancellationToken cancellationToken = default
     )
     {
         // Serialization is CPU-bound; offload to the thread pool so the caller
         // (typically an Avalonia UI thread) is not blocked.
-        var (gsiBytes, tfaiBytes, tfafBytes) = await Task.Run(
-                () =>
-                    Serialize(
-                        original,
-                        updatedInfo,
-                        updatedMobiles,
-                        updatedSectors,
-                        updatedJumpFiles,
-                        updatedMapProperties,
-                        updatedScripts,
-                        updatedDialogs,
-                        updatedMobileMds,
-                        updatedMobileMdys,
-                        rawFileUpdates
-                    ),
-                cancellationToken
-            )
+        var (gsiBytes, tfaiBytes, tfafBytes) = await Task.Run(() => Serialize(original, updates), cancellationToken)
             .ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
-        await File.WriteAllBytesAsync(gsiPath, gsiBytes, cancellationToken).ConfigureAwait(false);
-        await File.WriteAllBytesAsync(tfaiPath, tfaiBytes, cancellationToken).ConfigureAwait(false);
-        await File.WriteAllBytesAsync(tfafPath, tfafBytes, cancellationToken).ConfigureAwait(false);
+
+        // Write each file to a temp path first, then atomically rename into place.
+        var gsiTemp = gsiPath + ".tmp";
+        var tfaiTemp = tfaiPath + ".tmp";
+        var tfafTemp = tfafPath + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(gsiTemp, gsiBytes, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(tfaiTemp, tfaiBytes, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(tfafTemp, tfafBytes, cancellationToken).ConfigureAwait(false);
+            File.Move(gsiTemp, gsiPath, overwrite: true);
+            File.Move(tfaiTemp, tfaiPath, overwrite: true);
+            File.Move(tfafTemp, tfafPath, overwrite: true);
+        }
+        catch
+        {
+            TryDeleteSilently(gsiTemp);
+            TryDeleteSilently(tfaiTemp);
+            TryDeleteSilently(tfafTemp);
+            throw;
+        }
     }
 
     /// <summary>
     /// Asynchronously writes a save slot by folder and slot name.
     /// Resolves paths as <c>{saveFolder}/{slotName}.gsi</c>, <c>.tfai</c>, and <c>.tfaf</c>.
     /// </summary>
+    /// <param name="original">The save game loaded by <see cref="SaveGameLoader"/>.</param>
+    /// <param name="saveFolder">Directory containing the three save slot files.</param>
+    /// <param name="slotName">Base file name without extension (e.g. <c>"slot1"</c>).</param>
+    /// <param name="updates">
+    /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
+    /// write the save back unmodified.
+    /// </param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static Task SaveAsync(
         SaveGame original,
         string saveFolder,
         string slotName,
-        SaveInfo? updatedInfo = null,
-        IReadOnlyDictionary<string, MobData>? updatedMobiles = null,
-        IReadOnlyDictionary<string, Sector>? updatedSectors = null,
-        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles = null,
-        IReadOnlyDictionary<string, MapProperties>? updatedMapProperties = null,
-        IReadOnlyDictionary<string, ScrFile>? updatedScripts = null,
-        IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
-        IReadOnlyDictionary<string, MobileMdFile>? updatedMobileMds = null,
-        IReadOnlyDictionary<string, MobileMdyFile>? updatedMobileMdys = null,
-        IReadOnlyDictionary<string, byte[]>? rawFileUpdates = null,
+        SaveGameUpdates? updates = null,
         CancellationToken cancellationToken = default
     ) =>
         SaveAsync(
@@ -269,18 +152,68 @@ public static class SaveGameWriter
             Path.Combine(saveFolder, slotName + ".gsi"),
             Path.Combine(saveFolder, slotName + ".tfai"),
             Path.Combine(saveFolder, slotName + ".tfaf"),
-            updatedInfo,
-            updatedMobiles,
-            updatedSectors,
-            updatedJumpFiles,
-            updatedMapProperties,
-            updatedScripts,
-            updatedDialogs,
-            updatedMobileMds,
-            updatedMobileMdys,
-            rawFileUpdates,
+            updates,
             cancellationToken
         );
+
+    // ── Shared serialization ──────────────────────────────────────────────────
+
+    private static void TryDeleteSilently(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        { /* best effort */
+        }
+    }
+
+    /// <summary>
+    /// Builds the three byte payloads from the save game and all pending updates.
+    /// Pure CPU work — no I/O. Used by both <c>Save</c> and <c>SaveAsync</c>.
+    /// </summary>
+    private static (byte[] gsi, byte[] tfai, byte[] tfaf) Serialize(SaveGame original, SaveGameUpdates? updates)
+    {
+        var files = new Dictionary<string, byte[]>(original.Files, StringComparer.OrdinalIgnoreCase);
+
+        // Explicit lambdas are required because WriteToArray methods use `in` parameters,
+        // which are incompatible with the Func<T, byte[]> delegate (by-value parameter).
+        ApplyUpdates(files, updates?.UpdatedMobiles, static m => MobFormat.WriteToArray(m));
+        ApplyUpdates(files, updates?.UpdatedSectors, static s => SectorFormat.WriteToArray(s));
+        ApplyUpdates(files, updates?.UpdatedJumpFiles, static j => JmpFormat.WriteToArray(j));
+        ApplyUpdates(files, updates?.UpdatedMapProperties, static p => MapPropertiesFormat.WriteToArray(p));
+        ApplyUpdates(files, updates?.UpdatedScripts, static s => ScriptFormat.WriteToArray(s));
+        ApplyUpdates(files, updates?.UpdatedDialogs, static d => DialogFormat.WriteToArray(d));
+        ApplyUpdates(files, updates?.UpdatedMobileMds, static f => MobileMdFormat.WriteToArray(f));
+        ApplyUpdates(files, updates?.UpdatedMobileMdys, static f => MobileMdyFormat.WriteToArray(f));
+        ApplyUpdates(files, updates?.RawFileUpdates, static bytes => bytes);
+
+        var index = RebuildIndex(original.Index, files);
+
+        return (
+            SaveInfoFormat.WriteToArray(updates?.UpdatedInfo ?? original.Info),
+            SaveIndexFormat.WriteToArray(index),
+            TfafFormat.Pack(index, files)
+        );
+    }
+
+    /// <summary>
+    /// Serializes every entry in <paramref name="updates"/> via <paramref name="serialize"/>
+    /// and merges the results into <paramref name="files"/>, overwriting existing entries.
+    /// No-op when <paramref name="updates"/> is <see langword="null"/>.
+    /// </summary>
+    private static void ApplyUpdates<T>(
+        Dictionary<string, byte[]> files,
+        IReadOnlyDictionary<string, T>? updates,
+        Func<T, byte[]> serialize
+    )
+    {
+        if (updates is null)
+            return;
+        foreach (var (path, item) in updates)
+            files[path] = serialize(item);
+    }
 
     // ── Index rebuild ─────────────────────────────────────────────────────────
 

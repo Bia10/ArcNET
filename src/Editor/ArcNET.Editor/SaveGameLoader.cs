@@ -102,6 +102,10 @@ public static class SaveGameLoader
 
     // ── Core parsing ──────────────────────────────────────────────────────────
 
+    // Inner-archive file names that are not covered by file-extension dispatch.
+    private const string MobileMdFileName = "mobile.md";
+    private const string MobileMdyFileName = "mobile.mdy";
+
     internal static SaveGame LoadFromParsed(
         SaveInfo info,
         SaveIndex index,
@@ -131,34 +135,41 @@ public static class SaveGameLoader
 
             var (path, bytes) = (entries[i].Key, entries[i].Value);
             var mem = (ReadOnlyMemory<byte>)bytes;
-            var ext = Path.GetExtension(path);
+            var format = FileFormatExtensions.FromPath(path);
+            var fileName = Path.GetFileName(path);
 
             // Each format is parsed independently; a corrupt/stub file of one type
             // does not prevent the rest of the save from loading.
             try
             {
-                if (ext.Equals(".mob", StringComparison.OrdinalIgnoreCase))
-                    mobiles[path] = MobFormat.ParseMemory(mem);
-                else if (ext.Equals(".sec", StringComparison.OrdinalIgnoreCase))
-                    sectors[path] = SectorFormat.ParseMemory(mem);
-                else if (ext.Equals(".jmp", StringComparison.OrdinalIgnoreCase))
-                    jumpFiles[path] = JmpFormat.ParseMemory(mem);
-                else if (ext.Equals(".prp", StringComparison.OrdinalIgnoreCase))
-                    mapProperties[path] = MapPropertiesFormat.ParseMemory(mem);
-                else if (ext.Equals(".scr", StringComparison.OrdinalIgnoreCase))
-                    scripts[path] = ScriptFormat.ParseMemory(mem);
-                else if (ext.Equals(".dlg", StringComparison.OrdinalIgnoreCase))
-                    dialogs[path] = DialogFormat.ParseMemory(mem);
-                else if (
-                    ext.Equals(".md", StringComparison.OrdinalIgnoreCase)
-                    && Path.GetFileName(path).Equals("mobile.md", StringComparison.OrdinalIgnoreCase)
-                )
-                    mobileMds[path] = MobileMdFormat.ParseMemory(mem);
-                else if (
-                    ext.Equals(".mdy", StringComparison.OrdinalIgnoreCase)
-                    && Path.GetFileName(path).Equals("mobile.mdy", StringComparison.OrdinalIgnoreCase)
-                )
-                    mobileMdys[path] = MobileMdyFormat.ParseMemory(mem);
+                switch (format)
+                {
+                    case FileFormat.Mob:
+                        mobiles[path] = MobFormat.ParseMemory(mem);
+                        break;
+                    case FileFormat.Sector:
+                        sectors[path] = SectorFormat.ParseMemory(mem);
+                        break;
+                    case FileFormat.Jmp:
+                        jumpFiles[path] = JmpFormat.ParseMemory(mem);
+                        break;
+                    case FileFormat.MapProperties:
+                        mapProperties[path] = MapPropertiesFormat.ParseMemory(mem);
+                        break;
+                    case FileFormat.Script:
+                        scripts[path] = ScriptFormat.ParseMemory(mem);
+                        break;
+                    case FileFormat.Dialog:
+                        dialogs[path] = DialogFormat.ParseMemory(mem);
+                        break;
+                    default:
+                        // mobile.md and mobile.mdy are special inner-archive files not in the extension map.
+                        if (fileName.Equals(MobileMdFileName, StringComparison.OrdinalIgnoreCase))
+                            mobileMds[path] = MobileMdFormat.ParseMemory(mem);
+                        else if (fileName.Equals(MobileMdyFileName, StringComparison.OrdinalIgnoreCase))
+                            mobileMdys[path] = MobileMdyFormat.ParseMemory(mem);
+                        break;
+                }
             }
             catch (Exception ex)
             {

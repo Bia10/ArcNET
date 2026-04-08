@@ -1,12 +1,13 @@
 ﻿using ArcNET.Formats;
 using ArcNET.GameObjects;
+using static ArcNET.Editor.SaveValidationIssue;
 
 namespace ArcNET.Editor;
 
 /// <summary>
 /// A single validation finding produced by <see cref="SaveGameValidator"/>.
 /// </summary>
-public sealed class SaveValidationIssue
+public sealed record SaveValidationIssue
 {
     /// <summary>Severity of the finding.</summary>
     public required SaveValidationSeverity Severity { get; init; }
@@ -23,6 +24,32 @@ public sealed class SaveValidationIssue
     /// <inheritdoc/>
     public override string ToString() =>
         FilePath is null ? $"[{Severity}] {Message}" : $"[{Severity}] {FilePath}: {Message}";
+
+    // ── Severity-typed factories ──────────────────────────────────────────────
+
+    internal static SaveValidationIssue Error(string? path, string message) =>
+        new()
+        {
+            Severity = SaveValidationSeverity.Error,
+            FilePath = path,
+            Message = message,
+        };
+
+    internal static SaveValidationIssue Warning(string? path, string message) =>
+        new()
+        {
+            Severity = SaveValidationSeverity.Warning,
+            FilePath = path,
+            Message = message,
+        };
+
+    internal static SaveValidationIssue Info(string? path, string message) =>
+        new()
+        {
+            Severity = SaveValidationSeverity.Info,
+            FilePath = path,
+            Message = message,
+        };
 }
 
 /// <summary>Severity levels for <see cref="SaveValidationIssue"/>.</summary>
@@ -155,10 +182,8 @@ public static class SaveGameValidator
 
             if (record.IsCharacter)
             {
-                // V2 character records are stored as opaque blobs; nothing structural to validate.
-                issues.Add(
-                    Info(path, $"Object {i + 1}: v2 character record (PC/NPC with SAR arrays) — written back verbatim.")
-                );
+                // V2 character records are opaque SAR blobs; structure is preserved by
+                // the codec and there is nothing further to validate here.
                 continue;
             }
 
@@ -197,14 +222,18 @@ public static class SaveGameValidator
             );
 
         // Bitmap length must match the expected size for this ObjectType.
-        var expectedBitmapLen = ObjectFieldBitmapSizeHelper.For(hdr.GameObjectType);
-        if (hdr.Bitmap.Length != expectedBitmapLen)
-            issues.Add(
-                Error(
-                    path,
-                    $"{label}: bitmap length {hdr.Bitmap.Length} does not match expected {expectedBitmapLen} bytes for ObjectType.{hdr.GameObjectType}."
-                )
-            );
+        // Guard: unknown types already produce a Warning above; For() would throw on them.
+        if (Enum.IsDefined(hdr.GameObjectType))
+        {
+            var expectedBitmapLen = ObjectFieldBitmapSize.For(hdr.GameObjectType);
+            if (hdr.Bitmap.Length != expectedBitmapLen)
+                issues.Add(
+                    Error(
+                        path,
+                        $"{label}: bitmap length {hdr.Bitmap.Length} does not match expected {expectedBitmapLen} bytes for ObjectType.{hdr.GameObjectType}."
+                    )
+                );
+        }
 
         // Check for parse-error sentinel properties (unknown wire type stopped the reader).
         foreach (var prop in mob.Properties)
@@ -235,30 +264,12 @@ public static class SaveGameValidator
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static bool HasField(MobData mob, ObjectField field) =>
-        mob.Properties.Any(p => p.Field == field && p.RawBytes.Length > 0);
-
-    private static SaveValidationIssue Error(string? path, string message) =>
-        new()
-        {
-            Severity = SaveValidationSeverity.Error,
-            FilePath = path,
-            Message = message,
-        };
-
-    private static SaveValidationIssue Warning(string? path, string message) =>
-        new()
-        {
-            Severity = SaveValidationSeverity.Warning,
-            FilePath = path,
-            Message = message,
-        };
-
-    private static SaveValidationIssue Info(string? path, string message) =>
-        new()
-        {
-            Severity = SaveValidationSeverity.Info,
-            FilePath = path,
-            Message = message,
-        };
+    private static bool HasField(MobData mob, ObjectField field)
+    {
+        var props = mob.Properties;
+        for (var i = 0; i < props.Count; i++)
+            if (props[i].Field == field && props[i].RawBytes.Length > 0)
+                return true;
+        return false;
+    }
 }
