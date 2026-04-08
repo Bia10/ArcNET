@@ -29,8 +29,16 @@ internal static class SarEncoding
 
     /// <summary>
     /// Builds the full SAR wire bytes for the given <paramref name="elements"/> data.
+    /// The <c>sa.bitset_id</c> field is set to zero.
     /// </summary>
-    internal static byte[] BuildSarBytes(int elementSize, int elementCount, ReadOnlySpan<byte> elements)
+    internal static byte[] BuildSarBytes(int elementSize, int elementCount, ReadOnlySpan<byte> elements) =>
+        BuildSarBytes(elementSize, elementCount, bitsetId: 0, elements);
+
+    /// <summary>
+    /// Builds the full SAR wire bytes for the given <paramref name="elements"/> data,
+    /// with an explicit <paramref name="bitsetId"/> written into the SAR header.
+    /// </summary>
+    internal static byte[] BuildSarBytes(int elementSize, int elementCount, int bitsetId, ReadOnlySpan<byte> elements)
     {
         var bitsetCnt = (uint)((elementCount + BitsPerWord - 1) / BitsPerWord);
         // presence(1) + SA header(12) + data + bitsetCnt(4) + bitsetData
@@ -39,7 +47,7 @@ internal static class SarEncoding
         bytes[PresenceOffset] = 1; // presence
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(SizeFieldOffset), (uint)elementSize); // sa.size
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(CountFieldOffset), (uint)elementCount); // sa.count
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(BitsetIdOffset), 0); // sa.bitset_id
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(BitsetIdOffset), (uint)bitsetId); // sa.bitset_id
         elements.CopyTo(bytes.AsSpan(DataOffset));
         var postOffset = DataOffset + elements.Length;
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
