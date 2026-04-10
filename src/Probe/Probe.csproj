@@ -5,6 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
     <ProjectReference Include="..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
 </Project>
