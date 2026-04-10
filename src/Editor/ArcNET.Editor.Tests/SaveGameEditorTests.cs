@@ -110,6 +110,51 @@ public class SaveGameEditorTests
         return (save, mdyPath);
     }
 
+    private static (LoadedSave save, string mdyPath) MakeSaveWithPcRecords(params byte[][] records)
+    {
+        var mdyBytes = records.SelectMany(static b => b).ToArray();
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { [mdyPath] = mdyBytes };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = mdyBytes.Length }],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = 1,
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath);
+    }
+
     /// <summary>
     /// Builds a <see cref="LoadedSave"/> that has only a standard <c>.mob</c> file
     /// and NO <c>mobile.mdy</c> — so TryFindPlayerCharacter should return false.
@@ -317,6 +362,89 @@ public class SaveGameEditorTests
     }
 
     [Test]
+    public async Task WithCharacter_OnlyReplacesFirstMatchingRecord()
+    {
+        var (save, mdyPath) = MakeSaveWithPcRecords(BuildV2Record(level: 5), BuildV2Record(level: 5));
+        var editor = new SaveGameEditor(save);
+        editor.TryFindPlayerCharacter(out var pc, out _);
+
+        editor.WithCharacter(mdyPath, c => c.Level == 5, pc.ToBuilder().WithLevel(20).Build());
+
+        var pending = editor.GetPendingMobileMdy(mdyPath);
+        var pendingCharacters = pending!.Characters.ToList();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pendingCharacters.Count).IsEqualTo(2);
+        await Assert.That(pendingCharacters[0].Stats[17]).IsEqualTo(20);
+        await Assert.That(pendingCharacters[1].Stats[17]).IsEqualTo(5);
+    }
+
+    [Test]
+    public async Task WithPlayerCharacter_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _) = MakeSaveWithPc(level: 5, alignment: 100);
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithPlayerCharacter(pc => pc.ToBuilder().WithLevel(20).Build())
+            .WithPlayerCharacter(pc => pc.ToBuilder().WithAlignment(10).Build());
+
+        var found = editor.TryFindPendingPlayerCharacter(out var pendingPlayer);
+
+        await Assert.That(found).IsTrue();
+        await Assert.That(pendingPlayer.Level).IsEqualTo(20);
+        await Assert.That(pendingPlayer.Alignment).IsEqualTo(10);
+    }
+
+    [Test]
+    public async Task WithSaveInfo_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _) = MakeSaveWithPc();
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithSaveInfo(info => info.With(displayName: "Renamed Save"))
+            .WithSaveInfo(info => info.With(gameTimeDays: 4, gameTimeMs: 1234, storyState: 7));
+
+        var currentInfo = editor.GetCurrentSaveInfo();
+        var pendingInfo = editor.GetPendingSaveInfo();
+
+        await Assert.That(pendingInfo).IsNotNull();
+        await Assert.That(currentInfo.DisplayName).IsEqualTo("Renamed Save");
+        await Assert.That(currentInfo.GameTimeDays).IsEqualTo(4);
+        await Assert.That(currentInfo.GameTimeMs).IsEqualTo(1234);
+        await Assert.That(currentInfo.StoryState).IsEqualTo(7);
+    }
+
+    [Test]
+    public async Task WithSaveInfo_ComposesWithPlayerSync_ForLeaderFields()
+    {
+        var (save, _) = MakeSaveWithRichPc(level: 5, portraitIndex: 1, name: "OldName");
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithSaveInfo(info =>
+            {
+                return info.With(
+                    displayName: "Renamed Save",
+                    storyState: 9,
+                    leaderName: "ManualName",
+                    leaderLevel: 99,
+                    leaderPortraitId: 42
+                );
+            })
+            .WithPlayerCharacter(pc => pc.ToBuilder().WithLevel(12).WithPortraitIndex(7).WithName("NewName").Build());
+
+        var pendingInfo = editor.GetPendingSaveInfo();
+
+        await Assert.That(pendingInfo).IsNotNull();
+        await Assert.That(pendingInfo!.DisplayName).IsEqualTo("Renamed Save");
+        await Assert.That(pendingInfo.StoryState).IsEqualTo(9);
+        await Assert.That(pendingInfo.LeaderName).IsEqualTo("NewName");
+        await Assert.That(pendingInfo.LeaderLevel).IsEqualTo(12);
+        await Assert.That(pendingInfo.LeaderPortraitId).IsEqualTo(7);
+    }
+
+    [Test]
     public async Task GetPendingMobileMdy_ReturnsNull_BeforeAnyWithCharacterCall()
     {
         var (save, mdyPath) = MakeSaveWithPc();
@@ -416,6 +544,71 @@ public class SaveGameEditorTests
             await Assert.That(loadedPc.Level).IsEqualTo(8);
             await Assert.That(loadedPc.Alignment).IsEqualTo(50);
             await Assert.That(loadedPc.Gold).IsEqualTo(200);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithPlayerCharacterUpdate_SyncsLeaderMetadata()
+    {
+        var (save, _) = MakeSaveWithRichPc(level: 5, portraitIndex: 1, name: "OldName");
+        var editor = new SaveGameEditor(save);
+
+        editor.WithPlayerCharacter(pc => pc.ToBuilder().WithLevel(12).WithPortraitIndex(7).WithName("NewName").Build());
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.Info.LeaderName).IsEqualTo("NewName");
+            await Assert.That(loaded.Info.LeaderLevel).IsEqualTo(12);
+            await Assert.That(loaded.Info.LeaderPortraitId).IsEqualTo(7);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithSaveInfoUpdate_RoundTrips()
+    {
+        var (save, _) = MakeSaveWithPc();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithSaveInfo(info =>
+        {
+            return info.With(
+                displayName: "Manual Save Name",
+                mapId: 77,
+                gameTimeDays: 5,
+                gameTimeMs: 6789,
+                leaderTileX: 12,
+                leaderTileY: 34,
+                storyState: 3
+            );
+        });
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.Info.DisplayName).IsEqualTo("Manual Save Name");
+            await Assert.That(loaded.Info.MapId).IsEqualTo(77);
+            await Assert.That(loaded.Info.GameTimeDays).IsEqualTo(5);
+            await Assert.That(loaded.Info.GameTimeMs).IsEqualTo(6789);
+            await Assert.That(loaded.Info.LeaderTileX).IsEqualTo(12);
+            await Assert.That(loaded.Info.LeaderTileY).IsEqualTo(34);
+            await Assert.That(loaded.Info.StoryState).IsEqualTo(3);
         }
         finally
         {
