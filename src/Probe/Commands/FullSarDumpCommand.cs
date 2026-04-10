@@ -22,7 +22,7 @@ internal sealed class FullSarDumpCommand : IProbeCommand
         );
 
         Console.WriteLine(
-            $"\n=== Mode 10: Full SAR dump — {targetStem}  {targetSave.Info.LeaderName} lv={targetSave.Info.LeaderLevel} ==="
+            $"\n=== Mode 10: Full SAR dump - {targetStem}  {targetSave.Info.LeaderName} lv={targetSave.Info.LeaderLevel} ==="
         );
         if (bsCntFilter.HasValue)
             Console.WriteLine($"  Filter: bsCnt={bsCntFilter} only");

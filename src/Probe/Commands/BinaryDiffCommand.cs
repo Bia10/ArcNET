@@ -77,7 +77,7 @@ internal sealed class BinaryDiffCommand : IProbeCommand
             }
 
             Console.WriteLine(
-                $"\n  [CHANGED] {diff.Path}  {diff.SizeA}B→{diff.SizeB}B  regions={diff.Regions.Count}  changed_bytes={diff.ChangedByteCount}"
+                $"\n  [CHANGED] {diff.Path}  {diff.SizeA}B->{diff.SizeB}B  regions={diff.Regions.Count}  changed_bytes={diff.ChangedByteCount}"
             );
 
             BinaryDiff.PrintHexDiff(diff.Regions, maxRegions: 10);
@@ -89,7 +89,7 @@ internal sealed class BinaryDiffCommand : IProbeCommand
             )
             {
                 Console.WriteLine(
-                    $"\n  SAR diff — player v2 record ({playerA.RawBytes.Length}B → {playerB.RawBytes.Length}B):"
+                    $"\n  SAR diff - player v2 record ({playerA.RawBytes.Length}B -> {playerB.RawBytes.Length}B):"
                 );
                 DiffV2Sars(
                     SarUtils.ParseSars(playerA.RawBytes),
@@ -121,9 +121,6 @@ internal sealed class BinaryDiffCommand : IProbeCommand
             {
                 groupA.TryGetValue(fingerprint, out var listA);
                 groupB.TryGetValue(fingerprint, out var listB);
-                var annotation = SarUtils.AnnotateFingerprint(fingerprint);
-                var annotationSuffix = !string.IsNullOrEmpty(annotation) ? $"  {annotation}" : string.Empty;
-
                 var countA = listA?.Count ?? 0;
                 var countB = listB?.Count ?? 0;
                 var commonCount = Math.Min(countA, countB);
@@ -133,6 +130,8 @@ internal sealed class BinaryDiffCommand : IProbeCommand
                     var sarA = listA![index];
                     var sarB = listB![index];
                     var indexLabel = commonCount > 1 ? $"[{index}]" : string.Empty;
+                    var annotation = SarUtils.AnnotateSarValue(sarB);
+                    var annotationSuffix = !string.IsNullOrEmpty(annotation) ? $"  {annotation}" : string.Empty;
 
                     if (sarA.ESize == 4 && sarA.ECnt == sarB.ECnt)
                     {
@@ -156,14 +155,14 @@ internal sealed class BinaryDiffCommand : IProbeCommand
                                 $"    ~ {fingerprint}{indexLabel}{annotationSuffix}  ({changed.Count} elements changed)"
                             );
                             foreach (var (valueIndex, valueA, valueB) in changed)
-                                Console.WriteLine($"        [{valueIndex:D2}] {valueA, 10} → {valueB, 10}");
+                                Console.WriteLine($"        [{valueIndex:D2}] {valueA, 10} -> {valueB, 10}");
                         }
                     }
                     else if (sarA.ECnt != sarB.ECnt || sarA.ValueSummary != sarB.ValueSummary)
                     {
                         anyChange = true;
                         Console.WriteLine(
-                            $"    ~ {fingerprint}{indexLabel}{annotationSuffix}  eCnt={sarA.ECnt}→{sarB.ECnt}  {sarA.ValueSummary} → {sarB.ValueSummary}"
+                            $"    ~ {fingerprint}{indexLabel}{annotationSuffix}  eCnt={sarA.ECnt}->{sarB.ECnt}  {sarA.ValueSummary} -> {sarB.ValueSummary}"
                         );
                     }
                 }
@@ -172,6 +171,8 @@ internal sealed class BinaryDiffCommand : IProbeCommand
                 {
                     anyChange = true;
                     var indexLabel = countB > 1 ? $"[{index}]" : string.Empty;
+                    var annotation = SarUtils.AnnotateSarValue(listB![index]);
+                    var annotationSuffix = !string.IsNullOrEmpty(annotation) ? $"  {annotation}" : string.Empty;
                     Console.WriteLine(
                         $"    + {fingerprint}{indexLabel}{annotationSuffix}  {listB![index].ValueSummary}"
                     );
@@ -181,6 +182,8 @@ internal sealed class BinaryDiffCommand : IProbeCommand
                 {
                     anyChange = true;
                     var indexLabel = countA > 1 ? $"[{index}]" : string.Empty;
+                    var annotation = SarUtils.AnnotateSarValue(listA![index]);
+                    var annotationSuffix = !string.IsNullOrEmpty(annotation) ? $"  {annotation}" : string.Empty;
                     Console.WriteLine(
                         $"    - {fingerprint}{indexLabel}{annotationSuffix}  {listA![index].ValueSummary}"
                     );

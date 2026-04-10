@@ -19,14 +19,14 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
 
         var questLookup = SarUtils.TryLoadQuestLookup(saveDir);
 
-        Console.WriteLine($"\n=== Mode 13: Field Evolution — slots {firstSlot:D4}–{lastSlot:D4} ===");
+        Console.WriteLine($"\n=== Mode 13: Field Evolution - slots {firstSlot:D4}-{lastSlot:D4} ===");
         Console.WriteLine(
             questLookup is not null
                 ? $"  Quest labels: {questLookup.Labels.Count} loaded from {questLookup.Source}"
                 : "  Quest labels: unavailable (no usable local quest lookup was found in loose data or DAT archives)"
         );
         Console.WriteLine(
-            "  Tracked: lv, XP, align, fate, magicPts, techPts, gold, quests, quest-state deltas, rumors, blessings, curses, schematics, hp_dmg, fat_dmg, reputation, SpellTech ranks"
+            "  Tracked: lv, XP, align, fate, magicPts, techPts, gold, quests, quest-state deltas, rumors, blessings, curses, schematics, hp_dmg, fat_dmg, reputation, SpellTech ranks, base stats, basic skills"
         );
         Console.WriteLine(new string('-', 100));
 
@@ -73,7 +73,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 repNow.TryGetValue(slot, out var nowVal);
                 repPrev.TryGetValue(slot, out var prevVal);
                 if (nowVal != prevVal)
-                    result.Add($"rep[{slot}]:{prevVal}→{nowVal}");
+                    result.Add($"rep[{slot}]:{prevVal}->{nowVal}");
             }
 
             return result;
@@ -108,7 +108,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 if (now.State != old.State)
                 {
                     result.Add(
-                        $"{SarUtils.FormatQuestRef(protoId, questLookup)}:{SarUtils.FormatQuestState(old.State)}→{SarUtils.FormatQuestState(now.State)}"
+                        $"{SarUtils.FormatQuestRef(protoId, questLookup)}:{SarUtils.FormatQuestState(old.State)}->{SarUtils.FormatQuestState(now.State)}"
                     );
                 }
             }
@@ -210,9 +210,36 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                     if (spellNew[index] != spellOld[index])
                     {
                         spellChanges.Add(
-                            $"{(index < spellNames.Length ? spellNames[index] : $"ST[{index}]")}:{spellOld[index]}→{spellNew[index]}"
+                            $"{(index < spellNames.Length ? spellNames[index] : $"ST[{index}]")}:{spellOld[index]}->{spellNew[index]}"
                         );
                     }
+                }
+            }
+
+            // The first 16 entries of the 28-stat array: primary attributes plus derived critter stats.
+            var baseStatChanges = new List<string>();
+            if (character.Stats is { Length: > 8 } sNow && previousCharacter.Stats is { Length: > 8 } sPrev)
+            {
+                int statLen = Math.Min(Math.Min(sNow.Length, sPrev.Length), 16);
+                for (var i = 0; i < statLen; i++)
+                {
+                    if (sNow[i] != sPrev[i])
+                        baseStatChanges.Add($"{SarUtils.GetElementLabel("4:28:2", i)}:{sPrev[i]}->{sNow[i]}");
+                }
+            }
+
+            // Basic skills (indices 0–11: BOW,DODGE,MELEE,THROW,BKSTB,PPKT,PROWL,STRAP,GAMBL,HAGGL,HEAL,PERS)
+            var skillChanges = new List<string>();
+            if (
+                character.BasicSkills is { Length: > 0 } bsNow
+                && previousCharacter.BasicSkills is { Length: > 0 } bsPrev
+            )
+            {
+                int skillLen = Math.Min(bsNow.Length, bsPrev.Length);
+                for (var i = 0; i < skillLen; i++)
+                {
+                    if (bsNow[i] != bsPrev[i])
+                        skillChanges.Add($"{SarUtils.GetElementLabel("4:12:2", i)}:{bsPrev[i]}->{bsNow[i]}");
                 }
             }
 
@@ -236,7 +263,9 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 || character.HpDamage != previousCharacter.HpDamage
                 || character.FatigueDamage != previousCharacter.FatigueDamage
                 || repChanges.Count > 0
-                || spellChanges.Count > 0;
+                || spellChanges.Count > 0
+                || baseStatChanges.Count > 0
+                || skillChanges.Count > 0;
 
             if (!anyDiff)
             {
@@ -247,34 +276,34 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
             var levelUpMarker = levelUp ? " *** LEVEL UP ***" : string.Empty;
             var changes = new List<string>();
             if (level != prevLevel)
-                changes.Add($"lv:{prevLevel}→{level}");
+                changes.Add($"lv:{prevLevel}->{level}");
             if (xp != prevXp)
                 changes.Add($"XP:+{xp - prevXp}");
             if (alignment != prevAlignment)
-                changes.Add($"align:{prevAlignment}→{alignment}");
+                changes.Add($"align:{prevAlignment}->{alignment}");
             if (fate != prevFate)
-                changes.Add($"fate:{prevFate}→{fate}");
+                changes.Add($"fate:{prevFate}->{fate}");
             if (magicPoints != prevMagicPoints)
-                changes.Add($"magic:{prevMagicPoints}→{magicPoints}");
+                changes.Add($"magic:{prevMagicPoints}->{magicPoints}");
             if (techPoints != prevTechPoints)
-                changes.Add($"tech:{prevTechPoints}→{techPoints}");
+                changes.Add($"tech:{prevTechPoints}->{techPoints}");
             if (character.Gold != previousCharacter.Gold)
-                changes.Add($"gold:{previousCharacter.Gold}→{character.Gold}");
+                changes.Add($"gold:{previousCharacter.Gold}->{character.Gold}");
             if (character.QuestCount != previousCharacter.QuestCount)
-                changes.Add($"quests:{previousCharacter.QuestCount}→{character.QuestCount}");
+                changes.Add($"quests:{previousCharacter.QuestCount}->{character.QuestCount}");
             changes.AddRange(questChanges);
             if (character.RumorsCount != previousCharacter.RumorsCount)
-                changes.Add($"rumors:{previousCharacter.RumorsCount}→{character.RumorsCount}");
+                changes.Add($"rumors:{previousCharacter.RumorsCount}->{character.RumorsCount}");
             if (character.BlessingProtoElementCount != previousCharacter.BlessingProtoElementCount)
                 changes.Add(
-                    $"bless:{previousCharacter.BlessingProtoElementCount}→{character.BlessingProtoElementCount}"
+                    $"bless:{previousCharacter.BlessingProtoElementCount}->{character.BlessingProtoElementCount}"
                 );
             if (character.CurseProtoElementCount != previousCharacter.CurseProtoElementCount)
-                changes.Add($"curse:{previousCharacter.CurseProtoElementCount}→{character.CurseProtoElementCount}");
+                changes.Add($"curse:{previousCharacter.CurseProtoElementCount}->{character.CurseProtoElementCount}");
             if (character.SchematicsElementCount != previousCharacter.SchematicsElementCount)
             {
                 changes.Add(
-                    $"schematics:{previousCharacter.SchematicsElementCount}→{character.SchematicsElementCount}"
+                    $"schematics:{previousCharacter.SchematicsElementCount}->{character.SchematicsElementCount}"
                 );
                 var newSchematics = (character.SchematicsRaw ?? [])
                     .Except(previousCharacter.SchematicsRaw ?? [])
@@ -284,11 +313,16 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                     changes.Add($"schematic+[{string.Join(",", newSchematics)}]");
             }
             if (character.HpDamage != previousCharacter.HpDamage)
-                changes.Add($"hp_dmg:{previousCharacter.HpDamage}→{character.HpDamage}");
+                changes.Add($"hp_dmg:{previousCharacter.HpDamage}->{character.HpDamage}");
             if (character.FatigueDamage != previousCharacter.FatigueDamage)
-                changes.Add($"fat_dmg:{previousCharacter.FatigueDamage}→{character.FatigueDamage}");
+                changes.Add($"fat_dmg:{previousCharacter.FatigueDamage}->{character.FatigueDamage}");
             changes.AddRange(repChanges);
             changes.AddRange(spellChanges);
+
+            if (baseStatChanges.Count > 0)
+                changes.Add($"baseStats[{string.Join(" ", baseStatChanges)}]");
+            if (skillChanges.Count > 0)
+                changes.Add($"skills[{string.Join(" ", skillChanges)}]");
 
             if (
                 character.SpellTech is { Length: > 0 } spellNow

@@ -16,7 +16,7 @@ internal sealed class SarDiffCommand : IProbeCommand
         if (firstSlot > lastSlot)
             (firstSlot, lastSlot) = (lastSlot, firstSlot);
 
-        Console.WriteLine($"\n=== Mode 9: SAR Diff Engine — slots {firstSlot:D4}–{lastSlot:D4} ===");
+        Console.WriteLine($"\n=== Mode 9: SAR Diff Engine - slots {firstSlot:D4}-{lastSlot:D4} ===");
 
         var snapshots = new List<SlotSnapshot>();
 
@@ -36,7 +36,7 @@ internal sealed class SarDiffCommand : IProbeCommand
             }
             catch
             {
-                Console.Error.WriteLine($"  [{stem}] load failed — skipped");
+                Console.Error.WriteLine($"  [{stem}] load failed - skipped");
                 continue;
             }
 
@@ -78,7 +78,7 @@ internal sealed class SarDiffCommand : IProbeCommand
                 .OrderByDescending(group => group.Count())
                 .ThenBy(group => group.Key)
                 .Take(maxShow)
-                .Select(group => $"{group.Key}×{group.Count()}")
+                .Select(group => $"{group.Key}x{group.Count()}")
                 .ToList();
             return top.Count == 0 ? string.Empty : string.Join(", ", top);
         }
@@ -168,10 +168,12 @@ internal sealed class SarDiffCommand : IProbeCommand
                 var valFirst = history[0].Sar.ValueSummary;
                 var valLast = history[^1].Sar.ValueSummary;
                 var valueChanged = valFirst != valLast;
-                var eCntRange = eCnts.Count == 1 ? eCnts[0].ToString() : $"{eCnts[0]}–{eCnts[^1]}";
+                var eCntRange = eCnts.Count == 1 ? eCnts[0].ToString() : $"{eCnts[0]}-{eCnts[^1]}";
                 var bsCntStr = string.Join("/", bsCnts);
                 var eCntGrows = eCnts.Count > 1 && eCnts[^1] > eCnts[0];
-
+                var distinctBsIds = history.Select(item => item.Sar.BsId).Distinct().OrderBy(x => x).ToList();
+                var bsIdStr = distinctBsIds.Count == 1 ? $"0x{distinctBsIds[0]:X4}" : "varies";
+                var valueAnnotation = SarUtils.AnnotateSarValue(history[0].Sar);
                 string lifecycle;
                 if (presentCount == totalSlots)
                 {
@@ -201,10 +203,12 @@ internal sealed class SarDiffCommand : IProbeCommand
                     LastSlot = lastSlotNumber,
                     ECntRange = eCntRange + (eCntGrows ? " ↑" : string.Empty),
                     BsCntStr = bsCntStr,
+                    BsIdStr = bsIdStr,
                     ValFirst = valFirst,
                     ValLast = valLast,
                     ValueChanged = valueChanged,
                     Lifecycle = lifecycle,
+                    ValueAnnotation = valueAnnotation,
                 };
             })
             .ToList();
@@ -316,25 +320,27 @@ internal sealed class SarDiffCommand : IProbeCommand
             "\n  "
                 + "Fingerprint".PadRight(16)
                 + "  "
-                + "Ann".PadRight(32)
+                + "Ann".PadRight(36)
                 + "  "
                 + "Lifecycle".PadRight(20)
                 + "  "
                 + "eCnt range".PadRight(15)
                 + "bsCnt"
-                + "  Value@first → Value@last"
+                + "  "
+                + "bsId".PadRight(10)
+                + "  Value@first -> Value@last"
         );
-        Console.WriteLine(new string('-', 144));
+        Console.WriteLine(new string('-', 163));
         foreach (var row in detailedLifecycleRows)
         {
-            var annotation = SarUtils.AnnotateFingerprint(row.Fingerprint);
-            var valueChange = row.ValueChanged ? "  ← changed" : string.Empty;
+            var annotation = SarUtils.TruncateText(row.ValueAnnotation, 36);
+            var valueChange = row.ValueChanged ? "  <- changed" : string.Empty;
             Console.WriteLine(
-                $"  {row.FingerprintKey, -16}  {annotation, -32}  {row.Lifecycle, -20}  ECnt={row.ECntRange, -10}  bsCnt={row.BsCntStr, -5}  {row.ValFirst} → {row.ValLast}{valueChange}"
+                $"  {row.FingerprintKey, -16}  {annotation, -36}  {row.Lifecycle, -20}  ECnt={row.ECntRange, -10}  bsCnt={row.BsCntStr, -5}  {row.BsIdStr, -10}  {row.ValFirst} -> {row.ValLast}{valueChange}"
             );
         }
 
-        Console.WriteLine("\n\n    Slot A   Slot B   Level→Level  bytes      Changes");
+        Console.WriteLine("\n\n    Slot A   Slot B   Level->Level  bytes      Changes");
         Console.WriteLine(new string('-', 120));
         for (var snapshotIndex = 0; snapshotIndex < snapshots.Count - 1; snapshotIndex++)
         {
@@ -349,13 +355,14 @@ internal sealed class SarDiffCommand : IProbeCommand
                 .GroupBy(sar => sar.Fingerprint)
                 .ToDictionary(group => group.Key, group => group.ToList());
 
-            var appeared = new List<(string Label, string Fingerprint)>();
-            var disappeared = new List<(string Label, string Fingerprint)>();
-            var movedSars = new List<(string Label, string Fingerprint)>();
+            var appeared = new List<(string Label, string Fingerprint, string Annotation)>();
+            var disappeared = new List<(string Label, string Fingerprint, string Annotation)>();
+            var movedSars = new List<(string Label, string Fingerprint, string Annotation)>();
             var changedSars =
                 new List<(
                     string Label,
                     string Fingerprint,
+                    string ValueAnnotation,
                     List<(int Idx, int VA, int VB)>? ElemDiffs,
                     string? Detail
                 )>();
@@ -379,7 +386,7 @@ internal sealed class SarDiffCommand : IProbeCommand
                     if (bitSlotsChanged)
                     {
                         detailParts.Add(
-                            $"slots:{SarUtils.FormatSlotList(sarA.BitSlots)}→{SarUtils.FormatSlotList(sarB.BitSlots)}"
+                            $"slots:{SarUtils.FormatSlotList(sarA.BitSlots)}->{SarUtils.FormatSlotList(sarB.BitSlots)}"
                         );
                     }
 
@@ -387,36 +394,58 @@ internal sealed class SarDiffCommand : IProbeCommand
 
                     if (sarA.ESize == 4 && sarA.ECnt == sarB.ECnt && sarA.FirstVals.Length > 0)
                     {
-                        var diffs = SarUtils.CompareElements(sarA, sarB);
-                        if (diffs.Count > 0 || slotDiffDetail is not null)
-                            changedSars.Add((label, fingerprint, diffs.Count > 0 ? diffs : null, slotDiffDetail));
+                        var allDiffs = SarUtils.CompareElements(sarA, sarB);
+                        var (diffs, ptrCount) = SarUtils.PartitionElementDiffs(allDiffs);
+                        var ptrNote =
+                            ptrCount > 0 ? $"({ptrCount} ptr-noise diff{(ptrCount == 1 ? "" : "s")} suppressed)" : null;
+                        var hasSemanticChange = diffs.Count > 0 || slotDiffDetail is not null;
+                        if (hasSemanticChange)
+                        {
+                            var detail =
+                                ptrNote is not null && diffs.Count == 0 && slotDiffDetail is null ? ptrNote
+                                : ptrNote is not null ? $"{slotDiffDetail}  {ptrNote}"
+                                : slotDiffDetail;
+                            var ann = SarUtils.AnnotateSarValue(sarB);
+                            changedSars.Add((label, fingerprint, ann, diffs.Count > 0 ? diffs : null, detail));
+                        }
                         else if (reorderedOnly)
-                            movedSars.Add((label, fingerprint));
+                            movedSars.Add((label, fingerprint, SarUtils.AnnotateSarValue(sarB)));
                     }
                     else if (sarA.ECnt != sarB.ECnt || sarA.ValueSummary != sarB.ValueSummary || bitSlotsChanged)
                     {
-                        var detail = $"eCnt={sarA.ECnt}→{sarB.ECnt}  {sarA.ValueSummary} → {sarB.ValueSummary}";
+                        var detail = $"eCnt={sarA.ECnt}->{sarB.ECnt}  {sarA.ValueSummary} -> {sarB.ValueSummary}";
                         if (slotDiffDetail is not null)
                             detail += $"  {slotDiffDetail}";
-                        changedSars.Add((label, fingerprint, null, detail));
+                        var ann2 = SarUtils.AnnotateSarValue(sarB);
+                        changedSars.Add((label, fingerprint, ann2, null, detail));
                     }
                     else if (reorderedOnly)
                     {
-                        movedSars.Add((label, fingerprint));
+                        movedSars.Add((label, fingerprint, SarUtils.AnnotateSarValue(sarB)));
                     }
                 }
 
                 for (var index = 0; index < listB.Count; index++)
                 {
                     if (!matchedB.Contains(index))
-                        appeared.Add((UnmatchedLabel(fingerprint, 'b', index, listA.Count, listB.Count), fingerprint));
+                        appeared.Add(
+                            (
+                                UnmatchedLabel(fingerprint, 'b', index, listA.Count, listB.Count),
+                                fingerprint,
+                                SarUtils.AnnotateSarValue(listB[index])
+                            )
+                        );
                 }
 
                 for (var index = 0; index < listA.Count; index++)
                 {
                     if (!matchedA.Contains(index))
                         disappeared.Add(
-                            (UnmatchedLabel(fingerprint, 'a', index, listA.Count, listB.Count), fingerprint)
+                            (
+                                UnmatchedLabel(fingerprint, 'a', index, listA.Count, listB.Count),
+                                fingerprint,
+                                SarUtils.AnnotateSarValue(listA[index])
+                            )
                         );
                 }
             }
@@ -424,11 +453,13 @@ internal sealed class SarDiffCommand : IProbeCommand
             if (appeared.Count == 0 && disappeared.Count == 0 && movedSars.Count == 0 && changedSars.Count == 0)
                 continue;
 
+            var isDiscontinuous = snapB.Level < snapA.Level - 3;
+            var discMark = isDiscontinuous ? " [DISC]" : string.Empty;
             Console.WriteLine(
-                $"  {snapA.Slot:D4}→{snapB.Slot:D4}  lv{snapA.Level}→{snapB.Level}  bytes={snapA.RawBytesLen}→{snapB.RawBytesLen}"
+                $"  {snapA.Slot:D4}->{snapB.Slot:D4}  lv{snapA.Level}->{snapB.Level}  bytes={snapA.RawBytesLen}->{snapB.RawBytesLen}{discMark}"
             );
             Console.WriteLine(
-                $"    Σ: new={appeared.Count}  gone={disappeared.Count}  move={movedSars.Count}  chg={changedSars.Count}"
+                $"    SUM: new={appeared.Count}  gone={disappeared.Count}  move={movedSars.Count}  chg={changedSars.Count}"
             );
 
             var moveSummary = SummarizeFingerprintCounts(movedSars.Select(item => item.Fingerprint));
@@ -442,32 +473,34 @@ internal sealed class SarDiffCommand : IProbeCommand
             if (appeared.Count > 0)
             {
                 Console.Write("    NEW: ");
-                foreach (var (label, fingerprint) in appeared)
-                    Console.Write($" {label}({SarUtils.AnnotateFingerprint(fingerprint).TruncateAnnotation()})");
+                foreach (var (label, _, annotation) in appeared)
+                    Console.Write($" {label}({annotation.TruncateAnnotation()})");
                 Console.WriteLine();
             }
 
             if (disappeared.Count > 0)
             {
                 Console.Write("    GONE:");
-                foreach (var (label, fingerprint) in disappeared)
-                    Console.Write($" {label}({SarUtils.AnnotateFingerprint(fingerprint).TruncateAnnotation()})");
+                foreach (var (label, _, annotation) in disappeared)
+                    Console.Write($" {label}({annotation.TruncateAnnotation()})");
                 Console.WriteLine();
             }
 
             if (movedSars.Count > 0)
             {
                 Console.Write("    MOVE:");
-                foreach (var (label, fingerprint) in movedSars.Take(12))
-                    Console.Write($" {label}({SarUtils.AnnotateFingerprint(fingerprint).TruncateAnnotation()})");
+                foreach (var (label, _, annotation) in movedSars.Take(12))
+                    Console.Write($" {label}({annotation.TruncateAnnotation()})");
                 if (movedSars.Count > 12)
                     Console.Write($" +{movedSars.Count - 12}more");
                 Console.WriteLine();
             }
 
-            foreach (var (label, fingerprint, diffs, detail) in changedSars)
+            foreach (var (label, fingerprint, valueAnnotation, diffs, detail) in changedSars)
             {
-                var annotation = SarUtils.AnnotateFingerprint(fingerprint);
+                var annotation = !string.IsNullOrEmpty(valueAnnotation)
+                    ? valueAnnotation
+                    : SarUtils.AnnotateFingerprint(fingerprint);
                 var annotationPart = !string.IsNullOrEmpty(annotation)
                     ? $" [{annotation.TruncateAnnotation()}]"
                     : string.Empty;
@@ -475,7 +508,10 @@ internal sealed class SarDiffCommand : IProbeCommand
                 {
                     Console.Write($"    CHG: {label}{annotationPart} ");
                     foreach (var (index, valueA, valueB) in diffs.Take(12))
-                        Console.Write($" [{index}]:{valueA}→{valueB}");
+                    {
+                        var fieldLabel = SarUtils.GetElementLabel(fingerprint, index);
+                        Console.Write($" [{fieldLabel}]:{valueA}->{valueB}");
+                    }
                     if (diffs.Count > 12)
                         Console.Write($" +{diffs.Count - 12}more");
                     if (!string.IsNullOrEmpty(detail))

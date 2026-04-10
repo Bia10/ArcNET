@@ -10,9 +10,9 @@ internal sealed class RawPatchFilesCommand : IProbeCommand
         var slot4 = SharedProbeContext.ResolveSlot4(args);
         var ctx = SharedProbeContext.Load(saveDir, slot4);
 
-        Console.WriteLine("\n=== Mode 6: raw-patch gold 41074→99999 across all inner files ===");
-        byte[] needle = new byte[] { 0x52, 0xA0, 0x00, 0x00 };
-        byte[] patch = new byte[] { 0x9F, 0x86, 0x01, 0x00 };
+        Console.WriteLine("\n=== Mode 6: raw-patch gold 41074->99999 across all inner files ===");
+        byte[] needle = [0x52, 0xA0, 0x00, 0x00];
+        byte[] patch = [0x9F, 0x86, 0x01, 0x00];
         var patchedFiles = new Dictionary<string, byte[]>(ctx.Save.Files, StringComparer.OrdinalIgnoreCase);
         var totalPatches = 0;
         foreach (var key in patchedFiles.Keys.ToList())

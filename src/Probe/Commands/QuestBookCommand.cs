@@ -11,7 +11,7 @@ internal sealed class QuestBookCommand : IProbeCommand
         var questLookup = SarUtils.TryLoadQuestLookup(saveDir);
         var ctx = SharedProbeContext.Load(saveDir, slot4);
 
-        Console.WriteLine($"\n=== Mode 14: Quest book + reputation — {ctx.SlotStem} ===");
+        Console.WriteLine($"\n=== Mode 14: Quest book + reputation - {ctx.SlotStem} ===");
         Console.WriteLine($"  Save: {ctx.Save.Info.LeaderName} lv={ctx.Save.Info.LeaderLevel}");
         Console.WriteLine(
             questLookup is not null

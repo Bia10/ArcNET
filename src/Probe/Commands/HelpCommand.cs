@@ -4,7 +4,7 @@ internal sealed class HelpCommand : IProbeCommand
 {
     public Task RunAsync(string saveDir, string[] args)
     {
-        Console.WriteLine("ArcNET Probe — Arcanum save-game diagnostic tool");
+        Console.WriteLine("ArcNET Probe - Arcanum save-game diagnostic tool");
         Console.WriteLine();
         Console.WriteLine("Usage: probe [--save-dir <path>] <mode> [slot] [options]");
         Console.WriteLine();
@@ -25,7 +25,7 @@ internal sealed class HelpCommand : IProbeCommand
         Console.WriteLine(" 13  field-evolution Character field evolution tracker");
         Console.WriteLine(" 14  quest-book      Quest book + reputation decoder");
         Console.WriteLine();
-        Console.WriteLine("Environment: ARCNET_SAVE_DIR — override save directory");
+        Console.WriteLine("Environment: ARCNET_SAVE_DIR - override save directory");
         Console.WriteLine($"Save dir: {saveDir}");
         return Task.CompletedTask;
     }

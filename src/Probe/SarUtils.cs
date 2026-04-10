@@ -43,7 +43,7 @@ internal sealed record QuestTextLookup(IReadOnlyDictionary<int, string> Labels, 
 internal static class StringExtensions
 {
     /// <summary>Shortens a long annotation to at most 12 characters for compact diff output.</summary>
-    internal static string TruncateAnnotation(this string s) => s.Length <= 12 ? s : s[..11] + "\u2026";
+    internal static string TruncateAnnotation(this string s) => SarUtils.TruncateText(s, 12);
 }
 
 internal static class SarUtils
@@ -186,9 +186,11 @@ internal static class SarUtils
     /// <summary>Truncates text for compact console output.</summary>
     public static string TruncateText(string text, int maxLen)
     {
-        if (maxLen <= 1 || text.Length <= maxLen)
+        if (text.Length <= maxLen)
             return text;
-        return text[..(maxLen - 1)] + "\u2026";
+        if (maxLen <= 3)
+            return text[..maxLen];
+        return text[..(maxLen - 3)] + "...";
     }
 
     /// <summary>
@@ -322,23 +324,23 @@ internal static class SarUtils
             "4:4:2" => "TechSkills/HP/FatigueDmg/Schematics INT32[4]",
             "4:25:2" => "SpellTech INT32[25]",
             // 4:7:2: value-dependent — Blessings (all vals >1000) vs NPC dispatch table (mostly -1)
-            "4:7:2" => "Blessings×7 or NPC-dispatch INT32[7]",
+            "4:7:2" => "Blessingsx7 or NPC-dispatch INT32[7]",
             "4:1:2" => "Gold/single-int32",
             "4:3:2" => "Portrait/MaxFollowers INT32[3]",
-            "4:2:2" => "Curses INT32[2]",
+            "4:2:2" => "Conditions/Curse INT32[2]",
             "4:10:2" => "PcPartyStatus? INT32[10] (transient)",
             "4:11:2" => "GameStats INT32[11] (alt bsCnt)",
             "4:11:3" => "GameStats INT32[11]",
             "4:13:3" => "GameStats INT32[13] tech",
             "4:5:2" => "Effects/Blessing INT32[5]",
-            "8:1:2" => "GoldHandle 8B\u00d71",
-            "8:2:2" => "CurseTsData 8B\u00d72",
-            "8:3:2" => "Handles 8B\u00d73",
-            "8:7:2" => "BlessingTsData 8B\u00d77",
-            "8:11:38" => "CritterHandles 8B\u00d711",
-            "24:1:2" => "CritterFollower 24B\u00d71",
-            "24:2:2" => "CritterFollowers 24B\u00d72",
-            "24:3:2" => "CritterFollowers 24B\u00d73",
+            "8:1:2" => "GoldHandle 8Bx1",
+            "8:2:2" => "CurseTsData 8Bx2",
+            "8:3:2" => "Handles 8Bx3",
+            "8:7:2" => "BlessingTsData 8Bx7",
+            "8:11:38" => "CritterHandles 8Bx11",
+            "24:1:2" => "CritterFollower 24Bx1",
+            "24:2:2" => "CritterFollowers 24Bx2",
+            "24:3:2" => "CritterFollowers 24Bx3",
             "4:19:3" => "Reputation INT32[19]",
             // Blessing/Curse pair detection (session 12 RE findings):
             //   4:N:2 followed immediately by 8:N:2 (same N) = PcBlessingIdx/PcCurseIdx + timestamps
@@ -355,12 +357,12 @@ internal static class SarUtils
                     && !fp.Equals("4:11:3")
                     && !fp.Equals("4:13:3") => "Conditions/PermanentMods INT32[N] (bsCnt3)",
             _ when fp.StartsWith("4:") && fp.EndsWith(":2") => "Blessing/Curse/Schematics candidate INT32[n]",
-            _ when fp.StartsWith("8:") && fp.EndsWith(":2") => "BlessingTs/CurseTs 8B\u00d7n",
-            _ when fp.StartsWith("8:") && fp.EndsWith(":39") => "Rumors 8B\u00d7n",
+            _ when fp.StartsWith("8:") && fp.EndsWith(":2") => "BlessingTs/CurseTs 8BxN",
+            _ when fp.StartsWith("8:") && fp.EndsWith(":39") => "Rumors 8BxN",
             _ when fp.StartsWith("16:") && fp.EndsWith(":37") => "Quest eSize=16",
             _ when fp.StartsWith("16:") && fp.EndsWith(":38") => "Quest-alt eSize=16",
-            _ when fp.StartsWith("24:") && fp.EndsWith(":3") => "CritterHandles 24B\u00d7n",
-            _ when fp.StartsWith("24:") && fp.EndsWith(":2") => "CritterHandles 24B\u00d7n",
+            _ when fp.StartsWith("24:") && fp.EndsWith(":3") => "CritterHandles 24BxN",
+            _ when fp.StartsWith("24:") && fp.EndsWith(":2") => "CritterHandles 24BxN",
             _ => "",
         };
 
@@ -567,6 +569,169 @@ internal static class SarUtils
         return negative >= Math.Max(2, inspected / 2);
     }
 
+    /// <summary>
+    /// Returns a short human-readable label for a known element index within a specific SAR fingerprint.
+    /// Falls back to the numeric index when no label is registered.
+    /// </summary>
+    public static string GetElementLabel(string fingerprint, int index) =>
+        fingerprint switch
+        {
+            "4:28:2" => index switch
+            {
+                0 => "STR",
+                1 => "DEX",
+                2 => "CON",
+                3 => "BEA",
+                4 => "INT",
+                5 => "PER",
+                6 => "WIL",
+                7 => "CHA",
+                8 => "CarryWt",
+                9 => "DmgBonus",
+                10 => "AcAdj",
+                11 => "Speed",
+                12 => "HealRate",
+                13 => "PoisRec",
+                14 => "ReactMod",
+                15 => "MaxFoll",
+                16 => "MTApt",
+                17 => "lv",
+                18 => "XP",
+                19 => "align",
+                20 => "fate",
+                21 => "unspent",
+                22 => "magicPts",
+                23 => "techPts",
+                24 => "poisonLvl",
+                25 => "age",
+                26 => "gender",
+                27 => "race",
+                _ => index.ToString(),
+            },
+            "4:12:2" => index switch
+            {
+                0 => "BOW",
+                1 => "DODGE",
+                2 => "MELEE",
+                3 => "THROW",
+                4 => "BKSTB",
+                5 => "PPKT",
+                6 => "PROWL",
+                7 => "STRAP",
+                8 => "GAMBL",
+                9 => "HAGGL",
+                10 => "HEAL",
+                11 => "PERS",
+                _ => index.ToString(),
+            },
+            "4:4:2" => index switch
+            {
+                0 => "REPR",
+                1 => "FRMS",
+                2 => "PKLCK",
+                3 => "DTRAP",
+                _ => index.ToString(),
+            },
+            "4:25:2" => index switch
+            {
+                0 => "Conv",
+                1 => "Div",
+                2 => "Air",
+                3 => "Erth",
+                4 => "Fire",
+                5 => "Watr",
+                6 => "Forc",
+                7 => "Ment",
+                8 => "Meta",
+                9 => "Mrph",
+                10 => "Natr",
+                11 => "NBlk",
+                12 => "NWht",
+                13 => "Phan",
+                14 => "Summ",
+                15 => "Temp",
+                16 => "MAST",
+                17 => "Herb",
+                18 => "Chem",
+                19 => "Elec",
+                20 => "Xpls",
+                21 => "Gun",
+                22 => "Mech",
+                23 => "Smth",
+                24 => "Thrp",
+                _ => index.ToString(),
+            },
+            _ => index.ToString(),
+        };
+
+    /// <summary>
+    /// Returns true when <paramref name="v"/> is in the magnitude range typical of
+    /// runtime pointer/dispatch-table values (>200 000 000 absolute).
+    /// Legitimate Arcanum game values — proto IDs, XP, stats — are always smaller.
+    /// </summary>
+    public static bool IsPointerLike(int v) => Math.Abs((long)v) > 200_000_000L;
+
+    /// <summary>
+    /// Splits a set of element diffs into semantic changes (game-data values) and
+    /// pointer-like noise (both old and new value look like runtime addresses).
+    /// Returns the semantic list and the number of suppressed pointer diffs.
+    /// </summary>
+    public static (List<(int Idx, int VA, int VB)> Semantic, int PointerCount) PartitionElementDiffs(
+        List<(int Idx, int VA, int VB)> diffs
+    )
+    {
+        var semantic = new List<(int Idx, int VA, int VB)>(diffs.Count);
+        int pointerCount = 0;
+        foreach (var d in diffs)
+        {
+            // Suppress only when BOTH old and new look like pointers.
+            // If one side changed from/to a valid game value that's a real event.
+            if (IsPointerLike(d.VA) && IsPointerLike(d.VB))
+                pointerCount++;
+            else
+                semantic.Add(d);
+        }
+
+        return (semantic, pointerCount);
+    }
+
+    /// <summary>
+    /// Value-aware annotation for a SAR entry that refines the fingerprint-only label
+    /// when the element values themselves carry structural meaning.
+    /// For <c>4:N:2</c> SARs this distinguishes blessing/curse proto-ID arrays
+    /// (values mostly in the 1000–5000 range) from NPC dispatch tables
+    /// (values are pointer-like large negatives).
+    /// </summary>
+    public static string AnnotateSarValue(SarEntry sar)
+    {
+        if (sar.ESize == 4 && sar.BCnt == 2 && sar.FirstVals.Length >= 2)
+        {
+            // Dispatch-table detection: any value looks like a runtime pointer.
+            if (sar.FirstVals.Any(v => v != -1 && IsPointerLike(v)))
+                return $"NPC-dispatch ptrs INT32[{sar.ECnt}]";
+
+            // Blessing/schematic proto-ID detection: all non-(-1) values are > 500.
+            int nonMinus1 = sar.FirstVals.Count(v => v != -1);
+            if (nonMinus1 > 0 && sar.FirstVals.Where(v => v != -1).All(v => v > 500))
+                return $"ProtoIdArray INT32[{sar.ECnt}] (bless/schematics)";
+
+            // For eCnt=2: distinguish small-valued condition flags from mid-range proto-ID pairs.
+            if (sar.ECnt == 2 && sar.FirstVals.Length == 2)
+            {
+                int v0 = sar.FirstVals[0],
+                    v1 = sar.FirstVals[1];
+                // Both values in the proto-ID range typical for conditions/curses (30–500).
+                if (v0 is >= 30 and <= 500 && v1 is >= 30 and <= 500)
+                    return "CondProto/CurseProto INT32[2]";
+                // Small integer pair: likely a condition flag (type, severity/count).
+                if (v0 is >= 0 and <= 10 || v1 is >= 0 and <= 10)
+                    return "CondFlag INT32[2]";
+            }
+        }
+
+        return AnnotateFingerprint(sar.Fingerprint);
+    }
+
     /// <summary>Map a known bsId to a human-readable field label (ArciMagus session-specific bsIds).</summary>
     public static string AnnotateBsId(int bsId) =>
         bsId switch
@@ -580,8 +745,8 @@ internal static class SarUtils
             0x43C3 => "BasicSkills INT32[12]",
             0x49FC => "Effects INT32[n]",
             0x49FD => "EffectCauses INT32[n]",
-            0x49FE => "CritterInventory handles 24B\u00d7n",
-            0x49FF => "CritterFollower handle 24B\u00d71",
+            0x49FE => "CritterInventory handles 24BxN",
+            0x49FF => "CritterFollower handle 24Bx1",
             0x4A00 => "QuestState? sz16\u00d7n",
             0x4A07 => "TechSkills INT32[4]",
             0x4A08 => "SpellTech INT32[25]",
@@ -589,8 +754,8 @@ internal static class SarUtils
             0x4D68 => "GameStats INT32[11..13]",
             0x4D69 => "pre-stat INT32[4]",
             0x4D6A => "pre-stat INT32[4]",
-            0x4D6F => "critter-handles 8B\u00d711",
-            0x4D77 => "GoldHandle 24B\u00d71",
+            0x4D6F => "critter-handles 8Bx11",
+            0x4D77 => "GoldHandle 24Bx1",
             0x4DA2 => "SpellTech-adjacent INT32[25]",
             0x4DA3 => "PositionAI INT32[3]",
             0x4DA4 => "Portrait/MaxFollowers INT32[3]",

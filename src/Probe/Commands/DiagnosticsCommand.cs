@@ -11,7 +11,7 @@ internal sealed class DiagnosticsCommand : IProbeCommand
         var slot4 = SharedProbeContext.ResolveSlot4(args);
         var ctx = SharedProbeContext.Load(saveDir, slot4);
 
-        Console.WriteLine($"\n=== Mode 12: Diagnostics — {ctx.SlotStem} ===");
+        Console.WriteLine($"\n=== Mode 12: Diagnostics - {ctx.SlotStem} ===");
 
         Console.WriteLine("\n  Inner files:");
         foreach (var (path, bytes) in ctx.Save.Files.OrderBy(entry => entry.Key))
