@@ -1,7 +1,7 @@
 # Arcanum Save Game Read/Write API — Status Report
 
 **Scope**: ArcNET.Formats + ArcNET.GameObjects + ArcNET.GameData  
-**Date**: 2026-04-08 (updated 2026-04-10, session 20)  
+**Date**: 2026-04-08 (updated 2026-04-10, session 25)  
 **Purpose**: Professional-grade gap analysis for implementation agents and RE agents. All claims reference current source code at line granularity.
 
 ---
@@ -67,7 +67,7 @@ The PC character record is embedded as a v2 entry inside `mobile.mdy` for whiche
 
 | Field | SAR bsId | Elements | Property |
 |-------|----------|----------|----------|
-| Stats (STR/DEX/CON/INT/WIS/PER/CHA/RCE×28) | scan by signature (elemCnt=28) | int[28] | `Stats` |
+| Stats (28-int critter stat array: primary, derived, and progression fields) | scan by signature (elemCnt=28) | int[28] | `Stats` |
 | Basic skills (12) | scan by signature (elemCnt=12) | int[12] | `BasicSkills` |
 | Tech skills (4) | scan by signature (elemCnt=4) | int[4] | `TechSkills` |
 | Spell/tech disciplines (25) | scan by signature (elemCnt=25) | int[25] | `SpellTech` |
@@ -188,7 +188,7 @@ Canonical file ordering on write: `map.prp` → `map.jmp` → `mobile/` → `mob
 
 **Layer 2 — ArcNET.Editor (flat dictionary, editor-focused; pre-existing)**
 
-`ArcNET.Editor.SaveGame` stores format-parsed dictionaries (`Mobiles`, `Sectors`, `JumpFiles`, `MapPropertiesList`, `MobileMds`, `MobileMdys`, `Scripts`, `Dialogs`) plus raw `Files` and `Index` for atomic round-trips. `SaveGameLoader` provides sync+async load; `SaveGameWriter` uses atomic temp-then-rename writes. This is the layer used by the Probe tool.
+`ArcNET.Editor.LoadedSave` stores format-parsed dictionaries (`Mobiles`, `Sectors`, `JumpFiles`, `MapPropertiesList`, `MobileMds`, `MobileMdys`, `Scripts`, `Dialogs`) plus raw `Files` and `Index` for atomic round-trips. `SaveGameLoader` provides sync+async load, `SaveGameEditor` provides a stateful player + `.gsi` metadata editing workflow on top of `LoadedSave`, and `SaveGameWriter` uses atomic temp-then-rename writes. This is the layer used by the Probe tool.
 
 **RE dependency**: None.
 
@@ -317,6 +317,38 @@ Session 20 RE findings (Probe modes 9/13; Slot0170–0178):
 - **Late-game churn is concentrated in a small set of low-arity INT32 fingerprints**: the summary table shows `4:2:2` at **40 tracks / 16 recurring / 24 one-slot / 9 changed** with multiplicity **5–29**, `4:12:2` at **16 / 7 / 9 / 6** with multiplicity **4–10**, `4:28:2` at **11 / 7 / 4 / 4** with multiplicity **3–8**, `4:7:2` at **11 / 8 / 3 / 3** with multiplicity **2–7**, `4:4:2` at **24 / 10 / 14 / 1** with multiplicity **7–15**, and `4:25:2` at **16 / 8 / 8 / 1** with multiplicity **3–10**. `24:2:2` remains duplicate-heavy (**10 / 3 / 7 / 0**) but contributes no payload deltas. This closes the remaining ambiguity about where the late-game Mode 9 noise actually lives.
 - **Transition summaries now isolate the real spikes**: `0174→0175` reports `new=32 gone=11 move=15 chg=23`, with `CHG fp` dominated by `4:2:2×9`, `4:28:2×6`, `4:12:2×3`, and `4:7:2×2`; `0175→0176` reports `new=8 gone=44 move=11 chg=13`, with move churn concentrated in `4:2:2×4` and `4:7:2×3`; `0177→0178` reports `new=56 gone=0 move=14 chg=10`, with move churn concentrated in `4:2:2×5`, `4:12:2×3`, `4:4:2×3`, and `4:28:2×2`. The slot summaries now make it obvious which ranges are structural churn versus semantic state changes.
 - **Mode 13 still matches the aggregated Mode 9 picture**: the rerun confirms the main semantic transitions remain `0174→0175` (reputation deltas, quest growth `72→75`, blessing growth `5→7`) and `0175→0176` (reputation deltas plus quest-state flips). `0177→0178` remains mostly cheat-save structural churn plus the level/XP jump. This validates the new renderer rather than changing the underlying interpretation.
+
+Session 21 tooling improvements (Probe modes 9/13; Slot0170–0178):
+
+- **Duplicate `SaveGame.cs` removed**: The session 20 rename (`ArcNET.Editor.SaveGame` → `LoadedSave`) created `LoadedSave.cs` but did not delete the original `SaveGame.cs`, leaving both in the project and causing a `CS0101` duplicate-class build failure. `SaveGame.cs` removed; build restored.
+- **Mode 9 CHG output now shows labeled element indices**: Stats, BasicSkills, TechSkills, and SpellTech diffs now render named fields via `SarUtils.GetElementLabel(...)` instead of raw numeric indices. Session 24 completed the 28-stat map so the current labels now match the shared `CharacterRecord` model end-to-end: `STR/DEX/CON/BEA/INT/PER/WIL/CHA`, derived critter stats through `MTApt`, then `lv/XP/align/fate/unspent/magicPts/techPts/poisonLvl/age/gender/race`.
+- **Pointer-like element diffs are now suppressed**: Values with `|v| > 200 000 000` are treated as runtime dispatch-table addresses. When both the old and new value of an element diff qualify, the diff is omitted from the `CHG` line and a `(N ptr-noise diffs suppressed)` note is appended. When only one side is pointer-like, the diff is shown (a pointer ↔ game-value transition is a real event). Implemented via `SarUtils.IsPointerLike(int)` and `SarUtils.PartitionElementDiffs(...)`.
+- **Value-aware `4:7:2` annotation replaces the generic "Blessings×7 or NPC-dispatch" label**: `SarUtils.AnnotateSarValue(SarEntry)` inspects the first-values array and returns `"NPC-dispatch ptrs INT32[7]"` when any non-(-1) value is pointer-like, or `"ProtoIdArray INT32[N] (bless/schematics)"` when all non-(-1) values are > 500 (blessing/schematic proto IDs). Mode 9 now shows the former for the many NPC dispatch arrays and `Blessings×7` for the actual blessing record, with the change confirmed in the `0174→0175` diff.
+- **Mode 13 now tracks PC stat-array and basic-skill deltas**: `baseStats[…]` and `skills[…]` are appended to each diff line when the PC's Stats indices `0..15` or BasicSkills values change between consecutive slots. These changes are also wired into the `anyDiff` gate so unchanged slots are still suppressed.
+- **`4:2:2` fingerprint annotation updated** from `"Curses INT32[2]"` to `"Conditions/Curse INT32[2]"` to reflect that the vast majority of `4:2:2` SARs in any character record are NPC condition/effect data rather than PC curse arrays.
+- **Stats array index [21] is now treated as `unspent`**: the level-up correlation noted in session 21 is consistent with the shared `CharacterRecord.UnspentPoints` mapping used by the editor-side v2 codec.
+- **The old `s25` placeholder is closed as `age`**: session 24 aligned Probe with the same 28-stat map used by `CharacterRecord`, which identifies indices `24..27` as `poisonLvl`, `age`, `gender`, and `race`.
+
+Session 22 RE findings (Probe mode 9; Slot0170–0178):
+
+- **Mode 9 lifecycle track detail enhanced with bsId column and value-aware annotation**: the multi-slot track table now shows a `bsId` column (single hex value when stable, `"varies"` when inconsistent across the track's history) beside the updated annotation column (uses `AnnotateSarValue` instead of `AnnotateFingerprint`, so the table now shows `ProtoIdArray`, `CondFlag`, `CondProto/CurseProto`, and `NPC-dispatch ptrs` where previously all `4:2:2` and `4:4:2` rows appeared identical). On the 0170–0178 rerun, every multi-slot track shows `bsId=varies`, confirming bsIds are session-specific across the cheat-cycled save range. Short-lived single-transition tracks (e.g. `24:5:2` GONE@0174 with `bsId=0x5322`, `24:5:2#2` with `bsId=0x4C5B`) are the exception — they span only one slot transition and so observe the same bsId on both sides, proving bsIds are **stable within a continuous game session** but **reassigned when a new session starts**. Practical rule confirmed: field identification across different save files must rely on structural fingerprints + value ranges, never on bsId alone.
+- **`[DISC]` marker added to mode 9 slot-pair diffs**: when the level drops by more than 3 between two consecutive snapshots, the pair header line is suffixed with `[DISC]` to flag a likely state-switch boundary (different save state loaded rather than incremental progression). On the 0170–0178 run, `0170→0171` (lv44→10) and `0175→0176` (lv45→3) are flagged; the four upward-level transitions are not (they may still be discontinuous but the heuristic is level-drop only).
+- **`4:2:2` annotation now sub-categorises by value range**: `AnnotateSarValue` for `4:2:2` (eSize=4, eCnt=2, bsCnt=2) now returns `"CondFlag INT32[2]"` when either value is ≤10 (small condition flag), `"CondProto/CurseProto INT32[2]"` when both values are in 30–500 (condition or curse proto-ID pair), and falls back to `"Conditions/Curse INT32[2]"` otherwise. On the 0170–0178 run: `4:2:2#3` `[2,0]` → CondFlag; `4:2:2#4` `[50,50]→[67,53]` → CondProto/CurseProto (this is the confirmed curse SAR); `4:2:2#6` and many other tracks in the 30–500 range → CondProto/CurseProto. The combined bsId + sub-category output makes the PC curse SAR (values [67,53]) visually distinct from the many Conditions/PermanentMods SARs with values like [2,0] in the same fingerprint family.
+- **`4:7:2` blessing SAR now correctly shows as `ProtoIdArray INT32[7]` in lifecycle detail**: with the switch to `AnnotateSarValue` in the lifecycle table, `4:7:2#3` (values `[1049,1051,1004,1017,1042,1025,1024]`, all >500) is annotated as `ProtoIdArray INT32[7] (bless/schematics)`, while `4:7:2#4–6` (values `[-1,-1,…]`) retain the ambiguous `Blessings×7 or NPC-dispatch INT32[7]` label. This separation required no additional code beyond the annotation-function swap.
+- **Mode 13 is unchanged** — all findings from sessions 15–21 remain current. The session 22 improvements are entirely in the mode 9 lifecycle renderer.
+
+Session 23 RE findings (Probe modes 9/13; Slot0170–0178):
+
+- **Mode 9 transition sections now use value-aware annotations end-to-end**: `NEW`, `GONE`, and `MOVE` rows now use the same `AnnotateSarValue` classifications as lifecycle/`CHG` output instead of falling back to fingerprint-only labels. Verified on the rerun: `0171→0172 NEW` now labels the new `4:7:2` pair as `NPC-dispatch`, and `0174→0175 NEW` isolates the real blessing-growth row as `4:7:2[b3] (ProtoIdArray...)` alongside the other `4:7:2` additions.
+- **The blessing `5→7` transition is now visible directly in the slot-pair header**: on `0174→0175`, the old blessing proto row appears in `GONE` as `4:5:2 (ProtoIdArray INT32[5])` while the replacement row appears in `NEW` as `4:7:2 (ProtoIdArray INT32[7])`. This makes the previously-verified blessing-count jump readable without consulting the lifecycle table.
+- **Probe console output is now ASCII-safe in this environment**: mode headers, arrows, multiplicity markers, truncation, and the slot-pair summary prefix were normalized from Unicode (`→`, `×`, `…`, `Σ`) to ASCII (`->`, `x`, `...`, `SUM`). The `0170–0178` Mode 9 rerun and companion Mode 13 rerun both captured cleanly with no mojibake.
+
+Session 24 editor/API + RE follow-up:
+
+- **`SaveGameEditor.WithCharacter(...)` now matches its documented first-match semantics**: the old implementation rewrote every matching v2 character record in a `mobile.mdy`; it now stops after the first match, which makes predicate-based updates deterministic instead of fan-out edits.
+- **`SaveGameEditor` now has a player-focused workflow**: `WithPlayerCharacter(...)` removes the manual `mobile.mdy` path plumbing for the common case, and `SaveAsync(...)` is now exposed directly at the editor-session layer in addition to the lower-level writer API.
+- **Player edits now keep `.gsi` leader metadata aligned**: when the original player record is edited through `SaveGameEditor`, `LeaderName`, `LeaderLevel`, and `LeaderPortraitId` are synchronized from the pending player record before write, so the save-slot metadata no longer drifts behind the character payload.
+- **Probe's 28-stat labels now align with the editor-side character model**: the earlier `PER/WIL` swap is corrected, index `16` is now labeled `MTApt`, index `21` is `unspent`, and indices `24..27` are `poisonLvl`, `age`, `gender`, and `race`. This closes the old `s21` / `s25` placeholder interpretation gap and removes the incorrect `RCE` label from the middle of the array.
 
 --- GAP-3 partially closed in session 6: session-6 findings below.
 
@@ -525,7 +557,7 @@ Complete the low-level gaps first, then build the orchestration layer on top of 
 
 **Phase A4 — Save archive orchestration (GAP-1)** — **DONE** ✅
 - `ArcNET.Formats.SaveGame` + `SaveMapState` + `SaveGameReader` + `SaveGameWriter` implemented.
-- `ArcNET.Editor.SaveGame` + `SaveGameLoader` + `SaveGameWriter` pre-existing (flat-dictionary, more mature).
+- `ArcNET.Editor.LoadedSave` + `SaveGameEditor` + `SaveGameLoader` + `SaveGameWriter` implemented as the flat-dictionary editor layer.
 
 **Phase A5 — Save creation from scratch (GAP-6)** — **DONE** ✅
 - `CharacterMdyRecordBuilder.Create()` implemented in `ArcNET.Formats`.
@@ -560,7 +592,7 @@ Complete the low-level gaps first, then build the orchestration layer on top of 
 - `StringExtensions.TruncateAnnotation()` added: clips annotation labels to 12 chars for compact diff output.
 - `AnnotateFingerprint()` extended: `4:N:4` pattern now annotated as `Conditions/PermanentMods INT32[N] (bsCnt4)` (previously fell through to the generic wildcard).
 - **Mode 9 element-level diff** (`probe 9 [first [last]]`): slot-by-slot diff now shows per-element changes for matching INT32 SARs — `CHG: 4:28:2 [Stats] [17]:36→37 [18]:450000→512000` — instead of only detecting fingerprint presence/absence. Displays up to 12 element diffs inline with `+Nmore` for the rest. SAR annotation labels truncated to 12 chars to keep lines compact.
-- **Mode 13 field evolution** (`probe 13 [first [last]]`): new mode. Iterates all save slots in a range, compares each to the previous, and prints one timestamped delta line per slot where any tracked field changed. Silent for unchanged slots. Tracked fields: `lv`, `XP`, `align`, `fate`, `magicPts`, `techPts`, `gold`, `quests`, `rumors`, `blessings`, `curses`, `schematics`, and all 25 `SpellTech` discipline ranks by name (Conv, Div, Air, Earth, Fire, Water, Force, Mental, Meta, Morph, Nature, NecroBlk, NecroWht, Phantasm, Summon, Temporal, MasteryCol, Herb, Chem, Elec, Explos, Gun, Mech, Smithy, Therap). Marks level-up slots with `*** LEVEL UP ***`. Useful for tracing exact level-up events, spell acquisition order, alignment drift, and meta/tech point accumulation across a long playthrough.
+- **Mode 13 field evolution** (`probe 13 [first [last]]`): new mode. Iterates all save slots in a range, compares each to the previous, and prints one timestamped delta line per slot where any tracked field changed. Silent for unchanged slots. Tracked fields: `lv`, `XP`, `align`, `fate`, `magicPts`, `techPts`, `gold`, `quests`, `rumors`, `blessings`, `curses`, `schematics`, stat-array deltas (`baseStats[...]`), basic-skill deltas (`skills[...]`), and all 25 `SpellTech` discipline ranks by name (Conv, Div, Air, Earth, Fire, Water, Force, Mental, Meta, Morph, Nature, NecroBlk, NecroWht, Phantasm, Summon, Temporal, MasteryCol, Herb, Chem, Elec, Explos, Gun, Mech, Smithy, Therap). Marks level-up slots with `*** LEVEL UP ***`. Useful for tracing exact level-up events, spell acquisition order, alignment drift, and meta/tech point accumulation across a long playthrough.
 
 **Session 15 tooling update**: Probe modes 13/14 extended; `SarUtils.cs` and `CharacterMdyRecord.cs` updated.
 - **Mode 13 slot arg-padding bug fixed**: `probe 13 13 178` previously failed with `FileNotFoundException` because `args[1]="13"` produced slot stem `"Slot13"` instead of `"Slot0013"`. Fixed: `slot4 = args[1].PadLeft(4,'0')[..4]`; mode 13 added to load-exclusion guard (`testMode is not (9 or 11 or 13)`).
@@ -597,7 +629,31 @@ Complete the low-level gaps first, then build the orchestration layer on top of 
 **Session 20 tooling update**: the remaining weakness after session 19 was the lifecycle table itself: it still dumped every transient duplicate row, so the user had to visually infer where the churn was concentrated.
 - **Lifecycle summary added**: Mode 9 now emits a per-fingerprint summary before the detail rows. The summary reports `slot span`, `dup@present`, `tracks`, `multi`, `one`, and `chg`, which turns the late-game duplicate storm into a ranked list of the actual noisy fingerprints.
 - **One-slot orphans are suppressed, not deleted**: the detailed lifecycle table now omits one-slot rows and prints how many were suppressed. On the Slot0170–0178 rerun this collapsed 137 low-signal rows while keeping the recurring tracks and changed tracks visible.
-- **Slot-pair churn is quantified**: each transition line now includes `Σ: new/gone/move/chg` and top fingerprint-count summaries for `MOVE` and `CHG`, so spikes like `0174→0175` and `0177→0178` can be triaged before reading the per-row details.
+- **Slot-pair churn is quantified**: each transition line now includes a `new/gone/move/chg` summary and top fingerprint-count summaries for `MOVE` and `CHG`, so spikes like `0174→0175` and `0177→0178` can be triaged before reading the per-row details.
+
+**Session 21 tooling update**: the late-game output was readable enough to start distinguishing payload change from field identity, so the next pass focused on labels and noise suppression rather than matching.
+- **CHG rows now show named element labels**: Stats, BasicSkills, TechSkills, and SpellTech diffs use `SarUtils.GetElementLabel(...)`, so output reads `[STR]`, `[DEX]`, `[XP]`, `[Conv]`, etc. instead of raw numeric indices.
+- **Pointer-only element churn is suppressed**: `SarUtils.IsPointerLike(...)` and `PartitionElementDiffs(...)` now drop pointer-to-pointer diffs from `CHG` lines and append a suppression note instead.
+- **Mode 13 now includes base stats and basic skills**: reruns print `baseStats[...]` and `skills[...]` deltas alongside the previously tracked spell, quest, rumor, and reputation changes.
+
+**Session 22 tooling update**: mode 9 lifecycle detail was upgraded from fingerprint-only rows to track rows that expose the session-local identity hints without pretending bsIds are cross-session stable.
+- **Lifecycle rows now show `bsId` and value-aware annotation**: the detail table prints a `bsId` column (`0xNNNN` or `varies`) plus the `AnnotateSarValue(...)` label for each multi-slot track.
+- **Discontinuous slot boundaries are flagged**: `[DISC]` now appears when the next snapshot drops more than 3 levels, marking likely state-switch boundaries.
+- **`4:2:2` tracks are sub-categorized**: `AnnotateSarValue(...)` now distinguishes `CondFlag`, `CondProto/CurseProto`, and the broader `Conditions/Curse` fallback for the duplicate-heavy two-int packet family.
+
+**Session 23 tooling update**: the remaining gap after session 22 was that the transition header still fell back to fingerprint-only labels, and the terminal capture still mangled several Unicode console glyphs.
+- **`NEW` / `GONE` / `MOVE` now use `AnnotateSarValue(...)`**: the slot-pair header itself now highlights `ProtoIdArray`, `NPC-dispatch`, `CondFlag`, and `CondProto/CurseProto` rows.
+- **Probe console strings are now ASCII-safe**: current mode 9 / 13 / 10 / 12 / 14 / help output uses `->`, `x`, `...`, and `SUM:` instead of the Unicode glyphs that were rendering as mojibake in this environment.
+
+**Session 24 tooling update**: this pass tightened the editor session API and aligned Probe's stat-array vocabulary with the editor-side v2 model.
+- **`SaveGameEditor` now exposes the common player-edit path directly**: `WithPlayerCharacter(...)` and `SaveAsync(...)` sit on top of the existing `LoadedSave` + `SaveGameWriter` pipeline, so callers no longer need to rediscover the player's `mobile.mdy` path for routine edits.
+- **Player writes now synchronize `.gsi` leader metadata**: `LeaderName`, `LeaderLevel`, and `LeaderPortraitId` are derived from the pending player record when `SaveGameEditor` saves a player edit.
+- **Probe's `4:28:2` labels now use the same 28-stat map as `CharacterRecord`**: the old `PER/WIL` swap is gone, the placeholder `s21` / `s25` labels are replaced with `unspent` / `age`, and the remaining tail fields are labeled `poisonLvl`, `gender`, and `race`.
+
+**Session 25 tooling update**: session 24 could keep leader metadata aligned automatically, but callers still had no ergonomic way to edit the rest of `.gsi` without dropping to the lower-level writer APIs.
+- **`SaveInfo` now has a lightweight copy/update helper**: `SaveInfo.With(...)` provides record-style field replacement for module, display, time, location, story, and leader metadata fields without introducing a separate builder type.
+- **`SaveGameEditor` now exposes explicit metadata queue + inspection APIs**: `WithSaveInfo(...)`, `GetCurrentSaveInfo()`, and `GetPendingSaveInfo()` let callers stage `.gsi` changes directly on the editor session.
+- **Explicit `.gsi` edits compose with player sync**: `DisplayName`, time, map, tile, and story-state edits remain queued as requested, while `LeaderName`, `LeaderLevel`, and `LeaderPortraitId` still follow the pending player record whenever that record is edited in the same session.
 
 ---
 

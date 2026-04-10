@@ -60,6 +60,10 @@ All code targets `net10.0` / C# 14.
   - [Load patches from JSON](#load-patches-from-json)
   - [Discover patches at runtime](#discover-patches-at-runtime)
   - [Track patch state](#track-patch-state)
+- [ArcNET.Editor](#arcneteditor)
+    - [Load a save slot](#load-a-save-slot)
+    - [Edit the player character](#edit-the-player-character)
+    - [Edit save metadata](#edit-save-metadata)
 - [ArcNET.Core](#arcnetcore)
   - [Low-level SpanReader / SpanWriter](#low-level-spanreader--spanwriter)
   - [Primitive types round-trip](#primitive-types-round-trip)
@@ -845,6 +849,70 @@ bool isApplied = PatchStateStore.IsRecorded(gameDir, patchSet);
 
 // Record a revert (removes the entry; deletes file when empty)
 PatchStateStore.RecordRevert(gameDir, patchSet);
+```
+
+---
+
+## ArcNET.Editor
+
+### Load a save slot
+
+```csharp
+using ArcNET.Editor;
+
+LoadedSave save = SaveGameLoader.Load(
+    @"C:\Games\Arcanum\modules\Arcanum\Save",
+    "Slot0001");
+
+Console.WriteLine($"Leader     : {save.Info.LeaderName} (lv {save.Info.LeaderLevel})");
+Console.WriteLine($"mobile.mdy : {save.MobileMdys.Count}");
+Console.WriteLine($"ParseErrors: {save.ParseErrors.Count}");
+```
+
+### Edit the player character
+
+```csharp
+using ArcNET.Editor;
+
+LoadedSave save = SaveGameLoader.Load(
+    @"C:\Games\Arcanum\modules\Arcanum\Save",
+    "Slot0001");
+
+var editor = new SaveGameEditor(save)
+    .WithPlayerCharacter(pc => pc.ToBuilder()
+        .WithLevel(pc.Level + 1)
+        .WithSkillPersuasion(pc.SkillPersuasion + 1)
+        .WithName("Roberta")
+        .Build());
+
+// Writes Slot0001_EDITED.gsi/.tfai/.tfaf.
+// LeaderName / LeaderLevel / LeaderPortraitId in the .gsi are synchronized
+// from the edited player record automatically.
+editor.Save(@"C:\Games\Arcanum\modules\Arcanum\Save", "Slot0001_EDITED");
+```
+
+### Edit save metadata
+
+```csharp
+using ArcNET.Editor;
+using ArcNET.Formats;
+
+LoadedSave save = SaveGameLoader.Load(
+    @"C:\Games\Arcanum\modules\Arcanum\Save",
+    "Slot0001");
+
+var editor = new SaveGameEditor(save)
+    .WithSaveInfo(info => info.With(
+        displayName: "Bridge Run",
+        gameTimeDays: 42,
+        gameTimeMs: 18_000_000,
+        leaderTileX: 480,
+        leaderTileY: 512));
+
+SaveInfo pending = editor.GetCurrentSaveInfo();
+Console.WriteLine($"{pending.DisplayName} @ ({pending.LeaderTileX}, {pending.LeaderTileY})");
+
+editor.Save(@"C:\Games\Arcanum\modules\Arcanum\Save", "Slot0001_RENAMED");
 ```
 
 ---
