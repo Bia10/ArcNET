@@ -17,7 +17,7 @@ namespace ArcNET.Formats;
 /// Use the <c>With*</c> methods to obtain a new record with patched bytes.
 /// </para>
 /// </summary>
-public sealed record CharacterMdyRecord
+public sealed partial record CharacterMdyRecord
 {
     // ── Wire signatures ───────────────────────────────────────────────────────
 
@@ -35,18 +35,41 @@ public sealed record CharacterMdyRecord
     private const int SarHeaderSize = 13;
     private const int MaxScanDistance = 4096;
 
+    // ── bsIds confirmed via live-save RE (Probe, session 6) ──────────────────
+    // Primary arrays (found by signature scan; bsIds documented for reference).
+    // Stats (28-elem INT32):       bsId=0x4299
+    // BasicSkills (12-elem INT32): bsId=0x43C3
+    // TechSkills (4-elem INT32):   bsId=0x4A07
+    // SpellTech (25-elem INT32):   bsId=0x4A08
+
     // bsId for the single-INT32 gold-amount SAR that follows the known four arrays.
     private const int GoldAmountBsId = 0x4B13;
 
+    // bsId for the OBJ_TYPE_Gold item handle (24-byte ObjectID) — the actual gold object
+    // owned by the PC.  The gold quantity is on the object itself; bsId=0x4B13 caches it.
+    // Read-only: not patched (patching the gold-object handle would require a separate probe).
+    private const int GoldHandleBsId = 0x4D77;
+
+    // bsId for the active-effects INT32 array (CritterEffectsIdx, ObjF bit 74).
+    // Probe confirmed: variable element count per character (5 effects in the test save).
+    // Element layout: each int32 is an effect prototype ID currently active on the critter.
+    private const int EffectsBsId = 0x49FC;
+
+    // bsId for the effect-cause INT32 array (CritterEffectCauseIdx, ObjF bit 75).
+    // Parallel to EffectsBsId: element[n] is the cause ID for Effects[n].
+    private const int EffectCausesBsId = 0x49FD;
+
     // bsId for the 11-element game-statistics SAR (PC-wide data embedded in the v2 record).
-    // Confirmed element layout (inner-bitset bits 0..10 + 64..65):
-    //   [0]=TotalKills (inner bit 0), [8]=Arrows (inner bit 10).
-    //   [9]=CritterFlags (inner bit 64), [10]=CritterFlags2 (inner bit 65).
-    //   Inner bits 11/12 = Bullets/PowerCells — absent (0) for magic-focused characters.
+    // Confirmed element layout:
+    //   [0]=TotalKills, [1..7]=misc counters, [8]=Arrows, [9..10]=critter flags copies.
+    //   Inner bits 11/12 = Bullets/PowerCells — absent for magic-focused characters;
+    //   present as elements [11]/[12] for tech characters (eCnt grows to 13).
     private const int GameStatsBsId = 0x4D68;
-    private const int GameStatsElementCount = 11;
+    private const int GameStatsElementCount = 11; // magic-char baseline; tech chars have 13
     private const int GameStatsTotalKillsIndex = 0;
     private const int GameStatsArrowsIndex = 8;
+    private const int GameStatsBulletsIndex = 11; // tech chars only (eCnt >= 12)
+    private const int GameStatsPowerCellsIndex = 12; // tech chars only (eCnt >= 13)
 
     // bsId for the 3-element portrait / followers SAR.
     // Confirmed element layout: [0]=MaxFollowersComputed, [1]=PortraitIndex, [2]=0.
@@ -54,6 +77,47 @@ public sealed record CharacterMdyRecord
     private const int PortraitElementCount = 3;
     private const int PortraitMaxFollowersElement = 0;
     private const int PortraitIndexElement = 1;
+
+    // Quest-log SAR structural fingerprint (session-independent — bsId varies per game session).
+    // eSize=16: each quest-log entry is a 16-byte record (4 × INT32).
+    // bsCnt=37: the bitset following the data is always 37 uint32 words (1184 bits), covering
+    //   the full Arcanum quest-slot address space.  This value is stable across all tested saves:
+    //   Slot0013 (bsId=0x4A00, eCnt=9), Slot0100 (bsId=0x45C7, eCnt=34), Slot0120 (bsId=0x6AFD, eCnt=46).
+    // The Nth set bit in the 37-word bitset is the Arcanum quest-slot ID for the Nth 16-byte entry.
+    private const int QuestSarElementSize = 16;
+    private const int QuestSarBitsetWords = 37;
+
+    // Reputation SAR (PC field bit 130 — PcReputationIdx): INT32[19] with bcCnt=3.
+    // Absent in early saves (not triggered until PC interacts with factions).
+    // Confirmed: Slot0100 (bsId=0x51E4), Slot0120 (bsId=0x4E2A), Slot0177 (bsId=0x5244) — all same session.
+    private const int ReputationSarElementCount = 19;
+    private const int ReputationSarBitsetWords = 3;
+
+    // Blessing / Curse / Schematics SAR structural detection (session 12 RE findings, Slot0177):
+    //
+    // Blessing pair (PcBlessingIdx bit 135 + PcBlessingTsIdx bit 136):
+    //   First occurrence of a consecutive 4:N:2 + 8:N:2 pair (same N) found in the post-stat
+    //   extended scan region.  The INT32[N] contains blessing-effect prototype IDs, one per god.
+    //   The 8B×N array contains timestamp data (8 bytes per blessing entry).
+    //   Confirmed: Slot0177 SAR#13/14 — bsIds 0x48E9/0x48EA — N grew from 5→7 at Slot0174→0177.
+    //
+    // Curse pair (PcCurseIdx bit 137 + PcCurseTsIdx bit 138):
+    //   Second occurrence of a consecutive 4:M:2 + 8:M:2 pair.
+    //   Confirmed: Slot0177 SAR#16/17 — bsIds 0x2AA3/0x48E2 — M=2 (2 gods' curses), values [67,53].
+    //
+    // Schematics (PcSchematicsFoundIdx bit 142):
+    //   Standalone 4:K:2 in extended scan whose first INT32 value exceeds 1000 (tech proto ID range)
+    //   and is NOT immediately followed by a matching 8:K:2 SAR.
+    //   Confirmed: Slot0177 SAR#19 — bsId=0x5228 — K=4 values [5090,4810,4010,5410].
+    private const int BlessingTsElementSize = 8; // each blessing/curse timestamp entry is 8 bytes in v2 format
+
+    // Rumors SAR (PC field bit 140 — PcRumorIdx): 8-byte elements × variable eCnt, bcCnt=39.
+    // eCnt grows as the player learns new rumors (0 at start, ~60+ at end-game).
+    // Absent in early saves; first appears around level 10 when the player enters populated areas.
+    // Session-independent structural fingerprint: eSize=8, bcCnt=39.
+    // Confirmed across sessions and slot range 0033–0120.
+    private const int RumorsSarElementSize = 8;
+    private const int RumorsSarBitsetWords = 39;
 
     // ── Public state ──────────────────────────────────────────────────────────
 
@@ -227,8 +291,289 @@ public sealed record CharacterMdyRecord
     internal int FatigueDamageDataOffset { get; init; } = -1;
 
     /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of element [0] in the active-effects SAR
+    /// (bsId=0x49FC, INT32[n]).  −1 when absent.
+    /// </summary>
+    internal int EffectsDataOffset { get; init; } = -1;
+
+    /// <summary>Number of elements in the active-effects SAR (bsId=0x49FC).  0 when absent.</summary>
+    internal int EffectsElementCount { get; init; }
+
+    /// <summary>
+    /// Active effect prototype IDs (bsId=0x49FC).  Each element is a prototype ID of an
+    /// effect currently applied to this character.  Returns <see langword="null"/> when
+    /// the SAR is absent (no active effects).
+    /// </summary>
+    public int[]? Effects => EffectsDataOffset >= 0 ? ReadInts(RawBytes, EffectsDataOffset, EffectsElementCount) : null;
+
+    /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of element [0] in the effect-causes SAR
+    /// (bsId=0x49FD, INT32[n]).  −1 when absent.  Parallel to <see cref="Effects"/>.
+    /// </summary>
+    internal int EffectCausesDataOffset { get; init; } = -1;
+
+    /// <summary>Number of elements in the effect-causes SAR (bsId=0x49FD).  0 when absent.</summary>
+    internal int EffectCausesElementCount { get; init; }
+
+    /// <summary>
+    /// Effect-cause IDs parallel to <see cref="Effects"/> (bsId=0x49FD).
+    /// Returns <see langword="null"/> when the SAR is absent.
+    /// </summary>
+    public int[]? EffectCauses =>
+        EffectCausesDataOffset >= 0 ? ReadInts(RawBytes, EffectCausesDataOffset, EffectCausesElementCount) : null;
+
+    /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of the first byte of the rumors SAR element data.
+    /// Identified by structural fingerprint: eSize=8, bcCnt=<see cref="RumorsSarBitsetWords"/> (39).
+    /// −1 when absent (early saves before the PC has entered populated areas).
+    /// </summary>
+    internal int RumorsDataOffset { get; init; } = -1;
+
+    /// <summary>Number of rumor entries (eCnt in the rumors SAR).  0 when absent.</summary>
+    public int RumorsCount { get; init; }
+
+    /// <summary>
+    /// Raw rumor data (PC field bit 140, PcRumorIdx), or <see langword="null"/> when absent.
+    /// Each entry is exactly <see cref="RumorsSarElementSize"/> (8) bytes.
+    /// eCnt grows as the player learns new rumors.
+    /// </summary>
+    public byte[]? RumorsRaw =>
+        RumorsDataOffset >= 0 ? RawBytes.AsSpan(RumorsDataOffset, RumorsCount * RumorsSarElementSize).ToArray() : null;
+
+    /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of the first byte of quest-log entry data.
+    /// Identified by structural fingerprint: eSize=16, bsCnt=<see cref="QuestSarBitsetWords"/> (37).
+    /// −1 when absent.
+    /// </summary>
+    internal int QuestDataOffset { get; init; } = -1;
+
+    /// <summary>Number of quest-log entries (eCnt in the quest SAR).  0 when absent.</summary>
+    public int QuestCount { get; init; }
+
+    /// <summary>
+    /// Raw quest-log entry data, or <see langword="null"/> when absent.
+    /// Each entry is exactly <see cref="QuestSarElementSize"/> (16) bytes.
+    /// The quest-slot IDs are encoded in the bitset — see <see cref="QuestBitsetRaw"/>.
+    /// </summary>
+    public byte[]? QuestDataRaw =>
+        QuestDataOffset >= 0 ? RawBytes.AsSpan(QuestDataOffset, QuestCount * QuestSarElementSize).ToArray() : null;
+
+    /// <summary>
+    /// The 37-word bitset that follows the quest-log data, or <see langword="null"/> when absent.
+    /// Bit N (0-indexed across all 37 words, LSB-first within each word) is set when Arcanum
+    /// quest-slot N has a live entry in the log.  The Nth set bit corresponds to the Nth
+    /// 16-byte entry in <see cref="QuestDataRaw"/>.
+    /// </summary>
+    public int[]? QuestBitsetRaw
+    {
+        get
+        {
+            if (QuestDataOffset < 0)
+                return null;
+            // Quest SAR layout: ...data[eCnt*16] + bsCnt(4B) + bitset[bsCnt*4B]
+            // +4 skips the bsCnt field to reach the first bitset word.
+            var bitsetOff = QuestDataOffset + QuestCount * QuestSarElementSize + 4;
+            if (bitsetOff + QuestSarBitsetWords * 4 > RawBytes.Length)
+                return null;
+            return ReadInts(RawBytes, bitsetOff, QuestSarBitsetWords);
+        }
+    }
+
+    /// <summary>
+    /// Decodes the quest bitset into the list of quest proto IDs (slot indices) for which
+    /// log entries exist, in ascending order.  Returns <see langword="null"/> when no quest
+    /// SAR is present.  Each returned ID is a bit index in <see cref="QuestBitsetRaw"/>.
+    /// In Arcanum, quest proto IDs start at 1000 (quests.mes).
+    /// </summary>
+    public int[]? QuestActiveIds
+    {
+        get
+        {
+            var bits = QuestBitsetRaw;
+            if (bits is null)
+                return null;
+            var ids = new List<int>(QuestCount);
+            for (int wi = 0; wi < bits.Length; wi++)
+            {
+                uint word = (uint)bits[wi];
+                for (int bi = 0; bi < 32; bi++)
+                    if ((word & (1u << bi)) != 0)
+                        ids.Add(wi * 32 + bi);
+            }
+            return ids.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Decoded quest entries.  Returns <see langword="null"/> when the quest SAR is absent.
+    /// Each entry pairs a quest proto ID (from the bitset) with its 16-byte header:
+    /// INT32[0] = donor/context proto ID, INT32[1] = game-tick timestamp, INT32[2] = state,
+    /// INT32[3] = 0 (reserved).  Observed low bits: 0x01=active/triggered,
+    /// 0x02=primary-complete, 0x04=secondary-complete. Late-game saves also use 0x100.
+    /// </summary>
+    public IReadOnlyList<(int ProtoId, int Context, int Timestamp, int State)>? QuestEntries
+    {
+        get
+        {
+            var ids = QuestActiveIds;
+            var data = QuestDataRaw;
+            if (ids is null || data is null || ids.Length != QuestCount)
+                return null;
+            var result = new (int, int, int, int)[QuestCount];
+            for (int i = 0; i < QuestCount; i++)
+            {
+                int off = i * QuestSarElementSize;
+                int context = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off, 4));
+                int timestamp = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off + 4, 4));
+                int state = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off + 8, 4));
+                result[i] = (ids[i], context, timestamp, state);
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of the first element of the reputation SAR.
+    /// Identified by structural fingerprint: eSize=4, eCnt=19, bsCnt=3.
+    /// −1 when absent (early saves before the PC has interacted with any faction).
+    /// </summary>
+    internal int ReputationDataOffset { get; init; } = -1;
+
+    /// <summary>
+    /// Raw 19-element faction-reputation array (PC field bit 130, PcReputationIdx),
+    /// or <see langword="null"/> when absent.
+    /// Identified by structural fingerprint: eSize=4, eCnt=19, bsCnt=3.
+    /// The bsId varies per game session.
+    /// </summary>
+    public int[]? ReputationRaw =>
+        ReputationDataOffset >= 0 ? ReadInts(RawBytes, ReputationDataOffset, ReputationSarElementCount) : null;
+
+    /// <summary>
+    /// Decoded faction slot indices for the reputation SAR (the bitset set-bit positions).
+    /// Element i of <see cref="ReputationRaw"/> corresponds to faction-slot <c>ReputationFactionSlots[i]</c>.
+    /// Slot layout (from Slot0177/0178 RE): slots 0–12 = 13 main factions;
+    /// slots 64–69 = 6 additional factions (total 19).
+    /// Returns <see langword="null"/> when no reputation SAR is present.
+    /// </summary>
+    public int[]? ReputationFactionSlots
+    {
+        get
+        {
+            if (ReputationDataOffset < 0)
+                return null;
+            // SAR layout from header offset (ReputationDataOffset - 13):
+            // 1B presence + 4B eSize + 4B eCnt + 4B bsId + eCnt*4B data + 4B bsCnt + bsCnt*4B bitset
+            // bsCnt = 3 for reputation SAR.
+            int dataEnd = ReputationDataOffset + ReputationSarElementCount * 4;
+            int bsCntOff = dataEnd; // bsCnt field
+            if (bsCntOff + 4 > RawBytes.Length)
+                return null;
+            int bsCnt = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(bsCntOff, 4));
+            if (bsCnt <= 0 || bsCntOff + 4 + bsCnt * 4 > RawBytes.Length)
+                return null;
+            var slots = new List<int>(ReputationSarElementCount);
+            for (int wi = 0; wi < bsCnt; wi++)
+            {
+                uint word = BinaryPrimitives.ReadUInt32LittleEndian(RawBytes.AsSpan(bsCntOff + 4 + wi * 4, 4));
+                for (int bi = 0; bi < 32; bi++)
+                    if ((word & (1u << bi)) != 0)
+                        slots.Add(wi * 32 + bi);
+            }
+            return slots.Count == ReputationSarElementCount ? slots.ToArray() : null;
+        }
+    }
+
+    // ── Blessing / Curse / Schematics offsets (session 12 findings) ──────────
+
+    /// <summary>
+    /// Byte offset of element [0] of the blessing-prototype-ID array (PcBlessingIdx, bit 135).
+    /// Identified by: first 4:N:2 + 8:N:2 consecutive pair in the post-stat extended scan.
+    /// −1 when absent (character has not received any divine blessing).
+    /// </summary>
+    internal int BlessingProtoDataOffset { get; init; } = -1;
+
+    /// <summary>Number of blessing entries (N in 4:N:2 + 8:N:2 pair).  0 when absent.</summary>
+    public int BlessingProtoElementCount { get; init; }
+
+    /// <summary>
+    /// Byte offset of element [0] of the blessing-timestamp array (PcBlessingTsIdx, bit 136).
+    /// Each entry is <see cref="BlessingTsElementSize"/> (8) bytes.
+    /// −1 when absent.
+    /// </summary>
+    internal int BlessingTsDataOffset { get; init; } = -1;
+
+    /// <summary>
+    /// Byte offset of element [0] of the curse-prototype-ID array (PcCurseIdx, bit 137).
+    /// Identified by: second 4:M:2 + 8:M:2 consecutive pair in the post-stat extended scan.
+    /// −1 when absent (character has not been cursed by any god).
+    /// </summary>
+    internal int CurseProtoDataOffset { get; init; } = -1;
+
+    /// <summary>Number of curse entries (M in 4:M:2 + 8:M:2 pair).  0 when absent.</summary>
+    public int CurseProtoElementCount { get; init; }
+
+    /// <summary>
+    /// Byte offset of element [0] of the curse-timestamp array (PcCurseTsIdx, bit 138).
+    /// Each entry is <see cref="BlessingTsElementSize"/> (8) bytes.
+    /// −1 when absent.
+    /// </summary>
+    internal int CurseTsDataOffset { get; init; } = -1;
+
+    /// <summary>
+    /// Byte offset of element [0] of the schematics-found prototype-ID array (PcSchematicsFoundIdx, bit 142).
+    /// Identified by: standalone 4:K:2 in post-stat scan whose first value exceeds 1000 (tech proto ID range).
+    /// −1 when absent (character found no tech schematics — typical for pure magic builds).
+    /// </summary>
+    internal int SchematicsDataOffset { get; init; } = -1;
+
+    /// <summary>Number of schematics entries (K).  0 when absent.</summary>
+    public int SchematicsElementCount { get; init; }
+
+    /// <summary>
+    /// Divine blessing prototype IDs (PcBlessingIdx, bit 135), one per god who blessed this character.
+    /// Returns <see langword="null"/> when the character has received no blessings.
+    /// </summary>
+    public int[]? BlessingRaw =>
+        BlessingProtoDataOffset >= 0 ? ReadInts(RawBytes, BlessingProtoDataOffset, BlessingProtoElementCount) : null;
+
+    /// <summary>
+    /// Raw blessing timestamp data (PcBlessingTsIdx, bit 136): 8 bytes per blessing entry,
+    /// parallel to <see cref="BlessingRaw"/>.
+    /// Returns <see langword="null"/> when absent.
+    /// </summary>
+    public byte[]? BlessingTsRaw =>
+        BlessingTsDataOffset >= 0
+            ? RawBytes.AsSpan(BlessingTsDataOffset, BlessingProtoElementCount * BlessingTsElementSize).ToArray()
+            : null;
+
+    /// <summary>
+    /// Divine curse prototype IDs (PcCurseIdx, bit 137), one per god who cursed this character.
+    /// Returns <see langword="null"/> when the character has no active curses.
+    /// </summary>
+    public int[]? CurseRaw =>
+        CurseProtoDataOffset >= 0 ? ReadInts(RawBytes, CurseProtoDataOffset, CurseProtoElementCount) : null;
+
+    /// <summary>
+    /// Raw curse timestamp data (PcCurseTsIdx, bit 138): 8 bytes per curse entry,
+    /// parallel to <see cref="CurseRaw"/>.
+    /// Returns <see langword="null"/> when absent.
+    /// </summary>
+    public byte[]? CurseTsRaw =>
+        CurseTsDataOffset >= 0
+            ? RawBytes.AsSpan(CurseTsDataOffset, CurseProtoElementCount * BlessingTsElementSize).ToArray()
+            : null;
+
+    /// <summary>
+    /// Tech schematic prototype IDs found by this character (PcSchematicsFoundIdx, bit 142).
+    /// Returns <see langword="null"/> when the character has found no tech schematics
+    /// (typical for pure magic builds).
+    /// </summary>
+    public int[]? SchematicsRaw =>
+        SchematicsDataOffset >= 0 ? ReadInts(RawBytes, SchematicsDataOffset, SchematicsElementCount) : null;
+
+    /// <summary>
     /// Raw four-element Fatigue SAR values (bsId=0x423E), or null when absent.
-    /// Element [2] is the fatigue damage — set to reduce displayed Fatigue.
+    /// /// Element [2] is the fatigue damage — set to reduce displayed Fatigue.
     /// </summary>
     public int[]? FatigueDamageRaw =>
         FatigueDamageDataOffset >= 0 ? ReadInts(RawBytes, FatigueDamageDataOffset, 4) : null;
@@ -236,480 +581,39 @@ public sealed record CharacterMdyRecord
     /// <summary>Fatigue damage taken from bsId=0x423E element [2].  0 when at full fatigue or SAR absent.</summary>
     public int FatigueDamage => FatigueDamageRaw is { } r ? r[2] : 0;
 
-    // ── Parsing ───────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Byte offset within <see cref="RawBytes"/> of element [11] (Bullets) in the
+    /// 12-or-13-element game-statistics SAR (bsId=0x4D68).  −1 when absent (magic chars or SAR not found).
+    /// </summary>
+    internal int BulletsDataOffset { get; init; } = -1;
 
     /// <summary>
-    /// Parses a v2 character record starting at the beginning of <paramref name="span"/>.
-    /// <paramref name="span"/> must start at the first byte of <see cref="V2Magic"/>.
+    /// The player's current bullet count (bsId=0x4D68[11]).
+    /// Returns 0 when the element is absent (magic-focused characters have no Bullets slot).
     /// </summary>
-    /// <param name="span">Bytes starting at the v2 magic.</param>
-    /// <param name="consumed">Number of bytes consumed from <paramref name="span"/>.</param>
-    /// <returns>The decoded record.</returns>
-    /// <exception cref="InvalidDataException">
-    /// Thrown when the mandatory stats SAR cannot be located within
-    /// <see cref="MaxScanDistance"/> bytes of the magic header.
-    /// </exception>
-    public static CharacterMdyRecord Parse(ReadOnlySpan<byte> span, out int consumed)
-    {
-        // ── Pre-stat scan: locate specific SARs that sit before the stat SAR.
-        // bsId=0x4DA3 (INT32[3]): position / AI-controller data (CurrentAid, Location, OffsetX).
-        // bsId=0x4046 (INT32[4]): HP-damage SAR — all zeros at full health.
-        var positionAiDataOffset = -1;
-        var hpDamageDataOffset = -1;
-
-        // Mandatory: stats SAR (28 × int32), searched within the first 12 + MaxScanDistance bytes.
-        var statOff = FindSar(span, 12, span.Length, StatSig);
-        if (statOff < 0)
-            throw new InvalidDataException("v2 character record: stats SAR not found within scan range");
-
-        var statsDataOff = statOff + SarHeaderSize;
-        if (statsDataOff + 28 * 4 > span.Length)
-            throw new InvalidDataException("v2 character record: stats SAR data extends beyond available bytes");
-
-        var stats = ReadInts(span, statsDataOff, 28);
-        var end = SarEnd(span, statOff, 28);
-
-        // Scan pre-stat region for bsId=0x4DA3 (INT32[3], position/AI data).
-        ReadOnlySpan<byte> posAiSig = [0x04, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0xA3, 0x4D, 0x00, 0x00];
-        var posAiOff = FindSar(span, 12, statOff, posAiSig);
-        if (posAiOff >= 0 && posAiOff + SarHeaderSize + 3 * 4 <= span.Length)
-            positionAiDataOffset = posAiOff + SarHeaderSize;
-
-        // Scan pre-stat region for bsId=0x4046 (INT32[4], HP SAR: [AcBonus,HpPtsBonus,HpAdj,HpDamage]).
-        ReadOnlySpan<byte> hpDmgSig = [0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x46, 0x40, 0x00, 0x00];
-        var hpDmgOff = FindSar(span, 12, statOff, hpDmgSig);
-        if (hpDmgOff >= 0 && hpDmgOff + SarHeaderSize + 4 * 4 <= span.Length)
-            hpDamageDataOffset = hpDmgOff + SarHeaderSize;
-
-        // Scan pre-stat region for bsId=0x423E (INT32[4], Fatigue SAR: [FatiguePtsBonus,FatigueAdj,FatigueDamage,?]).
-        ReadOnlySpan<byte> fatSig = [0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x3E, 0x42, 0x00, 0x00];
-        var fatOff = FindSar(span, 12, statOff, fatSig);
-        var fatigueDamageDataOffset =
-            fatOff >= 0 && fatOff + SarHeaderSize + 4 * 4 <= span.Length ? fatOff + SarHeaderSize : -1;
-
-        // Optional: basic skills, tech skills, spell/tech — each must follow the previous SAR.
-        int[] basicSkills = new int[12];
-        int[] techSkills = new int[4];
-        int[] spellTech = new int[25];
-        bool hasAll = false;
-
-        int basicDataOff = -1,
-            techDataOff = -1,
-            spellDataOff = -1;
-
-        var basicOff = FindSar(span, end, span.Length, BasicSkillSig);
-        if (basicOff >= 0)
-        {
-            basicDataOff = basicOff + SarHeaderSize;
-            basicSkills = ReadInts(span, basicDataOff, 12);
-            end = SarEnd(span, basicOff, 12);
-
-            var techOff = FindSar(span, end, span.Length, TechSkillSig);
-            if (techOff >= 0)
-            {
-                techDataOff = techOff + SarHeaderSize;
-                techSkills = ReadInts(span, techDataOff, 4);
-                end = SarEnd(span, techOff, 4);
-
-                var spellOff = FindSar(span, end, span.Length, SpellTechSig);
-                if (spellOff >= 0)
-                {
-                    spellDataOff = spellOff + SarHeaderSize;
-                    spellTech = ReadInts(span, spellDataOff, 25);
-                    end = SarEnd(span, spellOff, 25);
-                    hasAll = true;
-                }
-            }
-        }
-
-        // ── Extended scan: capture ALL remaining SAR fields in RawBytes ──────
-        // The four arrays above cover only the first part of a PC v2 record.
-        // Gold amount, inventory handles, quests, and other fields follow as
-        // generic SARs up to ~32 KB further.  Capturing them all ensures that
-        // RawBytes is complete and the writer never silently discards data when
-        // saving changes.
-        var goldDataOffset = -1;
-        var arrowsDataOffset = -1;
-        var totalKillsDataOffset = -1;
-        var portraitDataOffset = -1;
-        var nameLengthOffset = -1;
-        var scanPos = end;
-
-        // Cap the extended scan at the next v2 character record boundary.
-        // Without this, the extended scan of an NPC v2 record (e.g. LVL=10)
-        // would greedily consume all subsequent bytes — including the player's
-        // v2 record that follows it in the same mobile.mdy file — because the
-        // SAR scanner can match genuine SAR packets inside another record's data.
-        var nextMagicPos = -1;
-        for (var mp = end; mp + V2Magic.Length <= span.Length; mp++)
-        {
-            if (span.Slice(mp, V2Magic.Length).SequenceEqual(V2Magic))
-            {
-                nextMagicPos = mp;
-                break;
-            }
-        }
-
-        var extLimit = nextMagicPos >= 0 ? nextMagicPos : Math.Min(span.Length, end + 32768);
-        while (scanPos + SarHeaderSize <= extLimit)
-        {
-            var nextSar = FindAnySar(span, scanPos, extLimit);
-            if (nextSar < 0)
-                break;
-
-            var eSize = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(nextSar + 1, 4));
-            var eCnt = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(nextSar + 5, 4));
-            var bsId = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(nextSar + 9, 4));
-            var dataLen = eSize * eCnt;
-            var bcOff = nextSar + SarHeaderSize + dataLen;
-            if (bcOff + 4 > span.Length)
-                break;
-            var bsCnt = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(bcOff, 4));
-            if (bsCnt is < 0 or > 256)
-            {
-                // False positive — advance one byte past this candidate and retry.
-                scanPos = nextSar + 1;
-                continue;
-            }
-
-            var sarEnd2 = bcOff + 4 + bsCnt * 4;
-            if (sarEnd2 > extLimit)
-                break;
-
-            if (bsId == GoldAmountBsId && eSize == 4 && eCnt == 1)
-                goldDataOffset = nextSar + SarHeaderSize;
-
-            if (bsId == GameStatsBsId && eSize == 4 && eCnt == GameStatsElementCount)
-            {
-                totalKillsDataOffset = nextSar + SarHeaderSize + GameStatsTotalKillsIndex * 4;
-                arrowsDataOffset = nextSar + SarHeaderSize + GameStatsArrowsIndex * 4;
-            }
-
-            if (bsId == PortraitBsId && eSize == 4 && eCnt == PortraitElementCount)
-                portraitDataOffset = nextSar + SarHeaderSize + PortraitIndexElement * 4;
-
-            end = sarEnd2;
-            scanPos = sarEnd2;
-        }
-
-        // ── Post-SAR: scan for the non-SAR PC name field ──────────────────────
-        // Encoding: presence(1B)=0x01 + length(4B LE) + ascii_chars(length bytes).
-        // Presence byte 0x01 does NOT start a valid SAR here (elemSz would be the
-        // length field, which is typically 1-32 and not in {1,2,4,8,16,24} with a
-        // plausible SAR cnt).  We scan from `end` forward for the pattern.
-        if (nameLengthOffset < 0)
-        {
-            var nameSearchEnd = Math.Min(span.Length, end + 512);
-            for (var np = end; np + 5 <= nameSearchEnd; np++)
-            {
-                if (span[np] != 0x01)
-                    continue;
-                var nameLen = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(np + 1, 4));
-                if (nameLen is < 1 or > 64)
-                    continue;
-                if (np + 5 + nameLen > span.Length)
-                    continue;
-                // Verify all chars are printable ASCII
-                bool ok = true;
-                for (var nc = 0; nc < nameLen && ok; nc++)
-                {
-                    var c = span[np + 5 + nc];
-                    if (c < 0x20 || c > 0x7E)
-                        ok = false;
-                }
-                if (!ok)
-                    continue;
-                // Extend consumed to cover the name field so RawBytes includes it.
-                nameLengthOffset = np + 1;
-                end = np + 1 + 4 + nameLen;
-                break;
-            }
-        }
-
-        consumed = end;
-        return new CharacterMdyRecord
-        {
-            RawBytes = span[..consumed].ToArray(),
-            Stats = stats,
-            BasicSkills = basicSkills,
-            TechSkills = techSkills,
-            SpellTech = spellTech,
-            HasCompleteData = hasAll,
-            StatsDataOffset = statsDataOff,
-            BasicSkillsDataOffset = basicDataOff,
-            TechSkillsDataOffset = techDataOff,
-            SpellTechDataOffset = spellDataOff,
-            GoldDataOffset = goldDataOffset,
-            ArrowsDataOffset = arrowsDataOffset,
-            TotalKillsDataOffset = totalKillsDataOffset,
-            PortraitDataOffset = portraitDataOffset,
-            NameLengthOffset = nameLengthOffset,
-            PositionAiDataOffset = positionAiDataOffset,
-            HpDamageDataOffset = hpDamageDataOffset,
-            FatigueDamageDataOffset = fatigueDamageDataOffset,
-        };
-    }
-
-    // ── Patch methods ─────────────────────────────────────────────────────────
-
-    /// <summary>Returns a new record with the stats array replaced by <paramref name="stats"/>.</summary>
-    public CharacterMdyRecord WithStats(int[] stats)
-    {
-        var raw = PatchInts(RawBytes, StatsDataOffset, stats);
-        return this with { RawBytes = raw, Stats = stats };
-    }
-
-    /// <summary>Returns a new record with the basic skills array replaced by <paramref name="basicSkills"/>.</summary>
-    public CharacterMdyRecord WithBasicSkills(int[] basicSkills)
-    {
-        if (BasicSkillsDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, BasicSkillsDataOffset, basicSkills);
-        return this with { RawBytes = raw, BasicSkills = basicSkills };
-    }
-
-    /// <summary>Returns a new record with the tech skills array replaced by <paramref name="techSkills"/>.</summary>
-    public CharacterMdyRecord WithTechSkills(int[] techSkills)
-    {
-        if (TechSkillsDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, TechSkillsDataOffset, techSkills);
-        return this with { RawBytes = raw, TechSkills = techSkills };
-    }
-
-    /// <summary>Returns a new record with the spell / tech array replaced by <paramref name="spellTech"/>.</summary>
-    public CharacterMdyRecord WithSpellTech(int[] spellTech)
-    {
-        if (SpellTechDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, SpellTechDataOffset, spellTech);
-        return this with { RawBytes = raw, SpellTech = spellTech };
-    }
+    public int Bullets =>
+        BulletsDataOffset >= 0 ? BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(BulletsDataOffset, 4)) : 0;
 
     /// <summary>
-    /// Returns a new record with the gold amount set to <paramref name="gold"/>.
-    /// Returns this record unchanged when the gold SAR is absent.
+    /// Byte offset within <see cref="RawBytes"/> of element [12] (PowerCells) in the
+    /// 13-element game-statistics SAR (bsId=0x4D68).  −1 when absent.
     /// </summary>
-    public CharacterMdyRecord WithGold(int gold)
-    {
-        if (GoldDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(GoldDataOffset, 4), gold);
-        return this with { RawBytes = raw };
-    }
+    internal int PowerCellsDataOffset { get; init; } = -1;
 
     /// <summary>
-    /// Returns a new record with the arrow count set to <paramref name="arrows"/>.
-    /// Returns this record unchanged when the game-statistics SAR is absent.
+    /// The player's current power-cell count (bsId=0x4D68[12]).
+    /// Returns 0 when the element is absent.
     /// </summary>
-    public CharacterMdyRecord WithArrows(int arrows)
-    {
-        if (ArrowsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(ArrowsDataOffset, 4), arrows);
-        return this with { RawBytes = raw };
-    }
+    public int PowerCells =>
+        PowerCellsDataOffset >= 0
+            ? BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(PowerCellsDataOffset, 4))
+            : 0;
 
-    /// <summary>
-    /// Returns a new record with the portrait index set to <paramref name="portraitIndex"/>.
-    /// Returns this record unchanged when the portrait SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithPortraitIndex(int portraitIndex)
-    {
-        if (PortraitDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(PortraitDataOffset, 4), portraitIndex);
-        return this with { RawBytes = raw };
-    }
+    // Parsing members are defined in the companion partial file.
 
-    /// <summary>
-    /// Returns a new record with the max-followers computed value set to <paramref name="maxFollowers"/>
-    /// (bsId=0x4DA4[0]).
-    /// Returns this record unchanged when the portrait SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithMaxFollowers(int maxFollowers)
-    {
-        var off = MaxFollowersDataOffset;
-        if (off < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(off, 4), maxFollowers);
-        return this with { RawBytes = raw };
-    }
-
-    /// <summary>
-    /// Returns a new record with the total kill count set to <paramref name="totalKills"/>.
-    /// Returns this record unchanged when the game-statistics SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithTotalKills(int totalKills)
-    {
-        if (TotalKillsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(TotalKillsDataOffset, 4), totalKills);
-        return this with { RawBytes = raw };
-    }
-
-    /// <summary>
-    /// Returns a new record with the three position / AI SAR values replaced (bsId=0x4DA3).
-    /// <paramref name="values"/> must have exactly 3 elements.
-    /// Returns this record unchanged when the SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithPositionAi(int[] values)
-    {
-        if (PositionAiDataOffset < 0 || values.Length != 3)
-            return this;
-        var raw = PatchInts(RawBytes, PositionAiDataOffset, values);
-        return this with { RawBytes = raw };
-    }
-
-    /// <summary>
-    /// Returns a new record with the HP SAR values replaced (bsId=0x4046).
-    /// <paramref name="values"/> must have exactly 4 elements: [AcBonus, HpPtsBonus, HpAdj, HpDamage].
-    /// Returns this record unchanged when the SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithHpDamage(int[] values)
-    {
-        if (HpDamageDataOffset < 0 || values.Length != 4)
-            return this;
-        var raw = PatchInts(RawBytes, HpDamageDataOffset, values);
-        return this with { RawBytes = raw };
-    }
-
-    /// <summary>
-    /// Returns a new record with only element [3] (HpDamage) changed in the HP SAR.
-    /// <paramref name="damage"/> is the HP damage taken; set to 0 to fully heal.
-    /// Returns this record unchanged when the SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithHpDamageValue(int damage)
-    {
-        var cur = HpDamageRaw;
-        if (cur is null)
-            return this;
-        return WithHpDamage([cur[0], cur[1], cur[2], damage]);
-    }
-
-    /// <summary>
-    /// Returns a new record with the Fatigue SAR values replaced (bsId=0x423E).
-    /// <paramref name="values"/> must have exactly 4 elements: [FatiguePtsBonus, FatigueAdj, FatigueDamage, ?].
-    /// Returns this record unchanged when the SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithFatigueDamage(int[] values)
-    {
-        if (FatigueDamageDataOffset < 0 || values.Length != 4)
-            return this;
-        var raw = PatchInts(RawBytes, FatigueDamageDataOffset, values);
-        return this with { RawBytes = raw };
-    }
-
-    /// <summary>
-    /// Returns a new record with only element [2] (FatigueDamage) changed in the Fatigue SAR.
-    /// Returns this record unchanged when the SAR is absent.
-    /// </summary>
-    public CharacterMdyRecord WithFatigueDamageValue(int damage)
-    {
-        var cur = FatigueDamageRaw;
-        if (cur is null)
-            return this;
-        return WithFatigueDamage([cur[0], cur[1], damage, cur[3]]);
-    }
-
-    /// <summary>
-    /// Returns a new record with the PC name replaced by <paramref name="newName"/>.
-    /// The name field uses a variable-length encoding (<c>0x01 [uint32_len] [ascii_chars]</c>),
-    /// so <see cref="RawBytes"/> is resized accordingly.
-    /// Returns this record unchanged when the name field is absent or
-    /// <paramref name="newName"/> is <see langword="null"/>.
-    /// </summary>
-    public CharacterMdyRecord WithName(string? newName)
-    {
-        if (newName is null || NameLengthOffset < 0)
-            return this;
-
-        var oldLen = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(NameLengthOffset, 4));
-        var newEncoded = System.Text.Encoding.ASCII.GetBytes(newName);
-        var oldEnd = NameLengthOffset + 4 + oldLen;
-
-        var newRaw = new byte[RawBytes.Length - oldLen + newEncoded.Length];
-        // Copy everything up to and including the presence byte (NameLengthOffset - 1).
-        RawBytes.AsSpan(0, NameLengthOffset).CopyTo(newRaw);
-        // Write the new length and the new chars.
-        BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(NameLengthOffset, 4), newEncoded.Length);
-        newEncoded.CopyTo(newRaw.AsSpan(NameLengthOffset + 4));
-        // Copy any bytes that follow the old name field.
-        RawBytes.AsSpan(oldEnd).CopyTo(newRaw.AsSpan(NameLengthOffset + 4 + newEncoded.Length));
-
-        // All SAR data offsets precede the name field and remain valid.
-        return this with
-        {
-            RawBytes = newRaw,
-            NameLengthOffset = NameLengthOffset,
-        };
-    }
+    // Mutation members are defined in the companion partial file.
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Scans forward from <paramref name="from"/> looking for a byte with value 0x01
-    /// (presence flag) immediately followed by <paramref name="sig"/>
-    /// (elemSz + elemCnt as 8 LE bytes).
-    /// </summary>
-    private static int FindSar(ReadOnlySpan<byte> data, int from, int limit, ReadOnlySpan<byte> sig)
-    {
-        var end = Math.Min(limit, from + MaxScanDistance);
-        for (var i = from; i + SarHeaderSize <= end; i++)
-        {
-            if (data[i] != 0x01)
-                continue;
-            if (i + 1 + sig.Length > data.Length)
-                break;
-            if (data.Slice(i + 1, sig.Length).SequenceEqual(sig))
-                return i;
-        }
-        return -1;
-    }
-
-    /// <summary>
-    /// Scans forward from <paramref name="from"/> up to <paramref name="limit"/> looking
-    /// for any plausible generic SAR header: presence=0x01, elemSz in {1,2,4,8,16},
-    /// elemCnt in [1,512].  Returns the offset of the first match, or −1.
-    /// </summary>
-    private static int FindAnySar(ReadOnlySpan<byte> data, int from, int limit)
-    {
-        for (var i = from; i + SarHeaderSize <= limit; i++)
-        {
-            if (data[i] != 0x01)
-                continue;
-            if (i + SarHeaderSize > data.Length)
-                break;
-            var eSize = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(i + 1, 4));
-            if (eSize is not (1 or 2 or 4 or 8 or 16))
-                continue;
-            var eCnt = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(i + 5, 4));
-            if (eCnt is < 1 or > 512)
-                continue;
-            var dataLen = eSize * eCnt;
-            if (i + SarHeaderSize + dataLen + 4 > data.Length)
-                continue;
-            return i;
-        }
-        return -1;
-    }
-
-    /// <summary>Returns the byte offset immediately after the end of a SAR packet.</summary>
-    private static int SarEnd(ReadOnlySpan<byte> data, int sarOff, int elemCount)
-    {
-        var bcOff = sarOff + SarHeaderSize + elemCount * 4;
-        if (bcOff + 4 > data.Length)
-            return bcOff;
-        var bc = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(bcOff, 4));
-        if (bc is < 0 or > 256)
-            bc = 0;
-        return bcOff + 4 + bc * 4;
-    }
 
     private static int[] ReadInts(ReadOnlySpan<byte> data, int off, int count)
     {
