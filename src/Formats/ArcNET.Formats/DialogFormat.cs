@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 using Bia.ValueBuffers;
 
@@ -166,14 +165,11 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
     }
 
     /// <inheritdoc/>
-    public static DlgFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static DlgFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<DialogFormat, DlgFile>(memory);
 
     /// <inheritdoc/>
-    public static DlgFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static DlgFile ParseFile(string path) => FormatIo.ParseFile<DialogFormat, DlgFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in DlgFile value, ref SpanWriter writer)
@@ -210,14 +206,9 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in DlgFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in DlgFile value) => FormatIo.WriteToArray<DialogFormat, DlgFile>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in DlgFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in DlgFile value, string path) =>
+        FormatIo.WriteToFile<DialogFormat, DlgFile>(in value, path);
 }

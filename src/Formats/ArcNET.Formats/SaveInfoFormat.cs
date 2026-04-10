@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -110,14 +109,11 @@ public sealed class SaveInfoFormat : IFormatFileReader<SaveInfo>, IFormatFileWri
     }
 
     /// <inheritdoc/>
-    public static SaveInfo ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static SaveInfo ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<SaveInfoFormat, SaveInfo>(memory);
 
     /// <inheritdoc/>
-    public static SaveInfo ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static SaveInfo ParseFile(string path) => FormatIo.ParseFile<SaveInfoFormat, SaveInfo>(path);
 
     /// <inheritdoc/>
     public static void Write(in SaveInfo value, ref SpanWriter writer)
@@ -147,14 +143,9 @@ public sealed class SaveInfoFormat : IFormatFileReader<SaveInfo>, IFormatFileWri
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in SaveInfo value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in SaveInfo value) => FormatIo.WriteToArray<SaveInfoFormat, SaveInfo>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in SaveInfo value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in SaveInfo value, string path) =>
+        FormatIo.WriteToFile<SaveInfoFormat, SaveInfo>(in value, path);
 }

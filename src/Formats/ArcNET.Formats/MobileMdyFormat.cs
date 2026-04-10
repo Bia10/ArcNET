@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -138,14 +137,11 @@ public sealed class MobileMdyFormat : IFormatFileReader<MobileMdyFile>, IFormatF
     }
 
     /// <inheritdoc/>
-    public static MobileMdyFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static MobileMdyFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<MobileMdyFormat, MobileMdyFile>(memory);
 
     /// <inheritdoc/>
-    public static MobileMdyFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static MobileMdyFile ParseFile(string path) => FormatIo.ParseFile<MobileMdyFormat, MobileMdyFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in MobileMdyFile value, ref SpanWriter writer)
@@ -166,15 +162,10 @@ public sealed class MobileMdyFormat : IFormatFileReader<MobileMdyFile>, IFormatF
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in MobileMdyFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in MobileMdyFile value) =>
+        FormatIo.WriteToArray<MobileMdyFormat, MobileMdyFile>(in value);
 
     /// <inheritdoc/>
     public static void WriteToFile(in MobileMdyFile value, string path) =>
-        File.WriteAllBytes(path, WriteToArray(in value));
+        FormatIo.WriteToFile<MobileMdyFormat, MobileMdyFile>(in value, path);
 }

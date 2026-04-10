@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 using Bia.ValueBuffers;
 
@@ -43,14 +42,11 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
     }
 
     /// <inheritdoc/>
-    public static MesFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static MesFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<MessageFormat, MesFile>(memory);
 
     /// <inheritdoc/>
-    public static MesFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static MesFile ParseFile(string path) => FormatIo.ParseFile<MessageFormat, MesFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in MesFile value, ref SpanWriter writer)
@@ -60,16 +56,11 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in MesFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in MesFile value) => FormatIo.WriteToArray<MessageFormat, MesFile>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in MesFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in MesFile value, string path) =>
+        FormatIo.WriteToFile<MessageFormat, MesFile>(in value, path);
 
     // ── Legacy overloads kept for backward compatibility ──────────────────────
 

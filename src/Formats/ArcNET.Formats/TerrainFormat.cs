@@ -134,14 +134,11 @@ public sealed class TerrainFormat : IFormatFileReader<TerrainData>, IFormatFileW
     }
 
     /// <inheritdoc/>
-    public static TerrainData ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static TerrainData ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<TerrainFormat, TerrainData>(memory);
 
     /// <inheritdoc/>
-    public static TerrainData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static TerrainData ParseFile(string path) => FormatIo.ParseFile<TerrainFormat, TerrainData>(path);
 
     /// <inheritdoc/>
     public static void Write(in TerrainData value, ref SpanWriter writer)
@@ -195,15 +192,10 @@ public sealed class TerrainFormat : IFormatFileReader<TerrainData>, IFormatFileW
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in TerrainData value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in TerrainData value) =>
+        FormatIo.WriteToArray<TerrainFormat, TerrainData>(in value);
 
     /// <inheritdoc/>
     public static void WriteToFile(in TerrainData value, string path) =>
-        File.WriteAllBytes(path, WriteToArray(in value));
+        FormatIo.WriteToFile<TerrainFormat, TerrainData>(in value, path);
 }

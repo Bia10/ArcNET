@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using ArcNET.Core;
@@ -140,14 +139,11 @@ public sealed class ScriptFormat : IFormatFileReader<ScrFile>, IFormatFileWriter
     }
 
     /// <inheritdoc/>
-    public static ScrFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static ScrFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<ScriptFormat, ScrFile>(memory);
 
     /// <inheritdoc/>
-    public static ScrFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static ScrFile ParseFile(string path) => FormatIo.ParseFile<ScriptFormat, ScrFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in ScrFile value, ref SpanWriter writer)
@@ -195,14 +191,9 @@ public sealed class ScriptFormat : IFormatFileReader<ScrFile>, IFormatFileWriter
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in ScrFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in ScrFile value) => FormatIo.WriteToArray<ScriptFormat, ScrFile>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in ScrFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in ScrFile value, string path) =>
+        FormatIo.WriteToFile<ScriptFormat, ScrFile>(in value, path);
 }

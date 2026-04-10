@@ -37,14 +37,10 @@ public sealed class MobFormat : IFormatFileReader<MobData>, IFormatFileWriter<Mo
     }
 
     /// <inheritdoc/>
-    public static MobData ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static MobData ParseMemory(ReadOnlyMemory<byte> memory) => FormatIo.ParseMemory<MobFormat, MobData>(memory);
 
     /// <inheritdoc/>
-    public static MobData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static MobData ParseFile(string path) => FormatIo.ParseFile<MobFormat, MobData>(path);
 
     /// <inheritdoc/>
     public static void Write(in MobData value, ref SpanWriter writer)
@@ -68,14 +64,9 @@ public sealed class MobFormat : IFormatFileReader<MobData>, IFormatFileWriter<Mo
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in MobData value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in MobData value) => FormatIo.WriteToArray<MobFormat, MobData>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in MobData value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in MobData value, string path) =>
+        FormatIo.WriteToFile<MobFormat, MobData>(in value, path);
 }

@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -98,14 +97,11 @@ public sealed class SaveIndexFormat : IFormatFileReader<SaveIndex>, IFormatFileW
     }
 
     /// <inheritdoc/>
-    public static SaveIndex ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static SaveIndex ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<SaveIndexFormat, SaveIndex>(memory);
 
     /// <inheritdoc/>
-    public static SaveIndex ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static SaveIndex ParseFile(string path) => FormatIo.ParseFile<SaveIndexFormat, SaveIndex>(path);
 
     /// <inheritdoc/>
     public static void Write(in SaveIndex value, ref SpanWriter writer)
@@ -144,14 +140,10 @@ public sealed class SaveIndexFormat : IFormatFileReader<SaveIndex>, IFormatFileW
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in SaveIndex value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in SaveIndex value) =>
+        FormatIo.WriteToArray<SaveIndexFormat, SaveIndex>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in SaveIndex value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in SaveIndex value, string path) =>
+        FormatIo.WriteToFile<SaveIndexFormat, SaveIndex>(in value, path);
 }

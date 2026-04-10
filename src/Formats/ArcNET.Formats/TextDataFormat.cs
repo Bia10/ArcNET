@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 using Bia.ValueBuffers;
 
@@ -46,14 +45,11 @@ public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFil
     }
 
     /// <inheritdoc/>
-    public static TextDataFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static TextDataFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<TextDataFormat, TextDataFile>(memory);
 
     /// <inheritdoc/>
-    public static TextDataFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static TextDataFile ParseFile(string path) => FormatIo.ParseFile<TextDataFormat, TextDataFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in TextDataFile value, ref SpanWriter writer)
@@ -71,17 +67,12 @@ public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFil
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in TextDataFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        Write(in value, ref w);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in TextDataFile value) =>
+        FormatIo.WriteToArray<TextDataFormat, TextDataFile>(in value);
 
     /// <inheritdoc/>
     public static void WriteToFile(in TextDataFile value, string path) =>
-        File.WriteAllBytes(path, WriteToArray(in value));
+        FormatIo.WriteToFile<TextDataFormat, TextDataFile>(in value, path);
 
     /// <summary>Parses all non-empty, non-comment key-value pairs from the given lines.</summary>
     public static IReadOnlyList<TextDataEntry> ParseLines(IEnumerable<string> lines)

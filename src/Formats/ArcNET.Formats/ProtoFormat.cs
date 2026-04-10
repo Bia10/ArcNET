@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
@@ -42,14 +41,11 @@ public sealed class ProtoFormat : IFormatFileReader<ProtoData>, IFormatFileWrite
     }
 
     /// <inheritdoc/>
-    public static ProtoData ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static ProtoData ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<ProtoFormat, ProtoData>(memory);
 
     /// <inheritdoc/>
-    public static ProtoData ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static ProtoData ParseFile(string path) => FormatIo.ParseFile<ProtoFormat, ProtoData>(path);
 
     /// <inheritdoc/>
     public static void Write(in ProtoData value, ref SpanWriter writer)
@@ -59,14 +55,9 @@ public sealed class ProtoFormat : IFormatFileReader<ProtoData>, IFormatFileWrite
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in ProtoData value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in ProtoData value) => FormatIo.WriteToArray<ProtoFormat, ProtoData>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in ProtoData value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in ProtoData value, string path) =>
+        FormatIo.WriteToFile<ProtoFormat, ProtoData>(in value, path);
 }

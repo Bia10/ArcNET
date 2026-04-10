@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.Formats;
 
@@ -81,14 +80,10 @@ public sealed class JmpFormat : IFormatFileReader<JmpFile>, IFormatFileWriter<Jm
     }
 
     /// <inheritdoc/>
-    public static JmpFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static JmpFile ParseMemory(ReadOnlyMemory<byte> memory) => FormatIo.ParseMemory<JmpFormat, JmpFile>(memory);
 
     /// <inheritdoc/>
-    public static JmpFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static JmpFile ParseFile(string path) => FormatIo.ParseFile<JmpFormat, JmpFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in JmpFile value, ref SpanWriter writer)
@@ -107,14 +102,9 @@ public sealed class JmpFormat : IFormatFileReader<JmpFile>, IFormatFileWriter<Jm
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in JmpFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in JmpFile value) => FormatIo.WriteToArray<JmpFormat, JmpFile>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in JmpFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in JmpFile value, string path) =>
+        FormatIo.WriteToFile<JmpFormat, JmpFile>(in value, path);
 }

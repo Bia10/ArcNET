@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
@@ -240,14 +239,10 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
     }
 
     /// <inheritdoc/>
-    public static Sector ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static Sector ParseMemory(ReadOnlyMemory<byte> memory) => FormatIo.ParseMemory<SectorFormat, Sector>(memory);
 
     /// <inheritdoc/>
-    public static Sector ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static Sector ParseFile(string path) => FormatIo.ParseFile<SectorFormat, Sector>(path);
 
     /// <inheritdoc/>
     public static void Write(in Sector value, ref SpanWriter writer)
@@ -278,16 +273,11 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in Sector value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in Sector value) => FormatIo.WriteToArray<SectorFormat, Sector>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in Sector value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in Sector value, string path) =>
+        FormatIo.WriteToFile<SectorFormat, Sector>(in value, path);
 
     // ── Readers ───────────────────────────────────────────────────────────────
 

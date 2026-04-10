@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -109,7 +108,8 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
     }
 
     /// <inheritdoc/>
-    public static MobileMdFile ParseMemory(ReadOnlyMemory<byte> memory) => ParseSpan(memory.Span);
+    public static MobileMdFile ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<MobileMdFormat, MobileMdFile>(memory);
 
     private static MobileMdFile ParseSpan(ReadOnlySpan<byte> span)
     {
@@ -281,7 +281,7 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
     }
 
     /// <inheritdoc/>
-    public static MobileMdFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static MobileMdFile ParseFile(string path) => FormatIo.ParseFile<MobileMdFormat, MobileMdFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in MobileMdFile value, ref SpanWriter writer)
@@ -324,15 +324,10 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in MobileMdFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in MobileMdFile value) =>
+        FormatIo.WriteToArray<MobileMdFormat, MobileMdFile>(in value);
 
     /// <inheritdoc/>
     public static void WriteToFile(in MobileMdFile value, string path) =>
-        File.WriteAllBytes(path, WriteToArray(in value));
+        FormatIo.WriteToFile<MobileMdFormat, MobileMdFile>(in value, path);
 }

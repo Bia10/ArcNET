@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Text;
+﻿using System.Text;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -70,19 +69,11 @@ public sealed class FacWalkFormat : IFormatFileReader<FacadeWalk>, IFormatFileWr
     }
 
     /// <inheritdoc/>
-    public static FacadeWalk ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static FacadeWalk ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<FacWalkFormat, FacadeWalk>(memory);
 
     /// <inheritdoc/>
-    public static FacadeWalk ParseFile(string path)
-    {
-        var bytes = File.ReadAllBytes(path);
-        var reader = new SpanReader(bytes);
-        return Parse(ref reader);
-    }
+    public static FacadeWalk ParseFile(string path) => FormatIo.ParseFile<FacWalkFormat, FacadeWalk>(path);
 
     /// <inheritdoc/>
     public static void Write(in FacadeWalk value, ref SpanWriter writer)
@@ -106,17 +97,10 @@ public sealed class FacWalkFormat : IFormatFileReader<FacadeWalk>, IFormatFileWr
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in FacadeWalk value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in FacadeWalk value) =>
+        FormatIo.WriteToArray<FacWalkFormat, FacadeWalk>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in FacadeWalk value, string path)
-    {
-        File.WriteAllBytes(path, WriteToArray(in value));
-    }
+    public static void WriteToFile(in FacadeWalk value, string path) =>
+        FormatIo.WriteToFile<FacWalkFormat, FacadeWalk>(in value, path);
 }

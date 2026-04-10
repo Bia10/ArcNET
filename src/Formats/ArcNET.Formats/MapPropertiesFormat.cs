@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 
 namespace ArcNET.Formats;
 
@@ -46,14 +45,11 @@ public sealed class MapPropertiesFormat : IFormatFileReader<MapProperties>, IFor
     }
 
     /// <inheritdoc/>
-    public static MapProperties ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static MapProperties ParseMemory(ReadOnlyMemory<byte> memory) =>
+        FormatIo.ParseMemory<MapPropertiesFormat, MapProperties>(memory);
 
     /// <inheritdoc/>
-    public static MapProperties ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static MapProperties ParseFile(string path) => FormatIo.ParseFile<MapPropertiesFormat, MapProperties>(path);
 
     /// <inheritdoc/>
     public static void Write(in MapProperties value, ref SpanWriter writer)
@@ -65,15 +61,10 @@ public sealed class MapPropertiesFormat : IFormatFileReader<MapProperties>, IFor
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in MapProperties value)
-    {
-        var buf = new ArrayBufferWriter<byte>(FileSize);
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in MapProperties value) =>
+        FormatIo.WriteToArray<MapPropertiesFormat, MapProperties>(in value);
 
     /// <inheritdoc/>
     public static void WriteToFile(in MapProperties value, string path) =>
-        File.WriteAllBytes(path, WriteToArray(in value));
+        FormatIo.WriteToFile<MapPropertiesFormat, MapProperties>(in value, path);
 }

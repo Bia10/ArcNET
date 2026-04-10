@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using ArcNET.Core;
 
 namespace ArcNET.Formats;
@@ -238,14 +237,10 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
     }
 
     /// <inheritdoc/>
-    public static ArtFile ParseMemory(ReadOnlyMemory<byte> memory)
-    {
-        var reader = new SpanReader(memory.Span);
-        return Parse(ref reader);
-    }
+    public static ArtFile ParseMemory(ReadOnlyMemory<byte> memory) => FormatIo.ParseMemory<ArtFormat, ArtFile>(memory);
 
     /// <inheritdoc/>
-    public static ArtFile ParseFile(string path) => ParseMemory(File.ReadAllBytes(path));
+    public static ArtFile ParseFile(string path) => FormatIo.ParseFile<ArtFormat, ArtFile>(path);
 
     /// <inheritdoc/>
     public static void Write(in ArtFile value, ref SpanWriter writer)
@@ -402,14 +397,9 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
     }
 
     /// <inheritdoc/>
-    public static byte[] WriteToArray(in ArtFile value)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var writer = new SpanWriter(buf);
-        Write(in value, ref writer);
-        return buf.WrittenSpan.ToArray();
-    }
+    public static byte[] WriteToArray(in ArtFile value) => FormatIo.WriteToArray<ArtFormat, ArtFile>(in value);
 
     /// <inheritdoc/>
-    public static void WriteToFile(in ArtFile value, string path) => File.WriteAllBytes(path, WriteToArray(in value));
+    public static void WriteToFile(in ArtFile value, string path) =>
+        FormatIo.WriteToFile<ArtFormat, ArtFile>(in value, path);
 }
