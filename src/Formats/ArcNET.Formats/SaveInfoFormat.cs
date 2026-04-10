@@ -47,6 +47,39 @@ public sealed class SaveInfo
 
     /// <summary>Story progress state (unused in most saves; always 0).</summary>
     public required int StoryState { get; init; }
+
+    /// <summary>
+    /// Returns a copy of this save info with the supplied fields replaced.
+    /// This provides record-style updates without changing <see cref="SaveInfo"/> to a record type.
+    /// </summary>
+    public SaveInfo With(
+        string? moduleName = null,
+        string? leaderName = null,
+        string? displayName = null,
+        int? mapId = null,
+        int? gameTimeDays = null,
+        int? gameTimeMs = null,
+        int? leaderPortraitId = null,
+        int? leaderLevel = null,
+        int? leaderTileX = null,
+        int? leaderTileY = null,
+        int? storyState = null
+    ) =>
+        new()
+        {
+            Version = Version,
+            ModuleName = moduleName ?? ModuleName,
+            LeaderName = leaderName ?? LeaderName,
+            DisplayName = displayName ?? DisplayName,
+            MapId = mapId ?? MapId,
+            GameTimeDays = gameTimeDays ?? GameTimeDays,
+            GameTimeMs = gameTimeMs ?? GameTimeMs,
+            LeaderPortraitId = leaderPortraitId ?? LeaderPortraitId,
+            LeaderLevel = leaderLevel ?? LeaderLevel,
+            LeaderTileX = leaderTileX ?? LeaderTileX,
+            LeaderTileY = leaderTileY ?? LeaderTileY,
+            StoryState = storyState ?? StoryState,
+        };
 }
 
 /// <summary>
