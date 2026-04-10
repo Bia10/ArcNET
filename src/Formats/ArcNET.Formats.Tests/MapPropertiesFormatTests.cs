@@ -1,20 +1,11 @@
-﻿using System.Buffers;
-using ArcNET.Core;
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="MapPropertiesFormat"/>.</summary>
 public sealed class MapPropertiesFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     [Test]
     public async Task Parse_KnownBytes_AllFieldsCorrect()
     {

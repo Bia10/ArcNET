@@ -1,21 +1,13 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="MobFormat"/>.</summary>
 public sealed class MobFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     // ── ObjectID wire helpers (24 bytes each) ────────────────────────────────────
     // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }  sizeof=0x18
     // OID_TYPE_BLOCKED = -1  (marks a prototype definition)

@@ -1,21 +1,13 @@
-﻿using System.Buffers;
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="ProtoFormat"/>.</summary>
 public sealed class ProtoFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     // ── 24-byte ObjectID wire helpers ──
     // struct ObjectID { int16_t type; int16_t pad2; int pad4; TigGuid g; }
     private static void WriteOidBlocked(SpanWriter w)

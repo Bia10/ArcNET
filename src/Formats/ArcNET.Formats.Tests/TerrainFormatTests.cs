@@ -2,20 +2,13 @@
 using System.IO.Compression;
 using ArcNET.Core;
 using ArcNET.Formats;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="TerrainFormat"/>.</summary>
 public sealed class TerrainFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     private static byte[] WriteHeader(SpanWriter w, float version, uint flags, long width, long height, int baseType)
     {
         // Not used directly; helper kept for future test variants.

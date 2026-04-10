@@ -1,20 +1,11 @@
-﻿using System.Buffers;
-using ArcNET.Core;
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="SectorFormat"/>.</summary>
 public sealed class SectorFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     /// Writes a minimal valid sector (no lights, all-zero tiles, no roofs,
     /// version 0xAA0004, no tile-scripts, empty sector-script, default sound/block, no objects).
     private static byte[] BuildMinimalSector()

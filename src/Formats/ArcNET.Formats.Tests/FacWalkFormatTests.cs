@@ -1,21 +1,12 @@
-﻿using System.Buffers;
-using System.Text;
-using ArcNET.Core;
+﻿using System.Text;
 using ArcNET.Formats;
+using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="FacWalkFormat"/>.</summary>
 public sealed class FacWalkFormatTests
 {
-    private static byte[] BuildBytes(Action<SpanWriter> fill)
-    {
-        var buf = new ArrayBufferWriter<byte>();
-        var w = new SpanWriter(buf);
-        fill(w);
-        return buf.WrittenSpan.ToArray();
-    }
-
     private static byte[] BuildMinimalFacWalk(uint entryCount = 0)
     {
         return BuildBytes(w =>
