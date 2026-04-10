@@ -3,7 +3,7 @@
 namespace ArcNET.Editor;
 
 /// <summary>
-/// Bundles optional per-type replacements passed to <see cref="SaveGameWriter.Save(SaveGame, string, string, SaveGameUpdates?)"/>.
+/// Bundles optional per-type replacements passed to <see cref="SaveGameWriter.Save(LoadedSave, string, string, SaveGameUpdates?)"/>.
 /// Only supply the dictionaries whose contents have changed; <see langword="null"/> keeps originals.
 /// </summary>
 public sealed record SaveGameUpdates
@@ -15,7 +15,7 @@ public sealed record SaveGameUpdates
 
     /// <summary>
     /// Map of virtual path → updated <see cref="MobData"/> to replace in the save.
-    /// Only paths already present in <see cref="SaveGame.Files"/> are replaced.
+    /// Only paths already present in <see cref="LoadedSave.Files"/> are replaced.
     /// </summary>
     public IReadOnlyDictionary<string, MobData>? UpdatedMobiles { get; init; }
 
@@ -46,13 +46,13 @@ public sealed record SaveGameUpdates
 
     /// <summary>
     /// Map of virtual path → updated <see cref="MobileMdFile"/> to replace in the save.
-    /// Keys must be paths to <c>mobile.md</c> files already present in <see cref="SaveGame.Files"/>.
+    /// Keys must be paths to <c>mobile.md</c> files already present in <see cref="LoadedSave.Files"/>.
     /// </summary>
     public IReadOnlyDictionary<string, MobileMdFile>? UpdatedMobileMds { get; init; }
 
     /// <summary>
     /// Map of virtual path → updated <see cref="MobileMdyFile"/> to replace in the save.
-    /// Keys must be paths to <c>mobile.mdy</c> files already present in <see cref="SaveGame.Files"/>.
+    /// Keys must be paths to <c>mobile.mdy</c> files already present in <see cref="LoadedSave.Files"/>.
     /// </summary>
     public IReadOnlyDictionary<string, MobileMdyFile>? UpdatedMobileMdys { get; init; }
 

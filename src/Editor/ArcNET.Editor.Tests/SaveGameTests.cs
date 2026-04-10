@@ -18,7 +18,7 @@ public class SaveGameTests
             .Build();
     }
 
-    private static (SaveGame save, byte[] tfafBytes) MakeMinimalSave()
+    private static (LoadedSave save, byte[] tfafBytes) MakeMinimalSave()
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         // Use a valid empty JMP file so that no parse errors appear in a "valid" save.
@@ -745,7 +745,7 @@ public class SaveGameTests
     /// Builds a minimal save that contains a single .sec file alongside the standard .mob.
     /// Returns the save and the virtual path to the sector file.
     /// </summary>
-    private static (SaveGame save, string secPath) MakeSaveWithSector(int townmapInfo = 0, int aptitudeAdj = 0)
+    private static (LoadedSave save, string secPath) MakeSaveWithSector(int townmapInfo = 0, int aptitudeAdj = 0)
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         var sector = new SectorBuilder().WithTownmapInfo(townmapInfo).WithAptitudeAdjustment(aptitudeAdj).Build();
@@ -843,7 +843,7 @@ public class SaveGameTests
 
     // ── Script ────────────────────────────────────────────────────────────────
 
-    private static (SaveGame save, string scrPath) MakeSaveWithScript(string description = "")
+    private static (LoadedSave save, string scrPath) MakeSaveWithScript(string description = "")
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         var scr = new ScriptBuilder().WithDescription(description).Build();
@@ -920,7 +920,7 @@ public class SaveGameTests
 
     // ── MapProperties ─────────────────────────────────────────────────────────
 
-    private static (SaveGame save, string prpPath) MakeSaveWithMapProperties(int artId = 1)
+    private static (LoadedSave save, string prpPath) MakeSaveWithMapProperties(int artId = 1)
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         var props = new MapProperties
@@ -1013,7 +1013,7 @@ public class SaveGameTests
 
     // ── JumpFile ──────────────────────────────────────────────────────────────
 
-    private static (SaveGame save, string jmpPath) MakeSaveWithJump(int destMapId = 1)
+    private static (LoadedSave save, string jmpPath) MakeSaveWithJump(int destMapId = 1)
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         var jmpFile = new JmpFile
@@ -1116,7 +1116,7 @@ public class SaveGameTests
 
     // ── MobileMd ──────────────────────────────────────────────────────────────
 
-    private static (SaveGame save, string mdPath) MakeSaveWithMobileMd()
+    private static (LoadedSave save, string mdPath) MakeSaveWithMobileMd()
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         // An empty mobile.md is valid: no modified objects.
@@ -1196,7 +1196,7 @@ public class SaveGameTests
 
     // ── MobileMdy ─────────────────────────────────────────────────────────────
 
-    private static (SaveGame save, string mdyPath) MakeSaveWithMobileMdy()
+    private static (LoadedSave save, string mdyPath) MakeSaveWithMobileMdy()
     {
         var mobBytes = MobFormat.WriteToArray(MakePc());
         // A minimal mobile.mdy containing a single standard mob record.

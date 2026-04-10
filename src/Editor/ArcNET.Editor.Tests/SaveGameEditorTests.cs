@@ -61,10 +61,10 @@ public class SaveGameEditorTests
     }
 
     /// <summary>
-    /// Builds a <see cref="SaveGame"/> containing a single <c>mobile.mdy</c> with one
+    /// Builds a <see cref="LoadedSave"/> containing a single <c>mobile.mdy</c> with one
     /// v2 PC record.  Returns the save and the virtual path to the mdy file.
     /// </summary>
-    private static (SaveGame save, string mdyPath) MakeSaveWithPc(int level = 5, int alignment = 100, int gold = 0)
+    private static (LoadedSave save, string mdyPath) MakeSaveWithPc(int level = 5, int alignment = 100, int gold = 0)
     {
         var v2Bytes = BuildV2Record(level, alignment, gold);
         const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
@@ -111,10 +111,10 @@ public class SaveGameEditorTests
     }
 
     /// <summary>
-    /// Builds a <see cref="SaveGame"/> that has only a standard <c>.mob</c> file
+    /// Builds a <see cref="LoadedSave"/> that has only a standard <c>.mob</c> file
     /// and NO <c>mobile.mdy</c> — so TryFindPlayerCharacter should return false.
     /// </summary>
-    private static SaveGame MakeSaveWithoutMdy()
+    private static LoadedSave MakeSaveWithoutMdy()
     {
         var protoId = new GameObjectGuid(1, 0, 0, Guid.Empty);
         var objectId = new GameObjectGuid(2, 0, 1, Guid.Empty);
@@ -620,7 +620,7 @@ public class SaveGameEditorTests
         return [.. parts.SelectMany(b => b)];
     }
 
-    private static (SaveGame save, string mdyPath) MakeSaveWithRichPc(
+    private static (LoadedSave save, string mdyPath) MakeSaveWithRichPc(
         int level = 5,
         int gold = 0,
         int hpDamage = 0,

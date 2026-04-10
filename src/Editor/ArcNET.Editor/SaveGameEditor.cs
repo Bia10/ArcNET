@@ -22,12 +22,12 @@ namespace ArcNET.Editor;
 /// </remarks>
 public sealed class SaveGameEditor
 {
-    private readonly SaveGame _save;
+    private readonly LoadedSave _save;
 
     // Pending typed MobileMdyFile replacements, keyed by virtual path.
     private readonly Dictionary<string, MobileMdyFile> _pendingMdyUpdates = [];
 
-    public SaveGameEditor(SaveGame save) => _save = save;
+    public SaveGameEditor(LoadedSave save) => _save = save;
 
     // ── Character discovery ───────────────────────────────────────────────────
 

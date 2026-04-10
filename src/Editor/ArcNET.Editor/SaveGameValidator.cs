@@ -66,10 +66,10 @@ public enum SaveValidationSeverity
 }
 
 /// <summary>
-/// Validates a <see cref="SaveGame"/> (or individual updated collections) for
+/// Validates a <see cref="LoadedSave"/> (or individual updated collections) for
 /// structural and semantic correctness before writing to disk.
 /// <para>
-/// Call <see cref="Validate(SaveGame)"/> to check an entire loaded save, or call
+/// Call <see cref="Validate(LoadedSave)"/> to check an entire loaded save, or call
 /// the targeted overloads to check only the parts you have changed.
 /// </para>
 /// </summary>
@@ -78,10 +78,10 @@ public static class SaveGameValidator
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Validates the entire <see cref="SaveGame"/>, including all parsed inner files.
+    /// Validates the entire <see cref="LoadedSave"/>, including all parsed inner files.
     /// Returns all findings; an empty list means the save is structurally clean.
     /// </summary>
-    public static IReadOnlyList<SaveValidationIssue> Validate(SaveGame save)
+    public static IReadOnlyList<SaveValidationIssue> Validate(LoadedSave save)
     {
         var issues = new List<SaveValidationIssue>();
         ValidateInfo(save.Info, issues);

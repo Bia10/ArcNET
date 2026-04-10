@@ -3,7 +3,7 @@
 namespace ArcNET.Editor;
 
 /// <summary>
-/// Writes a modified <see cref="SaveGame"/> back to disk.
+/// Writes a modified <see cref="LoadedSave"/> back to disk.
 /// When any embedded file is updated its bytes are recomputed, the TFAI index is rebuilt
 /// to reflect any size changes, and all three save-slot files are written.
 /// </summary>
@@ -21,7 +21,7 @@ public static class SaveGameWriter
     /// write the save back unmodified; populate only the properties that changed.
     /// </param>
     public static void Save(
-        SaveGame original,
+        LoadedSave original,
         string gsiPath,
         string tfaiPath,
         string tfafPath,
@@ -65,7 +65,7 @@ public static class SaveGameWriter
     /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
     /// write the save back unmodified.
     /// </param>
-    public static void Save(SaveGame original, string saveFolder, string slotName, SaveGameUpdates? updates = null) =>
+    public static void Save(LoadedSave original, string saveFolder, string slotName, SaveGameUpdates? updates = null) =>
         Save(
             original,
             Path.Combine(saveFolder, slotName + ".gsi"),
@@ -91,7 +91,7 @@ public static class SaveGameWriter
     /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static async Task SaveAsync(
-        SaveGame original,
+        LoadedSave original,
         string gsiPath,
         string tfaiPath,
         string tfafPath,
@@ -141,7 +141,7 @@ public static class SaveGameWriter
     /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static Task SaveAsync(
-        SaveGame original,
+        LoadedSave original,
         string saveFolder,
         string slotName,
         SaveGameUpdates? updates = null,
@@ -173,7 +173,7 @@ public static class SaveGameWriter
     /// Builds the three byte payloads from the save game and all pending updates.
     /// Pure CPU work — no I/O. Used by both <c>Save</c> and <c>SaveAsync</c>.
     /// </summary>
-    private static (byte[] gsi, byte[] tfai, byte[] tfaf) Serialize(SaveGame original, SaveGameUpdates? updates)
+    private static (byte[] gsi, byte[] tfai, byte[] tfaf) Serialize(LoadedSave original, SaveGameUpdates? updates)
     {
         var files = new Dictionary<string, byte[]>(original.Files, StringComparer.OrdinalIgnoreCase);
 

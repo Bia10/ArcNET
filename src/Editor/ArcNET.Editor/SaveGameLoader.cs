@@ -3,7 +3,7 @@
 namespace ArcNET.Editor;
 
 /// <summary>
-/// Loads an Arcanum save slot from disk into a <see cref="SaveGame"/> instance.
+/// Loads an Arcanum save slot from disk into a <see cref="LoadedSave"/> instance.
 /// A save slot is identified by three files that share the same base name:
 /// <list type="bullet">
 ///   <item><c>{slotName}.gsi</c> — save metadata</item>
@@ -21,7 +21,7 @@ public static class SaveGameLoader
     /// <param name="gsiPath">Path to the <c>.gsi</c> metadata file.</param>
     /// <param name="tfaiPath">Path to the <c>.tfai</c> index file.</param>
     /// <param name="tfafPath">Path to the <c>.tfaf</c> data blob.</param>
-    public static SaveGame Load(string gsiPath, string tfaiPath, string tfafPath)
+    public static LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath)
     {
         var info = SaveInfoFormat.ParseFile(gsiPath);
         var index = SaveIndexFormat.ParseFile(tfaiPath);
@@ -35,7 +35,7 @@ public static class SaveGameLoader
     /// </summary>
     /// <param name="saveFolder">Directory containing the three save slot files.</param>
     /// <param name="slotName">Base file name without extension (e.g. <c>"slot1"</c>).</param>
-    public static SaveGame Load(string saveFolder, string slotName) =>
+    public static LoadedSave Load(string saveFolder, string slotName) =>
         Load(
             Path.Combine(saveFolder, slotName + ".gsi"),
             Path.Combine(saveFolder, slotName + ".tfai"),
@@ -55,7 +55,7 @@ public static class SaveGameLoader
     /// Optional progress reporter. Receives values in [0, 1] as embedded files are parsed.
     /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static async Task<SaveGame> LoadAsync(
+    public static async Task<LoadedSave> LoadAsync(
         string gsiPath,
         string tfaiPath,
         string tfafPath,
@@ -86,7 +86,7 @@ public static class SaveGameLoader
     /// Optional progress reporter. Receives values in [0, 1] as embedded files are parsed.
     /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static Task<SaveGame> LoadAsync(
+    public static Task<LoadedSave> LoadAsync(
         string saveFolder,
         string slotName,
         IProgress<float>? progress = null,
@@ -106,7 +106,7 @@ public static class SaveGameLoader
     private const string MobileMdFileName = "mobile.md";
     private const string MobileMdyFileName = "mobile.mdy";
 
-    internal static SaveGame LoadFromParsed(
+    internal static LoadedSave LoadFromParsed(
         SaveInfo info,
         SaveIndex index,
         byte[] tfafData,
@@ -180,7 +180,7 @@ public static class SaveGameLoader
             progress?.Report((i + 1f) / total);
         }
 
-        return new SaveGame
+        return new LoadedSave
         {
             Info = info,
             Index = index,
