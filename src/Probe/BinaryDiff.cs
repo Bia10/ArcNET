@@ -1,4 +1,6 @@
-﻿namespace Probe;
+﻿using Bia.ValueBuffers;
+
+namespace Probe;
 
 // Binary diff utilities used by Probe Mode 11.
 
@@ -116,15 +118,23 @@ internal static class BinaryDiff
             Console.WriteLine($"  @0x{region.Offset:X5}  ({region.A.Length}B, {changed} changed)");
 
             const int perRow = 8;
+            Span<char> hexABuf = stackalloc char[64];
+            Span<char> hexBBuf = stackalloc char[64];
+            Span<char> ascABuf = stackalloc char[32];
+            Span<char> ascBBuf = stackalloc char[32];
+            var sbHexA = new ValueStringBuilder(hexABuf);
+            var sbHexB = new ValueStringBuilder(hexBBuf);
+            var sbAscA = new ValueStringBuilder(ascABuf);
+            var sbAscB = new ValueStringBuilder(ascBBuf);
             for (int row = 0; row < region.A.Length; row += perRow)
             {
                 int rowLen = Math.Min(perRow, region.A.Length - row);
                 int absOff = region.Offset + row;
 
-                var sbHexA = new System.Text.StringBuilder();
-                var sbHexB = new System.Text.StringBuilder();
-                var sbAscA = new System.Text.StringBuilder();
-                var sbAscB = new System.Text.StringBuilder();
+                sbHexA.Clear();
+                sbHexB.Clear();
+                sbAscA.Clear();
+                sbAscB.Clear();
 
                 for (int col = 0; col < rowLen; col++)
                 {
@@ -134,13 +144,21 @@ internal static class BinaryDiff
 
                     if (differs)
                     {
-                        sbHexA.Append($"[{ba:X2}]");
-                        sbHexB.Append($"[{bb:X2}]");
+                        sbHexA.Append('[');
+                        sbHexA.AppendHex(ba);
+                        sbHexA.Append(']');
+                        sbHexB.Append('[');
+                        sbHexB.AppendHex(bb);
+                        sbHexB.Append(']');
                     }
                     else
                     {
-                        sbHexA.Append($" {ba:X2} ");
-                        sbHexB.Append($" {bb:X2} ");
+                        sbHexA.Append(' ');
+                        sbHexA.AppendHex(ba);
+                        sbHexA.Append(' ');
+                        sbHexB.Append(' ');
+                        sbHexB.AppendHex(bb);
+                        sbHexB.Append(' ');
                     }
                     if (col == 3)
                     {
@@ -158,7 +176,9 @@ internal static class BinaryDiff
                 while (sbHexB.Length < hexWidth)
                     sbHexB.Append(' ');
 
-                Console.WriteLine($"  {absOff:X5}:  {sbHexA} {sbAscA}  │  {sbHexB} {sbAscB}");
+                Console.WriteLine(
+                    $"  {absOff:X5}:  {sbHexA.WrittenSpan} {sbAscA.WrittenSpan}  │  {sbHexB.WrittenSpan} {sbAscB.WrittenSpan}"
+                );
             }
         }
     }

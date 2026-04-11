@@ -2,6 +2,7 @@
 using ArcNET.Archive;
 using ArcNET.Editor;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace Probe;
 
@@ -167,9 +168,24 @@ internal static class SarUtils
     {
         if (slots.Count == 0)
             return "[]";
-        if (slots.Count <= maxShow)
-            return "[" + string.Join(",", slots) + "]";
-        return "[" + string.Join(",", slots.Take(maxShow)) + $",+{slots.Count - maxShow} more]";
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('[');
+        int showCount = Math.Min(slots.Count, maxShow);
+        for (int i = 0; i < showCount; i++)
+        {
+            if (i > 0)
+                sb.Append(',');
+            sb.Append(slots[i]);
+        }
+        if (slots.Count > maxShow)
+        {
+            sb.Append(",+");
+            sb.Append(slots.Count - maxShow);
+            sb.Append(" more");
+        }
+        sb.Append(']');
+        return sb.ToString();
     }
 
     /// <summary>Returns the resolved quest label for <paramref name="protoId"/>, or <see langword="null"/> when unavailable.</summary>
@@ -212,21 +228,42 @@ internal static class SarUtils
 
     private static string FormatQuestStateBits(int state)
     {
-        var flags = new List<string>();
+        Span<char> buf = stackalloc char[128];
+        var sb = new ValueStringBuilder(buf);
         if ((state & 0x001) != 0)
-            flags.Add("active");
+        {
+            sb.Append("active");
+            sb.Append('|');
+        }
         if ((state & 0x002) != 0)
-            flags.Add("completed(primary)");
+        {
+            sb.Append("completed(primary)");
+            sb.Append('|');
+        }
         if ((state & 0x004) != 0)
-            flags.Add("completed(secondary)");
+        {
+            sb.Append("completed(secondary)");
+            sb.Append('|');
+        }
         if ((state & 0x100) != 0)
-            flags.Add("bit8?");
+        {
+            sb.Append("bit8?");
+            sb.Append('|');
+        }
 
         int unknownMask = state & ~0x107;
         if (unknownMask != 0)
-            flags.Add($"0x{unknownMask:X}");
+        {
+            sb.Append($"0x{unknownMask:X}");
+            sb.Append('|');
+        }
 
-        return flags.Count == 0 ? $"0x{state:X3}" : $"{string.Join("|", flags)} [0x{state:X3}]";
+        if (sb.Length == 0)
+            return $"0x{state:X3}";
+
+        sb.TrimEnd('|');
+        sb.Append($" [0x{state:X3}]");
+        return sb.ToString();
     }
 
     /// <summary>Format SAR element values for display.</summary>
@@ -235,21 +272,30 @@ internal static class SarUtils
         int showCnt = Math.Min(eCnt, maxShow);
         if (eSize == 4)
         {
-            var vals = new int[showCnt];
+            Span<char> sbBuf = stackalloc char[256];
+            var sb = new ValueStringBuilder(sbBuf);
+            sb.Append('[');
             for (int i = 0; i < showCnt; i++)
+            {
+                if (i > 0)
+                    sb.Append(',');
                 if (dataOff + i * 4 + 4 <= raw.Length)
-                    vals[i] = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(dataOff + i * 4, 4));
-            return "[" + string.Join(",", vals) + (eCnt > showCnt ? ",..." : "") + "]";
+                    sb.Append(BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(dataOff + i * 4, 4)));
+            }
+            if (eCnt > showCnt)
+                sb.Append(",...");
+            sb.Append(']');
+            return sb.ToString();
         }
         else if (eSize == 1)
         {
             return "0x"
-                + Convert.ToHexString(raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)).ToArray());
+                + Convert.ToHexString(raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)));
         }
         else
         {
             int showBytes = Math.Min(eSize * showCnt, raw.Length - dataOff);
-            return "0x" + Convert.ToHexString(raw.AsSpan(dataOff, showBytes).ToArray()) + (eCnt > showCnt ? "..." : "");
+            return "0x" + Convert.ToHexString(raw.AsSpan(dataOff, showBytes)) + (eCnt > showCnt ? "..." : "");
         }
     }
 
