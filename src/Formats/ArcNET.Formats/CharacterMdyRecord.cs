@@ -623,7 +623,7 @@ public sealed partial record CharacterMdyRecord
         return arr;
     }
 
-    private static byte[] PatchInts(byte[] source, int off, int[] values)
+    private static byte[] PatchInts(byte[] source, int off, ReadOnlySpan<int> values)
     {
         var raw = (byte[])source.Clone();
         for (var i = 0; i < values.Length && off + i * 4 + 4 <= raw.Length; i++)

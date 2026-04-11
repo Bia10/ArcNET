@@ -1,5 +1,5 @@
 ﻿using System.Buffers.Binary;
-using System.Text;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -104,62 +104,38 @@ public static class CharacterMdyRecordBuilder
         // V2 magic header — identifies this as a v2 PC/NPC record.
         ReadOnlySpan<byte> magic = CharacterMdyRecord.V2Magic;
 
-        // Primary SAR arrays — bsId=0 is fine; the parser finds these by elemSz+elemCnt signature.
-        var statsSar = BuildInt32Sar(0, stats);
-        var basicSar = BuildInt32Sar(0, basicSkills);
-        var techSar = BuildInt32Sar(0, techSkills);
-        var spellSar = BuildInt32Sar(0, spellTech);
+        Span<byte> initial = stackalloc byte[512];
+        var buf = new ValueByteBuffer(initial);
 
-        // Gold SAR — bsId=0x4B13 required by the extended scan in CharacterMdyRecord.Parse.
-        var goldSar = BuildInt32Sar(GoldBsId, [gold]);
+        buf.Write(magic);
+        AppendInt32Sar(ref buf, 0, stats);
+        AppendInt32Sar(ref buf, 0, basicSkills);
+        AppendInt32Sar(ref buf, 0, techSkills);
+        AppendInt32Sar(ref buf, 0, spellTech);
+        AppendInt32Sar(ref buf, GoldBsId, [gold]);
+        AppendInt32Sar(ref buf, PortraitBsId, [maxFollowers, portraitIndex, 0]);
+        AppendNameField(ref buf, name);
 
-        // Portrait SAR — bsId=0x4DA4 required; layout: [MaxFollowers, PortraitIndex, 0].
-        var portraitSar = BuildInt32Sar(PortraitBsId, [maxFollowers, portraitIndex, 0]);
-
-        // PC name field — non-SAR encoding: 0x01 + uint32_len + ascii_chars.
-        var nameField = BuildNameField(name);
-
-        // Concatenate all segments.
-        var totalLen =
-            magic.Length
-            + statsSar.Length
-            + basicSar.Length
-            + techSar.Length
-            + spellSar.Length
-            + goldSar.Length
-            + portraitSar.Length
-            + nameField.Length;
-        var buf = new byte[totalLen];
-        var off = 0;
-        off += Write(buf, off, magic);
-        off += Write(buf, off, statsSar);
-        off += Write(buf, off, basicSar);
-        off += Write(buf, off, techSar);
-        off += Write(buf, off, spellSar);
-        off += Write(buf, off, goldSar);
-        off += Write(buf, off, portraitSar);
-        Write(buf, off, nameField);
-        return buf;
+        var result = buf.ToArray();
+        buf.Dispose();
+        return result;
     }
 
-    /// <summary>Builds a SAR packet for an array of int32 values with the given bsId.</summary>
-    private static byte[] BuildInt32Sar(int bsId, ReadOnlySpan<int> values)
+    /// <summary>Appends a SAR packet for an array of int32 values with the given bsId directly into <paramref name="buf"/>.</summary>
+    private static void AppendInt32Sar(ref ValueByteBuffer buf, int bsId, ReadOnlySpan<int> values)
     {
-        var elemData = new byte[values.Length * 4];
-        for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteInt32LittleEndian(elemData.AsSpan(i * 4, 4), values[i]);
-        return SarEncoding.BuildSarBytes(4, values.Length, bsId, elemData);
+        Span<byte> elemInitial = stackalloc byte[256];
+        using var elemBuf = new ValueByteBuffer(elemInitial);
+        elemBuf.WriteInt32LittleEndianAll(values);
+        buf.Write(SarEncoding.BuildSarBytes(4, values.Length, bsId, elemBuf.WrittenSpan));
     }
 
-    /// <summary>Builds the non-SAR PC name field: <c>0x01 + uint32_len + ascii_chars</c>.</summary>
-    private static byte[] BuildNameField(string name)
+    /// <summary>Appends the non-SAR PC name field: <c>0x01 + uint32_len + ascii_chars</c> directly into <paramref name="buf"/>.</summary>
+    private static void AppendNameField(ref ValueByteBuffer buf, string name)
     {
-        var ascii = Encoding.ASCII.GetBytes(name);
-        var field = new byte[1 + 4 + ascii.Length];
-        field[0] = 0x01;
-        BinaryPrimitives.WriteInt32LittleEndian(field.AsSpan(1, 4), ascii.Length);
-        ascii.CopyTo(field, 5);
-        return field;
+        buf.Write(0x01);
+        buf.WriteInt32LittleEndian(name.Length); // ASCII: 1 byte per char
+        buf.WriteAsciiEncoded(name.AsSpan());
     }
 
     /// <summary>Validates that <paramref name="name"/> contains only printable ASCII (0x20–0x7E).</summary>
@@ -173,11 +149,5 @@ public static class CharacterMdyRecordBuilder
                     nameof(name)
                 );
         }
-    }
-
-    private static int Write(byte[] buf, int offset, ReadOnlySpan<byte> src)
-    {
-        src.CopyTo(buf.AsSpan(offset));
-        return src.Length;
     }
 }

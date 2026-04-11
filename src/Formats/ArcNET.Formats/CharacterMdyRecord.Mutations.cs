@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -239,35 +240,32 @@ public sealed partial record CharacterMdyRecord
         var sarHeaderOff = QuestDataOffset - SarHeaderSize;
         var oldDataLen = QuestCount * QuestSarElementSize;
         var oldSarTotalLen = SarHeaderSize + oldDataLen + 4 + QuestSarBitsetWords * 4;
-        var newDataLen = newData.Length;
-        var newSarTotalLen = SarHeaderSize + newDataLen + 4 + QuestSarBitsetWords * 4;
 
-        var newRaw = new byte[RawBytes.Length - oldSarTotalLen + newSarTotalLen];
+        Span<byte> initial = stackalloc byte[512];
+        using var buf = new ValueByteBuffer(initial);
 
         // 1. Prefix: bytes before the SAR presence byte.
-        RawBytes.AsSpan(0, sarHeaderOff).CopyTo(newRaw);
+        buf.Write(RawBytes.AsSpan(0, sarHeaderOff));
 
         // 2. SAR header: presence(1B) + eSize(4B) + newECnt(4B) + bsId(4B, preserved).
-        newRaw[sarHeaderOff] = 0x01;
-        BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(sarHeaderOff + 1, 4), QuestSarElementSize);
-        BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(sarHeaderOff + 5, 4), newECnt);
-        RawBytes.AsSpan(sarHeaderOff + 9, 4).CopyTo(newRaw.AsSpan(sarHeaderOff + 9, 4));
+        buf.Write(0x01);
+        buf.WriteInt32LittleEndian(QuestSarElementSize);
+        buf.WriteInt32LittleEndian(newECnt);
+        buf.Write(RawBytes.AsSpan(sarHeaderOff + 9, 4)); // bsId preserved
 
         // 3. New data.
-        newData.CopyTo(newRaw.AsSpan(sarHeaderOff + SarHeaderSize));
+        buf.Write(newData);
 
         // 4. bsCnt (always QuestSarBitsetWords=37) + new bitset.
-        var newBsCntOff = sarHeaderOff + SarHeaderSize + newDataLen;
-        BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(newBsCntOff, 4), QuestSarBitsetWords);
-        for (var i = 0; i < QuestSarBitsetWords; i++)
-            BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(newBsCntOff + 4 + i * 4, 4), newBitset[i]);
+        buf.WriteInt32LittleEndian(QuestSarBitsetWords);
+        buf.WriteInt32LittleEndianAll(newBitset);
 
         // 5. Suffix: bytes after the old SAR (Gold, Name, etc. — all shift by the size delta).
         var oldSarEnd = sarHeaderOff + oldSarTotalLen;
-        RawBytes.AsSpan(oldSarEnd).CopyTo(newRaw.AsSpan(newBsCntOff + 4 + QuestSarBitsetWords * 4));
+        buf.Write(RawBytes.AsSpan(oldSarEnd));
 
         // Re-parse to rebuild all derived offsets that may have shifted.
-        return Parse(newRaw, out _);
+        return Parse(buf.ToArray(), out _);
     }
 
     /// <summary>
@@ -298,22 +296,23 @@ public sealed partial record CharacterMdyRecord
             return this;
 
         var oldLen = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(NameLengthOffset, 4));
-        var newEncoded = System.Text.Encoding.ASCII.GetBytes(newName);
         var oldEnd = NameLengthOffset + 4 + oldLen;
+        var newNameLen = System.Text.Encoding.ASCII.GetByteCount(newName); // ASCII: 1 byte per char
 
-        var newRaw = new byte[RawBytes.Length - oldLen + newEncoded.Length];
-        // Copy everything up to and including the presence byte (NameLengthOffset - 1).
-        RawBytes.AsSpan(0, NameLengthOffset).CopyTo(newRaw);
-        // Write the new length and the new chars.
-        BinaryPrimitives.WriteInt32LittleEndian(newRaw.AsSpan(NameLengthOffset, 4), newEncoded.Length);
-        newEncoded.CopyTo(newRaw.AsSpan(NameLengthOffset + 4));
-        // Copy any bytes that follow the old name field.
-        RawBytes.AsSpan(oldEnd).CopyTo(newRaw.AsSpan(NameLengthOffset + 4 + newEncoded.Length));
+        Span<byte> initial = stackalloc byte[512];
+        using var buf = new ValueByteBuffer(initial);
+        // Prefix: everything up to and including the presence byte (NameLengthOffset - 1).
+        buf.Write(RawBytes.AsSpan(0, NameLengthOffset));
+        // New length + ASCII-encoded name.
+        buf.WriteInt32LittleEndian(newNameLen);
+        buf.WriteAsciiEncoded(newName.AsSpan());
+        // Suffix: any bytes after the old name field.
+        buf.Write(RawBytes.AsSpan(oldEnd));
 
         // All SAR data offsets precede the name field and remain valid.
         return this with
         {
-            RawBytes = newRaw,
+            RawBytes = buf.ToArray(),
             NameLengthOffset = NameLengthOffset,
         };
     }
@@ -327,7 +326,7 @@ public sealed partial record CharacterMdyRecord
     {
         if (ReputationDataOffset < 0 || values.Length != ReputationSarElementCount)
             return this;
-        var raw = PatchInts(RawBytes, ReputationDataOffset, values.ToArray());
+        var raw = PatchInts(RawBytes, ReputationDataOffset, values);
         return this with { RawBytes = raw };
     }
 
@@ -341,7 +340,7 @@ public sealed partial record CharacterMdyRecord
     {
         if (BlessingProtoDataOffset < 0 || blessingProtoIds.Length != BlessingProtoElementCount)
             return this;
-        var raw = PatchInts(RawBytes, BlessingProtoDataOffset, blessingProtoIds.ToArray());
+        var raw = PatchInts(RawBytes, BlessingProtoDataOffset, blessingProtoIds);
         return this with { RawBytes = raw };
     }
 
@@ -354,7 +353,7 @@ public sealed partial record CharacterMdyRecord
     {
         if (CurseProtoDataOffset < 0 || curseProtoIds.Length != CurseProtoElementCount)
             return this;
-        var raw = PatchInts(RawBytes, CurseProtoDataOffset, curseProtoIds.ToArray());
+        var raw = PatchInts(RawBytes, CurseProtoDataOffset, curseProtoIds);
         return this with { RawBytes = raw };
     }
 
@@ -367,7 +366,7 @@ public sealed partial record CharacterMdyRecord
     {
         if (SchematicsDataOffset < 0 || schematicProtoIds.Length != SchematicsElementCount)
             return this;
-        var raw = PatchInts(RawBytes, SchematicsDataOffset, schematicProtoIds.ToArray());
+        var raw = PatchInts(RawBytes, SchematicsDataOffset, schematicProtoIds);
         return this with { RawBytes = raw };
     }
 }

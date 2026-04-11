@@ -1,5 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Buffers;
+using System.Runtime.InteropServices;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -346,7 +348,8 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
 
     private static byte[] EncodeRle(byte[] pixels)
     {
-        var buf = new List<byte>(pixels.Length);
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
         var i = 0;
 
         while (i < pixels.Length)
@@ -358,8 +361,8 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
 
             if (run >= 2)
             {
-                buf.Add((byte)run); // bit7 clear = run-length
-                buf.Add(pixels[i]);
+                buf.Write((byte)run); // bit7 clear = run-length
+                buf.Write(pixels[i]);
                 i += run;
             }
             else
@@ -385,15 +388,15 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
                 if (litLen == 0)
                     litLen = 1;
 
-                buf.Add((byte)(0x80 | litLen)); // bit7 set = literal
+                buf.Write((byte)(0x80 | litLen)); // bit7 set = literal
                 for (var j = 0; j < litLen; j++)
-                    buf.Add(pixels[i + j]);
+                    buf.Write(pixels[i + j]);
 
                 i += litLen;
             }
         }
 
-        return [.. buf];
+        return buf.ToArray();
     }
 
     /// <inheritdoc/>

@@ -51,8 +51,25 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
     /// <inheritdoc/>
     public static void Write(in MesFile value, ref SpanWriter writer)
     {
-        var bytes = Encoding.UTF8.GetBytes(Serialize(value.Entries));
-        writer.WriteBytes(bytes);
+        Span<char> buf = stackalloc char[512];
+        var sb = new ValueStringBuilder(buf);
+        foreach (var entry in value.Entries)
+        {
+            sb.Append('{');
+            sb.Append(entry.Index);
+            sb.Append('}');
+            if (entry.SoundId != null)
+            {
+                sb.Append('{');
+                sb.Append(entry.SoundId);
+                sb.Append('}');
+            }
+            sb.Append('{');
+            sb.Append(entry.Text);
+            sb.Append('}');
+            sb.AppendLine();
+        }
+        writer.WriteBytes(Encoding.UTF8.GetBytes(sb.ToString()));
     }
 
     /// <inheritdoc/>

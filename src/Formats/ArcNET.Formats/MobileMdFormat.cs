@@ -2,6 +2,7 @@
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -173,10 +174,13 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
 
             try
             {
-                var combined = new byte[4 + rawMobBytes.Length];
-                BinaryPrimitives.WriteInt32LittleEndian(combined, version);
-                rawMobBytes.CopyTo(combined.AsSpan(4));
-                var innerReader = new SpanReader(combined);
+#pragma warning disable CA2014 // stackalloc is 256 B; ValueByteBuffer grows via ArrayPool if needed, not via stack
+                Span<byte> combinedInitial = stackalloc byte[256];
+#pragma warning restore CA2014
+                using var combinedBuf = new ValueByteBuffer(combinedInitial);
+                combinedBuf.WriteInt32LittleEndian(version);
+                combinedBuf.Write(rawMobBytes);
+                var innerReader = new SpanReader(combinedBuf.WrittenSpan);
 
                 if (isCompactCandidate)
                 {
@@ -184,14 +188,15 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
                     var compactHeader = GameObjectHeader.ReadCompact(ref innerReader, mapObjectId);
                     var compactProps = ObjectPropertyIo.ReadProperties(ref innerReader, compactHeader);
                     data = new MobData { Header = compactHeader, Properties = compactProps };
-                    tailBytes = innerReader.Remaining > 0 ? combined.AsSpan(innerReader.Position).ToArray() : null;
+                    tailBytes =
+                        innerReader.Remaining > 0 ? combinedBuf.WrittenSpan[innerReader.Position..].ToArray() : null;
                     isCompact = true;
                 }
                 else
                 {
                     data = MobFormat.Parse(ref innerReader);
                     if (innerReader.Remaining > 0)
-                        tailBytes = combined.AsSpan(innerReader.Position).ToArray();
+                        tailBytes = combinedBuf.WrittenSpan[innerReader.Position..].ToArray();
                 }
             }
             catch (Exception ex)
@@ -208,13 +213,16 @@ public sealed class MobileMdFormat : IFormatFileReader<MobileMdFile>, IFormatFil
                 try
                 {
                     // Standard fallback: compact candidate that compact-parse couldn't handle.
-                    var combined = new byte[4 + rawMobBytes.Length];
-                    BinaryPrimitives.WriteInt32LittleEndian(combined, version);
-                    rawMobBytes.CopyTo(combined.AsSpan(4));
-                    var innerReader = new SpanReader(combined);
+#pragma warning disable CA2014 // stackalloc is 256 B; ValueByteBuffer grows via ArrayPool if needed, not via stack
+                    Span<byte> combinedFallbackInitial = stackalloc byte[256];
+#pragma warning restore CA2014
+                    using var combinedFallback = new ValueByteBuffer(combinedFallbackInitial);
+                    combinedFallback.WriteInt32LittleEndian(version);
+                    combinedFallback.Write(rawMobBytes);
+                    var innerReader = new SpanReader(combinedFallback.WrittenSpan);
                     data = MobFormat.Parse(ref innerReader);
                     if (innerReader.Remaining > 0)
-                        tailBytes = combined.AsSpan(innerReader.Position).ToArray();
+                        tailBytes = combinedFallback.WrittenSpan[innerReader.Position..].ToArray();
                     isCompact = false;
                     parseNote = null;
                 }
