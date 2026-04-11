@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+﻿using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -19,12 +19,6 @@ namespace ArcNET.Formats;
 /// </remarks>
 internal static class SarEncoding
 {
-    private const int PresenceOffset = 0;
-    private const int SizeFieldOffset = 1;
-    private const int CountFieldOffset = 5;
-    private const int BitsetIdOffset = 9;
-    private const int DataOffset = 13;
-    private const int SaHeaderSize = DataOffset - 1; // 12 bytes: size(4) + count(4) + bitset_id(4)
     private const int BitsPerWord = 32;
 
     /// <summary>
@@ -41,16 +35,14 @@ internal static class SarEncoding
     internal static byte[] BuildSarBytes(int elementSize, int elementCount, int bitsetId, ReadOnlySpan<byte> elements)
     {
         var bitsetCnt = (uint)((elementCount + BitsPerWord - 1) / BitsPerWord);
-        // presence(1) + SA header(12) + data + bitsetCnt(4) + bitsetData
-        var totalSize = 1 + SaHeaderSize + elements.Length + 4 + (int)(bitsetCnt * 4);
-        var bytes = new byte[totalSize];
-        bytes[PresenceOffset] = 1; // presence
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(SizeFieldOffset), (uint)elementSize); // sa.size
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(CountFieldOffset), (uint)elementCount); // sa.count
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(BitsetIdOffset), (uint)bitsetId); // sa.bitset_id
-        elements.CopyTo(bytes.AsSpan(DataOffset));
-        var postOffset = DataOffset + elements.Length;
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset), bitsetCnt);
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.Write((byte)1); // presence
+        buf.WriteUInt32LittleEndian((uint)elementSize); // sa.size
+        buf.WriteUInt32LittleEndian((uint)elementCount); // sa.count
+        buf.WriteUInt32LittleEndian((uint)bitsetId); // sa.bitset_id
+        buf.Write(elements); // element data
+        buf.WriteUInt32LittleEndian(bitsetCnt); // bitset_cnt
         for (var i = 0; i < (int)bitsetCnt; i++)
         {
             // Fully-occupied words are 0xFFFFFFFF.
@@ -64,8 +56,8 @@ internal static class SarEncoding
                 var rem = elementCount % BitsPerWord;
                 word = rem == 0 ? 0xFFFFFFFF : (1u << rem) - 1u;
             }
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(postOffset + 4 + i * 4), word);
+            buf.WriteUInt32LittleEndian(word);
         }
-        return bytes;
+        return buf.ToArray();
     }
 }

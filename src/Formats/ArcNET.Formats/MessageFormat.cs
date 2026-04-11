@@ -124,41 +124,21 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
 
     private static MessageEntry? ParseLine(ReadOnlySpan<char> line)
     {
-        var tokens = ReadAllBracedTokens(line);
-        if (tokens.Count < 2)
+        var tok = new ValueTokenizer(line);
+
+        if (!tok.TryReadNext(out var t0))
             return null;
 
-        if (!int.TryParse(tokens[0], out var index))
+        if (!int.TryParse(t0, out var index))
             return null;
 
-        // 3-token line: {index}{sound}{text} — middle token is the sound identifier
-        if (tokens.Count >= 3)
-            return new MessageEntry(index, tokens[1], tokens[^1]);
+        if (!tok.TryReadNext(out var t1))
+            return null;
 
-        return new MessageEntry(index, null, tokens[^1]);
-    }
+        // Check for optional third token (sound id between index and text).
+        if (tok.TryReadNext(out var t2))
+            return new MessageEntry(index, t1.ToString(), t2.ToString());
 
-    private static List<string> ReadAllBracedTokens(ReadOnlySpan<char> span)
-    {
-        var tokens = new List<string>(3);
-        var pos = 0;
-
-        while (pos < span.Length)
-        {
-            if (span[pos] != '{')
-            {
-                pos++;
-                continue;
-            }
-
-            var closeIdx = span[pos..].IndexOf('}');
-            if (closeIdx < 0)
-                break;
-
-            tokens.Add(span[(pos + 1)..(pos + closeIdx)].ToString());
-            pos += closeIdx + 1;
-        }
-
-        return tokens;
+        return new MessageEntry(index, null, t1.ToString());
     }
 }

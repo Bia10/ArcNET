@@ -83,66 +83,35 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
     private static DlgFile ParseText(string text)
     {
         var entries = new List<DialogEntry>();
-        var pos = 0;
-
-        string? NextField()
-        {
-            var start = text.IndexOf('{', pos);
-            if (start < 0)
-                return null;
-
-            var depth = 1;
-            var i = start + 1;
-            while (i < text.Length && depth > 0)
-            {
-                if (text[i] == '{')
-                    depth++;
-                else if (text[i] == '}')
-                    depth--;
-                i++;
-            }
-
-            if (depth != 0)
-                return null;
-
-            pos = i;
-            return text[(start + 1)..(i - 1)];
-        }
+        var tok = new ValueTokenizer(text.AsSpan());
 
         while (true)
         {
-            var numStr = NextField();
-            if (numStr is null)
+            if (!tok.TryReadNested(out var numSpan))
                 break;
 
-            var str = NextField();
-            if (str is null)
+            if (!tok.TryReadNested(out var strSpan))
                 break;
 
-            var gender = NextField();
-            if (gender is null)
+            if (!tok.TryReadNested(out var genderSpan))
                 break;
 
-            var iqStr = NextField();
-            if (iqStr is null)
+            if (!tok.TryReadNested(out var iqSpan))
                 break;
 
-            var cond = NextField();
-            if (cond is null)
+            if (!tok.TryReadNested(out var condSpan))
                 break;
 
-            var respStr = NextField();
-            if (respStr is null)
+            if (!tok.TryReadNested(out var respSpan))
                 break;
 
-            var acts = NextField();
-            if (acts is null)
+            if (!tok.TryReadNested(out var actsSpan))
                 break;
 
             if (
-                !int.TryParse(numStr.AsSpan().Trim(), out var num)
-                || !int.TryParse(iqStr.AsSpan().Trim(), out var iq)
-                || !int.TryParse(respStr.AsSpan().Trim(), out var resp)
+                !int.TryParse(numSpan.Trim(), out var num)
+                || !int.TryParse(iqSpan.Trim(), out var iq)
+                || !int.TryParse(respSpan.Trim(), out var resp)
             )
                 continue;
 
@@ -150,12 +119,12 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
                 new DialogEntry
                 {
                     Num = num,
-                    Text = str,
-                    GenderField = gender,
+                    Text = strSpan.ToString(),
+                    GenderField = genderSpan.ToString(),
                     Iq = iq,
-                    Conditions = cond,
+                    Conditions = condSpan.ToString(),
                     ResponseVal = resp,
-                    Actions = acts,
+                    Actions = actsSpan.ToString(),
                 }
             );
         }
