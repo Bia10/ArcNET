@@ -99,12 +99,13 @@ public sealed class SaveGameEditor
         _originalPlayerLocationInitialized = true;
         if (
             TryFindCharacterCore(
-                c => c.HasCompleteData,
+                c => c.HasCompleteData && c.Name != null,
                 includePending: false,
                 out _,
                 out var mdyPath,
                 out var recordIndex
             )
+            || TryFindCharacterCore(c => c.HasCompleteData, includePending: false, out _, out mdyPath, out recordIndex)
         )
             _originalPlayerLocation = (mdyPath, recordIndex);
 
@@ -227,7 +228,13 @@ public sealed class SaveGameEditor
     /// with a custom predicate for finer control.
     /// </summary>
     public bool TryFindPlayerCharacter(out CharacterRecord character, out string mdyPath) =>
-        TryFindCharacterCore(c => c.HasCompleteData, includePending: true, out character, out mdyPath, out _);
+        TryFindCharacterCore(
+            c => c.HasCompleteData && c.Name != null,
+            includePending: true,
+            out character,
+            out mdyPath,
+            out _
+        ) || TryFindCharacterCore(c => c.HasCompleteData, includePending: true, out character, out mdyPath, out _);
 
     /// <summary>
     /// Finds the player character in the current editor view.
@@ -236,7 +243,20 @@ public sealed class SaveGameEditor
     public bool TryFindPlayerCharacter(out CharacterRecord character) => TryFindPlayerCharacter(out character, out _);
 
     private bool TryFindPlayerCharacter(out CharacterRecord character, out string mdyPath, out int recordIndex) =>
-        TryFindCharacterCore(c => c.HasCompleteData, includePending: true, out character, out mdyPath, out recordIndex);
+        TryFindCharacterCore(
+            c => c.HasCompleteData && c.Name != null,
+            includePending: true,
+            out character,
+            out mdyPath,
+            out recordIndex
+        )
+        || TryFindCharacterCore(
+            c => c.HasCompleteData,
+            includePending: true,
+            out character,
+            out mdyPath,
+            out recordIndex
+        );
 
     // ── Applying updates ──────────────────────────────────────────────────────
 

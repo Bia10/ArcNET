@@ -119,6 +119,18 @@ public sealed class CharacterRecord
     public int TotalKills { get; private init; }
 
     /// <summary>
+    /// Bullet count (bsId=0x4D68[11]). Only present for tech-focused characters (GameStats eCnt >= 12).
+    /// 0 when absent (magic characters).
+    /// </summary>
+    public int Bullets { get; private init; }
+
+    /// <summary>
+    /// Power-cell count (bsId=0x4D68[12]). Only present for tech-focused characters (GameStats eCnt = 13).
+    /// 0 when absent.
+    /// </summary>
+    public int PowerCells { get; private init; }
+
+    /// <summary>
     /// The character's portrait index (bsId=0x4DA4[1]).
     /// −1 when the portrait SAR is absent from the source record.
     /// </summary>
@@ -156,6 +168,83 @@ public sealed class CharacterRecord
 
     /// <summary>Fatigue damage taken (bsId=0x423E[2]).  0 at full fatigue.</summary>
     public int FatigueDamage => FatigueDamageRaw is { } r ? r[2] : 0;
+
+    // ── Quest log ─────────────────────────────────────────────────────────────
+
+    /// <summary>Number of quest-log entries.  0 when the quest SAR is absent (very early saves).</summary>
+    public int QuestCount { get; private init; }
+
+    /// <summary>
+    /// Raw quest-log entry bytes (16 bytes per entry), or <see langword="null"/> when absent.
+    /// Each 16-byte block: INT32 context, INT32 timestamp, INT32 state, INT32 reserved.
+    /// The corresponding quest proto IDs are in <see cref="QuestBitsetRaw"/>.
+    /// </summary>
+    public byte[]? QuestDataRaw { get; private init; }
+
+    /// <summary>
+    /// The 37-word bitset encoding which quest-slot IDs are active, or <see langword="null"/> when absent.
+    /// Bit N set → quest proto ID N has an entry in <see cref="QuestDataRaw"/>.
+    /// </summary>
+    public int[]? QuestBitsetRaw { get; private init; }
+
+    // ── Reputation ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Raw 19-element faction-reputation array, or <see langword="null"/> when absent (early saves).
+    /// Element order matches the SAR bitset slot IDs; see <see cref="CharacterMdyRecord.ReputationFactionSlots"/>.
+    /// </summary>
+    public int[]? ReputationRaw { get; private init; }
+
+    // ── Blessings / Curses ────────────────────────────────────────────────────
+
+    /// <summary>Number of active divine blessings.  0 when no blessings have been received.</summary>
+    public int BlessingProtoElementCount => BlessingRaw?.Length ?? 0;
+
+    /// <summary>
+    /// Divine blessing prototype IDs (one per god who blessed this character), or <see langword="null"/> when absent.
+    /// </summary>
+    public int[]? BlessingRaw { get; private init; }
+
+    /// <summary>
+    /// Raw blessing timestamp data (8 bytes per entry, parallel to <see cref="BlessingRaw"/>),
+    /// or <see langword="null"/> when absent.
+    /// </summary>
+    public byte[]? BlessingTsRaw { get; private init; }
+
+    /// <summary>Number of active divine curses.  0 when no curses are present.</summary>
+    public int CurseProtoElementCount => CurseRaw?.Length ?? 0;
+
+    /// <summary>
+    /// Divine curse prototype IDs (one per god who cursed this character), or <see langword="null"/> when absent.
+    /// </summary>
+    public int[]? CurseRaw { get; private init; }
+
+    /// <summary>
+    /// Raw curse timestamp data (8 bytes per entry, parallel to <see cref="CurseRaw"/>),
+    /// or <see langword="null"/> when absent.
+    /// </summary>
+    public byte[]? CurseTsRaw { get; private init; }
+
+    // ── Schematics ────────────────────────────────────────────────────────────
+
+    /// <summary>Number of tech schematics found.  0 for pure magic builds.</summary>
+    public int SchematicsElementCount => SchematicsRaw?.Length ?? 0;
+
+    /// <summary>
+    /// Tech schematic prototype IDs found by this character, or <see langword="null"/> when absent.
+    /// </summary>
+    public int[]? SchematicsRaw { get; private init; }
+
+    // ── Rumors ────────────────────────────────────────────────────────────────
+
+    /// <summary>Number of known rumors.  0 when the rumors SAR is absent.</summary>
+    public int RumorsCount { get; private init; }
+
+    /// <summary>
+    /// Raw rumors data (8 bytes per entry), or <see langword="null"/> when absent.
+    /// Count is given by <see cref="RumorsCount"/>.
+    /// </summary>
+    public byte[]? RumorsRaw { get; private init; }
 
     // ── Metadata ─────────────────────────────────────────────────────────────
 
@@ -267,7 +356,20 @@ public sealed class CharacterRecord
         string? name = null,
         int[]? positionAiRaw = null,
         int[]? hpDamageRaw = null,
-        int[]? fatigueDamageRaw = null
+        int[]? fatigueDamageRaw = null,
+        int bullets = 0,
+        int powerCells = 0,
+        int questCount = 0,
+        byte[]? questDataRaw = null,
+        int[]? questBitsetRaw = null,
+        int[]? reputationRaw = null,
+        int[]? blessingRaw = null,
+        byte[]? blessingTsRaw = null,
+        int[]? curseRaw = null,
+        byte[]? curseTsRaw = null,
+        int[]? schematicsRaw = null,
+        int rumorsCount = 0,
+        byte[]? rumorsRaw = null
     )
     {
         static int At(int[] arr, int i) => i < arr.Length ? arr[i] : 0;
@@ -352,6 +454,19 @@ public sealed class CharacterRecord
             PositionAiRaw = positionAiRaw,
             HpDamageRaw = hpDamageRaw,
             FatigueDamageRaw = fatigueDamageRaw,
+            Bullets = bullets,
+            PowerCells = powerCells,
+            QuestCount = questCount,
+            QuestDataRaw = questDataRaw,
+            QuestBitsetRaw = questBitsetRaw,
+            ReputationRaw = reputationRaw,
+            BlessingRaw = blessingRaw,
+            BlessingTsRaw = blessingTsRaw,
+            CurseRaw = curseRaw,
+            CurseTsRaw = curseTsRaw,
+            SchematicsRaw = schematicsRaw,
+            RumorsCount = rumorsCount,
+            RumorsRaw = rumorsRaw,
         };
     }
 
@@ -375,7 +490,20 @@ public sealed class CharacterRecord
             rec.Name,
             rec.PositionAiRaw,
             rec.HpDamageRaw,
-            rec.FatigueDamageRaw
+            rec.FatigueDamageRaw,
+            rec.Bullets,
+            rec.PowerCells,
+            rec.QuestCount,
+            rec.QuestDataRaw,
+            rec.QuestBitsetRaw,
+            rec.ReputationRaw,
+            rec.BlessingRaw,
+            rec.BlessingTsRaw,
+            rec.CurseRaw,
+            rec.CurseTsRaw,
+            rec.SchematicsRaw,
+            rec.RumorsCount,
+            rec.RumorsRaw
         );
 
     /// <summary>
@@ -383,8 +511,9 @@ public sealed class CharacterRecord
     /// <paramref name="original"/> with all four SAR arrays replaced by the
     /// values in this record.  All other bytes in the original are preserved.
     /// </summary>
-    public CharacterMdyRecord ApplyTo(CharacterMdyRecord original) =>
-        original
+    public CharacterMdyRecord ApplyTo(CharacterMdyRecord original)
+    {
+        var rec = original
             .WithStats(ToStatArray())
             .WithBasicSkills(ToBasicSkillArray())
             .WithTechSkills(ToTechSkillArray())
@@ -400,7 +529,30 @@ public sealed class CharacterRecord
             .WithPositionAi(PositionAiRaw ?? original.PositionAiRaw ?? [0, 0, 0])
             .WithHpDamage(HpDamageRaw ?? original.HpDamageRaw ?? [0, 0, 0, 0])
             .WithFatigueDamage(FatigueDamageRaw ?? original.FatigueDamageRaw ?? [0, 0, 0, 0])
-            .WithName(Name ?? original.Name);
+            .WithName(Name ?? original.Name)
+            .WithBullets(Bullets)
+            .WithPowerCells(PowerCells);
+
+        if (QuestDataRaw is { } qd)
+        {
+            if (QuestBitsetRaw is { } qb)
+                rec = rec.WithQuestStateRaw(qd, qb);
+            else
+                rec = rec.WithQuestDataRaw(qd);
+        }
+        if (ReputationRaw is { } rep)
+            rec = rec.WithReputationRaw(rep);
+        if (BlessingRaw is { } bl)
+            rec = rec.WithBlessingRaw(bl);
+        if (CurseRaw is { } cu)
+            rec = rec.WithCurseRaw(cu);
+        if (SchematicsRaw is { } sch)
+            rec = rec.WithSchematicsRaw(sch);
+        if (RumorsRaw is { } rum)
+            rec = rec.WithRumorsRaw(rum);
+
+        return rec;
+    }
 
     // ── Nested builder ────────────────────────────────────────────────────────
 
@@ -483,11 +635,24 @@ public sealed class CharacterRecord
         private int _gold;
         private int _arrows;
         private int _totalKills;
+        private int _bullets;
+        private int _powerCells;
         private int _portraitIndex = -1;
         private string? _name;
         private int[]? _positionAiRaw;
         private int[]? _hpDamageRaw;
         private int[]? _fatigueDamageRaw;
+        private int _questCount;
+        private byte[]? _questDataRaw;
+        private int[]? _questBitsetRaw;
+        private int[]? _reputationRaw;
+        private int[]? _blessingRaw;
+        private byte[]? _blessingTsRaw;
+        private int[]? _curseRaw;
+        private byte[]? _curseTsRaw;
+        private int[]? _schematicsRaw;
+        private int _rumorsCount;
+        private byte[]? _rumorsRaw;
         private bool _hasCompleteData = true;
 
         /// <summary>Creates an empty builder; all values default to zero.</summary>
@@ -568,14 +733,81 @@ public sealed class CharacterRecord
             _gold = from.Gold;
             _arrows = from.Arrows;
             _totalKills = from.TotalKills;
+            _bullets = from.Bullets;
+            _powerCells = from.PowerCells;
             _portraitIndex = from.PortraitIndex;
             _name = from.Name;
             _positionAiRaw = from.PositionAiRaw;
             _hpDamageRaw = from.HpDamageRaw;
             _fatigueDamageRaw = from.FatigueDamageRaw;
+            _questCount = from.QuestCount;
+            _questDataRaw = from.QuestDataRaw;
+            _questBitsetRaw = from.QuestBitsetRaw;
+            _reputationRaw = from.ReputationRaw;
+            _blessingRaw = from.BlessingRaw;
+            _blessingTsRaw = from.BlessingTsRaw;
+            _curseRaw = from.CurseRaw;
+            _curseTsRaw = from.CurseTsRaw;
+            _schematicsRaw = from.SchematicsRaw;
+            _rumorsCount = from.RumorsCount;
+            _rumorsRaw = from.RumorsRaw;
         }
 
         // ── Attributes ────────────────────────────────────────────────────────
+
+        public Builder WithCarryWeight(int v)
+        {
+            _carryWt = v;
+            return this;
+        }
+
+        public Builder WithDamageBonus(int v)
+        {
+            _dmgBonus = v;
+            return this;
+        }
+
+        public Builder WithAcAdjustment(int v)
+        {
+            _acAdj = v;
+            return this;
+        }
+
+        public Builder WithSpeed(int v)
+        {
+            _spd = v;
+            return this;
+        }
+
+        public Builder WithHealRate(int v)
+        {
+            _healRate = v;
+            return this;
+        }
+
+        public Builder WithPoisonRecovery(int v)
+        {
+            _poisonRec = v;
+            return this;
+        }
+
+        public Builder WithReactionModifier(int v)
+        {
+            _reactMod = v;
+            return this;
+        }
+
+        public Builder WithMaxFollowers(int v)
+        {
+            _maxFoll = v;
+            return this;
+        }
+
+        public Builder WithMagickTechAptitude(int v)
+        {
+            _magTechApt = v;
+            return this;
+        }
 
         public Builder WithStrength(int v)
         {
@@ -965,6 +1197,26 @@ public sealed class CharacterRecord
             return this;
         }
 
+        /// <summary>
+        /// Sets the bullet count. Only written to the save when the underlying
+        /// GameStats SAR has at least 12 elements (tech-focused characters).
+        /// </summary>
+        public Builder WithBullets(int v)
+        {
+            _bullets = v;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the power-cell count. Only written to the save when the underlying
+        /// GameStats SAR has 13 elements.
+        /// </summary>
+        public Builder WithPowerCells(int v)
+        {
+            _powerCells = v;
+            return this;
+        }
+
         public Builder WithPortraitIndex(int v)
         {
             _portraitIndex = v;
@@ -983,15 +1235,116 @@ public sealed class CharacterRecord
             return this;
         }
 
+        /// <summary>
+        /// Sets only the HP damage taken (element [3] of the HP SAR),
+        /// preserving the other three elements from the current raw value.
+        /// </summary>
+        public Builder WithHpDamage(int damage)
+        {
+            var raw = _hpDamageRaw ?? [0, 0, 0, 0];
+            _hpDamageRaw = [raw[0], raw[1], raw[2], damage];
+            return this;
+        }
+
         public Builder WithFatigueDamageRaw(int[] v)
         {
             _fatigueDamageRaw = v;
             return this;
         }
 
+        /// <summary>
+        /// Sets only the fatigue damage taken (element [2] of the fatigue SAR),
+        /// preserving the other three elements from the current raw value.
+        /// </summary>
+        public Builder WithFatigueDamage(int damage)
+        {
+            var raw = _fatigueDamageRaw ?? [0, 0, 0, 0];
+            _fatigueDamageRaw = [raw[0], raw[1], damage, raw[3]];
+            return this;
+        }
+
         public Builder WithName(string? v)
         {
             _name = v;
+            return this;
+        }
+
+        // ── Quest log ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Replaces the raw quest-log entry bytes.  The count is derived from
+        /// <paramref name="data"/>.Length / 16.  Also accepts the original bitset
+        /// separately via <see cref="WithQuestBitsetRaw"/>.
+        /// </summary>
+        public Builder WithQuestDataRaw(byte[] data)
+        {
+            _questDataRaw = data;
+            _questCount = data.Length / 16;
+            return this;
+        }
+
+        /// <summary>Replaces the 37-word quest bitset (slot-ID encoding).</summary>
+        public Builder WithQuestBitsetRaw(int[] bitset)
+        {
+            _questBitsetRaw = bitset;
+            return this;
+        }
+
+        // ── Reputation ───────────────────────────────────────────────────────────
+
+        /// <summary>Replaces the raw 19-element faction-reputation array.</summary>
+        public Builder WithReputationRaw(int[] rep)
+        {
+            _reputationRaw = rep;
+            return this;
+        }
+
+        // ── Blessings / Curses ────────────────────────────────────────────────────
+
+        /// <summary>Replaces the blessing prototype-ID array.</summary>
+        public Builder WithBlessingRaw(int[] bless)
+        {
+            _blessingRaw = bless;
+            return this;
+        }
+
+        /// <summary>Replaces the raw blessing timestamp data (8 bytes per entry).</summary>
+        public Builder WithBlessingTsRaw(byte[] ts)
+        {
+            _blessingTsRaw = ts;
+            return this;
+        }
+
+        /// <summary>Replaces the curse prototype-ID array.</summary>
+        public Builder WithCurseRaw(int[] curse)
+        {
+            _curseRaw = curse;
+            return this;
+        }
+
+        /// <summary>Replaces the raw curse timestamp data (8 bytes per entry).</summary>
+        public Builder WithCurseTsRaw(byte[] ts)
+        {
+            _curseTsRaw = ts;
+            return this;
+        }
+
+        // ── Schematics ───────────────────────────────────────────────────────────
+
+        /// <summary>Replaces the tech schematics prototype-ID array.</summary>
+        public Builder WithSchematicsRaw(int[] sch)
+        {
+            _schematicsRaw = sch;
+            return this;
+        }
+
+        // ── Rumors ────────────────────────────────────────────────────────────────
+
+        /// <summary>Replaces the raw rumors data (8 bytes per entry).</summary>
+        public Builder WithRumorsRaw(byte[] rumors)
+        {
+            _rumorsRaw = rumors;
+            _rumorsCount = rumors.Length / 8;
             return this;
         }
 
@@ -1079,11 +1432,24 @@ public sealed class CharacterRecord
                 Gold = _gold,
                 Arrows = _arrows,
                 TotalKills = _totalKills,
+                Bullets = _bullets,
+                PowerCells = _powerCells,
                 PortraitIndex = _portraitIndex,
                 Name = _name,
                 PositionAiRaw = _positionAiRaw,
                 HpDamageRaw = _hpDamageRaw,
                 FatigueDamageRaw = _fatigueDamageRaw,
+                QuestCount = _questCount,
+                QuestDataRaw = _questDataRaw,
+                QuestBitsetRaw = _questBitsetRaw,
+                ReputationRaw = _reputationRaw,
+                BlessingRaw = _blessingRaw,
+                BlessingTsRaw = _blessingTsRaw,
+                CurseRaw = _curseRaw,
+                CurseTsRaw = _curseTsRaw,
+                SchematicsRaw = _schematicsRaw,
+                RumorsCount = _rumorsCount,
+                RumorsRaw = _rumorsRaw,
             };
     }
 }
