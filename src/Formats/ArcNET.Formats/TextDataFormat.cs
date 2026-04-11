@@ -54,8 +54,7 @@ public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFil
     /// <inheritdoc/>
     public static void Write(in TextDataFile value, ref SpanWriter writer)
     {
-        Span<char> buf = stackalloc char[512];
-        var sb = new ValueStringBuilder(buf);
+        using var sb = new ValueStringBuilder(stackalloc char[512]);
         foreach (var (key, val) in value.Entries)
         {
             sb.Append(key);
@@ -64,13 +63,15 @@ public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFil
             sb.Append('\n');
         }
 
+        var bytes = new ValueByteBuffer(stackalloc byte[512]);
         try
         {
-            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, s_encoding, ref writer);
+            sb.WriteEncodedTo(s_encoding, ref bytes);
+            writer.WriteBytes(bytes.WrittenSpan);
         }
         finally
         {
-            sb.Dispose();
+            bytes.Dispose();
         }
     }
 

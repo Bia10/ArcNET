@@ -24,10 +24,7 @@ public readonly record struct PrefixedString(string Value) : IBinarySerializable
         writer.WriteUInt16((ushort)byteCount);
         Span<byte> initial = stackalloc byte[Core.StackAllocPolicy.MaxStackAllocBytes];
         using var buf = new ValueByteBuffer(initial);
-        buf.EnsureCapacity(byteCount);
-        var dest = buf.GetWritableSpan(byteCount);
-        Encoding.ASCII.GetBytes(Value, dest);
-        buf.AdvanceLength(byteCount);
+        buf.WriteEncoded(Value.AsSpan(), Encoding.ASCII);
         writer.WriteBytes(buf.WrittenSpan);
     }
 

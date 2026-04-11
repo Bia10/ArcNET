@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -170,9 +171,11 @@ public sealed class SaveInfoFormat : IFormatFileReader<SaveInfo>, IFormatFileWri
 
     private static void WritePrefixed(string value, ref SpanWriter writer)
     {
-        var bytes = Encoding.ASCII.GetBytes(value);
-        writer.WriteInt32(bytes.Length);
-        writer.WriteBytes(bytes);
+        Span<byte> initial = stackalloc byte[Core.StackAllocPolicy.MaxStackAllocBytes];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteAsciiEncoded(value.AsSpan());
+        writer.WriteInt32(buf.Length);
+        writer.WriteBytes(buf.WrittenSpan);
     }
 
     /// <inheritdoc/>

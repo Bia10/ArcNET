@@ -51,8 +51,7 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
     /// <inheritdoc/>
     public static void Write(in MesFile value, ref SpanWriter writer)
     {
-        Span<char> buf = stackalloc char[512];
-        var sb = new ValueStringBuilder(buf);
+        using var sb = new ValueStringBuilder(stackalloc char[512]);
         foreach (var entry in value.Entries)
         {
             sb.Append('{');
@@ -70,13 +69,15 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
             sb.AppendLine();
         }
 
+        var bytes = new ValueByteBuffer(stackalloc byte[512]);
         try
         {
-            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, Encoding.UTF8, ref writer);
+            sb.WriteEncodedTo(Encoding.UTF8, ref bytes);
+            writer.WriteBytes(bytes.WrittenSpan);
         }
         finally
         {
-            sb.Dispose();
+            bytes.Dispose();
         }
     }
 

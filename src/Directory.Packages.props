@@ -19,6 +19,6 @@
     <!-- Application -->
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
     <!-- Buffers -->
-    <PackageVersion Include="Bia.ValueBuffers" Version="0.4.0" />
+    <PackageVersion Include="Bia.ValueBuffers" Version="0.6.0" />
   </ItemGroup>
 </Project>

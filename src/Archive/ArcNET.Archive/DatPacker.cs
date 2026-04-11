@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
-using System.Text;
 using ArcNET.Core;
 using Bia.ValueBuffers;
 
@@ -113,15 +112,11 @@ public static class DatPacker
         {
             // Encode the virtual path as ASCII without a heap allocation.
             // Arcanum paths are always ASCII and well under MaxStackAllocBytes (256).
-            var byteCount = Encoding.ASCII.GetByteCount(virtualPath);
-            var nameLen = byteCount + 1; // includes null terminator
-            dirWriter.WriteInt32(nameLen);
-            pathBuf.EnsureCapacity(byteCount);
-            var dest = pathBuf.GetWritableSpan(byteCount);
-            Encoding.ASCII.GetBytes(virtualPath, dest);
-            pathBuf.AdvanceLength(byteCount);
-            dirWriter.WriteBytes(pathBuf.WrittenSpan);
             pathBuf.Clear();
+            pathBuf.WriteAsciiEncoded(virtualPath.AsSpan());
+            var nameLen = pathBuf.Length + 1; // includes null terminator
+            dirWriter.WriteInt32(nameLen);
+            dirWriter.WriteBytes(pathBuf.WrittenSpan);
             dirWriter.WriteByte(0); // null terminator
             dirWriter.WriteUInt32(0u); // unknown skip field
             dirWriter.WriteUInt32(0x001u); // flags: Plain

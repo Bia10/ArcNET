@@ -143,8 +143,7 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
     /// <inheritdoc/>
     public static void Write(in DlgFile value, ref SpanWriter writer)
     {
-        Span<char> buf = stackalloc char[1024];
-        var sb = new ValueStringBuilder(buf);
+        using var sb = new ValueStringBuilder(stackalloc char[1024]);
         foreach (var e in value.Entries)
         {
             sb.Append('{');
@@ -171,13 +170,15 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
             sb.AppendLine();
         }
 
+        var bytes = new ValueByteBuffer(stackalloc byte[512]);
         try
         {
-            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, s_encoding, ref writer);
+            sb.WriteEncodedTo(s_encoding, ref bytes);
+            writer.WriteBytes(bytes.WrittenSpan);
         }
         finally
         {
-            sb.Dispose();
+            bytes.Dispose();
         }
     }
 

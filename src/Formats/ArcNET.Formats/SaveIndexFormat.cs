@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -134,9 +135,11 @@ public sealed class SaveIndexFormat : IFormatFileReader<SaveIndex>, IFormatFileW
 
     private static void WriteName(string name, ref SpanWriter writer)
     {
-        var bytes = Encoding.ASCII.GetBytes(name);
-        writer.WriteInt32(bytes.Length);
-        writer.WriteBytes(bytes);
+        Span<byte> initial = stackalloc byte[Core.StackAllocPolicy.MaxStackAllocBytes];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteAsciiEncoded(name.AsSpan());
+        writer.WriteInt32(buf.Length);
+        writer.WriteBytes(buf.WrittenSpan);
     }
 
     /// <inheritdoc/>
