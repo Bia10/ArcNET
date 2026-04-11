@@ -319,6 +319,19 @@ public sealed partial record CharacterMdyRecord
     }
 
     /// <summary>
+    /// Returns a new record with the faction-reputation values replaced in-place.
+    /// <paramref name="values"/> must have exactly <see cref="ReputationSarElementCount"/> (19) elements.
+    /// Returns this record unchanged when the reputation SAR is absent.
+    /// </summary>
+    public CharacterMdyRecord WithReputationRaw(ReadOnlySpan<int> values)
+    {
+        if (ReputationDataOffset < 0 || values.Length != ReputationSarElementCount)
+            return this;
+        var raw = PatchInts(RawBytes, ReputationDataOffset, values.ToArray());
+        return this with { RawBytes = raw };
+    }
+
+    /// <summary>
     /// Returns a new record with the blessing prototype IDs replaced in-place.
     /// The count must match the existing <see cref="BlessingProtoElementCount"/>;
     /// use the OFF format / MobData bridge to add or remove blessings.
