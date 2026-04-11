@@ -18,8 +18,7 @@ public static class ScriptDumper
         vsb.AppendLine("\"");
         vsb.Append("  Behaviour   : ");
         vsb.Append(scr.Flags.ToString());
-        vsb.Append("  (0x");
-        vsb.Append((uint)scr.Flags, "X4");
+        vsb.AppendHex((ushort)scr.Flags, "  (0x".AsSpan());
         vsb.AppendLine(")");
         // Count active (non-empty) slots for the summary line
         var activeSlots = scr.Entries.Count(e =>
@@ -41,10 +40,8 @@ public static class ScriptDumper
         // HeaderFlags and HeaderCounters are runtime state only (not meaningful off-disk)
         if (scr.HeaderFlags != 0 || scr.HeaderCounters != 0)
         {
-            vsb.Append("  Runtime state  : flags=0x");
-            vsb.Append(scr.HeaderFlags, "X8");
-            vsb.Append("  counters=0x");
-            vsb.Append(scr.HeaderCounters, "X8");
+            vsb.AppendHex(scr.HeaderFlags, "  Runtime state  : flags=0x".AsSpan());
+            vsb.AppendHex(scr.HeaderCounters, "  counters=0x".AsSpan());
             vsb.AppendLine();
         }
         vsb.AppendLine();
@@ -129,8 +126,7 @@ public static class ScriptDumper
             vsb.Append(typeName);
             vsb.Append(" = ");
             vsb.Append(opValues[j]);
-            vsb.Append("  (0x");
-            vsb.Append(opValues[j], "X8");
+            vsb.AppendHex((uint)opValues[j], "  (0x".AsSpan());
             vsb.AppendLine(")");
         }
     }

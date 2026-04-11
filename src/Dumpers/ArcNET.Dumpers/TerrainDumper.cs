@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -13,11 +13,21 @@ public static class TerrainDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== TERRAIN FILE ===");
-        vsb.AppendLine($"  Version      : {terrain.Version:F1}  (standard TDF format)");
-        vsb.AppendLine($"  Base terrain : {terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
-        vsb.AppendLine(
-            $"  Dimensions   : {terrain.Width} \u00d7 {terrain.Height} tiles  ({terrain.Tiles.Length} total)"
-        );
+        vsb.Append("  Version      : ");
+        vsb.Append(terrain.Version, "F1");
+        vsb.AppendLine("  (standard TDF format)");
+        vsb.Append("  Base terrain : ");
+        vsb.Append(terrain.BaseTerrainType.ToString());
+        vsb.Append(" (");
+        vsb.Append((int)terrain.BaseTerrainType);
+        vsb.AppendLine(")");
+        vsb.Append("  Dimensions   : ");
+        vsb.Append(terrain.Width);
+        vsb.Append(" \u00d7 ");
+        vsb.Append(terrain.Height);
+        vsb.Append(" tiles  (");
+        vsb.Append(terrain.Tiles.Length);
+        vsb.AppendLine(" total)");
         vsb.AppendLine(
             terrain.Compressed
                 ? "  Storage      : compressed (row-by-row zlib)"
@@ -37,10 +47,17 @@ public static class TerrainDumper
         foreach (var kvp in distribution.OrderByDescending(k => k.Value))
         {
             var pct = 100.0 * kvp.Value / terrain.Tiles.Length;
+            // label still needs a string because enum.ToString() allocates; the outer line does not
             var label = Enum.IsDefined((TerrainType)kvp.Key)
                 ? $"{(TerrainType)kvp.Key} ({kvp.Key})"
                 : $"0x{kvp.Key:X4}";
-            vsb.AppendLine($"    {label, -25} : {kvp.Value, 7} tiles ({pct:F1}%)");
+            vsb.Append("    ");
+            vsb.AppendPadded(label, 25);
+            vsb.Append(" : ");
+            vsb.AppendPadded<int>(kvp.Value, 7, leftAlign: false);
+            vsb.Append(" tiles (");
+            vsb.Append(pct, "F1");
+            vsb.AppendLine("%)");
         }
 
         return vsb.ToString();

@@ -138,9 +138,9 @@ public static class MobDumper
             if (prop.ParseNote is not null)
             {
                 vsb.Append("  [");
-                AppendLeftPaddedInt(ref vsb, (int)prop.Field, 3);
+                vsb.AppendPadded<int>((int)prop.Field, 3, leftAlign: false, padChar: ' ');
                 vsb.Append("] ");
-                AppendRightPadded(ref vsb, fieldName, 32);
+                vsb.AppendPadded(fieldName, 32);
                 vsb.Append("  *** parse stopped: ");
                 vsb.Append(prop.ParseNote);
                 vsb.AppendLine(" ***");
@@ -148,11 +148,11 @@ public static class MobDumper
                 break;
             }
             vsb.Append("  [");
-            AppendLeftPaddedInt(ref vsb, (int)prop.Field, 3);
+            vsb.AppendPadded<int>((int)prop.Field, 3, leftAlign: false, padChar: ' ');
             vsb.Append("] ");
-            AppendRightPadded(ref vsb, fieldName, 32);
+            vsb.AppendPadded(fieldName, 32);
             vsb.Append(" (");
-            AppendLeftPaddedInt(ref vsb, bytes.Length, 3);
+            vsb.AppendPadded<int>(bytes.Length, 3, leftAlign: false, padChar: ' ');
             vsb.Append(" B)  ");
             AppendDecodedValue(ref vsb, prop, objectType);
             vsb.AppendLine();
@@ -393,8 +393,7 @@ public static class MobDumper
             return;
         }
 
-        vsb.Append("= 0x");
-        vsb.Append(((ulong)i64).ToString("X16"));
+        vsb.AppendHex((ulong)i64, "= 0x".AsSpan());
     }
 
     /// <summary>Appends human-readable representation of a SAR (Sparse Array) property value.</summary>
@@ -459,7 +458,7 @@ public static class MobDumper
                 {
                     var statLabel = Enum.IsDefined((BasicStatType)idx) ? ((BasicStatType)idx).ToString() : $"Stat{idx}";
                     vsb.Append("      [");
-                    AppendRightPadded(ref vsb, statLabel, 20);
+                    vsb.AppendPadded(statLabel, 20);
                     vsb.Append("] = ");
                     vsb.Append(vals[idx]);
                     vsb.AppendLine();
@@ -502,9 +501,15 @@ public static class MobDumper
                 var apName = Enum.IsDefined((ScriptAttachmentPoint)idx)
                     ? ((ScriptAttachmentPoint)idx).ToString()
                     : $"Slot{idx}";
-                vsb.AppendLine(
-                    $"      [{apName}] scriptId={scriptId}  hdrFlags=0x{hdrFlags:X8}  hdrCounters=0x{hdrCounters:X8}"
-                );
+                vsb.Append("      [");
+                vsb.Append(apName);
+                vsb.Append("] scriptId=");
+                vsb.Append(scriptId);
+                vsb.Append("  hdrFlags=");
+                vsb.AppendHex(hdrFlags, "0x".AsSpan());
+                vsb.Append("  hdrCounters=");
+                vsb.AppendHex(hdrCounters, "0x".AsSpan());
+                vsb.AppendLine();
             }
             return;
         }
@@ -538,8 +543,7 @@ public static class MobDumper
 
     private static void AppendAssignedHex32(ref ValueStringBuilder vsb, uint value, string? suffix = null)
     {
-        vsb.Append("= 0x");
-        vsb.AppendHex(value);
+        vsb.AppendHex(value, "= 0x".AsSpan());
         if (!string.IsNullOrEmpty(suffix))
             vsb.Append(suffix);
     }
@@ -550,22 +554,6 @@ public static class MobDumper
         vsb.Append(value);
         if (!string.IsNullOrEmpty(suffix))
             vsb.Append(suffix);
-    }
-
-    private static void AppendLeftPaddedInt(ref ValueStringBuilder vsb, int value, int width)
-    {
-        Span<char> buffer = stackalloc char[16];
-        _ = value.TryFormat(buffer, out var written);
-        for (var index = written; index < width; index++)
-            vsb.Append(' ');
-        vsb.Append(value);
-    }
-
-    private static void AppendRightPadded(ref ValueStringBuilder vsb, string value, int width)
-    {
-        vsb.Append(value);
-        for (var index = value.Length; index < width; index++)
-            vsb.Append(' ');
     }
 
     private static bool IsLocationField(ObjectField field, ObjectType objectType) =>
@@ -593,7 +581,7 @@ public static class MobDumper
         }
 
         if (names.Count > 0)
-            vsb.AppendJoin(" | ".AsSpan(), (IEnumerable<string?>)names);
+            vsb.AppendJoin(" | ", names);
         else
             vsb.Append("(unknown flags)");
     }

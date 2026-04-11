@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -16,11 +16,18 @@ public static class DialogDumper
 
         var npcLines = dlg.Entries.Count(e => e.Iq == 0);
         var pcOptions = dlg.Entries.Count(e => e.Iq != 0);
-        vsb.AppendLine($"  Entries    : {dlg.Entries.Count} ({npcLines} NPC, {pcOptions} PC)");
+        vsb.Append("  Entries    : ");
+        vsb.Append(dlg.Entries.Count);
+        vsb.Append(" (");
+        vsb.Append(npcLines);
+        vsb.Append(" NPC, ");
+        vsb.Append(pcOptions);
+        vsb.AppendLine(" PC)");
         vsb.AppendLine();
 
         foreach (var e in dlg.Entries)
         {
+            // Switch-expression strings: enum.ToString() allocates regardless; keeping as locals is correct.
             var kind = e.Iq switch
             {
                 0 => "NPC",
@@ -39,17 +46,42 @@ public static class DialogDumper
                 _ => "",
             };
 
-            vsb.AppendLine($"  --- Entry {e.Num} [{kind}]{controlTag} ---");
-            vsb.AppendLine($"    Text       : {e.Text}");
+            vsb.Append("  --- Entry ");
+            vsb.Append(e.Num);
+            vsb.Append(" [");
+            vsb.Append(kind);
+            vsb.Append(']');
+            vsb.Append(controlTag);
+            vsb.AppendLine(" ---");
+            vsb.Append("    Text       : ");
+            vsb.AppendLine(e.Text);
             if (!string.IsNullOrEmpty(e.GenderField))
-                vsb.AppendLine(e.Iq == 0 ? $"    FemaleText : {e.GenderField}" : $"    Gender     : {e.GenderField}");
+            {
+                vsb.Append(e.Iq == 0 ? "    FemaleText : " : "    Gender     : ");
+                vsb.AppendLine(e.GenderField);
+            }
             if (!string.IsNullOrEmpty(e.Conditions))
-                vsb.AppendLine($"    Conditions : {e.Conditions}  [Arcanum script]");
+            {
+                vsb.Append("    Conditions : ");
+                vsb.Append(e.Conditions);
+                vsb.AppendLine("  [Arcanum script]");
+            }
             else
                 vsb.AppendLine("    Conditions : (always available)");
-            vsb.AppendLine($"    Response   : {(e.ResponseVal == 0 ? "(end)" : e.ResponseVal.ToString())}");
+            vsb.Append("    Response   : ");
+            if (e.ResponseVal == 0)
+                vsb.AppendLine("(end)");
+            else
+            {
+                vsb.Append(e.ResponseVal);
+                vsb.AppendLine();
+            }
             if (!string.IsNullOrEmpty(e.Actions))
-                vsb.AppendLine($"    Actions    : {e.Actions}  [Arcanum script]");
+            {
+                vsb.Append("    Actions    : ");
+                vsb.Append(e.Actions);
+                vsb.AppendLine("  [Arcanum script]");
+            }
             vsb.AppendLine();
         }
 

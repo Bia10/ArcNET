@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -13,13 +13,21 @@ public static class SaveIndexDumper
         Span<char> buf = stackalloc char[1024];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== SAVE INDEX (TFAI) ===");
-        vsb.AppendLine($"  Root entries: {index.Root.Count}");
+        vsb.Append("  Root entries: ");
+        vsb.Append(index.Root.Count);
+        vsb.AppendLine();
         vsb.AppendLine();
 
         var (fileCount, dirCount, totalSize) = CountStats(index.Root);
-        vsb.AppendLine($"  Total files       : {fileCount}");
-        vsb.AppendLine($"  Total directories : {dirCount}");
-        vsb.AppendLine($"  Total payload     : {totalSize:N0} bytes");
+        vsb.Append("  Total files       : ");
+        vsb.Append(fileCount);
+        vsb.AppendLine();
+        vsb.Append("  Total directories : ");
+        vsb.Append(dirCount);
+        vsb.AppendLine();
+        vsb.Append("  Total payload     : ");
+        vsb.Append(totalSize, "N0");
+        vsb.AppendLine(" bytes");
         vsb.AppendLine();
 
         DumpEntries(ref vsb, index.Root, indent: 2);
@@ -30,16 +38,22 @@ public static class SaveIndexDumper
 
     private static void DumpEntries(ref ValueStringBuilder vsb, IReadOnlyList<TfaiEntry> entries, int indent)
     {
-        var pad = new string(' ', indent);
+        // NOTE: Append(char, count) would remove the manual loop here — tracked as upstream P candidate.
         foreach (var entry in entries)
         {
+            for (var i = 0; i < indent; i++)
+                vsb.Append(' ');
             switch (entry)
             {
                 case TfaiFileEntry file:
-                    vsb.AppendLine($"{pad}{file.Name}  ({file.Size:N0} bytes)");
+                    vsb.Append(file.Name);
+                    vsb.Append("  (");
+                    vsb.Append(file.Size, "N0");
+                    vsb.AppendLine(" bytes)");
                     break;
                 case TfaiDirectoryEntry dir:
-                    vsb.AppendLine($"{pad}{dir.Name}/");
+                    vsb.Append(dir.Name);
+                    vsb.AppendLine('/');
                     DumpEntries(ref vsb, dir.Children, indent + 2);
                     break;
             }

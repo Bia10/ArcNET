@@ -234,9 +234,9 @@ public static class SaveDumper
                 sb.Append("  ");
                 sb.Append(marker);
                 sb.Append(' ');
-                AppendRightPadded(ref sb, area, 30);
+                sb.AppendPadded(area, 30);
                 sb.Append(' ');
-                AppendLeftPaddedDouble(ref sb, pct, 5, "F1");
+                sb.AppendPadded(pct, 5, leftAlign: false, format: "F1");
                 sb.AppendLine("% revealed");
             }
             sb.AppendLine();
@@ -726,8 +726,7 @@ public static class SaveDumper
         if (scanPos < data.Length)
         {
             var trailing = BinaryPrimitives.ReadInt32LittleEndian(span[scanPos..]);
-            sb.Append("  trailing=0x");
-            sb.Append(trailing, "X8");
+            sb.AppendHex((uint)trailing, "  trailing=0x".AsSpan());
             sb.AppendLine();
         }
 
@@ -823,8 +822,7 @@ public static class SaveDumper
 
             if (startMark != StartMarker)
             {
-                sb.Append("  (start marker mismatch 0x");
-                sb.Append(startMark, "X8");
+                sb.AppendHex(startMark, "  (start marker mismatch 0x".AsSpan());
                 sb.Append(" at byte ");
                 sb.Append(pos - 4);
                 sb.AppendLine(" — stopping)");
@@ -996,21 +994,5 @@ public static class SaveDumper
     {
         var slash = virtualPath.LastIndexOf('/');
         return slash < 0 ? string.Empty : virtualPath[..slash];
-    }
-
-    private static void AppendRightPadded(ref ValueStringBuilder sb, string value, int width)
-    {
-        sb.Append(value);
-        for (var index = value.Length; index < width; index++)
-            sb.Append(' ');
-    }
-
-    private static void AppendLeftPaddedDouble(ref ValueStringBuilder sb, double value, int width, string format)
-    {
-        Span<char> buffer = stackalloc char[32];
-        _ = value.TryFormat(buffer, out var written, format, provider: null);
-        for (var index = written; index < width; index++)
-            sb.Append(' ');
-        sb.Append(value, format);
     }
 }

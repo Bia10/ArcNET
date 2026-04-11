@@ -47,7 +47,7 @@ public static class ArtDumper
             {
                 if (i > 0)
                     vsb.Append(", ");
-                AppendHexUInt32(ref vsb, art.PaletteData1[i]);
+                vsb.AppendHex(art.PaletteData1[i], "0x".AsSpan());
             }
             vsb.AppendLine("]");
         }
@@ -58,7 +58,7 @@ public static class ArtDumper
             {
                 if (i > 0)
                     vsb.Append(", ");
-                AppendHexUInt32(ref vsb, art.PaletteData2[i]);
+                vsb.AppendHex(art.PaletteData2[i], "0x".AsSpan());
             }
             vsb.AppendLine("]");
         }
@@ -101,7 +101,7 @@ public static class ArtDumper
                 if (pal.Length > 1)
                 {
                     vsb.Append("    [");
-                    AppendLeftPaddedInt(ref vsb, pal.Length - 1, 3);
+                    vsb.AppendPadded<int>(pal.Length - 1, 3, leftAlign: false, padChar: ' ');
                     vsb.Append("] BGR=(");
                     vsb.Append(pal[^1].Blue);
                     vsb.Append(',');
@@ -137,30 +137,31 @@ public static class ArtDumper
                 var frame = art.Frames[r][f];
                 var h = frame.Header;
                 var compressed = h.DataSize < h.Width * h.Height;
-                // TODO: replace this remaining composite line once ValueStringBuilder gains an interpolated-string handler.
-                vsb.AppendLine(
-                    $"    [{f, 3}] {h.Width}×{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})"
-                        + $"  {h.DataSize}B {(compressed ? "RLE" : "raw")}  pixels={frame.Pixels.Length}B"
-                );
+                vsb.Append("    [");
+                vsb.AppendPadded<int>(f, 3, leftAlign: false, padChar: ' ');
+                vsb.Append("] ");
+                vsb.Append(h.Width);
+                vsb.Append('×');
+                vsb.Append(h.Height);
+                vsb.Append("  center=(");
+                vsb.Append(h.CenterX);
+                vsb.Append(',');
+                vsb.Append(h.CenterY);
+                vsb.Append(")  delta=(");
+                vsb.Append(h.DeltaX);
+                vsb.Append(',');
+                vsb.Append(h.DeltaY);
+                vsb.Append(")  ");
+                vsb.Append(h.DataSize);
+                vsb.Append("B ");
+                vsb.Append(compressed ? "RLE" : "raw");
+                vsb.Append("  pixels=");
+                vsb.Append(frame.Pixels.Length);
+                vsb.AppendLine("B");
             }
         }
 
         return vsb.ToString();
-    }
-
-    private static void AppendHexUInt32(ref ValueStringBuilder vsb, uint value)
-    {
-        vsb.Append("0x");
-        vsb.AppendHex(value);
-    }
-
-    private static void AppendLeftPaddedInt(ref ValueStringBuilder vsb, int value, int width)
-    {
-        Span<char> buffer = stackalloc char[16];
-        _ = value.TryFormat(buffer, out var written);
-        for (var index = written; index < width; index++)
-            vsb.Append(' ');
-        vsb.Append(value);
     }
 
     public static void Dump(ArtFile art, TextWriter writer) => writer.Write(Dump(art));

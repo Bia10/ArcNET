@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -13,31 +13,54 @@ public static class SectorDumper
         Span<char> buf = stackalloc char[1024];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== SECTOR ===");
-        vsb.AppendLine(
-            $"  Contains {sector.Objects.Count} object(s), {sector.Lights.Count} light source(s), and {sector.TileScripts.Count} tile script(s)."
-        );
-        vsb.AppendLine(
-            $"  Roofs: {(sector.HasRoofs ? "present" : "none")}  "
-                + $"Light scheme: {(sector.LightSchemeIdx < 0 ? "none" : sector.LightSchemeIdx.ToString())}  "
-                + $"Townmap cache: {(sector.TownmapInfo != 0 ? "yes" : "no")}  "
-                + $"Encounter adjustment: {sector.AptitudeAdjustment:+#;-#;0}"
-        );
+        vsb.Append("  Contains ");
+        vsb.Append(sector.Objects.Count);
+        vsb.Append(" object(s), ");
+        vsb.Append(sector.Lights.Count);
+        vsb.Append(" light source(s), and ");
+        vsb.Append(sector.TileScripts.Count);
+        vsb.AppendLine(" tile script(s).");
+        vsb.Append("  Roofs: ");
+        vsb.Append(sector.HasRoofs ? "present" : "none");
+        vsb.Append("  Light scheme: ");
+        if (sector.LightSchemeIdx < 0)
+            vsb.Append("none");
+        else
+            vsb.Append(sector.LightSchemeIdx);
+        vsb.Append("  Townmap cache: ");
+        vsb.Append(sector.TownmapInfo != 0 ? "yes" : "no");
+        vsb.Append("  Encounter adjustment: ");
+        vsb.Append(sector.AptitudeAdjustment, "+#;-#;0");
+        vsb.AppendLine();
         vsb.AppendLine();
 
         // Sound
         var music = sector.SoundList.MusicSchemeIdx < 0 ? "none" : sector.SoundList.MusicSchemeIdx.ToString();
         var ambient = sector.SoundList.AmbientSchemeIdx < 0 ? "none" : sector.SoundList.AmbientSchemeIdx.ToString();
-        vsb.AppendLine($"  Sound — music scheme: {music}, ambient scheme: {ambient}");
+        vsb.Append("  Sound — music scheme: ");
+        vsb.Append(music);
+        vsb.Append(", ambient scheme: ");
+        vsb.AppendLine(ambient);
         if (sector.SoundList.Flags != 0)
-            vsb.AppendLine($"    (runtime flags: 0x{sector.SoundList.Flags:X8} — not meaningful for editor tools)");
+        {
+            vsb.Append("    (runtime flags: ");
+            vsb.AppendHex((uint)sector.SoundList.Flags, "0x".AsSpan());
+            vsb.AppendLine(" — not meaningful for editor tools)");
+        }
         vsb.AppendLine();
 
         // Sector script
         if (sector.SectorScript is { } script)
         {
             vsb.AppendLine("  --- Sector Script ---");
-            vsb.AppendLine($"    Script ID  : {script.ScriptId}");
-            vsb.AppendLine($"    Flags      : {script.Flags}  (0x{(uint)script.Flags:X8})");
+            vsb.Append("    Script ID  : ");
+            vsb.Append(script.ScriptId);
+            vsb.AppendLine();
+            vsb.Append("    Flags      : ");
+            vsb.Append(script.Flags.ToString());
+            vsb.Append("  (");
+            vsb.AppendHex((uint)script.Flags, "0x".AsSpan());
+            vsb.AppendLine(")");
             // Counters is uint (4 LE bytes); extract individual bytes for display.
             var counters = script.Counters;
             var hasNonZeroCounter = counters != 0;
@@ -54,8 +77,8 @@ public static class SectorDumper
                             counterParts.Append(", ");
                         counterParts.Append('[');
                         counterParts.Append(ci);
-                        counterParts.Append("]=0x");
-                        counterParts.Append(b, "X2");
+                        counterParts.Append("]=");
+                        counterParts.AppendHex(b, "0x".AsSpan());
                     }
                 }
                 vsb.Append("    Counters   : ");
@@ -71,55 +94,113 @@ public static class SectorDumper
         // Lights
         if (sector.Lights.Count > 0)
         {
-            vsb.AppendLine($"  --- Lights ({sector.Lights.Count}) ---");
+            vsb.Append("  --- Lights (");
+            vsb.Append(sector.Lights.Count);
+            vsb.AppendLine(") ---");
             for (var i = 0; i < sector.Lights.Count; i++)
             {
                 var l = sector.Lights[i];
                 var flagLabel = l.Flags == SectorLightFlags.None ? "active" : l.Flags.ToString();
-                var attached = l.ObjHandle == -1L ? "standalone" : $"attached to obj 0x{l.ObjHandle:X16}";
-                vsb.AppendLine(
-                    $"    [{i, 3}] tile=({l.TileX},{l.TileY})  offset=({l.OffsetX},{l.OffsetY})  "
-                        + $"color=RGB({l.R},{l.G},{l.B})  art={l.ArtId}  status={flagLabel}  {attached}"
-                );
+                vsb.Append("    [");
+                vsb.AppendPadded<int>(i, 3, leftAlign: false);
+                vsb.Append("] tile=(");
+                vsb.Append(l.TileX);
+                vsb.Append(',');
+                vsb.Append(l.TileY);
+                vsb.Append(")  offset=(");
+                vsb.Append(l.OffsetX);
+                vsb.Append(',');
+                vsb.Append(l.OffsetY);
+                vsb.Append(")  color=RGB(");
+                vsb.Append(l.R);
+                vsb.Append(',');
+                vsb.Append(l.G);
+                vsb.Append(',');
+                vsb.Append(l.B);
+                vsb.Append(")  art=");
+                vsb.Append(l.ArtId);
+                vsb.Append("  status=");
+                vsb.Append(flagLabel);
+                vsb.Append("  ");
+                if (l.ObjHandle == -1L)
+                    vsb.Append("standalone");
+                else
+                {
+                    vsb.Append("attached to obj ");
+                    vsb.AppendHex((ulong)l.ObjHandle, "0x".AsSpan());
+                }
+                vsb.AppendLine();
             }
             vsb.AppendLine();
         }
 
         // Tile art ID distribution (summary, not all 4096)
         var distinctTiles = sector.Tiles.Distinct().Count();
-        vsb.AppendLine($"  --- Tile Art ({distinctTiles} distinct ground tile art IDs across 4096 tiles) ---");
+        vsb.Append("  --- Tile Art (");
+        vsb.Append(distinctTiles);
+        vsb.AppendLine(" distinct ground tile art IDs across 4096 tiles) ---");
         var tileGroups = sector.Tiles.GroupBy(t => t).OrderByDescending(g => g.Count()).Take(10);
         foreach (var g in tileGroups)
-            vsb.AppendLine($"    art {g.Key, 5}  ×{g.Count()}");
+        {
+            vsb.Append("    art ");
+            vsb.AppendPadded<int>(g.Key, 5, leftAlign: false);
+            vsb.Append("  ×");
+            vsb.Append(g.Count());
+            vsb.AppendLine();
+        }
         if (distinctTiles > 10)
-            vsb.AppendLine($"    ... and {distinctTiles - 10} more");
+        {
+            vsb.Append("    ... and ");
+            vsb.Append(distinctTiles - 10);
+            vsb.AppendLine(" more");
+        }
         vsb.AppendLine();
 
         // Roofs
         if (sector.HasRoofs && sector.Roofs is not null)
         {
             var distinctRoofs = sector.Roofs.Distinct().Count();
-            vsb.AppendLine($"  --- Roof Art ({distinctRoofs} distinct art IDs across 256 roof tiles) ---");
+            vsb.Append("  --- Roof Art (");
+            vsb.Append(distinctRoofs);
+            vsb.AppendLine(" distinct art IDs across 256 roof tiles) ---");
             foreach (var g in sector.Roofs.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(5))
-                vsb.AppendLine($"    art {g.Key, 5}  ×{g.Count()}");
+            {
+                vsb.Append("    art ");
+                vsb.AppendPadded<int>(g.Key, 5, leftAlign: false);
+                vsb.Append("  ×");
+                vsb.Append(g.Count());
+                vsb.AppendLine();
+            }
             vsb.AppendLine();
         }
 
         // Tile scripts
         if (sector.TileScripts.Count > 0)
         {
-            vsb.AppendLine($"  --- Tile Scripts ({sector.TileScripts.Count}) ---");
+            vsb.Append("  --- Tile Scripts (");
+            vsb.Append(sector.TileScripts.Count);
+            vsb.AppendLine(") ---");
             vsb.AppendLine(
                 "    (ScriptFlags and ScriptCounters are runtime state — only ScriptNum and NodeFlags are meaningful here)"
             );
             foreach (var ts in sector.TileScripts)
             {
                 var nodeLabel = (ts.NodeFlags & 0x1) != 0 ? "modified" : "clean";
-                var runtimeNote =
-                    ts.ScriptFlags != 0 || ts.ScriptCounters != 0
-                        ? $"  [runtime: flags=0x{ts.ScriptFlags:X8} counters=0x{ts.ScriptCounters:X8}]"
-                        : "";
-                vsb.AppendLine($"    tile {ts.TileId, 4}: script {ts.ScriptNum}  node={nodeLabel}{runtimeNote}");
+                vsb.Append("    tile ");
+                vsb.AppendPadded<int>(ts.TileId, 4, leftAlign: false);
+                vsb.Append(": script ");
+                vsb.Append(ts.ScriptNum);
+                vsb.Append("  node=");
+                vsb.Append(nodeLabel);
+                if (ts.ScriptFlags != 0 || ts.ScriptCounters != 0)
+                {
+                    vsb.Append("  [runtime: flags=");
+                    vsb.AppendHex(ts.ScriptFlags, "0x".AsSpan());
+                    vsb.Append(" counters=");
+                    vsb.AppendHex(ts.ScriptCounters, "0x".AsSpan());
+                    vsb.Append(']');
+                }
+                vsb.AppendLine();
             }
             vsb.AppendLine();
         }
@@ -128,7 +209,11 @@ public static class SectorDumper
         var blockedTiles = 0;
         foreach (var mask in sector.BlockMask)
             blockedTiles += int.PopCount((int)mask);
-        vsb.AppendLine($"  --- Walkability ({4096 - blockedTiles}/4096 walkable, {blockedTiles}/4096 blocked) ---");
+        vsb.Append("  --- Walkability (");
+        vsb.Append(4096 - blockedTiles);
+        vsb.Append("/4096 walkable, ");
+        vsb.Append(blockedTiles);
+        vsb.AppendLine("/4096 blocked) ---");
         if (blockedTiles > 0 && blockedTiles < 4096)
         {
             // Compact: list blocked tile indices grouped into runs, up to 20 runs shown.
@@ -158,11 +243,30 @@ public static class SectorDumper
             for (var ri = 0; ri < shown; ri++)
             {
                 var (s, e) = runs[ri];
-                var tileDesc = s == e ? $"tile {s}" : $"tiles {s}–{e} ({e - s + 1})";
-                vsb.AppendLine($"    blocked: {tileDesc}");
+                vsb.Append("    blocked: ");
+                if (s == e)
+                {
+                    vsb.Append("tile ");
+                    vsb.Append(s);
+                }
+                else
+                {
+                    vsb.Append("tiles ");
+                    vsb.Append(s);
+                    vsb.Append('\u2013');
+                    vsb.Append(e);
+                    vsb.Append(" (");
+                    vsb.Append(e - s + 1);
+                    vsb.Append(')');
+                }
+                vsb.AppendLine();
             }
             if (runs.Count > 20)
-                vsb.AppendLine($"    ... and {runs.Count - 20} more blocked run(s)");
+            {
+                vsb.Append("    ... and ");
+                vsb.Append(runs.Count - 20);
+                vsb.AppendLine(" more blocked run(s)");
+            }
         }
         else if (blockedTiles == 4096)
         {
@@ -174,11 +278,15 @@ public static class SectorDumper
         // Objects
         if (sector.Objects.Count > 0)
         {
-            vsb.AppendLine($"  --- Objects ({sector.Objects.Count}) ---");
+            vsb.Append("  --- Objects (");
+            vsb.Append(sector.Objects.Count);
+            vsb.AppendLine(") ---");
             for (var i = 0; i < sector.Objects.Count; i++)
             {
                 var mob = sector.Objects[i];
-                vsb.AppendLine($"    ┌─ Object [{i}] ─────────────────");
+                vsb.Append("    ┌─ Object [");
+                vsb.Append(i);
+                vsb.AppendLine("] ─────────────────");
                 var mobDump = MobDumper.Dump(mob);
                 foreach (var line in mobDump.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {

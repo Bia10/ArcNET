@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -13,13 +13,20 @@ public static class TextDataDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== TEXT DATA FILE ===");
-        vsb.AppendLine($"  Entries: {file.Entries.Count}");
+        vsb.Append("  Entries: ");
+        vsb.Append(file.Entries.Count);
+        vsb.AppendLine();
         vsb.AppendLine();
 
         var maxKeyLen = file.Entries.Count > 0 ? file.Entries.Max(e => e.Key.Length) : 0;
 
         foreach (var entry in file.Entries)
-            vsb.AppendLine($"  {entry.Key.PadRight(maxKeyLen)} : {entry.Value}");
+        {
+            vsb.Append("  ");
+            vsb.AppendPadded(entry.Key, maxKeyLen);
+            vsb.Append(" : ");
+            vsb.AppendLine(entry.Value);
+        }
 
         return vsb.ToString();
     }

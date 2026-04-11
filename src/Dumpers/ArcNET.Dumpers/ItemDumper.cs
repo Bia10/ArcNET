@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Formats;
@@ -112,10 +112,18 @@ public static class ItemDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         var name = ResolveItemName(mob, protoId, nameLookup, installation);
-        vsb.AppendLine($"=== ITEM: {name} ===");
-        vsb.AppendLine($"  Proto    : {protoId}");
-        vsb.AppendLine($"  ObjectId : {mob.Header.ObjectId}");
-        vsb.AppendLine($"  Type     : {mob.Header.GameObjectType}");
+        vsb.Append("=== ITEM: ");
+        vsb.Append(name);
+        vsb.AppendLine(" ===");
+        vsb.Append("  Proto    : ");
+        vsb.Append(protoId);
+        vsb.AppendLine();
+        vsb.Append("  ObjectId : ");
+        vsb.Append(mob.Header.ObjectId.ToString());
+        vsb.AppendLine();
+        vsb.Append("  Type     : ");
+        vsb.Append(mob.Header.GameObjectType.ToString());
+        vsb.AppendLine();
         vsb.AppendLine();
         AppendItemBase(ref vsb, mob);
         AppendTypeSpecific(ref vsb, mob);
@@ -162,7 +170,10 @@ public static class ItemDumper
 
         var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoId, installation);
         if (nameLookup.TryGetValue(vanillaId, out var name) || nameLookup.TryGetValue(protoId, out name))
-            vsb.AppendLine($"  Name : {name}");
+        {
+            vsb.Append("  Name : ");
+            vsb.AppendLine(name);
+        }
 
         vsb.Append(ProtoDumper.Dump(proto));
         return vsb.ToString();
@@ -280,8 +291,12 @@ public static class ItemDumper
         var invNum = invNumProp?.GetInt32() ?? 0;
         var invSrc = invSrcProp?.GetInt32() ?? 0;
 
-        vsb.AppendLine($"  InvNum    = {invNum}");
-        vsb.AppendLine($"  InvSource = {invSrc}");
+        vsb.Append("  InvNum    = ");
+        vsb.Append(invNum);
+        vsb.AppendLine();
+        vsb.Append("  InvSource = ");
+        vsb.Append(invSrc);
+        vsb.AppendLine();
 
         if (invListProp is null || invNum == 0)
         {
@@ -290,7 +305,9 @@ public static class ItemDumper
         }
 
         var items = invListProp.GetObjectIdArrayFull();
-        vsb.AppendLine($"  Items: {items.Length}");
+        vsb.Append("  Items: ");
+        vsb.Append(items.Length);
+        vsb.AppendLine();
         vsb.AppendLine();
 
         for (var i = 0; i < items.Length; i++)
@@ -309,12 +326,19 @@ public static class ItemDumper
             }
             catch (Exception ex)
             {
-                vsb.AppendLine($"  [{i + 1}] {guid} — could not load: {ex.Message}");
+                vsb.Append("  [");
+                vsb.Append(i + 1);
+                vsb.Append("] ");
+                vsb.Append(guid.ToString());
+                vsb.Append(" — could not load: ");
+                vsb.AppendLine(ex.Message);
                 continue;
             }
 
             var protoId = BinaryPrimitives.ReadInt32LittleEndian(itemMob.Header.ProtoId.Id.ToByteArray());
-            vsb.AppendLine($"  [{i + 1}]");
+            vsb.Append("  [");
+            vsb.Append(i + 1);
+            vsb.AppendLine("]");
             vsb.Append(DumpItem(itemMob, protoId, nameLookup, installation));
         }
 
@@ -343,13 +367,24 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Item Base ---");
             if (weight is > 0)
-                vsb.AppendLine($"  Weight       : {weight.Value / 10.0:F1} lbs");
+            {
+                vsb.Append("  Weight       : ");
+                vsb.Append(weight.Value / 10.0, "F1");
+                vsb.AppendLine(" lbs");
+            }
             if (worth is > 0)
-                vsb.AppendLine($"  Worth        : {worth.Value} gp");
+            {
+                vsb.Append("  Worth        : ");
+                vsb.Append(worth.Value);
+                vsb.AppendLine(" gp");
+            }
             if (flags is > 0)
             {
                 var flagNames = AppendFlagSummary<ObjFItemFlags>((uint)flags.Value);
-                vsb.AppendLine($"  Item flags   : 0x{flags.Value:X8}  {flagNames}");
+                vsb.Append("  Item flags   : ");
+                vsb.AppendHex((uint)flags.Value, "0x".AsSpan());
+                vsb.Append("  ");
+                vsb.AppendLine(flagNames);
             }
             if (discipline is > 0)
             {
@@ -360,14 +395,25 @@ public static class ItemDumper
                     2 => "technological",
                     _ => discipline.Value.ToString(),
                 };
-                vsb.AppendLine($"  Discipline   : {discLabel}");
+                vsb.Append("  Discipline   : ");
+                vsb.AppendLine(discLabel);
             }
             if (complexity is > 0)
-                vsb.AppendLine($"  Tech complexity : {complexity.Value}  (schematic difficulty)");
+            {
+                vsb.Append("  Tech complexity : ");
+                vsb.Append(complexity.Value);
+                vsb.AppendLine("  (schematic difficulty)");
+            }
             for (var s = 0; s < spells.Length; s++)
             {
                 if (spells[s] is int spellId and > 0)
-                    vsb.AppendLine($"  Spell effect {s + 1} : ID {spellId}  (see spell.mes)");
+                {
+                    vsb.Append("  Spell effect ");
+                    vsb.Append(s + 1);
+                    vsb.Append(" : ID ");
+                    vsb.Append(spellId);
+                    vsb.AppendLine("  (see spell.mes)");
+                }
             }
             vsb.AppendLine();
         }
@@ -442,17 +488,55 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Weapon ---");
             if ((dmgLo is > 0) || (dmgHi is > 0))
-                vsb.AppendLine(
-                    $"  Damage  : {dmgLo ?? 0}\u2013{dmgHi ?? 0}{(magDmg is > 0 ? $" (+{magDmg} magic)" : "")}"
-                );
+            {
+                vsb.Append("  Damage  : ");
+                vsb.Append(dmgLo ?? 0);
+                vsb.Append('\u2013');
+                vsb.Append(dmgHi ?? 0);
+                if (magDmg is > 0)
+                {
+                    vsb.Append(" (+");
+                    vsb.Append(magDmg.Value);
+                    vsb.Append(" magic)");
+                }
+                vsb.AppendLine();
+            }
             if (speed is > 0)
-                vsb.AppendLine($"  Speed   : {speed.Value}{(magSpd is > 0 ? $" (+{magSpd})" : "")}");
+            {
+                vsb.Append("  Speed   : ");
+                vsb.Append(speed.Value);
+                if (magSpd is > 0)
+                {
+                    vsb.Append(" (+");
+                    vsb.Append(magSpd.Value);
+                    vsb.Append(')');
+                }
+                vsb.AppendLine();
+            }
             if (range is > 0)
-                vsb.AppendLine($"  Range   : {range.Value}");
+            {
+                vsb.Append("  Range   : ");
+                vsb.Append(range.Value);
+                vsb.AppendLine();
+            }
             if ((toHit is > 0) || (magHit is > 0))
-                vsb.AppendLine($"  To-Hit  : {toHit ?? 0}{(magHit is > 0 ? $" (+{magHit} magic)" : "")}");
+            {
+                vsb.Append("  To-Hit  : ");
+                vsb.Append(toHit ?? 0);
+                if (magHit is > 0)
+                {
+                    vsb.Append(" (+");
+                    vsb.Append(magHit.Value);
+                    vsb.Append(" magic)");
+                }
+                vsb.AppendLine();
+            }
             if (minStr is > 0)
-                vsb.AppendLine($"  Min STR : {minStr.Value}");
+            {
+                vsb.Append("  Min STR : ");
+                vsb.Append(minStr.Value);
+                vsb.AppendLine();
+            }
             vsb.AppendLine();
         }
     }
@@ -467,9 +551,23 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Armor ---");
             if (ac.HasValue)
-                vsb.AppendLine($"  AC Adj      : {ac.Value}{(magAc is > 0 ? $" (+{magAc} magic)" : "")}");
+            {
+                vsb.Append("  AC Adj      : ");
+                vsb.Append(ac.Value);
+                if (magAc is > 0)
+                {
+                    vsb.Append(" (+");
+                    vsb.Append(magAc.Value);
+                    vsb.Append(" magic)");
+                }
+                vsb.AppendLine();
+            }
             if (silent is > 0)
-                vsb.AppendLine($"  Silent Move : {silent.Value}");
+            {
+                vsb.Append("  Silent Move : ");
+                vsb.Append(silent.Value);
+                vsb.AppendLine();
+            }
             vsb.AppendLine();
         }
     }
@@ -480,7 +578,9 @@ public static class ItemDumper
         if (qty is > 0)
         {
             vsb.AppendLine("  --- Gold ---");
-            vsb.AppendLine($"  Quantity : {qty.Value}");
+            vsb.Append("  Quantity : ");
+            vsb.Append(qty.Value);
+            vsb.AppendLine();
             vsb.AppendLine();
         }
     }
@@ -493,7 +593,11 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Food ---");
             if (flags.Value != 0)
-                vsb.AppendLine($"  Flags : 0x{flags.Value:X8}  (food type flags)");
+            {
+                vsb.Append("  Flags : ");
+                vsb.AppendHex((uint)flags.Value, "0x".AsSpan());
+                vsb.AppendLine("  (food type flags)");
+            }
             vsb.AppendLine();
         }
     }
@@ -505,7 +609,11 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Scroll ---");
             if (flags.Value != 0)
-                vsb.AppendLine($"  Flags : 0x{flags.Value:X8}  (scroll type flags)");
+            {
+                vsb.Append("  Flags : ");
+                vsb.AppendHex((uint)flags.Value, "0x".AsSpan());
+                vsb.AppendLine("  (scroll type flags)");
+            }
             vsb.AppendLine();
         }
     }
@@ -518,9 +626,17 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Ammo ---");
             if (qty.HasValue)
-                vsb.AppendLine($"  Quantity : {qty.Value}");
+            {
+                vsb.Append("  Quantity : ");
+                vsb.Append(qty.Value);
+                vsb.AppendLine();
+            }
             if (type.HasValue)
-                vsb.AppendLine($"  Type     : {type.Value}  (ammo type — matches ObjFWeaponAmmoType)");
+            {
+                vsb.Append("  Type     : ");
+                vsb.Append(type.Value);
+                vsb.AppendLine("  (ammo type — matches ObjFWeaponAmmoType)");
+            }
             vsb.AppendLine();
         }
     }
@@ -531,7 +647,9 @@ public static class ItemDumper
         if (keyId is not null)
         {
             vsb.AppendLine("  --- Key ---");
-            vsb.AppendLine($"  Key ID : {keyId.Value}  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
+            vsb.Append("  Key ID : ");
+            vsb.Append(keyId.Value);
+            vsb.AppendLine("  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
             vsb.AppendLine();
         }
     }
@@ -555,12 +673,17 @@ public static class ItemDumper
                     3 => "manual",
                     _ => subtype.Value.ToString(),
                 };
-                vsb.AppendLine($"  Subtype    : {subtypeLabel}");
+                vsb.Append("  Subtype    : ");
+                vsb.AppendLine(subtypeLabel);
             }
             if (startLine is not null || endLine is not null)
-                vsb.AppendLine(
-                    $"  Text lines : {startLine ?? 0}..{endLine ?? 0}  (line indices into the text MES file)"
-                );
+            {
+                vsb.Append("  Text lines : ");
+                vsb.Append(startLine ?? 0);
+                vsb.Append("..");
+                vsb.Append(endLine ?? 0);
+                vsb.AppendLine("  (line indices into the text MES file)");
+            }
             vsb.AppendLine();
         }
     }
@@ -573,9 +696,17 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Generic Item ---");
             if (bonus is > 0)
-                vsb.AppendLine($"  Usage bonus     : +{bonus.Value}");
+            {
+                vsb.Append("  Usage bonus     : +");
+                vsb.Append(bonus.Value);
+                vsb.AppendLine();
+            }
             if (count is not null)
-                vsb.AppendLine($"  Uses remaining  : {count.Value}");
+            {
+                vsb.Append("  Uses remaining  : ");
+                vsb.Append(count.Value);
+                vsb.AppendLine();
+            }
             vsb.AppendLine();
         }
     }

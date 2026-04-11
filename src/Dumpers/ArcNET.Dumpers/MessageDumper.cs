@@ -44,7 +44,7 @@ public static class MessageDumper
         foreach (var entry in mes.Entries)
         {
             vsb.Append("  [");
-            AppendLeftPaddedInt(ref vsb, entry.Index, 6);
+            vsb.AppendPadded<int>(entry.Index, 6, leftAlign: false, padChar: ' ');
             vsb.Append("] ");
             if (entry.SoundId is not null)
             {
@@ -56,15 +56,6 @@ public static class MessageDumper
         }
 
         return vsb.ToString();
-    }
-
-    private static void AppendLeftPaddedInt(ref ValueStringBuilder vsb, int value, int width)
-    {
-        Span<char> buffer = stackalloc char[16];
-        _ = value.TryFormat(buffer, out var written);
-        for (var index = written; index < width; index++)
-            vsb.Append(' ');
-        vsb.Append(value);
     }
 
     public static void Dump(MesFile mes, TextWriter writer) => writer.Write(Dump(mes));

@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -17,28 +17,60 @@ public static class FacWalkDumper
         var terrainLabel = Enum.IsDefined((TerrainType)h.Terrain)
             ? $"{(TerrainType)h.Terrain} ({h.Terrain})"
             : h.Terrain.ToString();
-        vsb.AppendLine($"  Terrain    : {terrainLabel}");
-        vsb.AppendLine($"  Outdoor    : {(h.Outdoor != 0 ? "yes" : "no")}");
-        vsb.AppendLine($"  Flippable  : {(h.Flippable != 0 ? "yes" : "no")}");
-        vsb.AppendLine($"  Width      : {h.Width}  (isometric facade tile columns)");
-        vsb.AppendLine($"  Height     : {h.Height}  (isometric facade tile rows)");
-        vsb.AppendLine($"  Entries    : {fac.Entries.Length}  ({h.Width}\u00d7{h.Height} grid)");
+        vsb.Append("  Terrain    : ");
+        vsb.AppendLine(terrainLabel);
+        vsb.Append("  Outdoor    : ");
+        vsb.AppendLine(h.Outdoor != 0 ? "yes" : "no");
+        vsb.Append("  Flippable  : ");
+        vsb.AppendLine(h.Flippable != 0 ? "yes" : "no");
+        vsb.Append("  Width      : ");
+        vsb.Append(h.Width);
+        vsb.AppendLine("  (isometric facade tile columns)");
+        vsb.Append("  Height     : ");
+        vsb.Append(h.Height);
+        vsb.AppendLine("  (isometric facade tile rows)");
+        vsb.Append("  Entries    : ");
+        vsb.Append(fac.Entries.Length);
+        vsb.Append("  (");
+        vsb.Append(h.Width);
+        vsb.Append('×');
+        vsb.Append(h.Height);
+        vsb.AppendLine(" grid)");
         vsb.AppendLine();
 
         var walkable = fac.Entries.Count(e => e.Walkable);
         var blocked = fac.Entries.Length - walkable;
-        vsb.AppendLine($"  Walkable   : {walkable} / {fac.Entries.Length} tiles  ({blocked} blocked)");
+        vsb.Append("  Walkable   : ");
+        vsb.Append(walkable);
+        vsb.Append(" / ");
+        vsb.Append(fac.Entries.Length);
+        vsb.Append(" tiles  (");
+        vsb.Append(blocked);
+        vsb.AppendLine(" blocked)");
         vsb.AppendLine();
 
         const int maxEntriesToList = 64;
         if (fac.Entries.Length <= maxEntriesToList)
         {
             foreach (var e in fac.Entries)
-                vsb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
+            {
+                vsb.Append("  (");
+                vsb.AppendPadded<int>(e.X, 3, leftAlign: false);
+                vsb.Append(',');
+                vsb.AppendPadded<int>(e.Y, 3, leftAlign: false);
+                vsb.Append(") ");
+                vsb.AppendLine(e.Walkable ? "WALK" : "BLOCKED");
+            }
         }
         else
         {
-            vsb.AppendLine($"  (listing suppressed — {fac.Entries.Length} entries; showing {h.Width}×{h.Height} grid)");
+            vsb.Append("  (listing suppressed — ");
+            vsb.Append(fac.Entries.Length);
+            vsb.Append(" entries; showing ");
+            vsb.Append(h.Width);
+            vsb.Append('×');
+            vsb.Append(h.Height);
+            vsb.AppendLine(" grid)");
             vsb.AppendLine();
 
             var grid = new bool[h.Height, h.Width];
