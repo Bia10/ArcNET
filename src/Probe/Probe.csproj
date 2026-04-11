@@ -5,6 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Bia.ValueBuffers" />
     <ProjectReference Include="..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
     <ProjectReference Include="..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
