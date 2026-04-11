@@ -2,6 +2,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using ArcNET.Core;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Archive;
 
@@ -72,50 +73,7 @@ public static class DatPacker
         //   entries_count (4)
         //   per-entry: nameLen(4) + name+NUL(nameLen) + skip(4) + flags(4) + uncompSize(4) + compSize(4) + offset(4)
         var tableSizePos = (int)output.Position;
-        var entriesCountPos = tableSizePos + 4;
-        var dirBuf = new ArrayBufferWriter<byte>();
-        var dirWriter = new SpanWriter(dirBuf);
-
-        // entry_table_size = position of entries_count
-        dirWriter.WriteUInt32((uint)entriesCountPos);
-        // entries_count
-        dirWriter.WriteInt32(entryInfos.Count);
-
-        Span<byte> stackNameBuf = stackalloc byte[StackAllocPolicy.MaxStackAllocBytes];
-        foreach (var (virtualPath, size, startOffset) in entryInfos)
-        {
-            // Encode the virtual path as ASCII without a heap allocation.
-            // Arcanum paths are always ASCII and well under MaxStackAllocBytes (256).
-            var byteCount = Encoding.ASCII.GetByteCount(virtualPath);
-            var nameLen = byteCount + 1; // includes null terminator
-            dirWriter.WriteInt32(nameLen);
-            if (byteCount <= StackAllocPolicy.MaxStackAllocBytes)
-            {
-                var nameBuf = stackNameBuf[..byteCount];
-                Encoding.ASCII.GetBytes(virtualPath, nameBuf);
-                dirWriter.WriteBytes(nameBuf);
-            }
-            else
-            {
-                var rented = ArrayPool<byte>.Shared.Rent(byteCount);
-                try
-                {
-                    Encoding.ASCII.GetBytes(virtualPath, rented.AsSpan(0, byteCount));
-                    dirWriter.WriteBytes(rented.AsSpan(0, byteCount));
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(rented);
-                }
-            }
-
-            dirWriter.WriteByte(0); // null terminator
-            dirWriter.WriteUInt32(0u); // unknown skip field
-            dirWriter.WriteUInt32(0x001u); // flags: Plain
-            dirWriter.WriteInt32(size); // uncompressedSize
-            dirWriter.WriteInt32(size); // compressedSize (= size for plain)
-            dirWriter.WriteInt32(startOffset); // absolute file offset
-        }
+        var dirBuf = BuildDirectoryTable(tableSizePos, entryInfos);
 
         await output.WriteAsync(dirBuf.WrittenMemory, cancellationToken).ConfigureAwait(false);
 
@@ -131,5 +89,47 @@ public static class DatPacker
         output.Write(footer);
 
         progress?.Report(1f);
+    }
+
+    // Sync helper — ValueByteBuffer (a ref struct) cannot be preserved across await boundaries,
+    // so directory table building is isolated here.
+    private static ArrayBufferWriter<byte> BuildDirectoryTable(
+        int tableSizePos,
+        List<(string VirtualPath, int Size, int StartOffset)> entryInfos
+    )
+    {
+        var entriesCountPos = tableSizePos + 4;
+        var dirBuf = new ArrayBufferWriter<byte>();
+        var dirWriter = new SpanWriter(dirBuf);
+
+        // entry_table_size (4): absolute position of entries_count
+        dirWriter.WriteUInt32((uint)entriesCountPos);
+        // entries_count (4)
+        dirWriter.WriteInt32(entryInfos.Count);
+
+        Span<byte> nameBufStorage = stackalloc byte[StackAllocPolicy.MaxStackAllocBytes];
+        using var pathBuf = new ValueByteBuffer(nameBufStorage);
+        foreach (var (virtualPath, size, startOffset) in entryInfos)
+        {
+            // Encode the virtual path as ASCII without a heap allocation.
+            // Arcanum paths are always ASCII and well under MaxStackAllocBytes (256).
+            var byteCount = Encoding.ASCII.GetByteCount(virtualPath);
+            var nameLen = byteCount + 1; // includes null terminator
+            dirWriter.WriteInt32(nameLen);
+            pathBuf.EnsureCapacity(byteCount);
+            var dest = pathBuf.GetWritableSpan(byteCount);
+            Encoding.ASCII.GetBytes(virtualPath, dest);
+            pathBuf.AdvanceLength(byteCount);
+            dirWriter.WriteBytes(pathBuf.WrittenSpan);
+            pathBuf.Clear();
+            dirWriter.WriteByte(0); // null terminator
+            dirWriter.WriteUInt32(0u); // unknown skip field
+            dirWriter.WriteUInt32(0x001u); // flags: Plain
+            dirWriter.WriteInt32(size); // uncompressedSize
+            dirWriter.WriteInt32(size); // compressedSize (= size for plain)
+            dirWriter.WriteInt32(startOffset); // absolute file offset
+        }
+
+        return dirBuf;
     }
 }

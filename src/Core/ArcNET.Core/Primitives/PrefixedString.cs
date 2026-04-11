@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Core.Primitives;
 
@@ -21,26 +22,13 @@ public readonly record struct PrefixedString(string Value) : IBinarySerializable
     {
         var byteCount = Encoding.ASCII.GetByteCount(Value);
         writer.WriteUInt16((ushort)byteCount);
-        // Use stackalloc for short strings; fall back to ArrayPool for long ones.
-        if (byteCount <= Core.StackAllocPolicy.MaxStackAllocBytes)
-        {
-            Span<byte> buf = stackalloc byte[byteCount];
-            Encoding.ASCII.GetBytes(Value, buf);
-            writer.WriteBytes(buf);
-        }
-        else
-        {
-            var buf = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
-            try
-            {
-                Encoding.ASCII.GetBytes(Value, buf);
-                writer.WriteBytes(buf.AsSpan(0, byteCount));
-            }
-            finally
-            {
-                System.Buffers.ArrayPool<byte>.Shared.Return(buf);
-            }
-        }
+        Span<byte> initial = stackalloc byte[Core.StackAllocPolicy.MaxStackAllocBytes];
+        using var buf = new ValueByteBuffer(initial);
+        buf.EnsureCapacity(byteCount);
+        var dest = buf.GetWritableSpan(byteCount);
+        Encoding.ASCII.GetBytes(Value, dest);
+        buf.AdvanceLength(byteCount);
+        writer.WriteBytes(buf.WrittenSpan);
     }
 
     /// <inheritdoc/>
