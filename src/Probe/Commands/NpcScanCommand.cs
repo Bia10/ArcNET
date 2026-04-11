@@ -1,5 +1,7 @@
-﻿using ArcNET.Editor;
+﻿using ArcNET.Core;
+using ArcNET.Editor;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 using Probe;
 
 namespace Probe.Commands;
@@ -105,7 +107,6 @@ internal sealed class NpcScanCommand : IProbeCommand
                 if (hasAll && ch.BasicSkills.Length >= 12)
                 {
                     var skills = ch.BasicSkills;
-                    var nonZero = new List<string>();
                     string[] skillNames =
                     [
                         "BOW",
@@ -121,13 +122,16 @@ internal sealed class NpcScanCommand : IProbeCommand
                         "HEAL",
                         "PERS",
                     ];
+                    var nonZero = new List<(string Name, int Value)>();
                     for (var i = 0; i < Math.Min(skills.Length, skillNames.Length); i++)
                     {
                         if (skills[i] > 0)
-                            nonZero.Add($"{skillNames[i]}={skills[i]}");
+                            nonZero.Add((skillNames[i], skills[i]));
                     }
                     if (nonZero.Count > 0)
-                        Console.WriteLine($"         skills: {string.Join(" ", nonZero)}");
+                        Console.WriteLine(
+                            $"         skills: {ValueBufferText.JoinFormatted(nonZero, " ", new SkillValueFormatter())}"
+                        );
                 }
 
                 if (hasAll)
@@ -144,5 +148,15 @@ internal sealed class NpcScanCommand : IProbeCommand
         Console.WriteLine($"  Total: {totalV2} v2 records shown  ({totalPc} PC-complete, {totalNpc} NPC-only).");
 
         return Task.CompletedTask;
+    }
+
+    private readonly struct SkillValueFormatter : IValueStringBuilderFormatter<(string Name, int Value)>
+    {
+        public void Append(ref ValueStringBuilder builder, (string Name, int Value) value)
+        {
+            builder.Append(value.Name);
+            builder.Append('=');
+            builder.Append(value.Value);
+        }
     }
 }

@@ -1,4 +1,5 @@
-﻿using ArcNET.Editor;
+﻿using ArcNET.Core;
+using ArcNET.Editor;
 using ArcNET.Formats;
 using Probe;
 
@@ -322,9 +323,9 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
             changes.AddRange(spellChanges);
 
             if (baseStatChanges.Count > 0)
-                changes.Add($"baseStats[{SarUtils.JoinText(baseStatChanges, " ")}]");
+                changes.Add($"baseStats[{ValueBufferText.JoinText(baseStatChanges, " ")}]");
             if (skillChanges.Count > 0)
-                changes.Add($"skills[{SarUtils.JoinText(skillChanges, " ")}]");
+                changes.Add($"skills[{ValueBufferText.JoinText(skillChanges, " ")}]");
 
             if (
                 character.SpellTech is { Length: > 0 } spellNow
@@ -343,7 +344,9 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 }
             }
 
-            Console.WriteLine($"  [{stem}] lv={level} XP={xp}{levelUpMarker}  {SarUtils.JoinText(changes, "  ")}");
+            Console.WriteLine(
+                $"  [{stem}] lv={level} XP={xp}{levelUpMarker}  {ValueBufferText.JoinText(changes, "  ")}"
+            );
             previousCharacter = character;
         }
 

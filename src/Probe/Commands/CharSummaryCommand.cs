@@ -1,5 +1,7 @@
-﻿using ArcNET.Editor;
+﻿using ArcNET.Core;
+using ArcNET.Editor;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 using Probe;
 
 namespace Probe.Commands;
@@ -111,7 +113,7 @@ internal sealed class CharSummaryCommand : IProbeCommand
         if (activeSpells.Count == 0)
             Console.WriteLine("    (none)");
         else
-            Console.WriteLine("    " + string.Join("  ", activeSpells.Select(s => $"{s.Name}={s.Rank}")));
+            Console.WriteLine("    " + ValueBufferText.JoinFormatted(activeSpells, "  ", new NamedRankFormatter()));
         Console.WriteLine();
 
         // ── Tech disciplines ──────────────────────────────────────────────────
@@ -131,7 +133,7 @@ internal sealed class CharSummaryCommand : IProbeCommand
         if (activeTech.Count == 0)
             Console.WriteLine("    (none)");
         else
-            Console.WriteLine("    " + string.Join("  ", activeTech.Select(t => $"{t.Name}={t.Rank}")));
+            Console.WriteLine("    " + ValueBufferText.JoinFormatted(activeTech, "  ", new NamedRankFormatter()));
         Console.WriteLine();
 
         // ── Quest log ─────────────────────────────────────────────────────────
@@ -152,20 +154,22 @@ internal sealed class CharSummaryCommand : IProbeCommand
             if (nonZeroRep.Count == 0)
                 Console.WriteLine("    (all zeros)");
             else
-                Console.WriteLine("    " + string.Join("  ", nonZeroRep.Select(p => $"[{p.i}]={p.v}")));
+                Console.WriteLine(
+                    "    " + ValueBufferText.JoinFormatted(nonZeroRep, "  ", new IndexedValueFormatter())
+                );
         }
         Console.WriteLine();
 
         // ── Blessings / Curses ────────────────────────────────────────────────
         Console.WriteLine($"  BLESSINGS  ({pc.BlessingProtoElementCount})");
         if (pc.BlessingRaw is { } bl)
-            Console.WriteLine("    protoIDs: " + string.Join(", ", bl));
+            Console.WriteLine("    protoIDs: " + ValueBufferText.JoinInt32(bl, ", "));
         else
             Console.WriteLine("    (none)");
 
         Console.WriteLine($"  CURSES  ({pc.CurseProtoElementCount})");
         if (pc.CurseRaw is { } cu)
-            Console.WriteLine("    protoIDs: " + string.Join(", ", cu));
+            Console.WriteLine("    protoIDs: " + ValueBufferText.JoinInt32(cu, ", "));
         else
             Console.WriteLine("    (none)");
         Console.WriteLine();
@@ -173,7 +177,7 @@ internal sealed class CharSummaryCommand : IProbeCommand
         // ── Schematics ────────────────────────────────────────────────────────
         Console.WriteLine($"  SCHEMATICS  ({pc.SchematicsElementCount})");
         if (pc.SchematicsRaw is { } sch)
-            Console.WriteLine("    protoIDs: " + string.Join(", ", sch));
+            Console.WriteLine("    protoIDs: " + ValueBufferText.JoinInt32(sch, ", "));
         else
             Console.WriteLine("    (none)");
         Console.WriteLine();
@@ -186,5 +190,26 @@ internal sealed class CharSummaryCommand : IProbeCommand
             Console.WriteLine("    (absent)");
 
         return Task.CompletedTask;
+    }
+
+    private readonly struct NamedRankFormatter : IValueStringBuilderFormatter<(string Name, int Rank)>
+    {
+        public void Append(ref ValueStringBuilder builder, (string Name, int Rank) value)
+        {
+            builder.Append(value.Name);
+            builder.Append('=');
+            builder.Append(value.Rank);
+        }
+    }
+
+    private readonly struct IndexedValueFormatter : IValueStringBuilderFormatter<(int i, int v)>
+    {
+        public void Append(ref ValueStringBuilder builder, (int i, int v) value)
+        {
+            builder.Append('[');
+            builder.Append(value.i);
+            builder.Append("]=");
+            builder.Append(value.v);
+        }
     }
 }

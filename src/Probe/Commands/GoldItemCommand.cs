@@ -1,5 +1,7 @@
 ﻿using System.Buffers.Binary;
+using ArcNET.Core;
 using ArcNET.GameObjects;
+using Bia.ValueBuffers;
 using Probe;
 
 namespace Probe.Commands;
@@ -78,11 +80,22 @@ internal sealed class GoldItemCommand : IProbeCommand
                 var marker = foundInPc ? "  *** PC GOLD ***" : string.Empty;
                 var parentFlag = hasParent ? " [in-inventory]" : string.Empty;
                 Console.WriteLine(
-                    $"    oid={Convert.ToHexString(oidBytes)}  qty(bit97)={quantity}{parentFlag}  props=[{string.Join(",", posProps.Select(x => $"b{x.Item1}={x.Item2}"))}]{marker}"
+                    $"    oid={ValueBufferText.FormatHex(oidBytes)}  qty(bit97)={quantity}{parentFlag}  props=[{ValueBufferText.JoinFormatted(posProps, ",", new BitValueFormatter())}]{marker}"
                 );
             }
         }
 
         return Task.CompletedTask;
+    }
+
+    private readonly struct BitValueFormatter : IValueStringBuilderFormatter<(int Item1, int Item2)>
+    {
+        public void Append(ref ValueStringBuilder builder, (int Item1, int Item2) value)
+        {
+            builder.Append('b');
+            builder.Append(value.Item1);
+            builder.Append('=');
+            builder.Append(value.Item2);
+        }
     }
 }

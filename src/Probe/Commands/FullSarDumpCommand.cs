@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using ArcNET.Core;
 using ArcNET.Editor;
 using Probe;
 
@@ -75,18 +76,16 @@ internal sealed class FullSarDumpCommand : IProbeCommand
             }
             else if (sar.ESize == 1)
             {
-                var strBytes = rawBytes.AsSpan(sar.Offset + 13, sar.ECnt).ToArray();
-                Console.WriteLine($"    hex: {Convert.ToHexString(strBytes)}");
-                Console.WriteLine(
-                    $"    txt: {System.Text.Encoding.ASCII.GetString(strBytes.Where(b => b >= 32 && b < 127).ToArray())}"
-                );
+                var strBytes = rawBytes.AsSpan(sar.Offset + 13, sar.ECnt);
+                Console.WriteLine($"    hex: {ValueBufferText.FormatHex(strBytes)}");
+                Console.WriteLine($"    txt: {ValueBufferText.FormatPrintableAscii(strBytes)}");
             }
             else
             {
                 for (var index = 0; index < Math.Min(sar.ECnt, 20); index++)
                 {
-                    var elem = rawBytes.AsSpan(sar.Offset + 13 + index * sar.ESize, sar.ESize).ToArray();
-                    Console.WriteLine($"    [{index:D3}]: {Convert.ToHexString(elem)}");
+                    var elem = rawBytes.AsSpan(sar.Offset + 13 + index * sar.ESize, sar.ESize);
+                    Console.WriteLine($"    [{index:D3}]: {ValueBufferText.FormatHex(elem)}");
                 }
 
                 if (sar.ECnt > 20)

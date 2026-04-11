@@ -1,4 +1,6 @@
-﻿using ArcNET.Formats;
+﻿using ArcNET.Core;
+using ArcNET.Formats;
+using Bia.ValueBuffers;
 using Probe;
 
 namespace Probe.Commands;
@@ -71,7 +73,7 @@ internal sealed class QuestBookCommand : IProbeCommand
             {
                 var stateStr = SarUtils.FormatQuestState(state);
                 var questName = SarUtils.ResolveQuestLabel(questLookup, protoId) is { } label
-                    ? SarUtils.TruncateText(label, 36)
+                    ? ValueBufferText.TruncateText(label, 36)
                     : "(unresolved)";
                 Console.WriteLine($"  {protoId, -10} {questName, -36} {stateStr, -34}  {context, 8}  {timestamp, 12}");
             }
@@ -81,7 +83,7 @@ internal sealed class QuestBookCommand : IProbeCommand
             foreach (var group in byState)
             {
                 Console.WriteLine(
-                    $"    {SarUtils.FormatQuestState(group.Key)}: {group.Count()} quests  IDs={SarUtils.FormatInt32List(group.Select(entry => entry.ProtoId).ToArray())}"
+                    $"    {SarUtils.FormatQuestState(group.Key)}: {group.Count()} quests  IDs={SarUtils.FormatInt32List(group.Select(entry => entry.ProtoId))}"
                 );
             }
         }
@@ -111,16 +113,27 @@ internal sealed class QuestBookCommand : IProbeCommand
                 )
                 .ToList();
         Console.WriteLine(
-            $"\n  Reputation: {decodedRep.Count} entries  (faction slot IDs: {SarUtils.FormatSlotList(decodedRep.Select(x => x.Item1).ToArray(), 32)})"
+            $"\n  Reputation: {decodedRep.Count} entries  (faction slot IDs: {SarUtils.FormatSlotList(decodedRep.Select(x => x.Item1), 32)})"
         );
         Console.WriteLine($"  {"Slot", -6} {"Value", 8}");
         Console.WriteLine(new string('-', 20));
         foreach (var (slot, value) in decodedRep)
             Console.WriteLine($"  {slot, -6} {value, 8}");
         Console.WriteLine(
-            $"  Non-zero factions: [{SarUtils.JoinText(decodedRep.Where(x => x.Item2 != 0).Select(x => $"slot{x.Item1}={x.Item2}"), ", ")}]"
+            $"  Non-zero factions: [{ValueBufferText.JoinFormatted(decodedRep.Where(entry => entry.Item2 != 0), ", ", new SlotValueFormatter())}]"
         );
 
         return Task.CompletedTask;
+    }
+
+    private readonly struct SlotValueFormatter : IValueStringBuilderFormatter<(int Item1, int Item2)>
+    {
+        public void Append(ref ValueStringBuilder builder, (int Item1, int Item2) value)
+        {
+            builder.Append("slot");
+            builder.Append(value.Item1);
+            builder.Append('=');
+            builder.Append(value.Item2);
+        }
     }
 }

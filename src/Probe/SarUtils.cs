@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using ArcNET.Archive;
+using ArcNET.Core;
 using ArcNET.Editor;
 using ArcNET.Formats;
 using Bia.ValueBuffers;
@@ -44,7 +45,7 @@ internal sealed record QuestTextLookup(IReadOnlyDictionary<int, string> Labels, 
 internal static class StringExtensions
 {
     /// <summary>Shortens a long annotation to at most 12 characters for compact diff output.</summary>
-    internal static string TruncateAnnotation(this string s) => SarUtils.TruncateText(s, 12);
+    internal static string TruncateAnnotation(this string s) => ValueBufferText.TruncateText(s, 12);
 }
 
 internal readonly struct QuestRefFormatter : IValueStringBuilderFormatter<int>
@@ -68,7 +69,7 @@ internal readonly struct QuestRefFormatter : IValueStringBuilderFormatter<int>
             return;
 
         builder.Append('[');
-        builder.Append(SarUtils.TruncateText(label, _maxLabelLen));
+        builder.Append(ValueBufferText.TruncateText(label, _maxLabelLen));
         builder.Append(']');
     }
 }
@@ -202,18 +203,10 @@ internal static class SarUtils
 
         if (showCount > 0)
         {
-            if (slots is int[] array)
-            {
-                AppendInt32Values(ref sb, array.AsSpan(0, showCount));
-            }
+            if (showCount == slots.Count)
+                sb.AppendJoin(",", slots);
             else
-            {
-                var visible = new int[showCount];
-                for (var index = 0; index < showCount; index++)
-                    visible[index] = slots[index];
-
-                AppendInt32Values(ref sb, visible);
-            }
+                AppendInt32Values(ref sb, slots, showCount);
         }
 
         if (slots.Count > maxShow)
@@ -258,11 +251,77 @@ internal static class SarUtils
         if (values is int[] array)
             return FormatInt32List(array.AsSpan(0, showCount), values.Count > showCount);
 
-        var visible = new int[showCount];
-        for (var index = 0; index < showCount; index++)
-            visible[index] = values[index];
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('[');
+        if (showCount == values.Count)
+            sb.AppendJoin(",", values);
+        else
+            AppendInt32Values(ref sb, values, showCount);
+        if (values.Count > showCount)
+        {
+            if (showCount > 0)
+                sb.Append(",...");
+            else
+                sb.Append("...");
+        }
 
-        return FormatInt32List(visible, values.Count > showCount);
+        sb.Append(']');
+        return sb.ToString();
+    }
+
+    /// <summary>Formats an INT32 sequence for compact console output.</summary>
+    public static string FormatInt32List(IEnumerable<int> values)
+    {
+        if (values is IReadOnlyList<int> list)
+            return FormatInt32List(list);
+
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('[');
+        sb.AppendJoin(",", values);
+        sb.Append(']');
+        return sb.ToString();
+    }
+
+    /// <summary>Formats a slot/bit index sequence for compact console output.</summary>
+    public static string FormatSlotList(IEnumerable<int> slots, int maxShow)
+    {
+        if (slots is IReadOnlyList<int> list)
+            return FormatSlotList(list, maxShow);
+
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('[');
+
+        using var enumerator = slots.GetEnumerator();
+        var emitted = 0;
+        while (emitted < maxShow && enumerator.MoveNext())
+        {
+            if (emitted > 0)
+                sb.Append(',');
+
+            sb.Append(enumerator.Current);
+            emitted++;
+        }
+
+        if (enumerator.MoveNext())
+        {
+            var extraCount = 1;
+            while (enumerator.MoveNext())
+                extraCount++;
+
+            if (emitted > 0)
+                sb.Append(",+");
+            else
+                sb.Append('+');
+
+            sb.Append(extraCount);
+            sb.Append(" more");
+        }
+
+        sb.Append(']');
+        return sb.ToString();
     }
 
     /// <summary>Returns the resolved quest label for <paramref name="protoId"/>, or <see langword="null"/> when unavailable.</summary>
@@ -272,8 +331,20 @@ internal static class SarUtils
     /// <summary>Formats a quest proto ID with a truncated label when a quest lookup is available.</summary>
     public static string FormatQuestRef(int protoId, QuestTextLookup? lookup, int maxLabelLen = 24)
     {
+        Span<char> buf = stackalloc char[64];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('q');
+        sb.Append(protoId);
+
         var label = ResolveQuestLabel(lookup, protoId);
-        return label is null ? $"q{protoId}" : $"q{protoId}[{TruncateText(label, maxLabelLen)}]";
+        if (label is not null)
+        {
+            sb.Append('[');
+            sb.Append(ValueBufferText.TruncateText(label, maxLabelLen));
+            sb.Append(']');
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>Formats a sequence of quest proto IDs with optional labels.</summary>
@@ -283,25 +354,6 @@ internal static class SarUtils
         var sb = new ValueStringBuilder(buf);
         sb.AppendEnclosedJoin("[", ", ", "]", protoIds, new QuestRefFormatter(lookup, maxLabelLen));
         return sb.ToString();
-    }
-
-    /// <summary>Joins a sequence of strings without materializing an intermediate array.</summary>
-    public static string JoinText(IEnumerable<string?> values, string separator)
-    {
-        Span<char> buf = stackalloc char[256];
-        var sb = new ValueStringBuilder(buf);
-        sb.AppendJoin(separator.AsSpan(), values);
-        return sb.ToString();
-    }
-
-    /// <summary>Truncates text for compact console output.</summary>
-    public static string TruncateText(string text, int maxLen)
-    {
-        if (text.Length <= maxLen)
-            return text;
-        if (maxLen <= 3)
-            return text[..maxLen];
-        return text[..(maxLen - 3)] + "...";
     }
 
     /// <summary>
@@ -349,15 +401,22 @@ internal static class SarUtils
         int unknownMask = state & ~0x107;
         if (unknownMask != 0)
         {
-            sb.Append($"0x{unknownMask:X}");
+            sb.Append("0x");
+            sb.Append(unknownMask, "X");
             sb.Append('|');
         }
 
         if (sb.Length == 0)
-            return $"0x{state:X3}";
+        {
+            sb.Append("0x");
+            sb.Append(state, "X3");
+            return sb.ToString();
+        }
 
         sb.TrimEnd('|');
-        sb.Append($" [0x{state:X3}]");
+        sb.Append(" [0x");
+        sb.Append(state, "X3");
+        sb.Append(']');
         return sb.ToString();
     }
 
@@ -379,12 +438,19 @@ internal static class SarUtils
         }
         else if (eSize == 1)
         {
-            return "0x" + Convert.ToHexString(raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)));
+            return ValueBufferText.FormatHex(
+                raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)),
+                includePrefix: true
+            );
         }
         else
         {
             int showBytes = Math.Min(eSize * showCnt, raw.Length - dataOff);
-            return "0x" + Convert.ToHexString(raw.AsSpan(dataOff, showBytes)) + (eCnt > showCnt ? "..." : "");
+            return ValueBufferText.FormatHex(
+                raw.AsSpan(dataOff, showBytes),
+                includePrefix: true,
+                suffix: eCnt > showCnt ? "..." : null
+            );
         }
     }
 
@@ -965,6 +1031,17 @@ internal static class SarUtils
     {
         if (!values.IsEmpty)
             sb.AppendJoin(",", values);
+    }
+
+    private static void AppendInt32Values(ref ValueStringBuilder sb, IReadOnlyList<int> values, int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            if (index > 0)
+                sb.Append(',');
+
+            sb.Append(values[index]);
+        }
     }
 
     private static bool IsQuestLookupCandidate(string fileName) =>

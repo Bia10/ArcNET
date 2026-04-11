@@ -1,4 +1,5 @@
-﻿using ArcNET.Editor;
+﻿using ArcNET.Core;
+using ArcNET.Editor;
 using Probe;
 
 namespace Probe.Commands;
@@ -80,7 +81,7 @@ internal sealed class SarDiffCommand : IProbeCommand
                 .Take(maxShow)
                 .Select(group => $"{group.Key}x{group.Count()}")
                 .ToList();
-            return top.Count == 0 ? string.Empty : string.Join(", ", top);
+            return top.Count == 0 ? string.Empty : ValueBufferText.JoinText(top, ", ");
         }
 
         static Dictionary<string, List<(int Slot, SarEntry Sar)>> BuildFingerprintHistory(
@@ -169,7 +170,7 @@ internal sealed class SarDiffCommand : IProbeCommand
                 var valLast = history[^1].Sar.ValueSummary;
                 var valueChanged = valFirst != valLast;
                 var eCntRange = eCnts.Count == 1 ? eCnts[0].ToString() : $"{eCnts[0]}-{eCnts[^1]}";
-                var bsCntStr = string.Join("/", bsCnts);
+                var bsCntStr = ValueBufferText.JoinInt32(bsCnts, "/");
                 var eCntGrows = eCnts.Count > 1 && eCnts[^1] > eCnts[0];
                 var distinctBsIds = history.Select(item => item.Sar.BsId).Distinct().OrderBy(x => x).ToList();
                 var bsIdStr = distinctBsIds.Count == 1 ? $"0x{distinctBsIds[0]:X4}" : "varies";
@@ -281,7 +282,7 @@ internal sealed class SarDiffCommand : IProbeCommand
         Console.WriteLine(new string('-', 104));
         foreach (var summary in lifecycleSummary)
         {
-            var annotation = SarUtils.TruncateText(summary.Annotation, 32);
+            var annotation = ValueBufferText.TruncateText(summary.Annotation, 32);
             var slotSpan =
                 summary.FirstSlot == summary.LastSlot
                     ? $"{summary.FirstSlot:D4}"
@@ -333,7 +334,7 @@ internal sealed class SarDiffCommand : IProbeCommand
         Console.WriteLine(new string('-', 163));
         foreach (var row in detailedLifecycleRows)
         {
-            var annotation = SarUtils.TruncateText(row.ValueAnnotation, 36);
+            var annotation = ValueBufferText.TruncateText(row.ValueAnnotation, 36);
             var valueChange = row.ValueChanged ? "  <- changed" : string.Empty;
             Console.WriteLine(
                 $"  {row.FingerprintKey, -16}  {annotation, -36}  {row.Lifecycle, -20}  ECnt={row.ECntRange, -10}  bsCnt={row.BsCntStr, -5}  {row.BsIdStr, -10}  {row.ValFirst} -> {row.ValLast}{valueChange}"
@@ -390,7 +391,7 @@ internal sealed class SarDiffCommand : IProbeCommand
                         );
                     }
 
-                    var slotDiffDetail = detailParts.Count > 0 ? string.Join("  ", detailParts) : null;
+                    var slotDiffDetail = detailParts.Count > 0 ? ValueBufferText.JoinText(detailParts, "  ") : null;
 
                     if (sarA.ESize == 4 && sarA.ECnt == sarB.ECnt && sarA.FirstVals.Length > 0)
                     {

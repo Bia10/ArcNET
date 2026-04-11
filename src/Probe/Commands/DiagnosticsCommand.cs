@@ -1,5 +1,7 @@
-﻿using ArcNET.Formats;
+﻿using ArcNET.Core;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
+using Bia.ValueBuffers;
 using Probe;
 
 namespace Probe.Commands;
@@ -34,9 +36,9 @@ internal sealed class DiagnosticsCommand : IProbeCommand
             );
             var goldProp = firstPc.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFCritterGold);
             Console.WriteLine($"  PC[0] gold: {(goldProp is null ? "absent" : goldProp.GetInt32().ToString())}");
-            Console.WriteLine($"  PC[0] bitmap: {Convert.ToHexString(firstPc.Header.Bitmap)}");
+            Console.WriteLine($"  PC[0] bitmap: {ValueBufferText.FormatHex(firstPc.Header.Bitmap)}");
             Console.WriteLine(
-                $"  PC[0] props: {string.Join(", ", firstPc.Properties.Select(p => $"{p.Field}(bit={(int)p.Field})"))}"
+                $"  PC[0] props: {ValueBufferText.JoinFormatted(firstPc.Properties, ", ", new PropertyBitFormatter())}"
             );
         }
 
@@ -75,5 +77,16 @@ internal sealed class DiagnosticsCommand : IProbeCommand
         }
 
         return Task.CompletedTask;
+    }
+
+    private readonly struct PropertyBitFormatter : IValueStringBuilderFormatter<ObjectProperty>
+    {
+        public void Append(ref ValueStringBuilder builder, ObjectProperty value)
+        {
+            builder.Append(value.Field.ToString());
+            builder.Append("(bit=");
+            builder.Append((int)value.Field);
+            builder.Append(')');
+        }
     }
 }
