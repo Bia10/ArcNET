@@ -1,6 +1,8 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -53,13 +55,13 @@ public static class ObjectPropertyFactory
     /// </summary>
     public static ObjectProperty ForString(ObjectField field, string value)
     {
-        var strBytes = Encoding.ASCII.GetBytes(value);
-        var bytes = new byte[1 + 4 + strBytes.Length + 1];
-        bytes[0] = 1; // presence
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(1), strBytes.Length);
-        strBytes.CopyTo(bytes, 5);
-        bytes[5 + strBytes.Length] = 0; // NUL terminator
-        return new ObjectProperty { Field = field, RawBytes = bytes };
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.Write(1); // presence
+        buf.WriteInt32LittleEndian(value.Length); // ASCII: 1 byte per char
+        buf.WriteAsciiEncoded(value.AsSpan());
+        buf.Write(0); // NUL terminator
+        return new ObjectProperty { Field = field, RawBytes = buf.ToArray() };
     }
 
     /// <summary>
@@ -81,10 +83,14 @@ public static class ObjectPropertyFactory
     /// </summary>
     public static ObjectProperty ForInt32Array(ObjectField field, ReadOnlySpan<int> values)
     {
-        var elements = new byte[values.Length * 4];
-        for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
-        return new ObjectProperty { Field = field, RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements) };
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteInt32LittleEndianAll(values);
+        return new ObjectProperty
+        {
+            Field = field,
+            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, buf.WrittenSpan),
+        };
     }
 
     /// <summary>
@@ -93,10 +99,14 @@ public static class ObjectPropertyFactory
     /// </summary>
     public static ObjectProperty ForInt64Array(ObjectField field, ReadOnlySpan<long> values)
     {
-        var elements = new byte[values.Length * 8];
-        for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteInt64LittleEndian(elements.AsSpan(i * 8), values[i]);
-        return new ObjectProperty { Field = field, RawBytes = SarEncoding.BuildSarBytes(8, values.Length, elements) };
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteInt64LittleEndianAll(values);
+        return new ObjectProperty
+        {
+            Field = field,
+            RawBytes = SarEncoding.BuildSarBytes(8, values.Length, buf.WrittenSpan),
+        };
     }
 
     /// <summary>
@@ -107,20 +117,21 @@ public static class ObjectPropertyFactory
     public static ObjectProperty ForObjectIdArray(ObjectField field, ReadOnlySpan<Guid> ids)
     {
         const int wireSize = ObjectPropertyExtensions.ObjectIdWireSize;
-        const short oidTypeGuid = 2;
-        var elements = new byte[ids.Length * wireSize];
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
         for (var i = 0; i < ids.Length; i++)
         {
-            var o = i * wireSize;
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), oidTypeGuid);
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0);
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0);
-            ids[i].ToByteArray().CopyTo(elements, o + 8);
+            buf.WriteInt16LittleEndian(GameObjectGuid.OidTypeGuid);
+            buf.WriteInt16LittleEndian(0); // padding_2
+            buf.WriteInt32LittleEndian(0); // padding_4
+            var guidSlot = buf.GetWritableSpan(16);
+            ids[i].TryWriteBytes(guidSlot);
+            buf.AdvanceLength(16);
         }
         return new ObjectProperty
         {
             Field = field,
-            RawBytes = SarEncoding.BuildSarBytes(wireSize, ids.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(wireSize, ids.Length, buf.WrittenSpan),
         };
     }
 

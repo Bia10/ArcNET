@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
 using ArcNET.Core.Primitives;
+using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -157,14 +158,13 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithString(this ObjectProperty property, string value)
     {
-        var strBytes = Encoding.ASCII.GetBytes(value);
-        // presence(1) + length(4) + string + NUL(1)
-        var bytes = new byte[1 + 4 + strBytes.Length + 1];
-        bytes[0] = 1; // presence
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(1), strBytes.Length);
-        strBytes.CopyTo(bytes, 5);
-        bytes[5 + strBytes.Length] = 0; // NUL terminator
-        return new ObjectProperty { Field = property.Field, RawBytes = bytes };
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.Write(1); // presence
+        buf.WriteInt32LittleEndian(value.Length); // ASCII: 1 byte per char
+        buf.WriteAsciiEncoded(value.AsSpan());
+        buf.Write(0); // NUL terminator
+        return new ObjectProperty { Field = property.Field, RawBytes = buf.ToArray() };
     }
 
     /// <summary>
@@ -263,13 +263,13 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithInt32Array(this ObjectProperty property, ReadOnlySpan<int> values)
     {
-        var elements = new byte[values.Length * 4];
-        for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteInt32LittleEndianAll(values);
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, buf.WrittenSpan),
         };
     }
 
@@ -279,13 +279,14 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithUInt32Array(this ObjectProperty property, ReadOnlySpan<uint> values)
     {
-        var elements = new byte[values.Length * 4];
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
         for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteUInt32LittleEndian(elements.AsSpan(i * 4), values[i]);
+            buf.WriteUInt32LittleEndian(values[i]);
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(4, values.Length, buf.WrittenSpan),
         };
     }
 
@@ -295,13 +296,13 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithInt64Array(this ObjectProperty property, ReadOnlySpan<long> values)
     {
-        var elements = new byte[values.Length * 8];
-        for (var i = 0; i < values.Length; i++)
-            BinaryPrimitives.WriteInt64LittleEndian(elements.AsSpan(i * 8), values[i]);
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        buf.WriteInt64LittleEndianAll(values);
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(8, values.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(8, values.Length, buf.WrittenSpan),
         };
     }
 
@@ -314,18 +315,18 @@ public static class ObjectPropertyExtensions
         ReadOnlySpan<ObjectPropertyScript> scripts
     )
     {
-        var elements = new byte[scripts.Length * 12];
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
         for (var i = 0; i < scripts.Length; i++)
         {
-            var o = i * 12;
-            BinaryPrimitives.WriteUInt32LittleEndian(elements.AsSpan(o), scripts[i].Flags);
-            BinaryPrimitives.WriteUInt32LittleEndian(elements.AsSpan(o + 4), scripts[i].Counters);
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 8), scripts[i].ScriptId);
+            buf.WriteUInt32LittleEndian(scripts[i].Flags);
+            buf.WriteUInt32LittleEndian(scripts[i].Counters);
+            buf.WriteInt32LittleEndian(scripts[i].ScriptId);
         }
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(12, scripts.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(12, scripts.Length, buf.WrittenSpan),
         };
     }
 
@@ -393,19 +394,21 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectProperty WithObjectIdArray(this ObjectProperty property, ReadOnlySpan<Guid> ids)
     {
-        var elements = new byte[ids.Length * ObjectIdWireSize];
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
         for (var i = 0; i < ids.Length; i++)
         {
-            var o = i * ObjectIdWireSize;
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), GameObjectGuid.OidTypeGuid);
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0); // padding_2
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0); // padding_4
-            ids[i].ToByteArray().CopyTo(elements, o + 8);
+            buf.WriteInt16LittleEndian(GameObjectGuid.OidTypeGuid);
+            buf.WriteInt16LittleEndian(0); // padding_2
+            buf.WriteInt32LittleEndian(0); // padding_4
+            var guidSlot = buf.GetWritableSpan(16);
+            ids[i].TryWriteBytes(guidSlot);
+            buf.AdvanceLength(16);
         }
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, buf.WrittenSpan),
         };
     }
 
@@ -429,23 +432,25 @@ public static class ObjectPropertyExtensions
         ReadOnlySpan<(short OidType, int ProtoOrData1, Guid Id)> ids
     )
     {
-        var elements = new byte[ids.Length * ObjectIdWireSize];
+        Span<byte> initial = stackalloc byte[256];
+        using var buf = new ValueByteBuffer(initial);
+        Span<byte> guidBytes = stackalloc byte[16];
         for (var i = 0; i < ids.Length; i++)
         {
-            var o = i * ObjectIdWireSize;
             var (oidType, protoOrData1, id) = ids[i];
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o), oidType);
-            BinaryPrimitives.WriteInt16LittleEndian(elements.AsSpan(o + 2), 0); // padding_2
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 4), 0); // padding_4
-            // The 16-byte TigGuid starts at byte 8.  For OID_TYPE_A the first 4 bytes of
-            // TigGuid overlap d.a (the proto index), so we must write protoOrData1 there.
-            BinaryPrimitives.WriteInt32LittleEndian(elements.AsSpan(o + 8), protoOrData1);
-            id.ToByteArray().AsSpan(4).CopyTo(elements.AsSpan(o + 12)); // remaining 12 GUID bytes
+            buf.WriteInt16LittleEndian(oidType);
+            buf.WriteInt16LittleEndian(0); // padding_2
+            buf.WriteInt32LittleEndian(0); // padding_4
+            // For OID_TYPE_A the first 4 bytes of TigGuid overlap d.a (the proto index).
+            buf.WriteInt32LittleEndian(protoOrData1);
+            // Remaining 12 GUID bytes (bytes 4–15 of the GUID layout).
+            id.TryWriteBytes(guidBytes);
+            buf.Write(guidBytes[4..]);
         }
         return new ObjectProperty
         {
             Field = property.Field,
-            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, elements),
+            RawBytes = SarEncoding.BuildSarBytes(ObjectIdWireSize, ids.Length, buf.WrittenSpan),
         };
     }
 }
