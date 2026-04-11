@@ -56,8 +56,9 @@ public sealed class ProtoFieldPatch : ObjectFieldPatchBase
         int newValue
     )
     {
-        var replacement = new byte[4];
-        BinaryPrimitives.WriteInt32LittleEndian(replacement, newValue);
+        Span<byte> tmp = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(tmp, newValue);
+        var replacement = tmp.ToArray();
 
         return new ProtoFieldPatch(
             id,

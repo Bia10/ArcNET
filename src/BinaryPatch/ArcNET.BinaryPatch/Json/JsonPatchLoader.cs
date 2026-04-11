@@ -158,9 +158,9 @@ public static class JsonPatchLoader
 
     private static ObjectProperty BuildInt32Property(ObjectProperty source, int value)
     {
-        var bytes = new byte[4];
+        Span<byte> bytes = stackalloc byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(bytes, value);
-        return new ObjectProperty { Field = source.Field, RawBytes = bytes };
+        return new ObjectProperty { Field = source.Field, RawBytes = bytes.ToArray() };
     }
 
     /// <summary>
