@@ -61,18 +61,38 @@ public static class MobDumper
             _ => $"unknown (0x{h.Version:X2})",
         };
         var kindLabel = h.IsPrototype ? "prototype definition" : "instance";
-        vsb.AppendLine($"  Object type  : {h.GameObjectType}  ({kindLabel}, format {fmtLabel})");
+        vsb.Append("  Object type  : ");
+        vsb.Append(h.GameObjectType.ToString());
+        vsb.Append("  (");
+        vsb.Append(kindLabel);
+        vsb.Append(", format ");
+        vsb.Append(fmtLabel);
+        vsb.AppendLine(")");
 
         // Proto ID — show proto number prominently for A-type refs
         var protoNum = h.ProtoId.GetProtoNumber();
         if (protoNum is not null)
-            vsb.AppendLine($"  Proto        : #{protoNum}  (type {h.GameObjectType})");
+        {
+            vsb.Append("  Proto        : #");
+            vsb.Append(protoNum.Value);
+            vsb.Append("  (type ");
+            vsb.Append(h.GameObjectType.ToString());
+            vsb.AppendLine(")");
+        }
         else
-            vsb.AppendLine($"  Proto ID     : {h.ProtoId}");
+        {
+            vsb.Append("  Proto ID     : ");
+            vsb.Append(h.ProtoId.ToString());
+            vsb.AppendLine();
+        }
 
         // Object GUID (only for instances)
         if (!h.IsPrototype)
-            vsb.AppendLine($"  Object GUID  : {h.ObjectId.Id}");
+        {
+            vsb.Append("  Object GUID  : ");
+            vsb.Append(h.ObjectId.Id.ToString());
+            vsb.AppendLine();
+        }
 
         // Bitmap summary
         var setBits = new List<int>();
@@ -117,11 +137,23 @@ public static class MobDumper
             var bytes = prop.RawBytes;
             if (prop.ParseNote is not null)
             {
-                vsb.AppendLine($"  [{(int)prop.Field, 3}] {fieldName, -32}  *** parse stopped: {prop.ParseNote} ***");
+                vsb.Append("  [");
+                AppendLeftPaddedInt(ref vsb, (int)prop.Field, 3);
+                vsb.Append("] ");
+                AppendRightPadded(ref vsb, fieldName, 32);
+                vsb.Append("  *** parse stopped: ");
+                vsb.Append(prop.ParseNote);
+                vsb.AppendLine(" ***");
                 vsb.AppendLine("  (subsequent fields in bitmap were not read — wire type unknown)");
                 break;
             }
-            vsb.Append($"  [{(int)prop.Field, 3}] {fieldName, -32} ({bytes.Length, 3} B)  ");
+            vsb.Append("  [");
+            AppendLeftPaddedInt(ref vsb, (int)prop.Field, 3);
+            vsb.Append("] ");
+            AppendRightPadded(ref vsb, fieldName, 32);
+            vsb.Append(" (");
+            AppendLeftPaddedInt(ref vsb, bytes.Length, 3);
+            vsb.Append(" B)  ");
             AppendDecodedValue(ref vsb, prop, objectType);
             vsb.AppendLine();
         }
@@ -155,7 +187,9 @@ public static class MobDumper
         }
 
         // ── String (1-byte presence + int32 length + (length+1) bytes) ──
-        vsb.Append($"= \"{prop.GetString()}\"");
+        vsb.Append("= \"");
+        vsb.Append(prop.GetString());
+        vsb.Append('"');
     }
 
     /// <summary>Appends human-readable representation of a 4-byte (Int32) property value.</summary>
@@ -170,19 +204,19 @@ public static class MobDumper
         // ── Common flag fields ──
         if (prop.Field == ObjectField.ObjFBlitFlags)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             AppendFlagNames<ObjFBlitFlags>(ref vsb, u32);
             return;
         }
         if (prop.Field == ObjectField.ObjFFlags)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             AppendFlagNames<ObjFFlags>(ref vsb, u32);
             return;
         }
         if (prop.Field == ObjectField.ObjFSpellFlags)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             AppendFlagNames<ObjFSpellFlags>(ref vsb, u32);
             return;
         }
@@ -199,16 +233,25 @@ public static class MobDumper
         )
         {
             if (prop.Field == ObjectField.ObjFPadIas1) // ObjFRotation — stored as radians
-                vsb.Append($"= {f32:F4} rad ({f32 * (180.0 / Math.PI):F1}\u00b0)");
+            {
+                vsb.Append("= ");
+                vsb.Append(f32, "F4");
+                vsb.Append(" rad (");
+                vsb.Append(f32 * (180.0 / Math.PI), "F1");
+                vsb.Append("\u00b0)");
+            }
             else
-                vsb.Append($"= {f32:G6}");
+            {
+                vsb.Append("= ");
+                vsb.Append(f32, "G6");
+            }
             return;
         }
 
         // ── Type-specific flag fields (bit 64 = first type-specific slot) ──
         if (fieldBit == 64)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             switch (objectType)
             {
                 case ObjectType.Npc or ObjectType.Pc:
@@ -243,7 +286,7 @@ public static class MobDumper
         }
         if (prop.Field == ObjectField.ObjFCritterFlags2 && objectType is ObjectType.Npc or ObjectType.Pc)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             AppendFlagNames<ObjFCritterFlags2>(ref vsb, u32);
             return;
         }
@@ -254,19 +297,19 @@ public static class MobDumper
             switch (objectType)
             {
                 case ObjectType.Weapon:
-                    vsb.Append($"= 0x{u32:X8}  ");
+                    AppendAssignedHex32(ref vsb, u32, "  ");
                     AppendFlagNames<ObjFWeaponFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Armor:
-                    vsb.Append($"= 0x{u32:X8}  ");
+                    AppendAssignedHex32(ref vsb, u32, "  ");
                     AppendFlagNames<ObjFArmorFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Key:
                     // ObjFKeyKeyId — not flags, it's the key identifier
-                    vsb.Append($"= {i32}  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
+                    AppendAssignedInt32(ref vsb, i32, "  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
                     break;
                 default:
-                    vsb.Append($"= 0x{u32:X8}  (type-specific flags)");
+                    AppendAssignedHex32(ref vsb, u32, "  (type-specific flags)");
                     break;
             }
             return;
@@ -274,27 +317,28 @@ public static class MobDumper
 
         if (prop.Field == ObjectField.ObjFNpcFlags && objectType is ObjectType.Npc)
         {
-            vsb.Append($"= 0x{u32:X8}  ");
+            AppendAssignedHex32(ref vsb, u32, "  ");
             AppendFlagNames<ObjFNpcFlags>(ref vsb, u32);
             return;
         }
         if (prop.Field == ObjectField.ObjFPcFlags && objectType is ObjectType.Pc)
         {
-            vsb.Append($"= 0x{u32:X8}  (PC flags — no enum defined)");
+            AppendAssignedHex32(ref vsb, u32, "  (PC flags — no enum defined)");
             return;
         }
 
         // ── Inventory fields ──
         if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
         {
-            vsb.Append($"= {i32}  (item count)");
+            AppendAssignedInt32(ref vsb, i32, "  (item count)");
             return;
         }
         if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
         {
-            vsb.Append(
-                i32 == 0 ? "= 0  *** EMPTY (InvSource=0: engine skips fill) ***" : $"= {i32}  (InvenSource.mes ID)"
-            );
+            if (i32 == 0)
+                vsb.Append("= 0  *** EMPTY (InvSource=0: engine skips fill) ***");
+            else
+                AppendAssignedInt32(ref vsb, i32, "  (InvenSource.mes ID)");
             return;
         }
 
@@ -313,13 +357,23 @@ public static class MobDumper
         };
         if (wellKnownLabel is not null)
         {
-            vsb.Append($"= {i32}  ({wellKnownLabel})");
+            AppendAssignedInt32(ref vsb, i32, "  (");
+            vsb.Append(wellKnownLabel);
+            vsb.Append(')');
             return;
         }
 
-        vsb.Append($"= {i32}  (0x{u32:X8})");
+        vsb.Append("= ");
+        vsb.Append(i32);
+        vsb.Append("  (0x");
+        vsb.AppendHex(u32);
+        vsb.Append(')');
         if (!float.IsNaN(f32) && !float.IsInfinity(f32) && Math.Abs(f32) is > 0.00001f and < 1e7f)
-            vsb.Append($"  [float={f32:G6}]");
+        {
+            vsb.Append("  [float=");
+            vsb.Append(f32, "G6");
+            vsb.Append(']');
+        }
     }
 
     /// <summary>Appends human-readable representation of a 9-byte (Int64 with presence byte) property value.</summary>
@@ -331,11 +385,16 @@ public static class MobDumper
         {
             var x = (int)(i64 & 0xFFFFFFFF);
             var y = (int)((i64 >> 32) & 0xFFFFFFFF);
-            vsb.Append($"= tile ({x}, {y})");
+            vsb.Append("= tile (");
+            vsb.Append(x);
+            vsb.Append(", ");
+            vsb.Append(y);
+            vsb.Append(')');
             return;
         }
 
-        vsb.Append($"= 0x{(ulong)i64:X16}");
+        vsb.Append("= 0x");
+        vsb.Append(((ulong)i64).ToString("X16"));
     }
 
     /// <summary>Appends human-readable representation of a SAR (Sparse Array) property value.</summary>
@@ -347,7 +406,11 @@ public static class MobDumper
         // SA header at offsets 1..12: { int32 size, int32 count, int32 bitset_id }
         var elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(1));
         var elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(5));
-        vsb.Append($"SAR[{elementCount} × {elementSize}B]");
+        vsb.Append("SAR[");
+        vsb.Append(elementCount);
+        vsb.Append(" × ");
+        vsb.Append(elementSize);
+        vsb.Append("B]");
 
         if (elementCount == 0)
         {
@@ -373,7 +436,13 @@ public static class MobDumper
                     _ => $"type{oidType}",
                 };
                 var extra = oidType == GameObjectGuid.OidTypeA ? $"proto={protoOrData1}" : $"d.a=0x{protoOrData1:X8}";
-                vsb.AppendLine($"      [{oidLabel}] {extra}  guid={guid}");
+                vsb.Append("      [");
+                vsb.Append(oidLabel);
+                vsb.Append("] ");
+                vsb.Append(extra);
+                vsb.Append("  guid=");
+                vsb.Append(guid.ToString());
+                vsb.AppendLine();
             }
             return;
         }
@@ -389,7 +458,11 @@ public static class MobDumper
                 for (var idx = 0; idx < vals.Length; idx++)
                 {
                     var statLabel = Enum.IsDefined((BasicStatType)idx) ? ((BasicStatType)idx).ToString() : $"Stat{idx}";
-                    vsb.AppendLine($"      [{statLabel, -20}] = {vals[idx]}");
+                    vsb.Append("      [");
+                    AppendRightPadded(ref vsb, statLabel, 20);
+                    vsb.Append("] = ");
+                    vsb.Append(vals[idx]);
+                    vsb.AppendLine();
                 }
                 return;
             }
@@ -403,7 +476,11 @@ public static class MobDumper
                 vsb.Append(vals[vi]);
             }
             if (vals.Length > 8)
-                vsb.Append($", +{vals.Length - 8} more");
+            {
+                vsb.Append(", +");
+                vsb.Append(vals.Length - 8);
+                vsb.Append(" more");
+            }
             vsb.Append(']');
             return;
         }
@@ -442,12 +519,53 @@ public static class MobDumper
                 var loc = BinaryPrimitives.ReadInt64LittleEndian(dataSpan.Slice(idx * 8));
                 var tx = (int)(loc & 0xFFFFFFFF);
                 var ty = (int)((loc >> 32) & 0xFFFFFFFF);
-                vsb.AppendLine($"      [Waypoint {idx}] tile ({tx}, {ty})");
+                vsb.Append("      [Waypoint ");
+                vsb.Append(idx);
+                vsb.Append("] tile (");
+                vsb.Append(tx);
+                vsb.Append(", ");
+                vsb.Append(ty);
+                vsb.Append(')');
+                vsb.AppendLine();
             }
             return;
         }
 
-        vsb.Append($"  [{elementCount} elem(s)]");
+        vsb.Append("  [");
+        vsb.Append(elementCount);
+        vsb.Append(" elem(s)]");
+    }
+
+    private static void AppendAssignedHex32(ref ValueStringBuilder vsb, uint value, string? suffix = null)
+    {
+        vsb.Append("= 0x");
+        vsb.AppendHex(value);
+        if (!string.IsNullOrEmpty(suffix))
+            vsb.Append(suffix);
+    }
+
+    private static void AppendAssignedInt32(ref ValueStringBuilder vsb, int value, string? suffix = null)
+    {
+        vsb.Append("= ");
+        vsb.Append(value);
+        if (!string.IsNullOrEmpty(suffix))
+            vsb.Append(suffix);
+    }
+
+    private static void AppendLeftPaddedInt(ref ValueStringBuilder vsb, int value, int width)
+    {
+        Span<char> buffer = stackalloc char[16];
+        _ = value.TryFormat(buffer, out var written);
+        for (var index = written; index < width; index++)
+            vsb.Append(' ');
+        vsb.Append(value);
+    }
+
+    private static void AppendRightPadded(ref ValueStringBuilder vsb, string value, int width)
+    {
+        vsb.Append(value);
+        for (var index = value.Length; index < width; index++)
+            vsb.Append(' ');
     }
 
     private static bool IsLocationField(ObjectField field, ObjectType objectType) =>

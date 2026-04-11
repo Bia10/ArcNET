@@ -13,20 +13,40 @@ public static class ScriptDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== SCRIPT FILE ===");
-        vsb.AppendLine($"  Description : \"{scr.Description}\"");
-        vsb.AppendLine($"  Behaviour   : {scr.Flags}  (0x{(uint)scr.Flags:X4})");
+        vsb.Append("  Description : \"");
+        vsb.Append(scr.Description);
+        vsb.AppendLine("\"");
+        vsb.Append("  Behaviour   : ");
+        vsb.Append(scr.Flags.ToString());
+        vsb.Append("  (0x");
+        vsb.Append((uint)scr.Flags, "X4");
+        vsb.AppendLine(")");
         // Count active (non-empty) slots for the summary line
         var activeSlots = scr.Entries.Count(e =>
             !IsEmptyCondition(e) || !IsEmptyAction(e.Action) || !IsEmptyAction(e.Else)
         );
         var emptySlots = scr.Entries.Count - activeSlots;
-        vsb.Append($"  Entries     : {scr.Entries.Count} attachment slot(s)");
+        vsb.Append("  Entries     : ");
+        vsb.Append(scr.Entries.Count);
+        vsb.Append(" attachment slot(s)");
         if (activeSlots < scr.Entries.Count)
-            vsb.Append($"  ({activeSlots} active, {emptySlots} unused/empty)");
+        {
+            vsb.Append("  (");
+            vsb.Append(activeSlots);
+            vsb.Append(" active, ");
+            vsb.Append(emptySlots);
+            vsb.Append(" unused/empty)");
+        }
         vsb.AppendLine();
         // HeaderFlags and HeaderCounters are runtime state only (not meaningful off-disk)
         if (scr.HeaderFlags != 0 || scr.HeaderCounters != 0)
-            vsb.AppendLine($"  Runtime state  : flags=0x{scr.HeaderFlags:X8}  counters=0x{scr.HeaderCounters:X8}");
+        {
+            vsb.Append("  Runtime state  : flags=0x");
+            vsb.Append(scr.HeaderFlags, "X8");
+            vsb.Append("  counters=0x");
+            vsb.Append(scr.HeaderCounters, "X8");
+            vsb.AppendLine();
+        }
         vsb.AppendLine();
 
         for (var i = 0; i < scr.Entries.Count; i++)
@@ -38,7 +58,11 @@ public static class ScriptDumper
 
             var condName = FormatEnum<ScriptConditionType>(cond.Type);
             var apName = Enum.IsDefined((ScriptAttachmentPoint)i) ? ((ScriptAttachmentPoint)i).ToString() : $"Slot{i}";
-            vsb.AppendLine($"  [{apName}]  when {condName}");
+            vsb.Append("  [");
+            vsb.Append(apName);
+            vsb.Append("]  when ");
+            vsb.Append(condName);
+            vsb.AppendLine();
             DumpOperands(ref vsb, "    condition", cond.OpTypes, cond.OpValues);
             DumpAction(ref vsb, "      then", cond.Action);
             if (!IsEmptyAction(cond.Else))
@@ -78,7 +102,10 @@ public static class ScriptDumper
     private static void DumpAction(ref ValueStringBuilder vsb, string prefix, ScriptActionData action)
     {
         var actionName = FormatEnum<ScriptActionType>(action.Type);
-        vsb.AppendLine($"{prefix}: {actionName}");
+        vsb.Append(prefix);
+        vsb.Append(": ");
+        vsb.Append(actionName);
+        vsb.AppendLine();
         DumpOperands(ref vsb, $"{prefix}  ", action.OpTypes, action.OpValues);
     }
 
@@ -95,7 +122,16 @@ public static class ScriptDumper
                 continue;
 
             var typeName = FormatOperandType(opTypes[j]);
-            vsb.AppendLine($"{prefix}  [{j}] {typeName} = {opValues[j]}  (0x{opValues[j]:X8})");
+            vsb.Append(prefix);
+            vsb.Append("  [");
+            vsb.Append(j);
+            vsb.Append("] ");
+            vsb.Append(typeName);
+            vsb.Append(" = ");
+            vsb.Append(opValues[j]);
+            vsb.Append("  (0x");
+            vsb.Append(opValues[j], "X8");
+            vsb.AppendLine(")");
         }
     }
 

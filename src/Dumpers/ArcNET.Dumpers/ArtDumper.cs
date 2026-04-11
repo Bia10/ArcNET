@@ -23,12 +23,23 @@ public static class ArtDumper
             _ when art.Flags == ArtFlags.None => "unknown type (no flags set)",
             _ => $"{art.Flags}  (0x{(uint)art.Flags:X8})",
         };
-        vsb.AppendLine($"  Type           : {typeLabel}");
-        vsb.AppendLine(
-            $"  Animation      : {art.FrameCount} frame(s) at {art.FrameRate} fps"
-                + (art.ActionFrame > 0 ? $", key frame at index {art.ActionFrame}" : "")
-        );
-        vsb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
+        vsb.Append("  Type           : ");
+        vsb.Append(typeLabel);
+        vsb.AppendLine();
+        vsb.Append("  Animation      : ");
+        vsb.Append(art.FrameCount);
+        vsb.Append(" frame(s) at ");
+        vsb.Append(art.FrameRate);
+        vsb.Append(" fps");
+        if (art.ActionFrame > 0)
+        {
+            vsb.Append(", key frame at index ");
+            vsb.Append(art.ActionFrame);
+        }
+        vsb.AppendLine();
+        vsb.Append("  Rotations      : ");
+        vsb.Append(art.EffectiveRotationCount);
+        vsb.AppendLine();
         if (art.PaletteData1.Any(v => v != 0))
         {
             vsb.Append("  Palette data 1 : [");
@@ -36,12 +47,7 @@ public static class ArtDumper
             {
                 if (i > 0)
                     vsb.Append(", ");
-                var v = art.PaletteData1[i];
-                vsb.Append("0x");
-                vsb.AppendHex((byte)(v >> 24));
-                vsb.AppendHex((byte)(v >> 16));
-                vsb.AppendHex((byte)(v >> 8));
-                vsb.AppendHex((byte)v);
+                AppendHexUInt32(ref vsb, art.PaletteData1[i]);
             }
             vsb.AppendLine("]");
         }
@@ -52,12 +58,7 @@ public static class ArtDumper
             {
                 if (i > 0)
                     vsb.Append(", ");
-                var v = art.PaletteData2[i];
-                vsb.Append("0x");
-                vsb.AppendHex((byte)(v >> 24));
-                vsb.AppendHex((byte)(v >> 16));
-                vsb.AppendHex((byte)(v >> 8));
-                vsb.AppendHex((byte)v);
+                AppendHexUInt32(ref vsb, art.PaletteData2[i]);
             }
             vsb.AppendLine("]");
         }
@@ -70,14 +71,46 @@ public static class ArtDumper
             if (pal is null)
             {
                 if (art.PaletteIds[slot] != 0)
-                    vsb.AppendLine($"  Palette {slot}      : absent  (id={art.PaletteIds[slot]})");
+                {
+                    vsb.Append("  Palette ");
+                    vsb.Append(slot);
+                    vsb.Append("      : absent  (id=");
+                    vsb.Append(art.PaletteIds[slot]);
+                    vsb.Append(')');
+                    vsb.AppendLine();
+                }
             }
             else
             {
-                vsb.AppendLine($"  Palette {slot}      : {pal.Length} entries  (id={art.PaletteIds[slot]})");
-                vsb.AppendLine($"    [ 0] BGR=({pal[0].Blue},{pal[0].Green},{pal[0].Red})  (transparency)");
+                vsb.Append("  Palette ");
+                vsb.Append(slot);
+                vsb.Append("      : ");
+                vsb.Append(pal.Length);
+                vsb.Append(" entries  (id=");
+                vsb.Append(art.PaletteIds[slot]);
+                vsb.Append(')');
+                vsb.AppendLine();
+                vsb.Append("    [ 0] BGR=(");
+                vsb.Append(pal[0].Blue);
+                vsb.Append(',');
+                vsb.Append(pal[0].Green);
+                vsb.Append(',');
+                vsb.Append(pal[0].Red);
+                vsb.Append(")  (transparency)");
+                vsb.AppendLine();
                 if (pal.Length > 1)
-                    vsb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
+                {
+                    vsb.Append("    [");
+                    AppendLeftPaddedInt(ref vsb, pal.Length - 1, 3);
+                    vsb.Append("] BGR=(");
+                    vsb.Append(pal[^1].Blue);
+                    vsb.Append(',');
+                    vsb.Append(pal[^1].Green);
+                    vsb.Append(',');
+                    vsb.Append(pal[^1].Red);
+                    vsb.Append(')');
+                    vsb.AppendLine();
+                }
             }
         }
 
@@ -86,14 +119,25 @@ public static class ArtDumper
         // Frames
         for (var r = 0; r < art.EffectiveRotationCount; r++)
         {
-            vsb.AppendLine(
-                art.EffectiveRotationCount > 1 ? $"  --- Rotation {r} (direction {r * 45}°) ---" : "  --- Frames ---"
-            );
+            if (art.EffectiveRotationCount > 1)
+            {
+                vsb.Append("  --- Rotation ");
+                vsb.Append(r);
+                vsb.Append(" (direction ");
+                vsb.Append(r * 45);
+                vsb.Append("°) ---");
+                vsb.AppendLine();
+            }
+            else
+            {
+                vsb.AppendLine("  --- Frames ---");
+            }
             for (var f = 0; f < (int)art.FrameCount; f++)
             {
                 var frame = art.Frames[r][f];
                 var h = frame.Header;
                 var compressed = h.DataSize < h.Width * h.Height;
+                // TODO: replace this remaining composite line once ValueStringBuilder gains an interpolated-string handler.
                 vsb.AppendLine(
                     $"    [{f, 3}] {h.Width}×{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})"
                         + $"  {h.DataSize}B {(compressed ? "RLE" : "raw")}  pixels={frame.Pixels.Length}B"
@@ -102,6 +146,21 @@ public static class ArtDumper
         }
 
         return vsb.ToString();
+    }
+
+    private static void AppendHexUInt32(ref ValueStringBuilder vsb, uint value)
+    {
+        vsb.Append("0x");
+        vsb.AppendHex(value);
+    }
+
+    private static void AppendLeftPaddedInt(ref ValueStringBuilder vsb, int value, int width)
+    {
+        Span<char> buffer = stackalloc char[16];
+        _ = value.TryFormat(buffer, out var written);
+        for (var index = written; index < width; index++)
+            vsb.Append(' ');
+        vsb.Append(value);
     }
 
     public static void Dump(ArtFile art, TextWriter writer) => writer.Write(Dump(art));

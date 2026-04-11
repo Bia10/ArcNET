@@ -77,9 +77,19 @@ public static class SaveDumper
             .ToList();
 
         vsb.AppendLine("=== SAVE FILE CONTENTS ===");
-        vsb.Append($"  {payloads.Count} embedded file(s):");
+        vsb.Append("  ");
+        vsb.Append(payloads.Count);
+        vsb.Append(" embedded file(s):");
         foreach (var (ext, count, totalBytes) in byExt)
-            vsb.Append($"  {count} {ext} ({totalBytes:N0} B)");
+        {
+            vsb.Append("  ");
+            vsb.Append(count);
+            vsb.Append(' ');
+            vsb.Append(ext);
+            vsb.Append(" (");
+            vsb.Append(totalBytes, "N0");
+            vsb.Append(" B)");
+        }
         vsb.AppendLine();
         vsb.AppendLine();
 
@@ -91,7 +101,9 @@ public static class SaveDumper
         foreach (var group in grouped)
         {
             var dirLabel = string.IsNullOrEmpty(group.Key) ? "(root)" : group.Key + "/";
-            vsb.AppendLine($"  ┌── {dirLabel}");
+            vsb.Append("  ┌── ");
+            vsb.Append(dirLabel);
+            vsb.AppendLine();
 
             foreach (var kvp in group)
             {
@@ -100,7 +112,11 @@ public static class SaveDumper
                 var fileName = Path.GetFileName(virtualPath);
                 var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
-                vsb.AppendLine($"  │  [{fileName}]  ({data.Length:N0} bytes)");
+                vsb.Append("  │  [");
+                vsb.Append(fileName);
+                vsb.Append("]  (");
+                vsb.Append(data.Length, "N0");
+                vsb.AppendLine(" bytes)");
 
                 try
                 {
@@ -115,12 +131,14 @@ public static class SaveDumper
                     }
                     else
                     {
-                        vsb.AppendLine($"  │    (binary / unrecognised format)");
+                        vsb.AppendLine("  │    (binary / unrecognised format)");
                     }
                 }
                 catch (Exception ex)
                 {
-                    vsb.AppendLine($"  │    (parse error: {ex.Message})");
+                    vsb.Append("  │    (parse error: ");
+                    vsb.Append(ex.Message);
+                    vsb.AppendLine(")");
                 }
 
                 vsb.AppendLine("  │");
@@ -150,7 +168,9 @@ public static class SaveDumper
         var bar = new string('═', 72);
 
         sb.AppendLine(bar);
-        sb.AppendLine($"  ARCANUM SAVE: \"{info.DisplayName}\"");
+        sb.Append("  ARCANUM SAVE: \"");
+        sb.Append(info.DisplayName);
+        sb.AppendLine("\"");
         sb.AppendLine(bar);
         sb.AppendLine();
 
@@ -160,11 +180,33 @@ public static class SaveDumper
         var minutes = (int)(totalMs / 60_000L % 60);
         var seconds = (int)(totalMs / 1_000L % 60);
 
-        sb.AppendLine($"  Character   : {info.LeaderName}");
-        sb.AppendLine($"  Level       : {info.LeaderLevel}   Portrait: #{info.LeaderPortraitId}");
-        sb.AppendLine($"  Campaign    : {info.ModuleName}");
-        sb.AppendLine($"  Map         : map {info.MapId}, tile ({info.LeaderTileX}, {info.LeaderTileY})");
-        sb.AppendLine($"  Game time   : Day {info.GameTimeDays + 1}, {hours:D2}:{minutes:D2}:{seconds:D2}");
+        sb.Append("  Character   : ");
+        sb.Append(info.LeaderName);
+        sb.AppendLine();
+        sb.Append("  Level       : ");
+        sb.Append(info.LeaderLevel);
+        sb.Append("   Portrait: #");
+        sb.Append(info.LeaderPortraitId);
+        sb.AppendLine();
+        sb.Append("  Campaign    : ");
+        sb.Append(info.ModuleName);
+        sb.AppendLine();
+        sb.Append("  Map         : map ");
+        sb.Append(info.MapId);
+        sb.Append(", tile (");
+        sb.Append(info.LeaderTileX);
+        sb.Append(", ");
+        sb.Append(info.LeaderTileY);
+        sb.AppendLine(")");
+        sb.Append("  Game time   : Day ");
+        sb.Append(info.GameTimeDays + 1);
+        sb.Append(", ");
+        sb.Append(hours, "D2");
+        sb.Append(':');
+        sb.Append(minutes, "D2");
+        sb.Append(':');
+        sb.Append(seconds, "D2");
+        sb.AppendLine();
         sb.AppendLine();
 
         // Town-map fog coverage
@@ -189,7 +231,13 @@ public static class SaveDumper
                     pct >= 99.9 ? "✓"
                     : pct > 0 ? "~"
                     : " ";
-                sb.AppendLine($"  {marker} {area, -30} {pct, 5:F1}% revealed");
+                sb.Append("  ");
+                sb.Append(marker);
+                sb.Append(' ');
+                AppendRightPadded(ref sb, area, 30);
+                sb.Append(' ');
+                AppendLeftPaddedDouble(ref sb, pct, 5, "F1");
+                sb.AppendLine("% revealed");
             }
             sb.AppendLine();
         }
@@ -215,7 +263,8 @@ public static class SaveDumper
             foreach (var mapGrp in mapDirs)
             {
                 var mapName = mapGrp.Key;
-                sb.Append($"  Map: {mapName}");
+                sb.Append("  Map: ");
+                sb.Append(mapName);
 
                 // Count objects destroyed (.des)
                 var desFile = mapGrp.FirstOrDefault(kvp =>
@@ -226,7 +275,11 @@ public static class SaveDumper
                     const int oidSize = 24;
                     var desCount = desData.Length / oidSize;
                     if (desData.Length % oidSize == 0 && desCount > 0)
-                        sb.Append($"  |  {desCount} object(s) destroyed");
+                    {
+                        sb.Append("  |  ");
+                        sb.Append(desCount);
+                        sb.Append(" object(s) destroyed");
+                    }
                 }
 
                 // Count modified objects (.md) — walk the proper framing
@@ -237,7 +290,11 @@ public static class SaveDumper
                 {
                     var mdCount = CountMdObjects(mdData);
                     if (mdCount > 0)
-                        sb.Append($"  |  {mdCount} object(s) modified");
+                    {
+                        sb.Append("  |  ");
+                        sb.Append(mdCount);
+                        sb.Append(" object(s) modified");
+                    }
                 }
 
                 // Count dynamic mobiles (.mdy)
@@ -248,7 +305,11 @@ public static class SaveDumper
                 {
                     var mdyCount = CountStartMarkers(mdyData);
                     if (mdyCount > 0)
-                        sb.Append($"  |  {mdyCount} dynamic mobile(s)");
+                    {
+                        sb.Append("  |  ");
+                        sb.Append(mdyCount);
+                        sb.Append(" dynamic mobile(s)");
+                    }
                 }
 
                 // Count .dif files
@@ -256,7 +317,11 @@ public static class SaveDumper
                     Path.GetExtension(kvp.Key).Equals(".dif", StringComparison.OrdinalIgnoreCase)
                 );
                 if (difCount > 0)
-                    sb.Append($"  |  {difCount} object diff(s)");
+                {
+                    sb.Append("  |  ");
+                    sb.Append(difCount);
+                    sb.Append(" object diff(s)");
+                }
 
                 sb.AppendLine();
             }
@@ -460,14 +525,20 @@ public static class SaveDumper
             {
                 var mob = MobFormat.Parse(ref reader);
                 count++;
-                sb.AppendLine($"--- object {count} ---");
+                sb.Append("--- object ");
+                sb.Append(count);
+                sb.AppendLine(" ---");
                 sb.Append(MobDumper.Dump(mob));
             }
             catch (Exception ex)
             {
-                sb.AppendLine(
-                    $"--- object {count + 1} parse failed at byte {posBeforeParse}: {ex.Message} (stopping) ---"
-                );
+                sb.Append("--- object ");
+                sb.Append(count + 1);
+                sb.Append(" parse failed at byte ");
+                sb.Append(posBeforeParse);
+                sb.Append(": ");
+                sb.Append(ex.Message);
+                sb.AppendLine(" (stopping) ---");
                 break;
             }
         }
@@ -545,7 +616,9 @@ public static class SaveDumper
         var sb = new ValueStringBuilder(sbBuf);
 
         var magic = BinaryPrimitives.ReadInt32LittleEndian(span);
-        sb.AppendLine($"obj_dif_write compact format  (magic=0x{magic:X2})");
+        sb.Append("obj_dif_write compact format  (magic=0x");
+        sb.Append(magic, "X2");
+        sb.AppendLine(")");
 
         if (magic == 0x18)
         {
@@ -569,7 +642,11 @@ public static class SaveDumper
                     var dataLen = pos - dataStart;
                     pos += 4; // skip END
                     recIdx++;
-                    sb.AppendLine($"  [record {recIdx}]  data={dataLen} bytes");
+                    sb.Append("  [record ");
+                    sb.Append(recIdx);
+                    sb.Append("]  data=");
+                    sb.Append(dataLen);
+                    sb.AppendLine(" bytes");
                 }
                 else
                 {
@@ -627,15 +704,31 @@ public static class SaveDumper
             recordIdx++;
 
             if (hasB)
-                sb.AppendLine($"  [record {recordIdx}]  B={b}  data={dataLen} bytes");
+            {
+                sb.Append("  [record ");
+                sb.Append(recordIdx);
+                sb.Append("]  B=");
+                sb.Append(b);
+                sb.Append("  data=");
+                sb.Append(dataLen);
+                sb.AppendLine(" bytes");
+            }
             else
-                sb.AppendLine($"  [record {recordIdx}]  data={dataLen} bytes");
+            {
+                sb.Append("  [record ");
+                sb.Append(recordIdx);
+                sb.Append("]  data=");
+                sb.Append(dataLen);
+                sb.AppendLine(" bytes");
+            }
         }
 
         if (scanPos < data.Length)
         {
             var trailing = BinaryPrimitives.ReadInt32LittleEndian(span[scanPos..]);
-            sb.AppendLine($"  trailing=0x{trailing:X8}");
+            sb.Append("  trailing=0x");
+            sb.Append(trailing, "X8");
+            sb.AppendLine();
         }
 
         return sb.ToString();
@@ -659,13 +752,19 @@ public static class SaveDumper
         var count = span.Length / OidSize;
         Span<char> sbBuf = stackalloc char[512];
         var sb = new ValueStringBuilder(sbBuf);
-        sb.AppendLine($"Destroyed/extinct objects: {count}");
+        sb.Append("Destroyed/extinct objects: ");
+        sb.Append(count);
+        sb.AppendLine();
 
         var reader = new SpanReader(span);
         for (var i = 0; i < count; i++)
         {
             var oid = GameObjectGuid.Read(ref reader);
-            sb.AppendLine($"  [{i + 1}] {oid}");
+            sb.Append("  [");
+            sb.Append(i + 1);
+            sb.Append("] ");
+            sb.Append(oid.ToString());
+            sb.AppendLine();
         }
 
         return sb.ToString();
@@ -708,7 +807,11 @@ public static class SaveDumper
 
             if (version != Version8 && version != Version77)
             {
-                sb.AppendLine($"  (unexpected version {version} at byte {pos - 4} — stopping)");
+                sb.Append("  (unexpected version ");
+                sb.Append(version);
+                sb.Append(" at byte ");
+                sb.Append(pos - 4);
+                sb.AppendLine(" — stopping)");
                 break;
             }
 
@@ -720,7 +823,11 @@ public static class SaveDumper
 
             if (startMark != StartMarker)
             {
-                sb.AppendLine($"  (start marker mismatch 0x{startMark:X8} at byte {pos - 4} — stopping)");
+                sb.Append("  (start marker mismatch 0x");
+                sb.Append(startMark, "X8");
+                sb.Append(" at byte ");
+                sb.Append(pos - 4);
+                sb.AppendLine(" — stopping)");
                 break;
             }
 
@@ -750,7 +857,11 @@ public static class SaveDumper
                 {
                     var endMark = BinaryPrimitives.ReadUInt32LittleEndian(remaining.Slice(consumedInOriginal, 4));
                     if (endMark != EndMarker)
-                        sb.AppendLine($"  WARNING: end marker missing after object {count}");
+                    {
+                        sb.Append("  WARNING: end marker missing after object ");
+                        sb.Append(count);
+                        sb.AppendLine();
+                    }
                     pos += consumedInOriginal + 4; // advance past object + end marker
                 }
                 else
@@ -758,7 +869,15 @@ public static class SaveDumper
                     pos += consumedInOriginal;
                 }
 
-                sb.AppendLine($"  [{count}] {fileOid}  →  {mob.Header.GameObjectType} (proto {mob.Header.ProtoId})");
+                sb.Append("  [");
+                sb.Append(count);
+                sb.Append("] ");
+                sb.Append(fileOid.ToString());
+                sb.Append("  →  ");
+                sb.Append(mob.Header.GameObjectType.ToString());
+                sb.Append(" (proto ");
+                sb.Append(mob.Header.ProtoId.ToString());
+                sb.AppendLine(")");
                 sb.Append(MobDumper.Dump(mob));
             }
             catch (Exception ex)
@@ -778,13 +897,23 @@ public static class SaveDumper
 
                 if (!foundEnd)
                 {
-                    sb.AppendLine(
-                        $"  [{count}] {fileOid}  (parse failed: {ex.Message}; end marker not found — stopping)"
-                    );
+                    sb.Append("  [");
+                    sb.Append(count);
+                    sb.Append("] ");
+                    sb.Append(fileOid.ToString());
+                    sb.Append("  (parse failed: ");
+                    sb.Append(ex.Message);
+                    sb.AppendLine("; end marker not found — stopping)");
                     break;
                 }
 
-                sb.AppendLine($"  [{count}] {fileOid}  (parse failed: {ex.Message})");
+                sb.Append("  [");
+                sb.Append(count);
+                sb.Append("] ");
+                sb.Append(fileOid.ToString());
+                sb.Append("  (parse failed: ");
+                sb.Append(ex.Message);
+                sb.AppendLine(")");
             }
         }
 
@@ -810,7 +939,11 @@ public static class SaveDumper
         var count = BinaryPrimitives.ReadInt32LittleEndian(span);
         Span<char> sbBuf = stackalloc char[512];
         var sb = new ValueStringBuilder(sbBuf);
-        sb.AppendLine($"TimeEvent.dat — {count} scheduled event(s)  ({mem.Length} bytes total)");
+        sb.Append("TimeEvent.dat — ");
+        sb.Append(count);
+        sb.Append(" scheduled event(s)  (");
+        sb.Append(mem.Length);
+        sb.AppendLine(" bytes total)");
 
         // Show as many event headers as we can parse (8 + 4 = 12 bytes per header minimum).
         var reader = new SpanReader(span.Slice(4)); // skip count
@@ -819,13 +952,23 @@ public static class SaveDumper
             var days = reader.ReadInt32();
             var ms = reader.ReadInt32();
             var type = reader.ReadInt32();
-            sb.AppendLine($"  [{i + 1}] Day {days}, +{ms} ms, type={type}");
+            sb.Append("  [");
+            sb.Append(i + 1);
+            sb.Append("] Day ");
+            sb.Append(days);
+            sb.Append(", +");
+            sb.Append(ms);
+            sb.Append(" ms, type=");
+            sb.Append(type);
+            sb.AppendLine();
 
             // Cannot safely consume param data without TimeEventTypeInfo.flags —
             // stop after first event to avoid mis-parsing the rest.
             if (i == 0 && count > 1)
             {
-                sb.AppendLine($"  ... (+{count - 1} more — param layout requires TimeEventTypeInfo table)");
+                sb.Append("  ... (+");
+                sb.Append(count - 1);
+                sb.AppendLine(" more — param layout requires TimeEventTypeInfo table)");
                 break;
             }
         }
@@ -853,5 +996,21 @@ public static class SaveDumper
     {
         var slash = virtualPath.LastIndexOf('/');
         return slash < 0 ? string.Empty : virtualPath[..slash];
+    }
+
+    private static void AppendRightPadded(ref ValueStringBuilder sb, string value, int width)
+    {
+        sb.Append(value);
+        for (var index = value.Length; index < width; index++)
+            sb.Append(' ');
+    }
+
+    private static void AppendLeftPaddedDouble(ref ValueStringBuilder sb, double value, int width, string format)
+    {
+        Span<char> buffer = stackalloc char[32];
+        _ = value.TryFormat(buffer, out var written, format, provider: null);
+        for (var index = written; index < width; index++)
+            sb.Append(' ');
+        sb.Append(value, format);
     }
 }
