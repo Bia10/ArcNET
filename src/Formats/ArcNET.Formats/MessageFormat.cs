@@ -69,7 +69,15 @@ public sealed class MessageFormat : IFormatFileReader<MesFile>, IFormatFileWrite
             sb.Append('}');
             sb.AppendLine();
         }
-        writer.WriteBytes(Encoding.UTF8.GetBytes(sb.ToString()));
+
+        try
+        {
+            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, Encoding.UTF8, ref writer);
+        }
+        finally
+        {
+            sb.Dispose();
+        }
     }
 
     /// <inheritdoc/>

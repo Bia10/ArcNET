@@ -171,7 +171,14 @@ public sealed class DialogFormat : IFormatFileReader<DlgFile>, IFormatFileWriter
             sb.AppendLine();
         }
 
-        writer.WriteBytes(s_encoding.GetBytes(sb.ToString()));
+        try
+        {
+            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, s_encoding, ref writer);
+        }
+        finally
+        {
+            sb.Dispose();
+        }
     }
 
     /// <inheritdoc/>

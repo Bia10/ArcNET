@@ -63,15 +63,15 @@ public sealed class TextDataFormat : IFormatFileReader<TextDataFile>, IFormatFil
             sb.Append(val);
             sb.Append('\n');
         }
-        var charSpan = sb.WrittenSpan;
-        var byteCount = s_encoding.GetByteCount(charSpan);
-        using var byteBuf = new ValueByteBuffer(stackalloc byte[512]);
-        byteBuf.EnsureCapacity(byteCount);
-        var dest = byteBuf.GetWritableSpan(byteCount);
-        s_encoding.GetBytes(charSpan, dest);
-        byteBuf.AdvanceLength(byteCount);
-        writer.WriteBytes(byteBuf.WrittenSpan);
-        sb.Dispose();
+
+        try
+        {
+            ValueStringBuilderEncodingBridge.WriteEncoded(sb.WrittenSpan, s_encoding, ref writer);
+        }
+        finally
+        {
+            sb.Dispose();
+        }
     }
 
     /// <inheritdoc/>
