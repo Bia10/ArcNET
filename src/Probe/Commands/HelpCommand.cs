@@ -24,6 +24,8 @@ internal sealed class HelpCommand : IProbeCommand
         Console.WriteLine(" 12  diagnostics     Quick diagnostics (files, PC info, types)");
         Console.WriteLine(" 13  field-evolution Character field evolution tracker");
         Console.WriteLine(" 14  quest-book      Quest book + reputation decoder");
+        Console.WriteLine(" 15  npc-scan        All v2 character records in a save slot");
+        Console.WriteLine(" 16  char-summary     Full character summary (stats/skills/quests/rep…)");
         Console.WriteLine();
         Console.WriteLine("Environment: ARCNET_SAVE_DIR - override save directory");
         Console.WriteLine($"Save dir: {saveDir}");

@@ -26,7 +26,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 : "  Quest labels: unavailable (no usable local quest lookup was found in loose data or DAT archives)"
         );
         Console.WriteLine(
-            "  Tracked: lv, XP, align, fate, magicPts, techPts, gold, quests, quest-state deltas, rumors, blessings, curses, schematics, hp_dmg, fat_dmg, reputation, SpellTech ranks, base stats, basic skills"
+            "  Tracked: lv, XP, align, fate, magicPts, techPts, gold, quests, quest-state deltas, rumors, blessings, curses, schematics, hp_dmg, fat_dmg, bullets, powerCells, reputation, SpellTech ranks, base stats, basic skills"
         );
         Console.WriteLine(new string('-', 100));
 
@@ -178,7 +178,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                         ? "null"
                         : $"{character.ReputationRaw.Length}entries";
                 Console.WriteLine(
-                    $"  [{stem}] lv={level0} XP={xp0} gold={character.Gold} quests={character.QuestCount} rumors={character.RumorsCount} blessings={character.BlessingProtoElementCount} curses={character.CurseProtoElementCount} schematics={character.SchematicsElementCount} hp_dmg={character.HpDamage} fat_dmg={character.FatigueDamage} rep={repStr0}  (baseline)"
+                    $"  [{stem}] lv={level0} XP={xp0} gold={character.Gold} quests={character.QuestCount} rumors={character.RumorsCount} blessings={character.BlessingProtoElementCount} curses={character.CurseProtoElementCount} schematics={character.SchematicsElementCount} hp_dmg={character.HpDamage} fat_dmg={character.FatigueDamage} bullets={character.Bullets} powerCells={character.PowerCells} rep={repStr0}  (baseline)"
                 );
                 previousCharacter = character;
                 continue;
@@ -262,6 +262,8 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 || character.SchematicsElementCount != previousCharacter.SchematicsElementCount
                 || character.HpDamage != previousCharacter.HpDamage
                 || character.FatigueDamage != previousCharacter.FatigueDamage
+                || character.Bullets != previousCharacter.Bullets
+                || character.PowerCells != previousCharacter.PowerCells
                 || repChanges.Count > 0
                 || spellChanges.Count > 0
                 || baseStatChanges.Count > 0
@@ -316,6 +318,10 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 changes.Add($"hp_dmg:{previousCharacter.HpDamage}->{character.HpDamage}");
             if (character.FatigueDamage != previousCharacter.FatigueDamage)
                 changes.Add($"fat_dmg:{previousCharacter.FatigueDamage}->{character.FatigueDamage}");
+            if (character.Bullets != previousCharacter.Bullets)
+                changes.Add($"bullets:{previousCharacter.Bullets}->{character.Bullets}");
+            if (character.PowerCells != previousCharacter.PowerCells)
+                changes.Add($"powerCells:{previousCharacter.PowerCells}->{character.PowerCells}");
             changes.AddRange(repChanges);
             changes.AddRange(spellChanges);
 

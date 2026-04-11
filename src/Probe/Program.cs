@@ -23,6 +23,8 @@ IProbeCommand command = modeArg switch
     "12" or "diagnostics" => new DiagnosticsCommand(),
     "13" or "field-evolution" => new FieldEvolutionCommand(),
     "14" or "quest-book" => new QuestBookCommand(),
+    "15" or "npc-scan" => new NpcScanCommand(),
+    "16" or "char-summary" => new CharSummaryCommand(),
     _ => new HelpCommand(),
 };
 
