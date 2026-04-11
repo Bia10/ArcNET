@@ -1,7 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Collections.Frozen;
 using System.Numerics;
-using System.Text;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -146,7 +145,8 @@ public static class SaveDumper
     /// </summary>
     private static string DumpNarrative(SaveInfo info, IReadOnlyDictionary<string, byte[]> payloads)
     {
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
         var bar = new string('═', 72);
 
         sb.AppendLine(bar);
@@ -433,7 +433,8 @@ public static class SaveDumper
         const uint Sentinel = 0xFFFFFFFF;
         var span = mem.Span;
         var reader = new SpanReader(span);
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
         var count = 0;
         var skipped = 0;
 
@@ -470,10 +471,13 @@ public static class SaveDumper
         }
 
         if (count == 0 && skipped == 0)
+        {
+            sb.Dispose();
             return "No dynamic mobile objects";
+        }
 
         var suffix = skipped > 0 ? $" ({skipped} sentinel dword(s) skipped)" : "";
-        return $"Dynamic mobile objects: {count}{suffix}\n{sb}";
+        return $"Dynamic mobile objects: {count}{suffix}\n{sb.ToString()}";
     }
 
     private static bool IsCompactDifFormat(byte[] data)
@@ -535,7 +539,8 @@ public static class SaveDumper
         const uint StartMarker = 0x12344321u;
         const uint EndMarker = 0x23455432u;
         var span = data.AsSpan();
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
 
         var magic = BinaryPrimitives.ReadInt32LittleEndian(span);
         sb.AppendLine($"obj_dif_write compact format  (magic=0x{magic:X2})");
@@ -650,7 +655,8 @@ public static class SaveDumper
             return $"Destroyed objects: warning — size {span.Length} is not a multiple of 24 (ObjectID size)";
 
         var count = span.Length / OidSize;
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
         sb.AppendLine($"Destroyed/extinct objects: {count}");
 
         var reader = new SpanReader(span);
@@ -680,7 +686,8 @@ public static class SaveDumper
         const uint EndMarker = 0x23455432u;
 
         var span = mem.Span;
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
         var count = 0;
         var pos = 0;
 
@@ -778,7 +785,7 @@ public static class SaveDumper
             }
         }
 
-        return count == 0 ? "No modified objects" : $"Modified objects: {count}\n{sb}";
+        return count == 0 ? "No modified objects" : $"Modified objects: {count}\n{sb.ToString()}";
     }
 
     /// <summary>
@@ -798,7 +805,8 @@ public static class SaveDumper
             return "TimeEvent.dat: too short to contain event count";
 
         var count = BinaryPrimitives.ReadInt32LittleEndian(span);
-        var sb = new StringBuilder();
+        Span<char> sbBuf = stackalloc char[512];
+        var sb = new ValueStringBuilder(sbBuf);
         sb.AppendLine($"TimeEvent.dat — {count} scheduled event(s)  ({mem.Length} bytes total)");
 
         // Show as many event headers as we can parse (8 + 4 = 12 bytes per header minimum).

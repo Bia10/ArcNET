@@ -1,5 +1,4 @@
-﻿using System.Text;
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -44,7 +43,8 @@ public static class SectorDumper
             var hasNonZeroCounter = counters != 0;
             if (hasNonZeroCounter)
             {
-                var counterParts = new StringBuilder();
+                Span<char> cpBuf = stackalloc char[64];
+                var counterParts = new ValueStringBuilder(cpBuf);
                 for (var ci = 0; ci < 4; ci++)
                 {
                     var b = (byte)(counters >> (ci * 8));
@@ -52,10 +52,16 @@ public static class SectorDumper
                     {
                         if (counterParts.Length > 0)
                             counterParts.Append(", ");
-                        counterParts.Append($"[{ci}]=0x{b:X2}");
+                        counterParts.Append('[');
+                        counterParts.Append(ci);
+                        counterParts.Append("]=0x");
+                        counterParts.Append(b, "X2");
                     }
                 }
-                vsb.AppendLine($"    Counters   : {counterParts}");
+                vsb.Append("    Counters   : ");
+                vsb.Append(counterParts.WrittenSpan);
+                vsb.AppendLine();
+                counterParts.Dispose();
             }
             else
                 vsb.AppendLine("    Counters   : (all zero)");
