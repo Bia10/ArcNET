@@ -108,7 +108,7 @@ internal sealed class FullSarDumpCommand : IProbeCommand
                 }
 
                 if (setBits.Count > 0)
-                    Console.WriteLine($"    bitset slots: [{string.Join(",", setBits)}]");
+                    Console.WriteLine($"    bitset slots: {SarUtils.FormatSlotList(setBits, int.MaxValue)}");
             }
         }
 

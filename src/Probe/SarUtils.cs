@@ -24,7 +24,7 @@ internal record SarEntry(
 
     public string ValueSummary =>
         ESize == 4
-            ? "[" + string.Join(",", FirstVals.Take(Math.Min(FirstVals.Length, 4))) + (ECnt > 4 ? ",..." : "") + "]"
+            ? SarUtils.FormatInt32List(FirstVals.AsSpan(0, Math.Min(FirstVals.Length, 4)), ECnt > 4)
             : "(non-int32)";
 }
 
@@ -45,6 +45,32 @@ internal static class StringExtensions
 {
     /// <summary>Shortens a long annotation to at most 12 characters for compact diff output.</summary>
     internal static string TruncateAnnotation(this string s) => SarUtils.TruncateText(s, 12);
+}
+
+internal readonly struct QuestRefFormatter : IValueStringBuilderFormatter<int>
+{
+    private readonly QuestTextLookup? _lookup;
+    private readonly int _maxLabelLen;
+
+    public QuestRefFormatter(QuestTextLookup? lookup, int maxLabelLen)
+    {
+        _lookup = lookup;
+        _maxLabelLen = maxLabelLen;
+    }
+
+    public void Append(ref ValueStringBuilder builder, int value)
+    {
+        builder.Append('q');
+        builder.Append(value);
+
+        var label = SarUtils.ResolveQuestLabel(_lookup, value);
+        if (label is null)
+            return;
+
+        builder.Append('[');
+        builder.Append(SarUtils.TruncateText(label, _maxLabelLen));
+        builder.Append(']');
+    }
 }
 
 internal static class SarUtils
@@ -168,24 +194,75 @@ internal static class SarUtils
     {
         if (slots.Count == 0)
             return "[]";
+
+        int showCount = Math.Min(slots.Count, maxShow);
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
         sb.Append('[');
-        int showCount = Math.Min(slots.Count, maxShow);
-        for (int i = 0; i < showCount; i++)
+
+        if (showCount > 0)
         {
-            if (i > 0)
-                sb.Append(',');
-            sb.Append(slots[i]);
+            if (slots is int[] array)
+            {
+                AppendInt32Values(ref sb, array.AsSpan(0, showCount));
+            }
+            else
+            {
+                var visible = new int[showCount];
+                for (var index = 0; index < showCount; index++)
+                    visible[index] = slots[index];
+
+                AppendInt32Values(ref sb, visible);
+            }
         }
+
         if (slots.Count > maxShow)
         {
-            sb.Append(",+");
+            if (showCount > 0)
+                sb.Append(",+");
+            else
+                sb.Append('+');
             sb.Append(slots.Count - maxShow);
             sb.Append(" more");
         }
         sb.Append(']');
         return sb.ToString();
+    }
+
+    /// <summary>Formats an INT32 list for compact console output.</summary>
+    public static string FormatInt32List(ReadOnlySpan<int> values, bool truncated = false)
+    {
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.Append('[');
+        AppendInt32Values(ref sb, values);
+        if (truncated)
+        {
+            if (!values.IsEmpty)
+                sb.Append(",...");
+            else
+                sb.Append("...");
+        }
+
+        sb.Append(']');
+        return sb.ToString();
+    }
+
+    /// <summary>Formats an INT32 list for compact console output.</summary>
+    public static string FormatInt32List(IReadOnlyList<int> values, int maxShow = int.MaxValue)
+    {
+        if (values.Count == 0)
+            return "[]";
+
+        int showCount = Math.Min(values.Count, maxShow);
+        if (values is int[] array)
+            return FormatInt32List(array.AsSpan(0, showCount), values.Count > showCount);
+
+        var visible = new int[showCount];
+        for (var index = 0; index < showCount; index++)
+            visible[index] = values[index];
+
+        return FormatInt32List(visible, values.Count > showCount);
     }
 
     /// <summary>Returns the resolved quest label for <paramref name="protoId"/>, or <see langword="null"/> when unavailable.</summary>
@@ -197,6 +274,24 @@ internal static class SarUtils
     {
         var label = ResolveQuestLabel(lookup, protoId);
         return label is null ? $"q{protoId}" : $"q{protoId}[{TruncateText(label, maxLabelLen)}]";
+    }
+
+    /// <summary>Formats a sequence of quest proto IDs with optional labels.</summary>
+    public static string FormatQuestRefs(IEnumerable<int> protoIds, QuestTextLookup? lookup, int maxLabelLen = 24)
+    {
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.AppendEnclosedJoin("[", ", ", "]", protoIds, new QuestRefFormatter(lookup, maxLabelLen));
+        return sb.ToString();
+    }
+
+    /// <summary>Joins a sequence of strings without materializing an intermediate array.</summary>
+    public static string JoinText(IEnumerable<string?> values, string separator)
+    {
+        Span<char> buf = stackalloc char[256];
+        var sb = new ValueStringBuilder(buf);
+        sb.AppendJoin(separator.AsSpan(), values);
+        return sb.ToString();
     }
 
     /// <summary>Truncates text for compact console output.</summary>
@@ -272,20 +367,15 @@ internal static class SarUtils
         int showCnt = Math.Min(eCnt, maxShow);
         if (eSize == 4)
         {
-            Span<char> sbBuf = stackalloc char[256];
-            var sb = new ValueStringBuilder(sbBuf);
-            sb.Append('[');
-            for (int i = 0; i < showCnt; i++)
-            {
-                if (i > 0)
-                    sb.Append(',');
-                if (dataOff + i * 4 + 4 <= raw.Length)
-                    sb.Append(BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(dataOff + i * 4, 4)));
-            }
-            if (eCnt > showCnt)
-                sb.Append(",...");
-            sb.Append(']');
-            return sb.ToString();
+            int availableCount = 0;
+            if (dataOff < raw.Length)
+                availableCount = Math.Min(showCnt, (raw.Length - dataOff) / 4);
+
+            Span<int> values = stackalloc int[availableCount];
+            for (var index = 0; index < availableCount; index++)
+                values[index] = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(dataOff + index * 4, 4));
+
+            return FormatInt32List(values, eCnt > availableCount);
         }
         else if (eSize == 1)
         {
@@ -869,6 +959,12 @@ internal static class SarUtils
             return null;
 
         return labels.Count == 0 ? null : new QuestTextLookup(labels, source);
+    }
+
+    private static void AppendInt32Values(ref ValueStringBuilder sb, ReadOnlySpan<int> values)
+    {
+        if (!values.IsEmpty)
+            sb.AppendJoin(",", values);
     }
 
     private static bool IsQuestLookupCandidate(string fileName) =>

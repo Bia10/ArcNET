@@ -81,7 +81,7 @@ internal sealed class QuestBookCommand : IProbeCommand
             foreach (var group in byState)
             {
                 Console.WriteLine(
-                    $"    {SarUtils.FormatQuestState(group.Key)}: {group.Count()} quests  IDs=[{string.Join(",", group.Select(entry => entry.ProtoId))}]"
+                    $"    {SarUtils.FormatQuestState(group.Key)}: {group.Count()} quests  IDs={SarUtils.FormatInt32List(group.Select(entry => entry.ProtoId).ToArray())}"
                 );
             }
         }
@@ -118,7 +118,7 @@ internal sealed class QuestBookCommand : IProbeCommand
         foreach (var (slot, value) in decodedRep)
             Console.WriteLine($"  {slot, -6} {value, 8}");
         Console.WriteLine(
-            $"  Non-zero factions: [{string.Join(", ", decodedRep.Where(x => x.Item2 != 0).Select(x => $"slot{x.Item1}={x.Item2}"))}]"
+            $"  Non-zero factions: [{SarUtils.JoinText(decodedRep.Where(x => x.Item2 != 0).Select(x => $"slot{x.Item1}={x.Item2}"), ", ")}]"
         );
 
         return Task.CompletedTask;

@@ -93,13 +93,9 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
             var added = nowMap.Keys.Except(prevMap.Keys).OrderBy(x => x).ToArray();
             var removed = prevMap.Keys.Except(nowMap.Keys).OrderBy(x => x).ToArray();
             if (added.Length > 0)
-                result.Add(
-                    $"quest+[{string.Join(", ", added.Select(id => SarUtils.FormatQuestRef(id, questLookup)))}]"
-                );
+                result.Add($"quest+{SarUtils.FormatQuestRefs(added, questLookup)}");
             if (removed.Length > 0)
-                result.Add(
-                    $"quest-[{string.Join(", ", removed.Select(id => SarUtils.FormatQuestRef(id, questLookup)))}]"
-                );
+                result.Add($"quest-{SarUtils.FormatQuestRefs(removed, questLookup)}");
 
             foreach (var protoId in nowMap.Keys.Intersect(prevMap.Keys).OrderBy(x => x))
             {
@@ -312,7 +308,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                     .OrderBy(x => x)
                     .ToArray();
                 if (newSchematics.Length > 0)
-                    changes.Add($"schematic+[{string.Join(",", newSchematics)}]");
+                    changes.Add($"schematic+{SarUtils.FormatInt32List(newSchematics)}");
             }
             if (character.HpDamage != previousCharacter.HpDamage)
                 changes.Add($"hp_dmg:{previousCharacter.HpDamage}->{character.HpDamage}");
@@ -326,9 +322,9 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
             changes.AddRange(spellChanges);
 
             if (baseStatChanges.Count > 0)
-                changes.Add($"baseStats[{string.Join(" ", baseStatChanges)}]");
+                changes.Add($"baseStats[{SarUtils.JoinText(baseStatChanges, " ")}]");
             if (skillChanges.Count > 0)
-                changes.Add($"skills[{string.Join(" ", skillChanges)}]");
+                changes.Add($"skills[{SarUtils.JoinText(skillChanges, " ")}]");
 
             if (
                 character.SpellTech is { Length: > 0 } spellNow
@@ -347,7 +343,7 @@ internal sealed class FieldEvolutionCommand : IProbeCommand
                 }
             }
 
-            Console.WriteLine($"  [{stem}] lv={level} XP={xp}{levelUpMarker}  {string.Join("  ", changes)}");
+            Console.WriteLine($"  [{stem}] lv={level} XP={xp}{levelUpMarker}  {SarUtils.JoinText(changes, "  ")}");
             previousCharacter = character;
         }
 

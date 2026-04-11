@@ -76,29 +76,29 @@ internal sealed class SarDumpCommand : IProbeCommand
                         }
                     }
 
-                    Console.WriteLine($"  Quest slot IDs: [{string.Join(",", activeSlots)}]");
+                    Console.WriteLine($"  Quest slot IDs: {SarUtils.FormatSlotList(activeSlots, int.MaxValue)}");
                 }
 
                 if (character.ReputationRaw is { } reputation)
-                    Console.WriteLine($"  Reputation[19]: [{string.Join(",", reputation)}]");
+                    Console.WriteLine($"  Reputation[19]: {SarUtils.FormatInt32List(reputation)}");
                 if (character.BlessingRaw is { } blessing)
                 {
                     Console.WriteLine(
-                        $"  Blessings[{character.BlessingProtoElementCount}]: [{string.Join(",", blessing)}]  (PcBlessingIdx)"
+                        $"  Blessings[{character.BlessingProtoElementCount}]: {SarUtils.FormatInt32List(blessing)}  (PcBlessingIdx)"
                     );
                 }
 
                 if (character.CurseRaw is { } curse)
                 {
                     Console.WriteLine(
-                        $"  Curses[{character.CurseProtoElementCount}]: [{string.Join(",", curse)}]  (PcCurseIdx)"
+                        $"  Curses[{character.CurseProtoElementCount}]: {SarUtils.FormatInt32List(curse)}  (PcCurseIdx)"
                     );
                 }
 
                 if (character.SchematicsRaw is { } schematics)
                 {
                     Console.WriteLine(
-                        $"  Schematics[{character.SchematicsElementCount}]: [{string.Join(",", schematics)}]  (PcSchematicsFoundIdx)"
+                        $"  Schematics[{character.SchematicsElementCount}]: {SarUtils.FormatInt32List(schematics)}  (PcSchematicsFoundIdx)"
                     );
                 }
             }
