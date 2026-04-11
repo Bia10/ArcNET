@@ -1,4 +1,4 @@
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
