@@ -1,4 +1,5 @@
-﻿using ArcNET.Formats;
+﻿using System.Text;
+using ArcNET.Formats;
 
 namespace ArcNET.GameData;
 
@@ -307,12 +308,6 @@ public static class GameDataSaver
         WriteMessageEntries(writer, entries);
     }
 
-    private static byte[] WriteMessageEntriesToArray(IEnumerable<MessageEntry> entries)
-    {
-        using var ms = new MemoryStream();
-        using var writer = new StreamWriter(ms, System.Text.Encoding.ASCII, leaveOpen: true);
-        WriteMessageEntries(writer, entries);
-        writer.Flush();
-        return ms.ToArray();
-    }
+    private static byte[] WriteMessageEntriesToArray(IEnumerable<MessageEntry> entries) =>
+        Encoding.ASCII.GetBytes(MessageFormat.Serialize(entries));
 }

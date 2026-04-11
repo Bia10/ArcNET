@@ -30,9 +30,37 @@ public static class ArtDumper
         );
         vsb.AppendLine($"  Rotations      : {art.EffectiveRotationCount}");
         if (art.PaletteData1.Any(v => v != 0))
-            vsb.AppendLine($"  Palette data 1 : [{string.Join(", ", art.PaletteData1.Select(v => $"0x{v:X8}"))}]");
+        {
+            vsb.Append("  Palette data 1 : [");
+            for (var i = 0; i < art.PaletteData1.Length; i++)
+            {
+                if (i > 0)
+                    vsb.Append(", ");
+                var v = art.PaletteData1[i];
+                vsb.Append("0x");
+                vsb.AppendHex((byte)(v >> 24));
+                vsb.AppendHex((byte)(v >> 16));
+                vsb.AppendHex((byte)(v >> 8));
+                vsb.AppendHex((byte)v);
+            }
+            vsb.AppendLine("]");
+        }
         if (art.PaletteData2.Any(v => v != 0))
-            vsb.AppendLine($"  Palette data 2 : [{string.Join(", ", art.PaletteData2.Select(v => $"0x{v:X8}"))}]");
+        {
+            vsb.Append("  Palette data 2 : [");
+            for (var i = 0; i < art.PaletteData2.Length; i++)
+            {
+                if (i > 0)
+                    vsb.Append(", ");
+                var v = art.PaletteData2[i];
+                vsb.Append("0x");
+                vsb.AppendHex((byte)(v >> 24));
+                vsb.AppendHex((byte)(v >> 16));
+                vsb.AppendHex((byte)(v >> 8));
+                vsb.AppendHex((byte)v);
+            }
+            vsb.AppendLine("]");
+        }
         vsb.AppendLine();
 
         // Palettes

@@ -306,15 +306,17 @@ public static class SaveDumper
             count++;
 
             // Use MobFormat.Parse (mirroring DumpModifiedObjects) to advance exactly past the object.
-            var versionBytes = new byte[4];
-            BinaryPrimitives.WriteInt32LittleEndian(versionBytes, version);
             var remaining = span.Slice(pos);
-            var combined = new byte[4 + remaining.Length];
-            versionBytes.CopyTo(combined, 0);
-            remaining.CopyTo(combined.AsSpan(4));
+            // Prepend the 4-byte version header that MobFormat.Parse expects.
+#pragma warning disable CA2014 // 256-B seed; ValueByteBuffer grows via ArrayPool (not stack) when the record is larger
+            Span<byte> combinedInitial = stackalloc byte[256];
+#pragma warning restore CA2014
+            using var combinedBuf = new ValueByteBuffer(combinedInitial);
+            combinedBuf.WriteInt32LittleEndian(version);
+            combinedBuf.Write(remaining);
             try
             {
-                var reader = new SpanReader(combined);
+                var reader = new SpanReader(combinedBuf.WrittenSpan);
                 MobFormat.Parse(ref reader);
                 var consumed = reader.Position - 4;
                 pos += consumed;
@@ -727,16 +729,17 @@ public static class SaveDumper
             // Build a temporary stream: [version bytes][rest of span from pos].
             // This lets MobFormat.Parse determine the exact object size without
             // any endMarker scanning (scanning causes false matches in property data).
-            var versionBytes = new byte[4];
-            BinaryPrimitives.WriteInt32LittleEndian(versionBytes, version);
             var remaining = span.Slice(pos);
-            var combined = new byte[4 + remaining.Length];
-            versionBytes.CopyTo(combined, 0);
-            remaining.CopyTo(combined.AsSpan(4));
+#pragma warning disable CA2014 // 256-B seed; ValueByteBuffer grows via ArrayPool (not stack) when the record is larger
+            Span<byte> combinedInitial = stackalloc byte[256];
+#pragma warning restore CA2014
+            using var combinedBuf = new ValueByteBuffer(combinedInitial);
+            combinedBuf.WriteInt32LittleEndian(version);
+            combinedBuf.Write(remaining);
 
             try
             {
-                var combinedReader = new SpanReader(combined);
+                var combinedReader = new SpanReader(combinedBuf.WrittenSpan);
                 var mob = MobFormat.Parse(ref combinedReader);
 
                 // combinedReader consumed (4 prepended + object bytes); subtract prepended offset.

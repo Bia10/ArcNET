@@ -86,9 +86,18 @@ public static class MobDumper
                 word &= word - 1;
             }
         }
-        vsb.AppendLine(
-            $"  Fields set   : {setBits.Count}/{h.Bitmap.Length * 8}  (bits: [{string.Join(", ", setBits)}])"
-        );
+        vsb.Append("  Fields set   : ");
+        vsb.Append(setBits.Count);
+        vsb.Append('/');
+        vsb.Append(h.Bitmap.Length * 8);
+        vsb.Append("  (bits: [");
+        for (var bi = 0; bi < setBits.Count; bi++)
+        {
+            if (bi > 0)
+                vsb.Append(", ");
+            vsb.Append(setBits[bi]);
+        }
+        vsb.AppendLine("])");
         vsb.AppendLine();
     }
 
@@ -386,7 +395,13 @@ public static class MobDumper
             }
 
             vsb.Append("  [");
-            vsb.Append(string.Join(", ", vals.Take(8).Select(v => v.ToString())));
+            int limit = Math.Min(vals.Length, 8);
+            for (var vi = 0; vi < limit; vi++)
+            {
+                if (vi > 0)
+                    vsb.Append(", ");
+                vsb.Append(vals[vi]);
+            }
             if (vals.Length > 8)
                 vsb.Append($", +{vals.Length - 8} more");
             vsb.Append(']');
