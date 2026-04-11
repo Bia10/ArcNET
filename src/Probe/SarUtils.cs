@@ -289,8 +289,7 @@ internal static class SarUtils
         }
         else if (eSize == 1)
         {
-            return "0x"
-                + Convert.ToHexString(raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)));
+            return "0x" + Convert.ToHexString(raw.AsSpan(dataOff, Math.Min(eSize * showCnt, raw.Length - dataOff)));
         }
         else
         {
