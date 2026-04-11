@@ -204,7 +204,7 @@ internal static class SarUtils
         if (showCount > 0)
         {
             if (showCount == slots.Count)
-                sb.AppendJoin(",", slots);
+                sb.AppendJoin(',', slots);
             else
                 AppendInt32Values(ref sb, slots, showCount);
         }
@@ -255,7 +255,7 @@ internal static class SarUtils
         var sb = new ValueStringBuilder(buf);
         sb.Append('[');
         if (showCount == values.Count)
-            sb.AppendJoin(",", values);
+            sb.AppendJoin(',', values);
         else
             AppendInt32Values(ref sb, values, showCount);
         if (values.Count > showCount)
@@ -279,7 +279,7 @@ internal static class SarUtils
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
         sb.Append('[');
-        sb.AppendJoin(",", values);
+        sb.AppendJoin(',', values);
         sb.Append(']');
         return sb.ToString();
     }
@@ -1030,7 +1030,7 @@ internal static class SarUtils
     private static void AppendInt32Values(ref ValueStringBuilder sb, ReadOnlySpan<int> values)
     {
         if (!values.IsEmpty)
-            sb.AppendJoin(",", values);
+            sb.AppendJoin(',', values);
     }
 
     private static void AppendInt32Values(ref ValueStringBuilder sb, IReadOnlyList<int> values, int count)
