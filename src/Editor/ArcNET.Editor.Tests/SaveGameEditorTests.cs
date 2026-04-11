@@ -22,6 +22,25 @@ public class SaveGameEditorTests
         return buf;
     }
 
+    // Builds a SAR with an explicit bsCnt + bitset words (needed for quest/rep/blessing/etc. detection).
+    private static byte[] SarWithBitset(int elemSz, int elemCnt, int bsId, byte[] data, int bsCnt, int[]? bitset = null)
+    {
+        var bitsetBytes = bitset is null ? new byte[bsCnt * 4] : new byte[bsCnt * 4];
+        if (bitset is not null)
+            for (var i = 0; i < Math.Min(bitset.Length, bsCnt); i++)
+                BinaryPrimitives.WriteInt32LittleEndian(bitsetBytes.AsSpan(i * 4, 4), bitset[i]);
+
+        var buf = new byte[13 + data.Length + 4 + bitsetBytes.Length];
+        buf[0] = 0x01;
+        BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(1, 4), elemSz);
+        BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(5, 4), elemCnt);
+        BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(9, 4), bsId);
+        data.CopyTo(buf, 13);
+        BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(13 + data.Length, 4), bsCnt);
+        bitsetBytes.CopyTo(buf, 13 + data.Length + 4);
+        return buf;
+    }
+
     private static byte[] IntArray(int count, int fill = 0)
     {
         var b = new byte[count * 4];
@@ -1138,5 +1157,323 @@ public class SaveGameEditorTests
         {
             Directory.Delete(tmpDir, recursive: true);
         }
+    }
+
+    // ── Builder convenience — scalar HP / Fatigue setters ────────────────────
+
+    [Test]
+    public async Task Builder_WithHpDamage_SetsElement3_PreservesOthers()
+    {
+        // Source record has HpDamageRaw [10, 20, 30, 0]
+        var bytes = BuildRichV2Record();
+        var src = CharacterMdyRecord.Parse(bytes, out _);
+        // Patch elements 0-2 to known non-zero values so we can verify they survive
+        var patched = src.WithHpDamage([10, 20, 30, 0]);
+        var cr = CharacterRecord.From(patched);
+
+        var built = cr.ToBuilder().WithHpDamage(99).Build();
+
+        await Assert.That(built.HpDamageRaw![0]).IsEqualTo(10);
+        await Assert.That(built.HpDamageRaw![1]).IsEqualTo(20);
+        await Assert.That(built.HpDamageRaw![2]).IsEqualTo(30);
+        await Assert.That(built.HpDamageRaw![3]).IsEqualTo(99);
+        await Assert.That(built.HpDamage).IsEqualTo(99);
+    }
+
+    [Test]
+    public async Task Builder_WithHpDamage_WhenRawIsNull_CreatesFreshArray()
+    {
+        var cr = new CharacterRecord.Builder().WithHpDamage(42).Build();
+
+        await Assert.That(cr.HpDamageRaw).IsNotNull();
+        await Assert.That(cr.HpDamage).IsEqualTo(42);
+        await Assert.That(cr.HpDamageRaw![0]).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task Builder_WithFatigueDamage_SetsElement2_PreservesOthers()
+    {
+        var bytes = BuildRichV2Record();
+        var src = CharacterMdyRecord.Parse(bytes, out _);
+        var patched = src.WithFatigueDamage([5, 15, 0, 25]);
+        var cr = CharacterRecord.From(patched);
+
+        var built = cr.ToBuilder().WithFatigueDamage(7).Build();
+
+        await Assert.That(built.FatigueDamageRaw![0]).IsEqualTo(5);
+        await Assert.That(built.FatigueDamageRaw![1]).IsEqualTo(15);
+        await Assert.That(built.FatigueDamageRaw![2]).IsEqualTo(7);
+        await Assert.That(built.FatigueDamageRaw![3]).IsEqualTo(25);
+        await Assert.That(built.FatigueDamage).IsEqualTo(7);
+    }
+
+    // ── Builder — derived stat With* methods ─────────────────────────────────
+
+    [Test]
+    public async Task Builder_WithMaxFollowers_RoundTrips()
+    {
+        var (save, mdyPath) = MakeSaveWithRichPc();
+        var editor = new SaveGameEditor(save);
+        editor.TryFindPlayerCharacter(out var pc, out _);
+        editor.WithCharacter(mdyPath, c => c.HasCompleteData, pc.ToBuilder().WithMaxFollowers(6).Build());
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+            new SaveGameEditor(loaded).TryFindPlayerCharacter(out var r, out _);
+            await Assert.That(r.MaxFollowers).IsEqualTo(6);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Builder_WithMagickTechAptitude_RoundTrips()
+    {
+        var (save, mdyPath) = MakeSaveWithRichPc();
+        var editor = new SaveGameEditor(save);
+        editor.TryFindPlayerCharacter(out var pc, out _);
+        editor.WithCharacter(mdyPath, c => c.HasCompleteData, pc.ToBuilder().WithMagickTechAptitude(-80).Build());
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+            new SaveGameEditor(loaded).TryFindPlayerCharacter(out var r, out _);
+            await Assert.That(r.MagickTechAptitude).IsEqualTo(-80);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    // ── Builder — Bullets / PowerCells (magic char: no-op on GameStats SAR) ─
+
+    [Test]
+    public async Task CharacterRecord_Bullets_DefaultsToZero_OnMagicChar()
+    {
+        var bytes = BuildRichV2Record();
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        await Assert.That(CharacterRecord.From(rec).Bullets).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CharacterRecord_PowerCells_DefaultsToZero_OnMagicChar()
+    {
+        var bytes = BuildRichV2Record();
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+        await Assert.That(CharacterRecord.From(rec).PowerCells).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task Builder_WithBullets_SetsField_RetainedInRecord()
+    {
+        var cr = new CharacterRecord.Builder().WithBullets(50).Build();
+        await Assert.That(cr.Bullets).IsEqualTo(50);
+    }
+
+    [Test]
+    public async Task Builder_WithPowerCells_SetsField_RetainedInRecord()
+    {
+        var cr = new CharacterRecord.Builder().WithPowerCells(12).Build();
+        await Assert.That(cr.PowerCells).IsEqualTo(12);
+    }
+
+    // ── CharacterRecord raw-field bridge (quest / rep / blessing / curse / schematics / rumors) ──
+
+    // Builds a v2 record containing quest, reputation, blessing, curse, schematics, and rumors SARs.
+    private static byte[] BuildV2RecordWithAdvancedFields()
+    {
+        byte[] magic = [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+        var statsData = new byte[28 * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(statsData.AsSpan(17 * 4, 4), 10); // level=10
+        var statsSar = Sar(4, 28, 0x4DA5, statsData);
+        var basicSar = Sar(4, 12, 0x43C3, IntArray(12));
+        var techSar = Sar(4, 4, 0x4A07, IntArray(4));
+        var spellSar = Sar(4, 25, 0x4A08, IntArray(25));
+
+        // Quest SAR: eSize=16, bsCnt=37, eCnt=2 — fingerprint requires bsCnt==37
+        var questEntries = new byte[2 * 16]; // two 16-byte entries (all zeros)
+        // Set quest proto IDs in bitset: bits 1 and 5 (quest slots 1 and 5)
+        var questBitset = new int[37];
+        questBitset[0] = (1 << 1) | (1 << 5);
+        var questSar = SarWithBitset(16, 2, 0x4A00, questEntries, 37, questBitset);
+
+        // Reputation SAR: eSize=4, eCnt=19, bsCnt=3 — exact fingerprint required
+        var repData = new byte[19 * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(repData.AsSpan(0, 4), 1234); // slot 0 value
+        var repBitset = new int[3];
+        repBitset[0] = 0x1FFF; // slots 0-12
+        repBitset[2] = 0x003F << 0; // slots 64-69 (bits 0-5 of word 2)
+        var repSar = SarWithBitset(4, 19, 0x48AA, repData, 3, repBitset);
+
+        // Blessing SARs: first 4:2:2 + consecutive 8:2:2 pair
+        var blessProtoData = new byte[2 * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(blessProtoData.AsSpan(0, 4), 1049); // god 1
+        BinaryPrimitives.WriteInt32LittleEndian(blessProtoData.AsSpan(4, 4), 1051); // god 2
+        var blessProtoSar = SarWithBitset(4, 2, 0x48E9, blessProtoData, 2);
+        var blessTsData = new byte[2 * 8]; // 8 bytes per timestamp, 2 entries
+        var blessTsSar = SarWithBitset(8, 2, 0x48EA, blessTsData, 2);
+
+        // Schematics SAR: standalone 4:3:2 with first value > 1000
+        var schData = new byte[3 * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(schData.AsSpan(0, 4), 5090);
+        BinaryPrimitives.WriteInt32LittleEndian(schData.AsSpan(4, 4), 4810);
+        BinaryPrimitives.WriteInt32LittleEndian(schData.AsSpan(8, 4), 4010);
+        var schSar = SarWithBitset(4, 3, 0x5228, schData, 2);
+
+        // Rumors SAR: eSize=8, bsCnt=39, eCnt=3
+        var rumorsData = new byte[3 * 8];
+        var rumorsSar = SarWithBitset(8, 3, 0x4D89, rumorsData, 39);
+
+        return
+        [
+            .. magic,
+            .. statsSar,
+            .. basicSar,
+            .. techSar,
+            .. spellSar,
+            .. questSar,
+            .. repSar,
+            .. blessProtoSar,
+            .. blessTsSar,
+            .. schSar,
+            .. rumorsSar,
+        ];
+    }
+
+    [Test]
+    public async Task CharacterRecord_From_ExposesQuestCount()
+    {
+        var v2Bytes = BuildV2RecordWithAdvancedFields();
+        var mdyRecord = CharacterMdyRecord.Parse(v2Bytes, out _);
+        var cr = CharacterRecord.From(mdyRecord);
+
+        await Assert.That(cr.QuestCount).IsEqualTo(2);
+        await Assert.That(cr.QuestDataRaw).IsNotNull();
+        await Assert.That(cr.QuestDataRaw!.Length).IsEqualTo(2 * 16);
+        await Assert.That(cr.QuestBitsetRaw).IsNotNull();
+        await Assert.That(cr.QuestBitsetRaw![0]).IsEqualTo((1 << 1) | (1 << 5));
+    }
+
+    [Test]
+    public async Task CharacterRecord_From_ExposesReputation()
+    {
+        var v2Bytes = BuildV2RecordWithAdvancedFields();
+        var mdyRecord = CharacterMdyRecord.Parse(v2Bytes, out _);
+        var cr = CharacterRecord.From(mdyRecord);
+
+        await Assert.That(cr.ReputationRaw).IsNotNull();
+        await Assert.That(cr.ReputationRaw!.Length).IsEqualTo(19);
+        await Assert.That(cr.ReputationRaw[0]).IsEqualTo(1234);
+    }
+
+    [Test]
+    public async Task CharacterRecord_From_ExposesBlessings()
+    {
+        var v2Bytes = BuildV2RecordWithAdvancedFields();
+        var mdyRecord = CharacterMdyRecord.Parse(v2Bytes, out _);
+        var cr = CharacterRecord.From(mdyRecord);
+
+        await Assert.That(cr.BlessingProtoElementCount).IsEqualTo(2);
+        await Assert.That(cr.BlessingRaw).IsNotNull();
+        await Assert.That(cr.BlessingRaw![0]).IsEqualTo(1049);
+        await Assert.That(cr.BlessingRaw[1]).IsEqualTo(1051);
+        await Assert.That(cr.BlessingTsRaw).IsNotNull();
+        await Assert.That(cr.BlessingTsRaw!.Length).IsEqualTo(2 * 8);
+    }
+
+    [Test]
+    public async Task CharacterRecord_From_ExposesSchematicsAndRumors()
+    {
+        var v2Bytes = BuildV2RecordWithAdvancedFields();
+        var mdyRecord = CharacterMdyRecord.Parse(v2Bytes, out _);
+        var cr = CharacterRecord.From(mdyRecord);
+
+        await Assert.That(cr.SchematicsElementCount).IsEqualTo(3);
+        await Assert.That(cr.SchematicsRaw).IsNotNull();
+        await Assert.That(cr.SchematicsRaw![0]).IsEqualTo(5090);
+        await Assert.That(cr.RumorsCount).IsEqualTo(3);
+        await Assert.That(cr.RumorsRaw).IsNotNull();
+        await Assert.That(cr.RumorsRaw!.Length).IsEqualTo(3 * 8);
+    }
+
+    [Test]
+    public async Task Builder_WithReputationRaw_RoundTrips()
+    {
+        var rep = new int[19];
+        rep[0] = 7777;
+        rep[5] = -500;
+        var cr = new CharacterRecord.Builder().WithReputationRaw(rep).Build();
+
+        await Assert.That(cr.ReputationRaw).IsNotNull();
+        await Assert.That(cr.ReputationRaw![0]).IsEqualTo(7777);
+        await Assert.That(cr.ReputationRaw[5]).IsEqualTo(-500);
+    }
+
+    [Test]
+    public async Task Builder_WithQuestDataRaw_RoundTrips()
+    {
+        var data = new byte[3 * 16];
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(8, 4), 2); // entry[0] state=2 (completed)
+        var bitset = new int[37];
+        bitset[0] = 0x15; // quest slots 0,2,4
+
+        var cr = new CharacterRecord.Builder().WithQuestDataRaw(data).WithQuestBitsetRaw(bitset).Build();
+
+        await Assert.That(cr.QuestCount).IsEqualTo(3);
+        await Assert.That(cr.QuestDataRaw).IsNotNull();
+        await Assert.That(cr.QuestBitsetRaw).IsNotNull();
+        await Assert.That(cr.QuestBitsetRaw![0]).IsEqualTo(0x15);
+    }
+
+    [Test]
+    public async Task Builder_WithSchematicsRaw_RoundTrips()
+    {
+        var sch = new int[] { 4010, 4810, 5090 };
+        var cr = new CharacterRecord.Builder().WithSchematicsRaw(sch).Build();
+
+        await Assert.That(cr.SchematicsElementCount).IsEqualTo(3);
+        await Assert.That(cr.SchematicsRaw).IsNotNull();
+        await Assert.That(cr.SchematicsRaw![1]).IsEqualTo(4810);
+    }
+
+    [Test]
+    public async Task Builder_WithRumorsRaw_RoundTrips()
+    {
+        var rumors = new byte[5 * 8];
+        var cr = new CharacterRecord.Builder().WithRumorsRaw(rumors).Build();
+
+        await Assert.That(cr.RumorsCount).IsEqualTo(5);
+        await Assert.That(cr.RumorsRaw).IsNotNull();
+        await Assert.That(cr.RumorsRaw!.Length).IsEqualTo(40);
+    }
+
+    [Test]
+    public async Task ApplyTo_WithReputation_PreservesReputationInRoundTrip()
+    {
+        var v2Bytes = BuildV2RecordWithAdvancedFields();
+        var original = CharacterMdyRecord.Parse(v2Bytes, out _);
+        var cr = CharacterRecord.From(original);
+
+        // Patch reputation slot 0 through the Builder
+        var newRep = (int[])cr.ReputationRaw!.Clone();
+        newRep[0] = 9999;
+        var updated = cr.ToBuilder().WithReputationRaw(newRep).Build();
+
+        var patched = updated.ApplyTo(original);
+        var roundTripped = CharacterRecord.From(patched);
+
+        await Assert.That(roundTripped.ReputationRaw).IsNotNull();
+        await Assert.That(roundTripped.ReputationRaw![0]).IsEqualTo(9999);
     }
 }
