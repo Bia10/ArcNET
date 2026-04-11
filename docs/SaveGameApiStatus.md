@@ -1,7 +1,7 @@
 # Arcanum Save Game Read/Write API — Status Report
 
 **Scope**: ArcNET.Formats + ArcNET.GameObjects + ArcNET.GameData  
-**Date**: 2026-04-08 (updated 2026-04-10, session 25)  
+**Date**: 2026-04-08 (updated 2026-04-10, session 26)  
 **Purpose**: Professional-grade gap analysis for implementation agents and RE agents. All claims reference current source code at line granularity.
 
 ---
@@ -503,7 +503,8 @@ New types/members in `ArcNET.Formats`:
 | `mobile.mdy` dynamic spawn parse + write | **100%** |
 | `CharacterMdyRecord` parse | **100%** |
 | `CharacterMdyRecord` With* mutations (core stats/skills) | **100%** |
-| `CharacterMdyRecord` With* mutations (secondary fields) | **~90%** (GAP-3 session 15: `ReputationFactionSlots` property + quest-state bitmask discovery; session 12+13: Blessings/Curses/Schematics added; session 9: Rumors; session 8: Quest+Reputation; session 6: Effects+EffectCauses; session 5: HP/fatigue/positionAI/MaxFollowers) |
+| `CharacterMdyRecord` With* mutations (secondary fields) | **~90%** (GAP-3 session 15: `ReputationFactionSlots` property + quest-state bitmask discovery; session 12+13: Blessings/Curses/Schematics added; session 9: Rumors; session 8: Quest+Reputation; session 6: Effects+EffectCauses; session 5: HP/fatigue/positionAI/MaxFollowers; session 27: `WithReputationRaw` added) |
+| `CharacterRecord` extended fields (quest/rep/bless/curse/schematics/rumors) | **100%** (session 27: all 6 extended field groups exposed via properties + Builder.With* + ApplyTo) |
 | `.jmp` jump points parse + write | **100%** |
 | `.prp` map properties parse + write | **100%** |
 | Object property wire-type dispatch (vanilla 0x08) | **~95%** (some high bits untested) |
@@ -654,6 +655,24 @@ Complete the low-level gaps first, then build the orchestration layer on top of 
 - **`SaveInfo` now has a lightweight copy/update helper**: `SaveInfo.With(...)` provides record-style field replacement for module, display, time, location, story, and leader metadata fields without introducing a separate builder type.
 - **`SaveGameEditor` now exposes explicit metadata queue + inspection APIs**: `WithSaveInfo(...)`, `GetCurrentSaveInfo()`, and `GetPendingSaveInfo()` let callers stage `.gsi` changes directly on the editor session.
 - **Explicit `.gsi` edits compose with player sync**: `DisplayName`, time, map, tile, and story-state edits remain queued as requested, while `LeaderName`, `LeaderLevel`, and `LeaderPortraitId` still follow the pending player record whenever that record is edited in the same session.
+
+**Session 26 editor API update**: this pass closed the last practical gaps in the `CharacterRecord`/`Builder` editing surface.
+- **`CharacterRecord` now exposes `Bullets` and `PowerCells`**: both properties are decoded from `CharacterMdyRecord` (which already had them from session 7), propagated through `From(...)`, round-tripped via `ApplyTo(...)` using `WithBullets`/`WithPowerCells`, and exposed on `CharacterRecord.Builder.WithBullets(int)` / `WithPowerCells(int)`. On magic-focused characters where the underlying GameStats SAR has fewer than 12 elements the mutations are silently no-ops (matching the existing `CharacterMdyRecord.WithBullets` contract).
+- **`CharacterRecord.Builder` now exposes derived-stat setters**: `WithCarryWeight`, `WithDamageBonus`, `WithAcAdjustment`, `WithSpeed`, `WithHealRate`, `WithPoisonRecovery`, `WithReactionModifier`, `WithMaxFollowers`, and `WithMagickTechAptitude` were always stored internally (stats array indices 8–16) but had no public `With*` methods. They are now fully addressable without constructors or raw array copies.
+- **Scalar HP / fatigue convenience methods added**: `Builder.WithHpDamage(int)` patches only element [3] of the HP SAR and `Builder.WithFatigueDamage(int)` patches only element [2] of the fatigue SAR, preserving the other three elements. The previous raw-array forms (`WithHpDamageRaw`, `WithFatigueDamageRaw`) remain available.
+- **Probe Mode 15 (`npc-scan`) added**: `probe 15 <slot4> [all]` lists every v2 character record in every `mobile.mdy` file of a save slot — PC-complete records always shown, NPC-only (incomplete) records shown when the `all` flag is passed. Output includes level, XP, race/gender, alignment, gold, magic/tech points, ammo, HP/fatigue damage, and a non-zero basic-skills digest.
+- **Mode 13 (`field-evolution`) now tracks Bullets and PowerCells**: the evolution tracker compares `character.Bullets` and `character.PowerCells` between successive snapshots and emits `bullets:A->B` / `powerCells:A->B` delta lines when they change. The baseline print and the tracked-field header comment both updated.
+- **9 new editor tests added**: `Builder_WithHpDamage_SetsElement3_PreservesOthers`, `Builder_WithHpDamage_WhenRawIsNull_CreatesFreshArray`, `Builder_WithFatigueDamage_SetsElement2_PreservesOthers`, `Builder_WithMaxFollowers_RoundTrips`, `Builder_WithMagickTechAptitude_RoundTrips`, `CharacterRecord_Bullets_DefaultsToZero_OnMagicChar`, `CharacterRecord_PowerCells_DefaultsToZero_OnMagicChar`, `Builder_WithBullets_SetsField_RetainedInRecord`, `Builder_WithPowerCells_SetsField_RetainedInRecord`. All 151 editor tests passing.
+
+**Session 27 editor API update**: this pass exposed the extended v2 record fields (quest, reputation, blessings, curses, schematics, rumors) at the high-level `CharacterRecord` editor layer and added a full character summary Probe mode.
+- **`CharacterRecord` now exposes all extended v2 character fields**: `QuestCount`, `QuestDataRaw`, `QuestBitsetRaw`, `ReputationRaw` (INT32[19]), `BlessingProtoElementCount`, `BlessingRaw`, `BlessingTsRaw`, `CurseProtoElementCount`, `CurseRaw`, `CurseTsRaw`, `SchematicsElementCount`, `SchematicsRaw`, `RumorsCount`, and `RumorsRaw`. These were already decoded at the `CharacterMdyRecord` format layer (sessions 8–15) but were never bridged to the editor model.
+- **`CharacterRecord.Builder` has matching `With*` methods for all new fields**: `WithQuestDataRaw(byte[])`, `WithQuestBitsetRaw(int[])`, `WithReputationRaw(int[])`, `WithBlessingRaw(int[])`, `WithBlessingTsRaw(byte[])`, `WithCurseRaw(int[])`, `WithCurseTsRaw(byte[])`, `WithSchematicsRaw(int[])`, `WithRumorsRaw(byte[])`.
+- **`CharacterRecord.ApplyTo(CharacterMdyRecord)` now applies all 6 extended field groups**: quest state, reputation, blessings, curses, schematics, and rumors are conditionally written back when their corresponding properties are non-null, using the existing `WithQuestStateRaw`, `WithReputationRaw`, `WithBlessingRaw`, `WithCurseRaw`, `WithSchematicsRaw`, and `WithRumorsRaw` mutation methods.
+- **`WithReputationRaw` added to `CharacterMdyRecord.Mutations.cs`**: replaces the 19 faction-reputation INT32 elements in-place; requires exactly `ReputationSarElementCount` (19) values; no-ops when `ReputationDataOffset < 0`.
+- **`TryFindPlayerCharacter` in `SaveGameEditor` improved**: now prefers `HasCompleteData && Name != null` as the primary predicate and falls back to `HasCompleteData` alone. This prevents companion NPCs (which also have all 4 primary SAR arrays) from being returned as the player in saves with party members.
+- **Finding — PC Name is absent from v2 `mobile.mdy` records in UAP saves**: Mode 15 (`npc-scan`) shows all records as `(no name)` in UAP test saves. The PC name comes exclusively from the `.gsi` `LeaderName` field. Reliable player detection for RE tools must use `SarUtils.FindPlayerRecord` (QuestCount > 0 heuristics), not the name field.
+- **Probe Mode 16 (`char-summary`) added**: full character summary using `SarUtils.FindPlayerRecord` for correct PC detection. Output sections: PRIMARY ATTRIBUTES, DERIVED STATS, PROGRESSION, BASIC SKILLS, TECH SKILLS, SPELL COLLEGES (non-zero), TECH DISCIPLINES (non-zero), QUEST LOG (count + raw/bitset byte counts), REPUTATION (non-zero faction values), BLESSINGS (proto IDs), CURSES (proto IDs), SCHEMATICS (proto IDs), RUMORS (count + raw byte count). Verified against Slot0178: 78 quests, 7 blessings `[1049,1051,1004,1017,1042,1025,1024]`, 2 curses `[67,53]`, 4 schematics `[5090,4810,4010,5410]`, 116 rumors, 19 faction reputation array.
+- **9 new editor tests added**: `CharacterRecord_From_ExposesQuestCount`, `CharacterRecord_From_ExposesReputation`, `CharacterRecord_From_ExposesBlessings`, `CharacterRecord_From_ExposesSchematicsAndRumors`, `Builder_WithReputationRaw_RoundTrips`, `Builder_WithQuestDataRaw_RoundTrips`, `Builder_WithSchematicsRaw_RoundTrips`, `Builder_WithRumorsRaw_RoundTrips`, `ApplyTo_WithReputation_PreservesReputationInRoundTrip`. All 160 editor tests passing.
 
 ---
 
