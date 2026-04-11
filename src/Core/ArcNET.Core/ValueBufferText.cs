@@ -38,8 +38,9 @@ internal static class ValueBufferText
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
         if (includePrefix)
-            sb.Append("0x");
-        sb.AppendHex(bytes);
+            sb.AppendHex(bytes, "0x".AsSpan());
+        else
+            sb.AppendHex(bytes);
         if (!string.IsNullOrEmpty(suffix))
             sb.Append(suffix);
         return sb.ToString();
