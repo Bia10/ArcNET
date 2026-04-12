@@ -114,24 +114,24 @@ public static class TfafFormat
             switch (entry)
             {
                 case TfaiFileEntry file:
-                    {
-                        var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                        if (!payloads.TryGetValue(key, out var payload))
-                            throw new KeyNotFoundException($"No payload provided for '{key}'.");
-                        if (payload.Length != file.Size)
-                            throw new ArgumentException(
-                                $"Payload for '{key}' is {payload.Length} bytes but index declares {file.Size}."
-                            );
-                        ordered.Add(payload);
-                        break;
-                    }
+                {
+                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
+                    if (!payloads.TryGetValue(key, out var payload))
+                        throw new KeyNotFoundException($"No payload provided for '{key}'.");
+                    if (payload.Length != file.Size)
+                        throw new ArgumentException(
+                            $"Payload for '{key}' is {payload.Length} bytes but index declares {file.Size}."
+                        );
+                    ordered.Add(payload);
+                    break;
+                }
 
                 case TfaiDirectoryEntry dir:
-                    {
-                        var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                        CollectPayloads(dir.Children, childPrefix, payloads, ordered);
-                        break;
-                    }
+                {
+                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
+                    CollectPayloads(dir.Children, childPrefix, payloads, ordered);
+                    break;
+                }
             }
         }
     }
@@ -165,26 +165,26 @@ public static class TfafFormat
             switch (entry)
             {
                 case TfaiFileEntry file:
-                    {
-                        var end = offset + file.Size;
-                        if (end > blob.Length)
-                            throw new InvalidDataException(
-                                $"TFAF blob is too short: entry '{file.Name}' at offset {offset} "
-                                    + $"requires {file.Size} bytes but only {blob.Length - offset} remain."
-                            );
+                {
+                    var end = offset + file.Size;
+                    if (end > blob.Length)
+                        throw new InvalidDataException(
+                            $"TFAF blob is too short: entry '{file.Name}' at offset {offset} "
+                                + $"requires {file.Size} bytes but only {blob.Length - offset} remain."
+                        );
 
-                        var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                        result[key] = blob.Slice(offset, file.Size).ToArray();
-                        offset = end;
-                        break;
-                    }
+                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
+                    result[key] = blob.Slice(offset, file.Size).ToArray();
+                    offset = end;
+                    break;
+                }
 
                 case TfaiDirectoryEntry dir:
-                    {
-                        var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                        WalkEntries(dir.Children, childPrefix, blob, ref offset, result);
-                        break;
-                    }
+                {
+                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
+                    WalkEntries(dir.Children, childPrefix, blob, ref offset, result);
+                    break;
+                }
             }
         }
     }

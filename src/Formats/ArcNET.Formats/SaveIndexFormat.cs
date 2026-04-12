@@ -56,21 +56,21 @@ public sealed class SaveIndexFormat : IFormatFileReader<SaveIndex>, IFormatFileW
             switch (type)
             {
                 case TfaiEntryType.File:
-                    {
-                        var name = ReadName(ref reader);
-                        var size = reader.ReadInt32();
-                        stack.Peek().Add(new TfaiFileEntry { Name = name, Size = size });
-                        break;
-                    }
+                {
+                    var name = ReadName(ref reader);
+                    var size = reader.ReadInt32();
+                    stack.Peek().Add(new TfaiFileEntry { Name = name, Size = size });
+                    break;
+                }
 
                 case TfaiEntryType.Directory:
-                    {
-                        var name = ReadName(ref reader);
-                        var children = new List<TfaiEntry>();
-                        stack.Peek().Add(new TfaiDirectoryEntry { Name = name, Children = children });
-                        stack.Push(children);
-                        break;
-                    }
+                {
+                    var name = ReadName(ref reader);
+                    var children = new List<TfaiEntry>();
+                    stack.Peek().Add(new TfaiDirectoryEntry { Name = name, Children = children });
+                    stack.Push(children);
+                    break;
+                }
 
                 case TfaiEntryType.EndOfDirectory:
                     if (stack.Count <= 1)
