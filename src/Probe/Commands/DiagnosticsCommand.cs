@@ -83,7 +83,7 @@ internal sealed class DiagnosticsCommand : IProbeCommand
     {
         public void Append(ref ValueStringBuilder builder, ObjectProperty value)
         {
-            builder.Append(value.Field.ToString());
+            builder.Append(value.Field);
             builder.Append("(bit=");
             builder.Append((int)value.Field);
             builder.Append(')');

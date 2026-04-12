@@ -196,28 +196,13 @@ internal static class SarUtils
         if (slots.Count == 0)
             return "[]";
 
-        int showCount = Math.Min(slots.Count, maxShow);
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
         sb.Append('[');
-
-        if (showCount > 0)
-        {
-            if (showCount == slots.Count)
-                sb.AppendJoin(',', slots);
-            else
-                AppendInt32Values(ref sb, slots, showCount);
-        }
-
-        if (slots.Count > maxShow)
-        {
-            if (showCount > 0)
-                sb.Append(",+");
-            else
-                sb.Append('+');
-            sb.Append(slots.Count - maxShow);
-            sb.Append(" more");
-        }
+        if (slots.Count <= maxShow)
+            sb.AppendJoin(',', slots);
+        else
+            sb.AppendJoin(',', slots, maxShow, " more".AsSpan());
         sb.Append(']');
         return sb.ToString();
     }
@@ -293,33 +278,7 @@ internal static class SarUtils
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
         sb.Append('[');
-
-        using var enumerator = slots.GetEnumerator();
-        var emitted = 0;
-        while (emitted < maxShow && enumerator.MoveNext())
-        {
-            if (emitted > 0)
-                sb.Append(',');
-
-            sb.Append(enumerator.Current);
-            emitted++;
-        }
-
-        if (enumerator.MoveNext())
-        {
-            var extraCount = 1;
-            while (enumerator.MoveNext())
-                extraCount++;
-
-            if (emitted > 0)
-                sb.Append(",+");
-            else
-                sb.Append('+');
-
-            sb.Append(extraCount);
-            sb.Append(" more");
-        }
-
+        sb.AppendJoin(',', slots, maxShow, " more".AsSpan());
         sb.Append(']');
         return sb.ToString();
     }
@@ -401,21 +360,19 @@ internal static class SarUtils
         int unknownMask = state & ~0x107;
         if (unknownMask != 0)
         {
-            sb.Append("0x");
-            sb.Append(unknownMask, "X");
+            sb.AppendHex((uint)unknownMask, "0x".AsSpan(), 1);
             sb.Append('|');
         }
 
         if (sb.Length == 0)
         {
-            sb.Append("0x");
-            sb.Append(state, "X3");
+            sb.AppendHex((uint)state, "0x".AsSpan(), 3);
             return sb.ToString();
         }
 
         sb.TrimEnd('|');
-        sb.Append(" [0x");
-        sb.Append(state, "X3");
+        sb.Append(" [");
+        sb.AppendHex((uint)state, "0x".AsSpan(), 3);
         sb.Append(']');
         return sb.ToString();
     }

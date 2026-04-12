@@ -102,6 +102,15 @@ internal static class BinaryDiff
     public static void PrintHexDiff(List<DiffRegion> regions, int maxRegions = 20)
     {
         int shown = 0;
+        const int perRow = 8;
+        Span<char> hexABuf = stackalloc char[64];
+        Span<char> hexBBuf = stackalloc char[64];
+        Span<char> ascABuf = stackalloc char[32];
+        Span<char> ascBBuf = stackalloc char[32];
+        var sbHexA = new ValueStringBuilder(hexABuf);
+        var sbHexB = new ValueStringBuilder(hexBBuf);
+        var sbAscA = new ValueStringBuilder(ascABuf);
+        var sbAscB = new ValueStringBuilder(ascBBuf);
         foreach (var region in regions)
         {
             if (shown >= maxRegions)
@@ -117,15 +126,6 @@ internal static class BinaryDiff
                     changed++;
             Console.WriteLine($"  @0x{region.Offset:X5}  ({region.A.Length}B, {changed} changed)");
 
-            const int perRow = 8;
-            Span<char> hexABuf = stackalloc char[64];
-            Span<char> hexBBuf = stackalloc char[64];
-            Span<char> ascABuf = stackalloc char[32];
-            Span<char> ascBBuf = stackalloc char[32];
-            var sbHexA = new ValueStringBuilder(hexABuf);
-            var sbHexB = new ValueStringBuilder(hexBBuf);
-            var sbAscA = new ValueStringBuilder(ascABuf);
-            var sbAscB = new ValueStringBuilder(ascBBuf);
             for (int row = 0; row < region.A.Length; row += perRow)
             {
                 int rowLen = Math.Min(perRow, region.A.Length - row);
@@ -171,10 +171,10 @@ internal static class BinaryDiff
 
                 // Pad short last row to align ASCII columns
                 int hexWidth = perRow * 4 + 1; // 4 chars/byte + 1 mid-gap space
-                while (sbHexA.Length < hexWidth)
-                    sbHexA.Append(' ');
-                while (sbHexB.Length < hexWidth)
-                    sbHexB.Append(' ');
+                if (sbHexA.Length < hexWidth)
+                    sbHexA.Append(' ', hexWidth - sbHexA.Length);
+                if (sbHexB.Length < hexWidth)
+                    sbHexB.Append(' ', hexWidth - sbHexB.Length);
 
                 Console.WriteLine(
                     $"  {absOff:X5}:  {sbHexA.WrittenSpan} {sbAscA.WrittenSpan}  │  {sbHexB.WrittenSpan} {sbAscB.WrittenSpan}"
