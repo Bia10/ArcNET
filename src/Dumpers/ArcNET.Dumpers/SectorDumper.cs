@@ -95,27 +95,9 @@ public static class SectorDumper
             {
                 var l = sector.Lights[i];
                 var flagLabel = l.Flags == SectorLightFlags.None ? "active" : l.Flags.ToString();
-                vsb.Append("    [");
-                vsb.AppendPadded<int>(i, 3, leftAlign: false);
-                vsb.Append("] tile=(");
-                vsb.Append(l.TileX);
-                vsb.Append(',');
-                vsb.Append(l.TileY);
-                vsb.Append(")  offset=(");
-                vsb.Append(l.OffsetX);
-                vsb.Append(',');
-                vsb.Append(l.OffsetY);
-                vsb.Append(")  color=RGB(");
-                vsb.Append(l.R);
-                vsb.Append(',');
-                vsb.Append(l.G);
-                vsb.Append(',');
-                vsb.Append(l.B);
-                vsb.Append(")  art=");
-                vsb.Append(l.ArtId);
-                vsb.Append("  status=");
-                vsb.Append(flagLabel);
-                vsb.Append("  ");
+                vsb.Append(
+                    $"    [{i, 3}] tile=({l.TileX},{l.TileY})  offset=({l.OffsetX},{l.OffsetY})  color=RGB({l.R},{l.G},{l.B})  art={l.ArtId}  status={flagLabel}  "
+                );
                 if (l.ObjHandle == -1L)
                     vsb.Append("standalone");
                 else
@@ -135,12 +117,7 @@ public static class SectorDumper
         vsb.AppendLine(" distinct ground tile art IDs across 4096 tiles) ---");
         var tileGroups = sector.Tiles.GroupBy(t => t).OrderByDescending(g => g.Count()).Take(10);
         foreach (var g in tileGroups)
-        {
-            vsb.Append("    art ");
-            vsb.AppendPadded<uint>(g.Key, 5, leftAlign: false);
-            vsb.Append("  ×");
-            vsb.AppendLine(g.Count());
-        }
+            vsb.AppendLine($"    art {g.Key, 5}  \u00D7{g.Count()}");
         if (distinctTiles > 10)
         {
             vsb.Append("    ... and ");
@@ -157,12 +134,7 @@ public static class SectorDumper
             vsb.Append(distinctRoofs);
             vsb.AppendLine(" distinct art IDs across 256 roof tiles) ---");
             foreach (var g in sector.Roofs.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(5))
-            {
-                vsb.Append("    art ");
-                vsb.AppendPadded<uint>(g.Key, 5, leftAlign: false);
-                vsb.Append("  ×");
-                vsb.AppendLine(g.Count());
-            }
+                vsb.AppendLine($"    art {g.Key, 5}  \u00D7{g.Count()}");
             vsb.AppendLine();
         }
 
@@ -178,12 +150,7 @@ public static class SectorDumper
             foreach (var ts in sector.TileScripts)
             {
                 var nodeLabel = (ts.NodeFlags & 0x1) != 0 ? "modified" : "clean";
-                vsb.Append("    tile ");
-                vsb.AppendPadded<uint>(ts.TileId, 4, leftAlign: false);
-                vsb.Append(": script ");
-                vsb.Append(ts.ScriptNum);
-                vsb.Append("  node=");
-                vsb.Append(nodeLabel);
+                vsb.Append($"    tile {ts.TileId, 4}: script {ts.ScriptNum}  node={nodeLabel}");
                 if (ts.ScriptFlags != 0 || ts.ScriptCounters != 0)
                 {
                     vsb.Append("  [runtime: flags=");

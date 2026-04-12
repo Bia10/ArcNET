@@ -13,23 +13,15 @@ public static class MapPropertiesDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== MAP PROPERTIES ===");
-        vsb.Append("  Ground art ID : ");
-        vsb.Append(props.ArtId);
-        vsb.AppendLine("  (index into art/ground/ground.mes for the base terrain tile)");
-        vsb.Append("  Dimensions    : ");
-        vsb.Append(props.LimitX);
-        vsb.Append(" × ");
-        vsb.Append(props.LimitY);
-        vsb.Append(" tiles");
+        vsb.AppendLine(
+            $"  Ground art ID : {props.ArtId}  (index into art/ground/ground.mes for the base terrain tile)"
+        );
+        vsb.Append($"  Dimensions    : {props.LimitX} × {props.LimitY} tiles");
         if (props.LimitX == 960 && props.LimitY == 960)
             vsb.Append("  (standard full map)");
         vsb.AppendLine();
         if (props.Unused != 0)
-        {
-            vsb.Append("  Unused field  : ");
-            vsb.Append(props.Unused);
-            vsb.AppendLine("  (non-zero — unexpected)");
-        }
+            vsb.AppendLine($"  Unused field  : {props.Unused}  (non-zero — unexpected)");
         return vsb.ToString();
     }
 

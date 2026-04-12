@@ -21,19 +21,9 @@ public static class JmpDumper
         for (var i = 0; i < jmp.Jumps.Count; i++)
         {
             var j = jmp.Jumps[i];
-            vsb.Append("  [");
-            vsb.AppendPadded<int>(i, 3, leftAlign: false);
-            vsb.Append("] From tile (");
-            vsb.Append(j.SourceX);
-            vsb.Append(',');
-            vsb.Append(j.SourceY);
-            vsb.Append(") \u2192 map ");
-            vsb.Append(j.DestinationMapId);
-            vsb.Append(" at tile (");
-            vsb.Append(j.DestX);
-            vsb.Append(',');
-            vsb.Append(j.DestY);
-            vsb.Append(')');
+            vsb.Append(
+                $"  [{i, 3}] From tile ({j.SourceX},{j.SourceY}) \u2192 map {j.DestinationMapId} at tile ({j.DestX},{j.DestY})"
+            );
             if (j.Flags != 0)
             {
                 vsb.AppendHex(j.Flags, "  [flags=0x".AsSpan());

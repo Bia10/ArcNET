@@ -95,15 +95,7 @@ public static class ArtDumper
                 vsb.AppendLine(")  (transparency)");
                 if (pal.Length > 1)
                 {
-                    vsb.Append("    [");
-                    vsb.AppendPadded<int>(pal.Length - 1, 3, leftAlign: false, padChar: ' ');
-                    vsb.Append("] BGR=(");
-                    vsb.Append(pal[^1].Blue);
-                    vsb.Append(',');
-                    vsb.Append(pal[^1].Green);
-                    vsb.Append(',');
-                    vsb.Append(pal[^1].Red);
-                    vsb.AppendLine(")");
+                    vsb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
                 }
             }
         }
@@ -114,43 +106,18 @@ public static class ArtDumper
         for (var r = 0; r < art.EffectiveRotationCount; r++)
         {
             if (art.EffectiveRotationCount > 1)
-            {
-                vsb.Append("  --- Rotation ");
-                vsb.Append(r);
-                vsb.Append(" (direction ");
-                vsb.Append(r * 45);
-                vsb.AppendLine("°) ---");
-            }
+                vsb.AppendLine($"  --- Rotation {r} (direction {r * 45}\u00B0) ---");
             else
-            {
                 vsb.AppendLine("  --- Frames ---");
-            }
+
             for (var f = 0; f < (int)art.FrameCount; f++)
             {
                 var frame = art.Frames[r][f];
                 var h = frame.Header;
                 var compressed = h.DataSize < h.Width * h.Height;
-                vsb.Append("    [");
-                vsb.AppendPadded<int>(f, 3, leftAlign: false, padChar: ' ');
-                vsb.Append("] ");
-                vsb.Append(h.Width);
-                vsb.Append('×');
-                vsb.Append(h.Height);
-                vsb.Append("  center=(");
-                vsb.Append(h.CenterX);
-                vsb.Append(',');
-                vsb.Append(h.CenterY);
-                vsb.Append(")  delta=(");
-                vsb.Append(h.DeltaX);
-                vsb.Append(',');
-                vsb.Append(h.DeltaY);
-                vsb.Append(")  ");
-                vsb.Append(h.DataSize);
-                vsb.Append("B ");
-                vsb.Append(compressed ? "RLE" : "raw");
-                vsb.Append("  pixels=");
-                vsb.Append(frame.Pixels.Length);
-                vsb.AppendLine("B");
+                vsb.AppendLine(
+                    $"    [{f, 3}] {h.Width}\u00D7{h.Height}  center=({h.CenterX},{h.CenterY})  delta=({h.DeltaX},{h.DeltaY})  {h.DataSize}B {(compressed ? "RLE" : "raw")}  pixels={frame.Pixels.Length}B"
+                );
             }
         }
 

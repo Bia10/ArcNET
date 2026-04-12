@@ -53,14 +53,7 @@ public static class FacWalkDumper
         if (fac.Entries.Length <= maxEntriesToList)
         {
             foreach (var e in fac.Entries)
-            {
-                vsb.Append("  (");
-                vsb.AppendPadded<uint>(e.X, 3, leftAlign: false);
-                vsb.Append(',');
-                vsb.AppendPadded<uint>(e.Y, 3, leftAlign: false);
-                vsb.Append(") ");
-                vsb.AppendLine(e.Walkable ? "WALK" : "BLOCKED");
-            }
+                vsb.AppendLine($"  ({e.X, 3},{e.Y, 3}) {(e.Walkable ? "WALK" : "BLOCKED")}");
         }
         else
         {

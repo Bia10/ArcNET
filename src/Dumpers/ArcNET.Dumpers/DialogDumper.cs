@@ -16,13 +16,7 @@ public static class DialogDumper
 
         var npcLines = dlg.Entries.Count(e => e.Iq == 0);
         var pcOptions = dlg.Entries.Count(e => e.Iq != 0);
-        vsb.Append("  Entries    : ");
-        vsb.Append(dlg.Entries.Count);
-        vsb.Append(" (");
-        vsb.Append(npcLines);
-        vsb.Append(" NPC, ");
-        vsb.Append(pcOptions);
-        vsb.AppendLine(" PC)");
+        vsb.AppendLine($"  Entries    : {dlg.Entries.Count} ({npcLines} NPC, {pcOptions} PC)");
         vsb.AppendLine();
 
         foreach (var e in dlg.Entries)
@@ -46,41 +40,23 @@ public static class DialogDumper
                 _ => "",
             };
 
-            vsb.Append("  --- Entry ");
-            vsb.Append(e.Num);
-            vsb.Append(" [");
-            vsb.Append(kind);
-            vsb.Append(']');
-            vsb.Append(controlTag);
-            vsb.AppendLine(" ---");
-            vsb.Append("    Text       : ");
-            vsb.AppendLine(e.Text);
+            vsb.AppendLine($"  --- Entry {e.Num} [{kind}]{controlTag} ---");
+            vsb.AppendLine($"    Text       : {e.Text}");
             if (!string.IsNullOrEmpty(e.GenderField))
             {
                 vsb.Append(e.Iq == 0 ? "    FemaleText : " : "    Gender     : ");
                 vsb.AppendLine(e.GenderField);
             }
             if (!string.IsNullOrEmpty(e.Conditions))
-            {
-                vsb.Append("    Conditions : ");
-                vsb.Append(e.Conditions);
-                vsb.AppendLine("  [Arcanum script]");
-            }
+                vsb.AppendLine($"    Conditions : {e.Conditions}  [Arcanum script]");
             else
                 vsb.AppendLine("    Conditions : (always available)");
-            vsb.Append("    Response   : ");
             if (e.ResponseVal == 0)
-                vsb.AppendLine("(end)");
+                vsb.AppendLine("    Response   : (end)");
             else
-            {
-                vsb.AppendLine(e.ResponseVal);
-            }
+                vsb.AppendLine($"    Response   : {e.ResponseVal}");
             if (!string.IsNullOrEmpty(e.Actions))
-            {
-                vsb.Append("    Actions    : ");
-                vsb.Append(e.Actions);
-                vsb.AppendLine("  [Arcanum script]");
-            }
+                vsb.AppendLine($"    Actions    : {e.Actions}  [Arcanum script]");
             vsb.AppendLine();
         }
 

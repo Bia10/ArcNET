@@ -112,15 +112,10 @@ public static class ItemDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         var name = ResolveItemName(mob, protoId, nameLookup, installation);
-        vsb.Append("=== ITEM: ");
-        vsb.Append(name);
-        vsb.AppendLine(" ===");
-        vsb.Append("  Proto    : ");
-        vsb.AppendLine(protoId);
-        vsb.Append("  ObjectId : ");
-        vsb.AppendLine(mob.Header.ObjectId.ToString());
-        vsb.Append("  Type     : ");
-        vsb.AppendLine(mob.Header.GameObjectType);
+        vsb.AppendLine($"=== ITEM: {name} ===");
+        vsb.AppendLine($"  Proto    : {protoId}");
+        vsb.AppendLine($"  ObjectId : {mob.Header.ObjectId}");
+        vsb.AppendLine($"  Type     : {mob.Header.GameObjectType}");
         vsb.AppendLine();
         AppendItemBase(ref vsb, mob);
         AppendTypeSpecific(ref vsb, mob);
@@ -167,10 +162,7 @@ public static class ItemDumper
 
         var vanillaId = ArcanumInstallation.ToVanillaProtoId(protoId, installation);
         if (nameLookup.TryGetValue(vanillaId, out var name) || nameLookup.TryGetValue(protoId, out name))
-        {
-            vsb.Append("  Name : ");
-            vsb.AppendLine(name);
-        }
+            vsb.AppendLine($"  Name : {name}");
 
         vsb.Append(ProtoDumper.Dump(proto));
         return vsb.ToString();
@@ -288,10 +280,8 @@ public static class ItemDumper
         var invNum = invNumProp?.GetInt32() ?? 0;
         var invSrc = invSrcProp?.GetInt32() ?? 0;
 
-        vsb.Append("  InvNum    = ");
-        vsb.AppendLine(invNum);
-        vsb.Append("  InvSource = ");
-        vsb.AppendLine(invSrc);
+        vsb.AppendLine($"  InvNum    = {invNum}");
+        vsb.AppendLine($"  InvSource = {invSrc}");
 
         if (invListProp is null || invNum == 0)
         {
@@ -300,8 +290,7 @@ public static class ItemDumper
         }
 
         var items = invListProp.GetObjectIdArrayFull();
-        vsb.Append("  Items: ");
-        vsb.AppendLine(items.Length);
+        vsb.AppendLine($"  Items: {items.Length}");
         vsb.AppendLine();
 
         for (var i = 0; i < items.Length; i++)
@@ -320,19 +309,12 @@ public static class ItemDumper
             }
             catch (Exception ex)
             {
-                vsb.Append("  [");
-                vsb.Append(i + 1);
-                vsb.Append("] ");
-                vsb.Append(guid);
-                vsb.Append(" — could not load: ");
-                vsb.AppendLine(ex.Message);
+                vsb.AppendLine($"  [{i + 1}] {guid} — could not load: {ex.Message}");
                 continue;
             }
 
             var protoId = BinaryPrimitives.ReadInt32LittleEndian(itemMob.Header.ProtoId.Id.ToByteArray());
-            vsb.Append("  [");
-            vsb.Append(i + 1);
-            vsb.AppendLine("]");
+            vsb.AppendLine($"  [{i + 1}]");
             vsb.Append(DumpItem(itemMob, protoId, nameLookup, installation));
         }
 

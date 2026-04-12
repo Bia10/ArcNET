@@ -42,15 +42,9 @@ public static class MessageDumper
 
         foreach (var entry in mes.Entries)
         {
-            vsb.Append("  [");
-            vsb.AppendPadded<int>(entry.Index, 6, leftAlign: false, padChar: ' ');
-            vsb.Append("] ");
+            vsb.Append($"  [{entry.Index, 6}] ");
             if (entry.SoundId is not null)
-            {
-                vsb.Append("(sound=");
-                vsb.Append(entry.SoundId);
-                vsb.Append(") ");
-            }
+                vsb.Append($"(sound={entry.SoundId}) ");
             vsb.AppendLine(entry.Text);
         }
 

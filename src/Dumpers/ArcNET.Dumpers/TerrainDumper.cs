@@ -48,11 +48,7 @@ public static class TerrainDumper
                 : $"0x{kvp.Key:X4}";
             vsb.Append("    ");
             vsb.AppendPadded(label, 25);
-            vsb.Append(" : ");
-            vsb.AppendPadded<int>(kvp.Value, 7, leftAlign: false);
-            vsb.Append(" tiles (");
-            vsb.Append(pct, "F1");
-            vsb.AppendLine("%)");
+            vsb.AppendLine($" : {kvp.Value, 7} tiles ({pct:F1}%)");
         }
 
         return vsb.ToString();
