@@ -30,13 +30,13 @@ public sealed class FixCommands
                 .AddColumn("Change");
 
             foreach (var patchSet in patchSets)
-            foreach (var patch in patchSet.Patches)
-                preview.AddRow(
-                    Markup.Escape(patchSet.Name),
-                    Markup.Escape(patch.Id),
-                    Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath)),
-                    Markup.Escape(patch.PatchSummary)
-                );
+                foreach (var patch in patchSet.Patches)
+                    preview.AddRow(
+                        Markup.Escape(patchSet.Name),
+                        Markup.Escape(patch.Id),
+                        Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath)),
+                        Markup.Escape(patch.PatchSummary)
+                    );
 
             AnsiConsole.Write(preview);
 

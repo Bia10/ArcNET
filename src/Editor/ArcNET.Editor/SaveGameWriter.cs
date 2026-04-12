@@ -239,25 +239,25 @@ public static class SaveGameWriter
             switch (entry)
             {
                 case TfaiFileEntry file:
-                {
-                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                    var newSize = files.TryGetValue(key, out var payload) ? payload.Length : file.Size;
-                    result.Add(new TfaiFileEntry { Name = file.Name, Size = newSize });
-                    break;
-                }
+                    {
+                        var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
+                        var newSize = files.TryGetValue(key, out var payload) ? payload.Length : file.Size;
+                        result.Add(new TfaiFileEntry { Name = file.Name, Size = newSize });
+                        break;
+                    }
 
                 case TfaiDirectoryEntry dir:
-                {
-                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                    result.Add(
-                        new TfaiDirectoryEntry
-                        {
-                            Name = dir.Name,
-                            Children = RebuildEntries(dir.Children, childPrefix, files),
-                        }
-                    );
-                    break;
-                }
+                    {
+                        var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
+                        result.Add(
+                            new TfaiDirectoryEntry
+                            {
+                                Name = dir.Name,
+                                Children = RebuildEntries(dir.Children, childPrefix, files),
+                            }
+                        );
+                        break;
+                    }
             }
         }
 

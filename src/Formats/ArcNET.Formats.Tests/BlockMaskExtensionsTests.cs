@@ -89,15 +89,15 @@ public class BlockMaskExtensionsTests
     {
         var mask = EmptyMask();
         for (var y = 0; y < 64; y++)
-        for (var x = 0; x < 64; x++)
-            mask.SetBlocked(x, y, true);
+            for (var x = 0; x < 64; x++)
+                mask.SetBlocked(x, y, true);
 
         for (var i = 0; i < 128; i++)
             await Assert.That(mask[i]).IsEqualTo(uint.MaxValue);
 
         for (var y = 0; y < 64; y++)
-        for (var x = 0; x < 64; x++)
-            mask.SetBlocked(x, y, false);
+            for (var x = 0; x < 64; x++)
+                mask.SetBlocked(x, y, false);
 
         for (var i = 0; i < 128; i++)
             await Assert.That(mask[i]).IsEqualTo(0u);

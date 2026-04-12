@@ -155,9 +155,9 @@ public sealed class DataCommands
                         };
                         var idInfo =
                             oidType == GameObjectGuid.OidTypeA
-                                ? $"proto={protoOrData1, 6}"
+                                ? $"proto={protoOrData1,6}"
                                 : $"d.a=0x{protoOrData1:X8}";
-                        Console.WriteLine($"  [{idx, 3}] type={typeLabel, -6} {idInfo}  guid={guid}");
+                        Console.WriteLine($"  [{idx,3}] type={typeLabel,-6} {idInfo}  guid={guid}");
                     }
                 }
                 catch (Exception ex)
