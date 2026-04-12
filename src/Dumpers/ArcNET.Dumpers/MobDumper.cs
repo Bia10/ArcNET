@@ -519,18 +519,24 @@ public static class MobDumper
         vsb.Append(" elem(s)]");
     }
 
-    private static void AppendAssignedHex32(ref ValueStringBuilder vsb, uint value, string? suffix = null)
+    private static void AppendAssignedHex32(ref ValueStringBuilder vsb, uint value) =>
+        AppendAssignedHex32(ref vsb, value, default);
+
+    private static void AppendAssignedHex32(ref ValueStringBuilder vsb, uint value, scoped ReadOnlySpan<char> suffix)
     {
         vsb.AppendHex(value, "= 0x".AsSpan());
-        if (!string.IsNullOrEmpty(suffix))
+        if (!suffix.IsEmpty)
             vsb.Append(suffix);
     }
 
-    private static void AppendAssignedInt32(ref ValueStringBuilder vsb, int value, string? suffix = null)
+    private static void AppendAssignedInt32(ref ValueStringBuilder vsb, int value) =>
+        AppendAssignedInt32(ref vsb, value, default);
+
+    private static void AppendAssignedInt32(ref ValueStringBuilder vsb, int value, scoped ReadOnlySpan<char> suffix)
     {
         vsb.Append("= ");
         vsb.Append(value);
-        if (!string.IsNullOrEmpty(suffix))
+        if (!suffix.IsEmpty)
             vsb.Append(suffix);
     }
 

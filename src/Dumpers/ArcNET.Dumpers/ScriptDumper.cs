@@ -95,20 +95,25 @@ public static class ScriptDumper
         return true;
     }
 
-    private static void DumpAction(ref ValueStringBuilder vsb, string prefix, ScriptActionData action)
+    private static void DumpAction(
+        ref ValueStringBuilder vsb,
+        scoped ReadOnlySpan<char> prefix,
+        ScriptActionData action
+    )
     {
         var actionName = FormatEnum<ScriptActionType>(action.Type);
         vsb.Append(prefix);
         vsb.Append(": ");
         vsb.AppendLine(actionName);
-        DumpOperands(ref vsb, $"{prefix}  ", action.OpTypes, action.OpValues);
+        DumpOperands(ref vsb, prefix, action.OpTypes, action.OpValues, gapAfterPrefix: 4);
     }
 
     private static void DumpOperands(
         ref ValueStringBuilder vsb,
-        string prefix,
+        scoped ReadOnlySpan<char> prefix,
         OpTypeBuffer opTypes,
-        OpValueBuffer opValues
+        OpValueBuffer opValues,
+        int gapAfterPrefix = 2
     )
     {
         for (var j = 0; j < 8; j++)
@@ -118,7 +123,8 @@ public static class ScriptDumper
 
             var typeName = FormatOperandType(opTypes[j]);
             vsb.Append(prefix);
-            vsb.Append("  [");
+            vsb.Append(' ', gapAfterPrefix);
+            vsb.Append('[');
             vsb.Append(j);
             vsb.Append("] ");
             vsb.Append(typeName);
