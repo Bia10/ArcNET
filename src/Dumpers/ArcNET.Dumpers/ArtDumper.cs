@@ -24,8 +24,7 @@ public static class ArtDumper
             _ => $"{art.Flags}  (0x{(uint)art.Flags:X8})",
         };
         vsb.Append("  Type           : ");
-        vsb.Append(typeLabel);
-        vsb.AppendLine();
+        vsb.AppendLine(typeLabel);
         vsb.Append("  Animation      : ");
         vsb.Append(art.FrameCount);
         vsb.Append(" frame(s) at ");
@@ -38,8 +37,7 @@ public static class ArtDumper
         }
         vsb.AppendLine();
         vsb.Append("  Rotations      : ");
-        vsb.Append(art.EffectiveRotationCount);
-        vsb.AppendLine();
+        vsb.AppendLine(art.EffectiveRotationCount);
         if (art.PaletteData1.Any(v => v != 0))
         {
             vsb.Append("  Palette data 1 : [");
@@ -76,8 +74,7 @@ public static class ArtDumper
                     vsb.Append(slot);
                     vsb.Append("      : absent  (id=");
                     vsb.Append(art.PaletteIds[slot]);
-                    vsb.Append(')');
-                    vsb.AppendLine();
+                    vsb.AppendLine(")");
                 }
             }
             else
@@ -88,16 +85,14 @@ public static class ArtDumper
                 vsb.Append(pal.Length);
                 vsb.Append(" entries  (id=");
                 vsb.Append(art.PaletteIds[slot]);
-                vsb.Append(')');
-                vsb.AppendLine();
+                vsb.AppendLine(")");
                 vsb.Append("    [ 0] BGR=(");
                 vsb.Append(pal[0].Blue);
                 vsb.Append(',');
                 vsb.Append(pal[0].Green);
                 vsb.Append(',');
                 vsb.Append(pal[0].Red);
-                vsb.Append(")  (transparency)");
-                vsb.AppendLine();
+                vsb.AppendLine(")  (transparency)");
                 if (pal.Length > 1)
                 {
                     vsb.Append("    [");
@@ -108,8 +103,7 @@ public static class ArtDumper
                     vsb.Append(pal[^1].Green);
                     vsb.Append(',');
                     vsb.Append(pal[^1].Red);
-                    vsb.Append(')');
-                    vsb.AppendLine();
+                    vsb.AppendLine(")");
                 }
             }
         }
@@ -125,8 +119,7 @@ public static class ArtDumper
                 vsb.Append(r);
                 vsb.Append(" (direction ");
                 vsb.Append(r * 45);
-                vsb.Append("°) ---");
-                vsb.AppendLine();
+                vsb.AppendLine("°) ---");
             }
             else
             {

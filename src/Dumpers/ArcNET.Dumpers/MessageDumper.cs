@@ -35,8 +35,7 @@ public static class MessageDumper
             vsb.Append("  ID range: ");
             vsb.Append(minId);
             vsb.Append(" \u2013 ");
-            vsb.Append(maxId);
-            vsb.AppendLine();
+            vsb.AppendLine(maxId);
         }
 
         vsb.AppendLine();

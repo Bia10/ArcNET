@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -44,8 +44,7 @@ public static class SaveInfoDumper
         vsb.Append(':');
         vsb.Append(minutes, "D2");
         vsb.Append(':');
-        vsb.Append(seconds, "D2");
-        vsb.AppendLine();
+        vsb.AppendLine(seconds, "D2");
 
         if (info.StoryState != 0)
         {

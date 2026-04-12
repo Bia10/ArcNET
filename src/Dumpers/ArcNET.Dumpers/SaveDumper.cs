@@ -102,8 +102,7 @@ public static class SaveDumper
         {
             var dirLabel = string.IsNullOrEmpty(group.Key) ? "(root)" : group.Key + "/";
             vsb.Append("  ┌── ");
-            vsb.Append(dirLabel);
-            vsb.AppendLine();
+            vsb.AppendLine(dirLabel);
 
             foreach (var kvp in group)
             {
@@ -126,7 +125,7 @@ public static class SaveDumper
                         foreach (var line in parsed.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                         {
                             vsb.Append("  │    ");
-                            vsb.AppendLine(line.TrimEnd('\r'));
+                            vsb.AppendLine(line.AsSpan().TrimEnd('\r'));
                         }
                     }
                     else
@@ -165,13 +164,12 @@ public static class SaveDumper
     {
         Span<char> sbBuf = stackalloc char[512];
         var sb = new ValueStringBuilder(sbBuf);
-        var bar = new string('═', 72);
 
-        sb.AppendLine(bar);
+        sb.AppendLine('═', 72);
         sb.Append("  ARCANUM SAVE: \"");
         sb.Append(info.DisplayName);
         sb.AppendLine("\"");
-        sb.AppendLine(bar);
+        sb.AppendLine('═', 72);
         sb.AppendLine();
 
         // Character
@@ -181,16 +179,13 @@ public static class SaveDumper
         var seconds = (int)(totalMs / 1_000L % 60);
 
         sb.Append("  Character   : ");
-        sb.Append(info.LeaderName);
-        sb.AppendLine();
+        sb.AppendLine(info.LeaderName);
         sb.Append("  Level       : ");
         sb.Append(info.LeaderLevel);
         sb.Append("   Portrait: #");
-        sb.Append(info.LeaderPortraitId);
-        sb.AppendLine();
+        sb.AppendLine(info.LeaderPortraitId);
         sb.Append("  Campaign    : ");
-        sb.Append(info.ModuleName);
-        sb.AppendLine();
+        sb.AppendLine(info.ModuleName);
         sb.Append("  Map         : map ");
         sb.Append(info.MapId);
         sb.Append(", tile (");
@@ -205,8 +200,7 @@ public static class SaveDumper
         sb.Append(':');
         sb.Append(minutes, "D2");
         sb.Append(':');
-        sb.Append(seconds, "D2");
-        sb.AppendLine();
+        sb.AppendLine(seconds, "D2");
         sb.AppendLine();
 
         // Town-map fog coverage
@@ -328,7 +322,7 @@ public static class SaveDumper
             sb.AppendLine();
         }
 
-        sb.AppendLine(bar);
+        sb.AppendLine('\u2550', 72);
         return sb.ToString();
     }
 
@@ -752,8 +746,7 @@ public static class SaveDumper
         Span<char> sbBuf = stackalloc char[512];
         var sb = new ValueStringBuilder(sbBuf);
         sb.Append("Destroyed/extinct objects: ");
-        sb.Append(count);
-        sb.AppendLine();
+        sb.AppendLine(count);
 
         var reader = new SpanReader(span);
         for (var i = 0; i < count; i++)
@@ -762,8 +755,7 @@ public static class SaveDumper
             sb.Append("  [");
             sb.Append(i + 1);
             sb.Append("] ");
-            sb.Append(oid.ToString());
-            sb.AppendLine();
+            sb.AppendLine(oid.ToString());
         }
 
         return sb.ToString();
@@ -857,8 +849,7 @@ public static class SaveDumper
                     if (endMark != EndMarker)
                     {
                         sb.Append("  WARNING: end marker missing after object ");
-                        sb.Append(count);
-                        sb.AppendLine();
+                        sb.AppendLine(count);
                     }
                     pos += consumedInOriginal + 4; // advance past object + end marker
                 }
@@ -957,8 +948,7 @@ public static class SaveDumper
             sb.Append(", +");
             sb.Append(ms);
             sb.Append(" ms, type=");
-            sb.Append(type);
-            sb.AppendLine();
+            sb.AppendLine(type);
 
             // Cannot safely consume param data without TimeEventTypeInfo.flags —
             // stop after first event to avoid mis-parsing the rest.

@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -14,11 +14,11 @@ public static class FacWalkDumper
         var vsb = new ValueStringBuilder(buf);
         var h = fac.Header;
         vsb.AppendLine("=== FACADE WALK ===");
-        var terrainLabel = Enum.IsDefined((TerrainType)h.Terrain)
-            ? $"{(TerrainType)h.Terrain} ({h.Terrain})"
-            : h.Terrain.ToString();
         vsb.Append("  Terrain    : ");
-        vsb.AppendLine(terrainLabel);
+        if (Enum.IsDefined((TerrainType)h.Terrain))
+            vsb.AppendLine($"{(TerrainType)h.Terrain} ({h.Terrain})");
+        else
+            vsb.AppendLine(h.Terrain);
         vsb.Append("  Outdoor    : ");
         vsb.AppendLine(h.Outdoor != 0 ? "yes" : "no");
         vsb.Append("  Flippable  : ");
@@ -55,9 +55,9 @@ public static class FacWalkDumper
             foreach (var e in fac.Entries)
             {
                 vsb.Append("  (");
-                vsb.AppendPadded<int>(e.X, 3, leftAlign: false);
+                vsb.AppendPadded<uint>(e.X, 3, leftAlign: false);
                 vsb.Append(',');
-                vsb.AppendPadded<int>(e.Y, 3, leftAlign: false);
+                vsb.AppendPadded<uint>(e.Y, 3, leftAlign: false);
                 vsb.Append(") ");
                 vsb.AppendLine(e.Walkable ? "WALK" : "BLOCKED");
             }

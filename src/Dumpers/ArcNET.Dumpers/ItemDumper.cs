@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Formats;
@@ -116,14 +116,11 @@ public static class ItemDumper
         vsb.Append(name);
         vsb.AppendLine(" ===");
         vsb.Append("  Proto    : ");
-        vsb.Append(protoId);
-        vsb.AppendLine();
+        vsb.AppendLine(protoId);
         vsb.Append("  ObjectId : ");
-        vsb.Append(mob.Header.ObjectId.ToString());
-        vsb.AppendLine();
+        vsb.AppendLine(mob.Header.ObjectId.ToString());
         vsb.Append("  Type     : ");
-        vsb.Append(mob.Header.GameObjectType.ToString());
-        vsb.AppendLine();
+        vsb.AppendLine(mob.Header.GameObjectType);
         vsb.AppendLine();
         AppendItemBase(ref vsb, mob);
         AppendTypeSpecific(ref vsb, mob);
@@ -292,11 +289,9 @@ public static class ItemDumper
         var invSrc = invSrcProp?.GetInt32() ?? 0;
 
         vsb.Append("  InvNum    = ");
-        vsb.Append(invNum);
-        vsb.AppendLine();
+        vsb.AppendLine(invNum);
         vsb.Append("  InvSource = ");
-        vsb.Append(invSrc);
-        vsb.AppendLine();
+        vsb.AppendLine(invSrc);
 
         if (invListProp is null || invNum == 0)
         {
@@ -306,8 +301,7 @@ public static class ItemDumper
 
         var items = invListProp.GetObjectIdArrayFull();
         vsb.Append("  Items: ");
-        vsb.Append(items.Length);
-        vsb.AppendLine();
+        vsb.AppendLine(items.Length);
         vsb.AppendLine();
 
         for (var i = 0; i < items.Length; i++)
@@ -329,7 +323,7 @@ public static class ItemDumper
                 vsb.Append("  [");
                 vsb.Append(i + 1);
                 vsb.Append("] ");
-                vsb.Append(guid.ToString());
+                vsb.Append(guid);
                 vsb.Append(" — could not load: ");
                 vsb.AppendLine(ex.Message);
                 continue;
@@ -432,7 +426,7 @@ public static class ItemDumper
             {
                 if (vsb.Length > 0)
                     vsb.Append(" | ");
-                vsb.Append(flag.ToString());
+                vsb.Append(flag);
             }
         }
         return vsb.Length > 0 ? vsb.ToString() : "(unknown flags)";
@@ -516,8 +510,7 @@ public static class ItemDumper
             if (range is > 0)
             {
                 vsb.Append("  Range   : ");
-                vsb.Append(range.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(range.Value);
             }
             if ((toHit is > 0) || (magHit is > 0))
             {
@@ -534,8 +527,7 @@ public static class ItemDumper
             if (minStr is > 0)
             {
                 vsb.Append("  Min STR : ");
-                vsb.Append(minStr.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(minStr.Value);
             }
             vsb.AppendLine();
         }
@@ -565,8 +557,7 @@ public static class ItemDumper
             if (silent is > 0)
             {
                 vsb.Append("  Silent Move : ");
-                vsb.Append(silent.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(silent.Value);
             }
             vsb.AppendLine();
         }
@@ -579,8 +570,7 @@ public static class ItemDumper
         {
             vsb.AppendLine("  --- Gold ---");
             vsb.Append("  Quantity : ");
-            vsb.Append(qty.Value);
-            vsb.AppendLine();
+            vsb.AppendLine(qty.Value);
             vsb.AppendLine();
         }
     }
@@ -628,8 +618,7 @@ public static class ItemDumper
             if (qty.HasValue)
             {
                 vsb.Append("  Quantity : ");
-                vsb.Append(qty.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(qty.Value);
             }
             if (type.HasValue)
             {
@@ -698,14 +687,12 @@ public static class ItemDumper
             if (bonus is > 0)
             {
                 vsb.Append("  Usage bonus     : +");
-                vsb.Append(bonus.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(bonus.Value);
             }
             if (count is not null)
             {
                 vsb.Append("  Uses remaining  : ");
-                vsb.Append(count.Value);
-                vsb.AppendLine();
+                vsb.AppendLine(count.Value);
             }
             vsb.AppendLine();
         }

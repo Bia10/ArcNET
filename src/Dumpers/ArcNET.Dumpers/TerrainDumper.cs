@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -13,14 +13,9 @@ public static class TerrainDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== TERRAIN FILE ===");
-        vsb.Append("  Version      : ");
-        vsb.Append(terrain.Version, "F1");
-        vsb.AppendLine("  (standard TDF format)");
+        vsb.AppendLine($"  Version      : {terrain.Version:F1}  (standard TDF format)");
         vsb.Append("  Base terrain : ");
-        vsb.Append(terrain.BaseTerrainType.ToString());
-        vsb.Append(" (");
-        vsb.Append((int)terrain.BaseTerrainType);
-        vsb.AppendLine(")");
+        vsb.AppendLine($"{terrain.BaseTerrainType} ({(int)terrain.BaseTerrainType})");
         vsb.Append("  Dimensions   : ");
         vsb.Append(terrain.Width);
         vsb.Append(" \u00d7 ");

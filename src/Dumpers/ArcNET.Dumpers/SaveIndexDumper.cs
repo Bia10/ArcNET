@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -14,17 +14,14 @@ public static class SaveIndexDumper
         var vsb = new ValueStringBuilder(buf);
         vsb.AppendLine("=== SAVE INDEX (TFAI) ===");
         vsb.Append("  Root entries: ");
-        vsb.Append(index.Root.Count);
-        vsb.AppendLine();
+        vsb.AppendLine(index.Root.Count);
         vsb.AppendLine();
 
         var (fileCount, dirCount, totalSize) = CountStats(index.Root);
         vsb.Append("  Total files       : ");
-        vsb.Append(fileCount);
-        vsb.AppendLine();
+        vsb.AppendLine(fileCount);
         vsb.Append("  Total directories : ");
-        vsb.Append(dirCount);
-        vsb.AppendLine();
+        vsb.AppendLine(dirCount);
         vsb.Append("  Total payload     : ");
         vsb.Append(totalSize, "N0");
         vsb.AppendLine(" bytes");
@@ -38,11 +35,9 @@ public static class SaveIndexDumper
 
     private static void DumpEntries(ref ValueStringBuilder vsb, IReadOnlyList<TfaiEntry> entries, int indent)
     {
-        // NOTE: Append(char, count) would remove the manual loop here — tracked as upstream P candidate.
         foreach (var entry in entries)
         {
-            for (var i = 0; i < indent; i++)
-                vsb.Append(' ');
+            vsb.Append(' ', indent);
             switch (entry)
             {
                 case TfaiFileEntry file:

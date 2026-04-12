@@ -62,7 +62,7 @@ public static class MobDumper
         };
         var kindLabel = h.IsPrototype ? "prototype definition" : "instance";
         vsb.Append("  Object type  : ");
-        vsb.Append(h.GameObjectType.ToString());
+        vsb.Append(h.GameObjectType);
         vsb.Append("  (");
         vsb.Append(kindLabel);
         vsb.Append(", format ");
@@ -76,22 +76,20 @@ public static class MobDumper
             vsb.Append("  Proto        : #");
             vsb.Append(protoNum.Value);
             vsb.Append("  (type ");
-            vsb.Append(h.GameObjectType.ToString());
+            vsb.Append(h.GameObjectType);
             vsb.AppendLine(")");
         }
         else
         {
             vsb.Append("  Proto ID     : ");
-            vsb.Append(h.ProtoId.ToString());
-            vsb.AppendLine();
+            vsb.AppendLine(h.ProtoId.ToString());
         }
 
         // Object GUID (only for instances)
         if (!h.IsPrototype)
         {
             vsb.Append("  Object GUID  : ");
-            vsb.Append(h.ObjectId.Id.ToString());
-            vsb.AppendLine();
+            vsb.AppendLine(h.ObjectId.Id.ToString());
         }
 
         // Bitmap summary
@@ -111,12 +109,7 @@ public static class MobDumper
         vsb.Append('/');
         vsb.Append(h.Bitmap.Length * 8);
         vsb.Append("  (bits: [");
-        for (var bi = 0; bi < setBits.Count; bi++)
-        {
-            if (bi > 0)
-                vsb.Append(", ");
-            vsb.Append(setBits[bi]);
-        }
+        vsb.AppendJoin(", ", setBits);
         vsb.AppendLine("])");
         vsb.AppendLine();
     }
@@ -440,8 +433,7 @@ public static class MobDumper
                 vsb.Append("] ");
                 vsb.Append(extra);
                 vsb.Append("  guid=");
-                vsb.Append(guid.ToString());
-                vsb.AppendLine();
+                vsb.AppendLine(guid);
             }
             return;
         }
@@ -460,26 +452,13 @@ public static class MobDumper
                     vsb.Append("      [");
                     vsb.AppendPadded(statLabel, 20);
                     vsb.Append("] = ");
-                    vsb.Append(vals[idx]);
-                    vsb.AppendLine();
+                    vsb.AppendLine(vals[idx]);
                 }
                 return;
             }
 
             vsb.Append("  [");
-            int limit = Math.Min(vals.Length, 8);
-            for (var vi = 0; vi < limit; vi++)
-            {
-                if (vi > 0)
-                    vsb.Append(", ");
-                vsb.Append(vals[vi]);
-            }
-            if (vals.Length > 8)
-            {
-                vsb.Append(", +");
-                vsb.Append(vals.Length - 8);
-                vsb.Append(" more");
-            }
+            vsb.AppendJoin(", ", vals, 8, " more".AsSpan());
             vsb.Append(']');
             return;
         }
@@ -530,8 +509,7 @@ public static class MobDumper
                 vsb.Append(tx);
                 vsb.Append(", ");
                 vsb.Append(ty);
-                vsb.Append(')');
-                vsb.AppendLine();
+                vsb.AppendLine(")");
             }
             return;
         }
@@ -572,17 +550,20 @@ public static class MobDumper
             return;
         }
 
-        var names = new List<string>();
+        var first = true;
         foreach (var flag in Enum.GetValues<T>())
         {
             var flagVal = Convert.ToUInt32(flag);
             if (flagVal != 0 && (value & flagVal) == flagVal)
-                names.Add(flag.ToString());
+            {
+                if (!first)
+                    vsb.Append(" | ");
+                vsb.Append(flag);
+                first = false;
+            }
         }
 
-        if (names.Count > 0)
-            vsb.AppendJoin(" | ", names);
-        else
+        if (first)
             vsb.Append("(unknown flags)");
     }
 

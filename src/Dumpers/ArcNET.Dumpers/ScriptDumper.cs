@@ -58,8 +58,7 @@ public static class ScriptDumper
             vsb.Append("  [");
             vsb.Append(apName);
             vsb.Append("]  when ");
-            vsb.Append(condName);
-            vsb.AppendLine();
+            vsb.AppendLine(condName);
             DumpOperands(ref vsb, "    condition", cond.OpTypes, cond.OpValues);
             DumpAction(ref vsb, "      then", cond.Action);
             if (!IsEmptyAction(cond.Else))
@@ -101,8 +100,7 @@ public static class ScriptDumper
         var actionName = FormatEnum<ScriptActionType>(action.Type);
         vsb.Append(prefix);
         vsb.Append(": ");
-        vsb.Append(actionName);
-        vsb.AppendLine();
+        vsb.AppendLine(actionName);
         DumpOperands(ref vsb, $"{prefix}  ", action.OpTypes, action.OpValues);
     }
 

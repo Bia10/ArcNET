@@ -22,7 +22,7 @@ public static class JmpDumper
         {
             var j = jmp.Jumps[i];
             vsb.Append("  [");
-            vsb.AppendPadded(i, 3, leftAlign: false);
+            vsb.AppendPadded<int>(i, 3, leftAlign: false);
             vsb.Append("] From tile (");
             vsb.Append(j.SourceX);
             vsb.Append(',');

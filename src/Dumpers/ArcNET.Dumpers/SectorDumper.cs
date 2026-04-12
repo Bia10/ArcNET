@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -30,17 +30,13 @@ public static class SectorDumper
         vsb.Append("  Townmap cache: ");
         vsb.Append(sector.TownmapInfo != 0 ? "yes" : "no");
         vsb.Append("  Encounter adjustment: ");
-        vsb.Append(sector.AptitudeAdjustment, "+#;-#;0");
-        vsb.AppendLine();
+        vsb.AppendLine(sector.AptitudeAdjustment, "+#;-#;0");
         vsb.AppendLine();
 
         // Sound
         var music = sector.SoundList.MusicSchemeIdx < 0 ? "none" : sector.SoundList.MusicSchemeIdx.ToString();
         var ambient = sector.SoundList.AmbientSchemeIdx < 0 ? "none" : sector.SoundList.AmbientSchemeIdx.ToString();
-        vsb.Append("  Sound — music scheme: ");
-        vsb.Append(music);
-        vsb.Append(", ambient scheme: ");
-        vsb.AppendLine(ambient);
+        vsb.AppendLine($"  Sound \u2014 music scheme: {music}, ambient scheme: {ambient}");
         if (sector.SoundList.Flags != 0)
         {
             vsb.Append("    (runtime flags: ");
@@ -54,10 +50,9 @@ public static class SectorDumper
         {
             vsb.AppendLine("  --- Sector Script ---");
             vsb.Append("    Script ID  : ");
-            vsb.Append(script.ScriptId);
-            vsb.AppendLine();
+            vsb.AppendLine(script.ScriptId);
             vsb.Append("    Flags      : ");
-            vsb.Append(script.Flags.ToString());
+            vsb.Append(script.Flags);
             vsb.Append("  (");
             vsb.AppendHex((uint)script.Flags, "0x".AsSpan());
             vsb.AppendLine(")");
@@ -82,8 +77,7 @@ public static class SectorDumper
                     }
                 }
                 vsb.Append("    Counters   : ");
-                vsb.Append(counterParts.WrittenSpan);
-                vsb.AppendLine();
+                vsb.AppendLine(counterParts.WrittenSpan);
                 counterParts.Dispose();
             }
             else
@@ -143,10 +137,9 @@ public static class SectorDumper
         foreach (var g in tileGroups)
         {
             vsb.Append("    art ");
-            vsb.AppendPadded<int>(g.Key, 5, leftAlign: false);
+            vsb.AppendPadded<uint>(g.Key, 5, leftAlign: false);
             vsb.Append("  ×");
-            vsb.Append(g.Count());
-            vsb.AppendLine();
+            vsb.AppendLine(g.Count());
         }
         if (distinctTiles > 10)
         {
@@ -166,10 +159,9 @@ public static class SectorDumper
             foreach (var g in sector.Roofs.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(5))
             {
                 vsb.Append("    art ");
-                vsb.AppendPadded<int>(g.Key, 5, leftAlign: false);
+                vsb.AppendPadded<uint>(g.Key, 5, leftAlign: false);
                 vsb.Append("  ×");
-                vsb.Append(g.Count());
-                vsb.AppendLine();
+                vsb.AppendLine(g.Count());
             }
             vsb.AppendLine();
         }
@@ -187,7 +179,7 @@ public static class SectorDumper
             {
                 var nodeLabel = (ts.NodeFlags & 0x1) != 0 ? "modified" : "clean";
                 vsb.Append("    tile ");
-                vsb.AppendPadded<int>(ts.TileId, 4, leftAlign: false);
+                vsb.AppendPadded<uint>(ts.TileId, 4, leftAlign: false);
                 vsb.Append(": script ");
                 vsb.Append(ts.ScriptNum);
                 vsb.Append("  node=");
@@ -291,7 +283,7 @@ public static class SectorDumper
                 foreach (var line in mobDump.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {
                     vsb.Append("    │ ");
-                    vsb.AppendLine(line.TrimEnd('\r'));
+                    vsb.AppendLine(line.AsSpan().TrimEnd('\r'));
                 }
                 vsb.AppendLine("    └──────────────────────────────");
             }

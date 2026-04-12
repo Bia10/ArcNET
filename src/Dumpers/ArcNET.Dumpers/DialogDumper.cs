@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using Bia.ValueBuffers;
 
 namespace ArcNET.Dumpers;
@@ -73,8 +73,7 @@ public static class DialogDumper
                 vsb.AppendLine("(end)");
             else
             {
-                vsb.Append(e.ResponseVal);
-                vsb.AppendLine();
+                vsb.AppendLine(e.ResponseVal);
             }
             if (!string.IsNullOrEmpty(e.Actions))
             {
