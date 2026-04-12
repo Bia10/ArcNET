@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using ArcNET.Formats;
+using Bia.ValueBuffers;
 
 namespace ArcNET.GameData;
 
@@ -19,12 +20,7 @@ public static class GameDataSaver
         ArgumentNullException.ThrowIfNull(store);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var dir = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        using var writer = new StreamWriter(outputPath, append: false, System.Text.Encoding.ASCII);
-        WriteMessageEntries(writer, store.Messages);
+        WriteMessageEntriesToFile(store.Messages, outputPath);
     }
 
     /// <summary>
@@ -287,14 +283,24 @@ public static class GameDataSaver
 
     // ── Private helpers ────────────────────────────────────────────────
 
-    private static void WriteMessageEntries(TextWriter writer, IEnumerable<MessageEntry> entries)
+    private static void AppendMessageEntries(ref ValueStringBuilder sb, IEnumerable<MessageEntry> entries)
     {
         foreach (var entry in entries)
         {
+            sb.Append('{');
+            sb.Append(entry.Index);
+            sb.Append('}');
             if (entry.SoundId is not null)
-                writer.WriteLine($"{{{entry.Index}}}{{{entry.SoundId}}}{{{entry.Text}}}");
-            else
-                writer.WriteLine($"{{{entry.Index}}}{{{entry.Text}}}");
+            {
+                sb.Append('{');
+                sb.Append(entry.SoundId);
+                sb.Append('}');
+            }
+
+            sb.Append('{');
+            sb.Append(entry.Text);
+            sb.Append('}');
+            sb.AppendLine();
         }
     }
 
@@ -304,10 +310,51 @@ public static class GameDataSaver
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        using var writer = new StreamWriter(path, append: false, System.Text.Encoding.ASCII);
-        WriteMessageEntries(writer, entries);
+        var sb = new ValueStringBuilder(stackalloc char[512]);
+        try
+        {
+            AppendMessageEntries(ref sb, entries);
+
+            var bytes = new ValueByteBuffer(stackalloc byte[512]);
+            try
+            {
+                sb.WriteEncodedTo(Encoding.ASCII, ref bytes);
+
+                using var stream = File.Create(path);
+                bytes.WriteTo(stream);
+            }
+            finally
+            {
+                bytes.Dispose();
+            }
+        }
+        finally
+        {
+            sb.Dispose();
+        }
     }
 
-    private static byte[] WriteMessageEntriesToArray(IEnumerable<MessageEntry> entries) =>
-        Encoding.ASCII.GetBytes(MessageFormat.Serialize(entries));
+    private static byte[] WriteMessageEntriesToArray(IEnumerable<MessageEntry> entries)
+    {
+        var sb = new ValueStringBuilder(stackalloc char[512]);
+        try
+        {
+            AppendMessageEntries(ref sb, entries);
+
+            var bytes = new ValueByteBuffer(stackalloc byte[512]);
+            try
+            {
+                sb.WriteEncodedTo(Encoding.ASCII, ref bytes);
+                return bytes.ToArray();
+            }
+            finally
+            {
+                bytes.Dispose();
+            }
+        }
+        finally
+        {
+            sb.Dispose();
+        }
+    }
 }

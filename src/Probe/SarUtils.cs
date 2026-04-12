@@ -76,6 +76,8 @@ internal readonly struct QuestRefFormatter : IValueStringBuilderFormatter<int>
 
 internal static class SarUtils
 {
+    private const int DefaultQuestRefsMaxShow = 20;
+
     /// <summary>
     /// Attempts to load quest labels from a local <c>quests.mes</c> source.
     /// Search order:
@@ -306,12 +308,25 @@ internal static class SarUtils
         return sb.ToString();
     }
 
-    /// <summary>Formats a sequence of quest proto IDs with optional labels.</summary>
-    public static string FormatQuestRefs(IEnumerable<int> protoIds, QuestTextLookup? lookup, int maxLabelLen = 24)
+    /// <summary>Formats a capped sequence of quest proto IDs with optional labels.</summary>
+    public static string FormatQuestRefs(
+        IEnumerable<int> protoIds,
+        QuestTextLookup? lookup,
+        int maxLabelLen = 24,
+        int maxShow = DefaultQuestRefsMaxShow
+    )
     {
         Span<char> buf = stackalloc char[256];
         var sb = new ValueStringBuilder(buf);
-        sb.AppendEnclosedJoin("[", ", ", "]", protoIds, new QuestRefFormatter(lookup, maxLabelLen));
+        sb.AppendEnclosedJoin(
+            "[",
+            ", ",
+            "]",
+            protoIds,
+            new QuestRefFormatter(lookup, maxLabelLen),
+            maxShow,
+            " more".AsSpan()
+        );
         return sb.ToString();
     }
 
