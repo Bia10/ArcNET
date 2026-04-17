@@ -11,7 +11,7 @@
     <PackageVersion Include="MinVer" Version="7.0.0" />
     <PackageVersion Include="CSharpier.MsBuild" Version="1.2.6" />
     <!-- Testing -->
-    <PackageVersion Include="TUnit" Version="1.30.0" />
+    <PackageVersion Include="TUnit" Version="1.34.5" />
     <PackageVersion Include="PublicApiGenerator" Version="11.5.4" />
     <!-- Benchmarks -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
