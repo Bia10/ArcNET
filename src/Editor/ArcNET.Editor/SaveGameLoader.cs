@@ -103,6 +103,8 @@ public static class SaveGameLoader
     // ── Core parsing ──────────────────────────────────────────────────────────
 
     // Inner-archive file names that are not covered by file-extension dispatch.
+    private const string DataSavFileName = "data.sav";
+    private const string Data2SavFileName = "data2.sav";
     private const string MobileMdFileName = "mobile.md";
     private const string MobileMdyFileName = "mobile.mdy";
 
@@ -116,10 +118,15 @@ public static class SaveGameLoader
     {
         var files = TfafFormat.ExtractAll(index, tfafData);
 
+        var rawFiles = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var mobiles = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase);
         var sectors = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
         var jumpFiles = new Dictionary<string, JmpFile>(StringComparer.OrdinalIgnoreCase);
         var mapProperties = new Dictionary<string, MapProperties>(StringComparer.OrdinalIgnoreCase);
+        var messages = new Dictionary<string, MesFile>(StringComparer.OrdinalIgnoreCase);
+        var townMapFogs = new Dictionary<string, TownMapFog>(StringComparer.OrdinalIgnoreCase);
+        var dataSavFiles = new Dictionary<string, DataSavFile>(StringComparer.OrdinalIgnoreCase);
+        var data2SavFiles = new Dictionary<string, Data2SavFile>(StringComparer.OrdinalIgnoreCase);
         var scripts = new Dictionary<string, ScrFile>(StringComparer.OrdinalIgnoreCase);
         var dialogs = new Dictionary<string, DlgFile>(StringComparer.OrdinalIgnoreCase);
         var mobileMds = new Dictionary<string, MobileMdFile>(StringComparer.OrdinalIgnoreCase);
@@ -137,38 +144,73 @@ public static class SaveGameLoader
             var mem = (ReadOnlyMemory<byte>)bytes;
             var format = FileFormatExtensions.FromPath(path);
             var fileName = Path.GetFileName(path);
+            var hasTypedSurface = false;
 
             // Each format is parsed independently; a corrupt/stub file of one type
             // does not prevent the rest of the save from loading.
             try
             {
-                switch (format)
+                if (fileName.Equals(DataSavFileName, StringComparison.OrdinalIgnoreCase))
                 {
-                    case FileFormat.Mob:
-                        mobiles[path] = MobFormat.ParseMemory(mem);
-                        break;
-                    case FileFormat.Sector:
-                        sectors[path] = SectorFormat.ParseMemory(mem);
-                        break;
-                    case FileFormat.Jmp:
-                        jumpFiles[path] = JmpFormat.ParseMemory(mem);
-                        break;
-                    case FileFormat.MapProperties:
-                        mapProperties[path] = MapPropertiesFormat.ParseMemory(mem);
-                        break;
-                    case FileFormat.Script:
-                        scripts[path] = ScriptFormat.ParseMemory(mem);
-                        break;
-                    case FileFormat.Dialog:
-                        dialogs[path] = DialogFormat.ParseMemory(mem);
-                        break;
-                    default:
-                        // mobile.md and mobile.mdy are special inner-archive files not in the extension map.
-                        if (fileName.Equals(MobileMdFileName, StringComparison.OrdinalIgnoreCase))
-                            mobileMds[path] = MobileMdFormat.ParseMemory(mem);
-                        else if (fileName.Equals(MobileMdyFileName, StringComparison.OrdinalIgnoreCase))
-                            mobileMdys[path] = MobileMdyFormat.ParseMemory(mem);
-                        break;
+                    dataSavFiles[path] = DataSavFormat.ParseMemory(mem);
+                    hasTypedSurface = true;
+                }
+                else if (fileName.Equals(Data2SavFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    data2SavFiles[path] = Data2SavFormat.ParseMemory(mem);
+                    hasTypedSurface = true;
+                }
+                else
+                {
+                    switch (format)
+                    {
+                        case FileFormat.Mob:
+                            mobiles[path] = MobFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.Sector:
+                            sectors[path] = SectorFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.Jmp:
+                            jumpFiles[path] = JmpFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.MapProperties:
+                            mapProperties[path] = MapPropertiesFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.Message:
+                            messages[path] = MessageFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.TownMapFog:
+                            townMapFogs[path] = TownMapFogFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.Script:
+                            scripts[path] = ScriptFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        case FileFormat.Dialog:
+                            dialogs[path] = DialogFormat.ParseMemory(mem);
+                            hasTypedSurface = true;
+                            break;
+                        default:
+                            // mobile.md and mobile.mdy are special inner-archive files not in the extension map.
+                            if (fileName.Equals(MobileMdFileName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                mobileMds[path] = MobileMdFormat.ParseMemory(mem);
+                                hasTypedSurface = true;
+                            }
+                            else if (fileName.Equals(MobileMdyFileName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                mobileMdys[path] = MobileMdyFormat.ParseMemory(mem);
+                                hasTypedSurface = true;
+                            }
+
+                            break;
+                    }
                 }
             }
             catch (Exception ex)
@@ -176,6 +218,9 @@ public static class SaveGameLoader
                 // Record the error but continue — raw bytes are still accessible via Files.
                 parseErrors[path] = $"{ex.GetType().Name}: {ex.Message}";
             }
+
+            if (!hasTypedSurface)
+                rawFiles[path] = bytes;
 
             progress?.Report((i + 1f) / total);
         }
@@ -185,10 +230,15 @@ public static class SaveGameLoader
             Info = info,
             Index = index,
             Files = files,
+            RawFiles = rawFiles,
             Mobiles = mobiles,
             Sectors = sectors,
             JumpFiles = jumpFiles,
             MapPropertiesList = mapProperties,
+            Messages = messages,
+            TownMapFogs = townMapFogs,
+            DataSavFiles = dataSavFiles,
+            Data2SavFiles = data2SavFiles,
             Scripts = scripts,
             Dialogs = dialogs,
             MobileMds = mobileMds,

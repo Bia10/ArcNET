@@ -183,6 +183,10 @@ public static class SaveGameWriter
         ApplyUpdates(files, updates?.UpdatedSectors, static s => SectorFormat.WriteToArray(s));
         ApplyUpdates(files, updates?.UpdatedJumpFiles, static j => JmpFormat.WriteToArray(j));
         ApplyUpdates(files, updates?.UpdatedMapProperties, static p => MapPropertiesFormat.WriteToArray(p));
+        ApplyUpdates(files, updates?.UpdatedMessages, static m => MessageFormat.WriteToArray(m));
+        ApplyUpdates(files, updates?.UpdatedTownMapFogs, static f => TownMapFogFormat.WriteToArray(f));
+        ApplyUpdates(files, updates?.UpdatedDataSavFiles, static f => DataSavFormat.WriteToArray(f));
+        ApplyUpdates(files, updates?.UpdatedData2SavFiles, static f => Data2SavFormat.WriteToArray(f));
         ApplyUpdates(files, updates?.UpdatedScripts, static s => ScriptFormat.WriteToArray(s));
         ApplyUpdates(files, updates?.UpdatedDialogs, static d => DialogFormat.WriteToArray(d));
         ApplyUpdates(files, updates?.UpdatedMobileMds, static f => MobileMdFormat.WriteToArray(f));

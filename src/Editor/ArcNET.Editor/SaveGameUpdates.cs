@@ -35,6 +35,26 @@ public sealed record SaveGameUpdates
     public IReadOnlyDictionary<string, MapProperties>? UpdatedMapProperties { get; init; }
 
     /// <summary>
+    /// Map of virtual path → updated <see cref="MesFile"/> to replace in the save.
+    /// </summary>
+    public IReadOnlyDictionary<string, MesFile>? UpdatedMessages { get; init; }
+
+    /// <summary>
+    /// Map of virtual path → updated <see cref="TownMapFog"/> to replace in the save.
+    /// </summary>
+    public IReadOnlyDictionary<string, TownMapFog>? UpdatedTownMapFogs { get; init; }
+
+    /// <summary>
+    /// Map of virtual path → updated <see cref="DataSavFile"/> to replace in the save.
+    /// </summary>
+    public IReadOnlyDictionary<string, DataSavFile>? UpdatedDataSavFiles { get; init; }
+
+    /// <summary>
+    /// Map of virtual path → updated <see cref="Data2SavFile"/> to replace in the save.
+    /// </summary>
+    public IReadOnlyDictionary<string, Data2SavFile>? UpdatedData2SavFiles { get; init; }
+
+    /// <summary>
     /// Map of virtual path → updated <see cref="ScrFile"/> to replace in the save.
     /// </summary>
     public IReadOnlyDictionary<string, ScrFile>? UpdatedScripts { get; init; }

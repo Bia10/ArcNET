@@ -3,7 +3,8 @@
 namespace ArcNET.Editor;
 
 /// <summary>
-/// Stateful editor session for modifying player-character data in an Arcanum save game.
+/// Stateful editor session for modifying player-character data, save metadata,
+/// and selected save-global assets in an Arcanum save game.
 /// </summary>
 /// <remarks>
 /// Typical workflow:
@@ -35,6 +36,11 @@ public sealed class SaveGameEditor
 
     // Pending typed MobileMdyFile replacements, keyed by virtual path.
     private readonly Dictionary<string, MobileMdyFile> _pendingMdyUpdates = [];
+    private readonly Dictionary<string, MesFile> _pendingMessageUpdates = [];
+    private readonly Dictionary<string, TownMapFog> _pendingTownMapFogUpdates = [];
+    private readonly Dictionary<string, DataSavFile> _pendingDataSavUpdates = [];
+    private readonly Dictionary<string, Data2SavFile> _pendingData2SavUpdates = [];
+    private readonly Dictionary<string, byte[]> _pendingRawFileUpdates = [];
     private SaveInfo? _pendingInfoUpdate;
     private bool _originalPlayerLocationInitialized;
     private (string Path, int Index)? _originalPlayerLocation;
@@ -197,13 +203,26 @@ public sealed class SaveGameEditor
     private SaveGameUpdates? BuildUpdates()
     {
         var updatedInfo = BuildUpdatedInfo();
-        if (_pendingMdyUpdates.Count == 0 && updatedInfo is null)
+        if (
+            _pendingMdyUpdates.Count == 0
+            && _pendingMessageUpdates.Count == 0
+            && _pendingTownMapFogUpdates.Count == 0
+            && _pendingDataSavUpdates.Count == 0
+            && _pendingData2SavUpdates.Count == 0
+            && _pendingRawFileUpdates.Count == 0
+            && updatedInfo is null
+        )
             return null;
 
         return new SaveGameUpdates
         {
             UpdatedInfo = updatedInfo,
             UpdatedMobileMdys = _pendingMdyUpdates.Count > 0 ? _pendingMdyUpdates : null,
+            UpdatedMessages = _pendingMessageUpdates.Count > 0 ? _pendingMessageUpdates : null,
+            UpdatedTownMapFogs = _pendingTownMapFogUpdates.Count > 0 ? _pendingTownMapFogUpdates : null,
+            UpdatedDataSavFiles = _pendingDataSavUpdates.Count > 0 ? _pendingDataSavUpdates : null,
+            UpdatedData2SavFiles = _pendingData2SavUpdates.Count > 0 ? _pendingData2SavUpdates : null,
+            RawFileUpdates = _pendingRawFileUpdates.Count > 0 ? _pendingRawFileUpdates : null,
         };
     }
 
@@ -368,6 +387,394 @@ public sealed class SaveGameEditor
     /// </summary>
     public MobileMdyFile? GetPendingMobileMdy(string mdyPath) =>
         _pendingMdyUpdates.TryGetValue(mdyPath, out var f) ? f : null;
+
+    /// <summary>
+    /// Returns the current typed message-file view for <paramref name="path"/> after queued
+    /// edits have been applied, or <see langword="null"/> if the save does not contain that
+    /// <c>.mes</c> file.
+    /// </summary>
+    public MesFile? GetCurrentMessageFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingMessageUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        if (_save.Messages.TryGetValue(path, out var current))
+            return current;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the queued typed message-file replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no message update has been staged for that file.
+    /// </summary>
+    public MesFile? GetPendingMessageFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingMessageUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Queues a typed message-file replacement for <paramref name="path"/>.
+    /// Only existing <c>.mes</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithMessageFile(string path, MesFile updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        if (!_save.Messages.ContainsKey(path))
+            return this;
+
+        _pendingMessageUpdates[path] = updated;
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a typed message-file replacement by transforming the current message view.
+    /// The callback sees the current editor view, so chained message edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithMessageFile(string path, Func<MesFile, MesFile> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentMessageFile(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        if (updated is null)
+            throw new InvalidOperationException("Message-file update delegate must return a MesFile instance.");
+
+        return WithMessageFile(path, updated);
+    }
+
+    /// <summary>
+    /// Returns the current typed town-map fog view for <paramref name="path"/> after queued edits
+    /// have been applied, or <see langword="null"/> if the save does not contain that <c>.tmf</c> file.
+    /// </summary>
+    public TownMapFog? GetCurrentTownMapFog(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingTownMapFogUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        if (_save.TownMapFogs.TryGetValue(path, out var current))
+            return current;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the queued typed town-map fog replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no fog update has been staged for that file.
+    /// </summary>
+    public TownMapFog? GetPendingTownMapFog(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingTownMapFogUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Queues a typed town-map fog replacement for <paramref name="path"/>.
+    /// Only existing <c>.tmf</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithTownMapFog(string path, TownMapFog updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        if (!_save.TownMapFogs.ContainsKey(path))
+            return this;
+
+        _pendingTownMapFogUpdates[path] = updated;
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a typed town-map fog replacement by transforming the current fog view.
+    /// The callback sees the current editor view, so chained fog edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithTownMapFog(string path, Func<TownMapFog, TownMapFog> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentTownMapFog(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        if (updated is null)
+            throw new InvalidOperationException("Town-map fog update delegate must return a TownMapFog instance.");
+
+        return WithTownMapFog(path, updated);
+    }
+
+    /// <summary>
+    /// Returns the current typed <c>data.sav</c> view for <paramref name="path"/> after queued
+    /// edits have been applied, or <see langword="null"/> if the save does not contain a
+    /// successfully parsed <c>data.sav</c> file at that path.
+    /// </summary>
+    public DataSavFile? GetCurrentDataSav(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingDataSavUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        if (_save.DataSavFiles.TryGetValue(path, out var current))
+            return current;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the queued typed <c>data.sav</c> replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no update has been staged for that file.
+    /// </summary>
+    public DataSavFile? GetPendingDataSav(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingDataSavUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data.sav</c> replacement for <paramref name="path"/>.
+    /// Only existing successfully parsed <c>data.sav</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithDataSav(string path, DataSavFile updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        if (!_save.DataSavFiles.ContainsKey(path))
+            return this;
+
+        _pendingDataSavUpdates[path] = updated;
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data.sav</c> replacement by transforming the current editor view.
+    /// The callback sees the current typed state, so chained edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithDataSav(string path, Func<DataSavFile, DataSavFile> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentDataSav(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        if (updated is null)
+            throw new InvalidOperationException("data.sav update delegate must return a DataSavFile instance.");
+
+        return WithDataSav(path, updated);
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data.sav</c> replacement by mutating a copy-on-write builder created from
+    /// the current editor view. This lets callers batch multiple structural edits in one build step
+    /// instead of cloning the full raw payload once per chained <c>With*</c> call.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithDataSav(string path, Action<DataSavFile.Builder> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentDataSav(path);
+        if (current is null)
+            return this;
+
+        var builder = current.ToBuilder();
+        update(builder);
+        return WithDataSav(path, builder.Build());
+    }
+
+    /// <summary>
+    /// Returns the current typed <c>data2.sav</c> view for <paramref name="path"/> after queued
+    /// edits have been applied, or <see langword="null"/> if the save does not contain a
+    /// successfully parsed <c>data2.sav</c> file at that path.
+    /// </summary>
+    public Data2SavFile? GetCurrentData2Sav(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingData2SavUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        if (_save.Data2SavFiles.TryGetValue(path, out var current))
+            return current;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the queued typed <c>data2.sav</c> replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no update has been staged for that file.
+    /// </summary>
+    public Data2SavFile? GetPendingData2Sav(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingData2SavUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data2.sav</c> replacement for <paramref name="path"/>.
+    /// Only existing successfully parsed <c>data2.sav</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithData2Sav(string path, Data2SavFile updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        if (!_save.Data2SavFiles.ContainsKey(path))
+            return this;
+
+        _pendingData2SavUpdates[path] = updated;
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data2.sav</c> replacement by transforming the current editor view.
+    /// The callback sees the current typed state, so chained edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithData2Sav(string path, Func<Data2SavFile, Data2SavFile> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentData2Sav(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        if (updated is null)
+            throw new InvalidOperationException("data2.sav update delegate must return a Data2SavFile instance.");
+
+        return WithData2Sav(path, updated);
+    }
+
+    /// <summary>
+    /// Queues a typed <c>data2.sav</c> replacement by mutating a copy-on-write builder created from
+    /// the current editor view. This lets callers batch pair-table and unresolved-region edits in
+    /// one build step instead of cloning the raw payload once per chained <c>With*</c> call.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithData2Sav(string path, Action<Data2SavFile.Builder> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentData2Sav(path);
+        if (current is null)
+            return this;
+
+        var builder = current.ToBuilder();
+        update(builder);
+        return WithData2Sav(path, builder.Build());
+    }
+
+    /// <summary>
+    /// Returns the current raw embedded-file bytes for <paramref name="path"/> after queued edits
+    /// have been applied, or <see langword="null"/> if the save does not expose that path through
+    /// <see cref="LoadedSave.RawFiles"/>.
+    /// This is intended for embedded files that do not currently have a successful typed editor
+    /// surface beyond the structural <c>data.sav</c> / partial typed <c>data2.sav</c> models.
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetCurrentRawFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingRawFileUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        if (_save.RawFiles.TryGetValue(path, out var current))
+            return current;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the queued raw replacement for <paramref name="path"/>, or <see langword="null"/>
+    /// if no raw update has been staged for that file.
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetPendingRawFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (_pendingRawFileUpdates.TryGetValue(path, out var pending))
+            return pending;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Queues a raw embedded-file replacement for <paramref name="path"/>.
+    /// Only files exposed through <see cref="LoadedSave.RawFiles"/> can be updated through
+    /// this API. Typed save surfaces such as <c>mobile.mdy</c>, <c>.tmf</c>, <c>.jmp</c>, and
+    /// other parsed formats must go through their dedicated editor APIs.
+    /// </summary>
+    public SaveGameEditor WithRawFile(string path, byte[] updatedBytes)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updatedBytes);
+
+        if (!_save.RawFiles.ContainsKey(path))
+            return this;
+
+        _pendingRawFileUpdates[path] = updatedBytes;
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a raw embedded-file replacement by transforming the current file bytes.
+    /// The callback sees the current editor view, so chained raw-file edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithRawFile(string path, Func<ReadOnlyMemory<byte>, byte[]> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentRawFile(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current.Value);
+        if (updated is null)
+            throw new InvalidOperationException("Raw file update delegate must return a byte array.");
+
+        return WithRawFile(path, updated);
+    }
 
     // ── Saving ────────────────────────────────────────────────────────────────
 

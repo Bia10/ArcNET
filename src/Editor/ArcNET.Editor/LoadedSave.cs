@@ -28,6 +28,15 @@ public sealed class LoadedSave
     public required IReadOnlyDictionary<string, byte[]> Files { get; init; }
 
     /// <summary>
+    /// Embedded files that do not currently have a successful typed editor surface.
+    /// This is a subset of <see cref="Files"/> and includes unresolved save-global blobs
+    /// beyond the structural <c>data.sav</c> / partial typed <c>data2.sav</c> surfaces,
+    /// unknown files, and any typed-format
+    /// file that failed to parse during load.
+    /// </summary>
+    public required IReadOnlyDictionary<string, byte[]> RawFiles { get; init; }
+
+    /// <summary>
     /// Pre-parsed mobile objects keyed by the same virtual path as <see cref="Files"/>.
     /// Only entries whose path ends with <c>.mob</c> (case-insensitive) appear here.
     /// </summary>
@@ -53,6 +62,35 @@ public sealed class LoadedSave
     /// Map properties store the base terrain art ID and tile-grid dimensions.
     /// </summary>
     public required IReadOnlyDictionary<string, MapProperties> MapPropertiesList { get; init; }
+
+    /// <summary>
+    /// Pre-parsed message files keyed by the same virtual path as <see cref="Files"/>.
+    /// Only entries whose path ends with <c>.mes</c> (case-insensitive) appear here.
+    /// Save slots usually contain module-level message overrides under
+    /// <c>modules/&lt;module&gt;/&lt;module&gt;.mes</c>.
+    /// </summary>
+    public required IReadOnlyDictionary<string, MesFile> Messages { get; init; }
+
+    /// <summary>
+    /// Pre-parsed town-map fog files keyed by the same virtual path as <see cref="Files"/>.
+    /// Only entries whose path ends with <c>.tmf</c> (case-insensitive) appear here.
+    /// Each file is a raw bit-array where one bit represents one revealed town-map tile.
+    /// </summary>
+    public required IReadOnlyDictionary<string, TownMapFog> TownMapFogs { get; init; }
+
+    /// <summary>
+    /// Parsed <c>data.sav</c> files keyed by the same virtual path as <see cref="Files"/>.
+    /// The typed surface is structural rather than semantic: it exposes the verified 8-byte
+    /// header and aligned INT32[4] row framing while preserving the raw bytes verbatim.
+    /// </summary>
+    public required IReadOnlyDictionary<string, DataSavFile> DataSavFiles { get; init; }
+
+    /// <summary>
+    /// Parsed <c>data2.sav</c> files keyed by the same virtual path as <see cref="Files"/>.
+    /// The typed surface currently exposes the verified <c>50000+</c> ID pair table while
+    /// preserving the unresolved prefix/suffix bytes for safe round-trip edits.
+    /// </summary>
+    public required IReadOnlyDictionary<string, Data2SavFile> Data2SavFiles { get; init; }
 
     /// <summary>
     /// Pre-parsed compiled script files keyed by the same virtual path as <see cref="Files"/>.
