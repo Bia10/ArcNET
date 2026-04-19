@@ -7,23 +7,25 @@ namespace Probe;
 internal sealed class SharedProbeContext
 {
     private const string DefaultSlot4 = "0013";
+    private byte[]? _tfafBytes;
+    private readonly string _tfafPath;
 
     public LoadedSave Save { get; }
-    public byte[] TfafBytes { get; }
+    public byte[] TfafBytes => _tfafBytes ??= File.ReadAllBytes(_tfafPath);
     public string SlotStem { get; }
     public IReadOnlyList<(string path, MobileMdFile md, int idx, MobileMdRecord rec, MobData data)> AllPcs { get; }
     public IReadOnlyList<KeyValuePair<string, MobData>> PcMobFiles { get; }
 
     private SharedProbeContext(
         LoadedSave save,
-        byte[] tfafBytes,
+        string tfafPath,
         string slotStem,
         List<(string path, MobileMdFile md, int idx, MobileMdRecord rec, MobData data)> allPcs,
         List<KeyValuePair<string, MobData>> pcMobFiles
     )
     {
         Save = save;
-        TfafBytes = tfafBytes;
+        _tfafPath = tfafPath;
         SlotStem = slotStem;
         AllPcs = allPcs;
         PcMobFiles = pcMobFiles;
@@ -35,28 +37,25 @@ internal sealed class SharedProbeContext
     {
         var slotStem = $"Slot{slot4}";
         var gsiPattern = slotStem + "*.gsi";
+        var tfafPath = Path.Combine(saveDir, slotStem + ".tfaf");
 
-        Console.WriteLine($"=== Loading {slotStem} ===");
+        Console.Error.WriteLine($"=== Loading {slotStem} ===");
         var gsiPath =
             Directory.GetFiles(saveDir, gsiPattern).FirstOrDefault()
             ?? throw new FileNotFoundException($"No GSI matching {gsiPattern} in {saveDir}");
 
-        var save = SaveGameLoader.Load(
-            gsiPath,
-            Path.Combine(saveDir, slotStem + ".tfai"),
-            Path.Combine(saveDir, slotStem + ".tfaf")
-        );
-        var tfafBytes = File.ReadAllBytes(Path.Combine(saveDir, slotStem + ".tfaf"));
+        var save = SaveGameLoader.Load(gsiPath, Path.Combine(saveDir, slotStem + ".tfai"), tfafPath);
+        var tfafLength = new FileInfo(tfafPath).Length;
 
-        Console.WriteLine($"  {save.Info.LeaderName} lv={save.Info.LeaderLevel}  TFAF={tfafBytes.Length}B");
-        Console.WriteLine($"  MobileMdys={save.MobileMdys.Count}  ParseErrors={save.ParseErrors.Count}");
+        Console.Error.WriteLine($"  {save.Info.LeaderName} lv={save.Info.LeaderLevel}  TFAF={tfafLength}B");
+        Console.Error.WriteLine($"  MobileMdys={save.MobileMdys.Count}  ParseErrors={save.ParseErrors.Count}");
         foreach (
             var (path, error) in save.ParseErrors.Where(entry =>
                 entry.Key.Contains("mobile.mdy", StringComparison.OrdinalIgnoreCase)
             )
         )
         {
-            Console.WriteLine($"  ParseError mobile.mdy [{path}]: {error[..Math.Min(150, error.Length)]}");
+            Console.Error.WriteLine($"  ParseError mobile.mdy [{path}]: {error[..Math.Min(150, error.Length)]}");
         }
 
         var allPcs = new List<(string path, MobileMdFile md, int idx, MobileMdRecord rec, MobData data)>();
@@ -69,10 +68,10 @@ internal sealed class SharedProbeContext
             }
         }
 
-        Console.WriteLine($"  PC instances in mobile.md: {allPcs.Count}");
+        Console.Error.WriteLine($"  PC instances in mobile.md: {allPcs.Count}");
         var pcMobFiles = save.Mobiles.Where(entry => entry.Value.Header.GameObjectType == ObjectType.Pc).ToList();
 
-        return new SharedProbeContext(save, tfafBytes, slotStem, allPcs, pcMobFiles);
+        return new SharedProbeContext(save, tfafPath, slotStem, allPcs, pcMobFiles);
     }
 
     public Dictionary<string, MobileMdFile> BuildUpdated(Func<MobData, MobData> fn)

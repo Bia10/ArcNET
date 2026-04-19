@@ -6,14 +6,35 @@ namespace Probe.Commands;
 
 internal sealed class SarDiffCommand : IProbeCommand
 {
+    private const int DefaultRecentSlotCount = 8;
+
     public Task RunAsync(string saveDir, string[] args)
     {
-        var firstSlot = 13;
-        var lastSlot = 120;
-        if (args.Length >= 1)
+        int firstSlot;
+        int lastSlot;
+        if (args.Length == 0)
+        {
+            (firstSlot, lastSlot) = ProbeConfig.ResolveRecentSlotRange(saveDir, DefaultRecentSlotCount);
+            Console.Error.WriteLine(
+                $"[probe] No slot range specified for sar-diff; defaulting to the most recent {DefaultRecentSlotCount} available slots ({firstSlot:D4}-{lastSlot:D4})."
+            );
+        }
+        else if (args.Length == 1)
+        {
+            Console.WriteLine("  Usage: probe 9 <firstSlot> <lastSlot>");
+            Console.WriteLine(
+                $"  Or omit both slots to scan the most recent {DefaultRecentSlotCount} available saves safely."
+            );
+            return Task.CompletedTask;
+        }
+        else
+        {
+            firstSlot = 13;
+            lastSlot = 13;
             _ = int.TryParse(args[0], out firstSlot);
-        if (args.Length >= 2)
             _ = int.TryParse(args[1], out lastSlot);
+        }
+
         if (firstSlot > lastSlot)
             (firstSlot, lastSlot) = (lastSlot, firstSlot);
 

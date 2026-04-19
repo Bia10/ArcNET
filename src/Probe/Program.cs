@@ -2,7 +2,8 @@
 using Probe.Commands;
 
 var saveDir = ProbeConfig.ResolveSaveDir(args);
-var strippedArgs = ProbeConfig.StripSaveDirArg(args);
+var outputOptions = ProbeConfig.ResolveOutputOptions(args);
+var strippedArgs = ProbeConfig.StripGlobalArgs(args);
 var modeArg = strippedArgs.Length > 0 ? strippedArgs[0] : "help";
 var modeArgs = strippedArgs.Length > 1 ? strippedArgs[1..] : [];
 
@@ -25,7 +26,9 @@ IProbeCommand command = modeArg switch
     "14" or "quest-book" => new QuestBookCommand(),
     "15" or "npc-scan" => new NpcScanCommand(),
     "16" or "char-summary" => new CharSummaryCommand(),
+    "17" or "pc-data" => new PcDataCommand(),
     _ => new HelpCommand(),
 };
 
+using var outputScope = ProbeOutputScope.Create(modeArg, outputOptions);
 await command.RunAsync(saveDir, modeArgs);

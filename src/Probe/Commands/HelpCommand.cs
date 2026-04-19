@@ -6,7 +6,7 @@ internal sealed class HelpCommand : IProbeCommand
     {
         Console.WriteLine("ArcNET Probe - Arcanum save-game diagnostic tool");
         Console.WriteLine();
-        Console.WriteLine("Usage: probe [--save-dir <path>] <mode> [slot] [options]");
+        Console.WriteLine("Usage: probe [--save-dir <path>] [--stdout | --out <path>] <mode> [slot] [options]");
         Console.WriteLine();
         Console.WriteLine("Modes:");
         Console.WriteLine("  0  roundtrip       Raw round-trip byte-identical check");
@@ -18,14 +18,21 @@ internal sealed class HelpCommand : IProbeCommand
         Console.WriteLine("  6  raw-patch-files Cross-file raw gold patch");
         Console.WriteLine("  7  sar-dump        Full SAR dump of v2 PC records");
         Console.WriteLine("  8  gold-item       Gold item v2 SAR analysis");
-        Console.WriteLine("  9  sar-diff        Multi-slot SAR difference engine");
+        Console.WriteLine("  9  sar-diff        Multi-slot SAR difference engine (defaults to recent safe window)");
         Console.WriteLine(" 10  full-sar-dump   Full element dump of player v2 record");
         Console.WriteLine(" 11  binary-diff     Binary diff between two save slots");
         Console.WriteLine(" 12  diagnostics     Quick diagnostics (files, PC info, types)");
-        Console.WriteLine(" 13  field-evolution Character field evolution tracker");
+        Console.WriteLine(" 13  field-evolution Character field evolution tracker (defaults to recent safe window)");
         Console.WriteLine(" 14  quest-book      Quest book + reputation decoder");
         Console.WriteLine(" 15  npc-scan        All v2 character records in a save slot");
-        Console.WriteLine(" 16  char-summary     Full character summary (stats/skills/quests/rep…)");
+        Console.WriteLine(" 16  char-summary    Full character summary (stats/skills/quests/rep...)");
+        Console.WriteLine(" 17  pc-data         data.sav/data2.sav dump or range diff with typed context");
+        Console.WriteLine();
+        Console.WriteLine("Output:");
+        Console.WriteLine(
+            "  High-volume modes write stdout to artifacts/probe/*.txt by default to avoid freezing the VS Code terminal."
+        );
+        Console.WriteLine("  Pass --stdout to force terminal output, or --out <path> to choose the capture file.");
         Console.WriteLine();
         Console.WriteLine("Environment: ARCNET_SAVE_DIR - override save directory");
         Console.WriteLine($"Save dir: {saveDir}");
