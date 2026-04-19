@@ -69,34 +69,14 @@ public static class ArtDumper
             if (pal is null)
             {
                 if (art.PaletteIds[slot] != 0)
-                {
-                    vsb.Append("  Palette ");
-                    vsb.Append(slot);
-                    vsb.Append("      : absent  (id=");
-                    vsb.Append(art.PaletteIds[slot]);
-                    vsb.AppendLine(")");
-                }
+                    vsb.AppendLine($"  Palette {slot}      : absent  (id={art.PaletteIds[slot]})");
             }
             else
             {
-                vsb.Append("  Palette ");
-                vsb.Append(slot);
-                vsb.Append("      : ");
-                vsb.Append(pal.Length);
-                vsb.Append(" entries  (id=");
-                vsb.Append(art.PaletteIds[slot]);
-                vsb.AppendLine(")");
-                vsb.Append("    [ 0] BGR=(");
-                vsb.Append(pal[0].Blue);
-                vsb.Append(',');
-                vsb.Append(pal[0].Green);
-                vsb.Append(',');
-                vsb.Append(pal[0].Red);
-                vsb.AppendLine(")  (transparency)");
+                vsb.AppendLine($"  Palette {slot}      : {pal.Length} entries  (id={art.PaletteIds[slot]})");
+                vsb.AppendLine($"    [ 0] BGR=({pal[0].Blue},{pal[0].Green},{pal[0].Red})  (transparency)");
                 if (pal.Length > 1)
-                {
                     vsb.AppendLine($"    [{pal.Length - 1, 3}] BGR=({pal[^1].Blue},{pal[^1].Green},{pal[^1].Red})");
-                }
             }
         }
 
