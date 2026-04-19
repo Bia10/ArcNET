@@ -1,4 +1,6 @@
-﻿namespace ArcNET.Formats.Tests;
+﻿using System.Buffers.Binary;
+
+namespace ArcNET.Formats.Tests;
 
 /// <summary>Unit tests for <see cref="SaveGameBuilder"/>.</summary>
 public sealed class SaveGameBuilderTests
@@ -34,6 +36,48 @@ public sealed class SaveGameBuilderTests
             LeaderTileY = 940,
             StoryState = 0,
         };
+
+    private static byte[] BuildData2SavBytes(int startInt = 6, int pairCount = 40)
+    {
+        var totalInts = startInt + pairCount * 2 + 2;
+        var bytes = new byte[totalInts * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 0);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), -1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0);
+
+        for (var index = 0; index < pairCount; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2) * 4, 4), index % 6);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2 + 1) * 4, 4), 50000 + index);
+        }
+
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2) * 4, 4), 169);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2 + 1) * 4, 4), 186);
+        return bytes;
+    }
+
+    private static byte[] BuildDataSavBytes()
+    {
+        var bytes = new byte[50];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 32);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 7);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0x02441780);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(32, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(36, 4), 0x02559988);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40, 4), 123);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(44, 4), 456);
+        bytes[48] = 0xAA;
+        bytes[49] = 0xBB;
+        return bytes;
+    }
 
     // ── CreateNew(info, mapPath, pc) ──────────────────────────────────────────
 
@@ -100,6 +144,17 @@ public sealed class SaveGameBuilderTests
         var save = SaveGameBuilder.CreateNew(MakeInfo(), "modules/Arcanum/maps/Map01", MakePc());
 
         await Assert.That(save.Maps[0].Sectors.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CreateNew_TopLevelFilesDefaultEmpty()
+    {
+        var save = SaveGameBuilder.CreateNew(MakeInfo(), "modules/Arcanum/maps/Map01", MakePc());
+
+        await Assert.That(save.TownMapFogs).IsEmpty();
+        await Assert.That(save.DataSavFiles).IsEmpty();
+        await Assert.That(save.Data2SavFiles).IsEmpty();
+        await Assert.That(save.RawFiles).IsEmpty();
     }
 
     [Test]
@@ -178,5 +233,56 @@ public sealed class SaveGameBuilderTests
         await Assert.That(character!.Name).IsEqualTo("Elsbeth");
         await Assert.That(character.Gold).IsEqualTo(250);
         await Assert.That(character.PortraitIndex).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task CreateNew_RoundTrips_TopLevelSaveGlobalFiles()
+    {
+        var baseSave = SaveGameBuilder.CreateNew(MakeInfo("Elsbeth"), "modules/Arcanum/maps/Map01", MakePc("Elsbeth"));
+        byte[] dataSav = BuildDataSavBytes();
+        byte[] data2Sav = BuildData2SavBytes();
+        byte[] nestedRaw = [0x01, 0x02, 0x03, 0x04];
+
+        var save = new SaveGame
+        {
+            Info = baseSave.Info,
+            Maps = baseSave.Maps,
+            TownMapFogs = [("Tsen Ang.tmf", new TownMapFog { RawBytes = [0x03, 0x80] })],
+            DataSavFiles = [("data.sav", DataSavFormat.ParseMemory(dataSav))],
+            Data2SavFiles = [("data2.sav", Data2SavFormat.ParseMemory(data2Sav))],
+            RawFiles = [("globals/custom.bin", nestedRaw)],
+        };
+
+        var (tfai, tfaf, gsi) = SaveGameWriter.SaveToMemory(save);
+        var reparsed = SaveGameReader.ParseMemory(tfai, tfaf, gsi);
+        var index = SaveIndexFormat.ParseMemory(tfai);
+
+        await Assert.That(reparsed.TownMapFogs.Count).IsEqualTo(1);
+        await Assert.That(reparsed.TownMapFogs[0].VirtualPath).IsEqualTo("Tsen Ang.tmf");
+        await Assert.That(reparsed.TownMapFogs[0].Data.RawBytes.SequenceEqual(new byte[] { 0x03, 0x80 })).IsTrue();
+        await Assert.That(reparsed.DataSavFiles.Count).IsEqualTo(1);
+        await Assert.That(reparsed.DataSavFiles[0].VirtualPath).IsEqualTo("data.sav");
+        await Assert.That(reparsed.DataSavFiles[0].Data.Header0).IsEqualTo(25);
+        await Assert.That(reparsed.DataSavFiles[0].Data.Header1).IsEqualTo(32);
+        await Assert
+            .That(reparsed.DataSavFiles[0].Data.GetQuadRow(0))
+            .IsEqualTo(new DataSavQuadRow(7, 18, 2072, 0x02441780));
+        await Assert.That(reparsed.Data2SavFiles.Count).IsEqualTo(1);
+        await Assert.That(reparsed.Data2SavFiles[0].VirtualPath).IsEqualTo("data2.sav");
+        await Assert.That(reparsed.Data2SavFiles[0].Data.TryGetIdPairValue(50005, out var data2Value)).IsTrue();
+        await Assert.That(data2Value).IsEqualTo(5);
+        await Assert
+            .That(
+                reparsed
+                    .RawFiles.Single(static f => f.VirtualPath == "globals/custom.bin")
+                    .Data.SequenceEqual(nestedRaw)
+            )
+            .IsTrue();
+
+        await Assert.That(index.Root.OfType<TfaiFileEntry>().Any(static f => f.Name == "Tsen Ang.tmf")).IsTrue();
+        await Assert.That(index.Root.OfType<TfaiFileEntry>().Any(static f => f.Name == "data.sav")).IsTrue();
+        await Assert.That(index.Root.OfType<TfaiFileEntry>().Any(static f => f.Name == "data2.sav")).IsTrue();
+        var globals = index.Root.OfType<TfaiDirectoryEntry>().Single(static d => d.Name == "globals");
+        await Assert.That(globals.Children.OfType<TfaiFileEntry>().Any(static f => f.Name == "custom.bin")).IsTrue();
     }
 }

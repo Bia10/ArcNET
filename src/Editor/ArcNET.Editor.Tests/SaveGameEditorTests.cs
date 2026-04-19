@@ -129,6 +129,347 @@ public class SaveGameEditorTests
         return (save, mdyPath);
     }
 
+    private static (LoadedSave save, string mdyPath, string rawPath) MakeSaveWithPcAndRawFile(
+        byte[]? rawBytes = null,
+        string rawPath = "globals.bin",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        rawBytes ??= [0x19, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00];
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [rawPath] = rawBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = rawPath, Size = rawBytes.Length },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, rawPath);
+    }
+
+    private static (LoadedSave save, string mdyPath, string messagePath) MakeSaveWithPcAndMessageFile(
+        MesFile? message = null,
+        string messagePath = "modules/Arcanum/Arcanum.mes",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var mesFile =
+            message ?? new MesFile { Entries = [new MessageEntry(10, "Alpha"), new MessageEntry(20, "Beta")] };
+        var messageBytes = MessageFormat.WriteToArray(in mesFile);
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [messagePath] = messageBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                    ],
+                },
+                new TfaiDirectoryEntry
+                {
+                    Name = "modules",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum",
+                            Children = [new TfaiFileEntry { Name = "Arcanum.mes", Size = messageBytes.Length }],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, messagePath);
+    }
+
+    private static (LoadedSave save, string mdyPath, string tmfPath) MakeSaveWithPcAndTownMapFog(
+        byte[]? rawBytes = null,
+        string tmfPath = "Tsen Ang.tmf",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var fog = new TownMapFog { RawBytes = rawBytes ?? [0x03, 0x80] };
+        var tmfBytes = TownMapFogFormat.WriteToArray(in fog);
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [tmfPath] = tmfBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = tmfPath, Size = tmfBytes.Length },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, tmfPath);
+    }
+
+    private static (LoadedSave save, string mdyPath, string dataSavPath) MakeSaveWithPcAndDataSavFile(
+        byte[]? rawBytes = null,
+        string dataSavPath = "data.sav",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var dataSavBytes = rawBytes ?? BuildDataSavBytes();
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [dataSavPath] = dataSavBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = dataSavPath, Size = dataSavBytes.Length },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, dataSavPath);
+    }
+
+    private static (LoadedSave save, string mdyPath, string data2Path) MakeSaveWithPcAndData2SavFile(
+        byte[]? rawBytes = null,
+        string data2Path = "data2.sav",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var data2Bytes = rawBytes ?? BuildData2SavBytes();
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [data2Path] = data2Bytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = data2Path, Size = data2Bytes.Length },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, data2Path);
+    }
+
+    private static byte[] BuildData2SavBytes(int startInt = 6, int pairCount = 40)
+    {
+        var totalInts = startInt + pairCount * 2 + 2;
+        var bytes = new byte[totalInts * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 0);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), -1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0);
+
+        for (var index = 0; index < pairCount; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2) * 4, 4), index % 6);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2 + 1) * 4, 4), 50000 + index);
+        }
+
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2) * 4, 4), 169);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2 + 1) * 4, 4), 186);
+        return bytes;
+    }
+
+    private static byte[] BuildDataSavBytes()
+    {
+        var bytes = new byte[50];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 32);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 7);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0x02441780);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(32, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(36, 4), 0x02559988);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40, 4), 123);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(44, 4), 456);
+        bytes[48] = 0xAA;
+        bytes[49] = 0xBB;
+        return bytes;
+    }
+
     private static (LoadedSave save, string mdyPath) MakeSaveWithPcRecords(params byte[][] records)
     {
         var mdyBytes = records.SelectMany(static b => b).ToArray();
@@ -472,7 +813,585 @@ public class SaveGameEditorTests
         await Assert.That(editor.GetPendingMobileMdy(mdyPath)).IsNull();
     }
 
+    [Test]
+    public async Task WithMessageFile_QueuesUpdate_CurrentAndPendingViewsReflectEntries()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save);
+        var updated = new MesFile { Entries = [new MessageEntry(10, "Alpha+"), new MessageEntry(30, "Gamma")] };
+
+        editor.WithMessageFile(messagePath, updated);
+
+        var current = editor.GetCurrentMessageFile(messagePath);
+        var pending = editor.GetPendingMessageFile(messagePath);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.Entries.Count).IsEqualTo(2);
+        await Assert.That(current.Entries[0].Text).IsEqualTo("Alpha+");
+        await Assert.That(pending!.Entries[1].Index).IsEqualTo(30);
+    }
+
+    [Test]
+    public async Task WithMessageFile_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile(
+            new MesFile { Entries = [new MessageEntry(1, "One")] }
+        );
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithMessageFile(
+                messagePath,
+                message => new MesFile { Entries = [.. message.Entries, new MessageEntry(2, "Two")] }
+            )
+            .WithMessageFile(
+                messagePath,
+                message => new MesFile { Entries = [.. message.Entries, new MessageEntry(3, "Three")] }
+            );
+
+        var pending = editor.GetPendingMessageFile(messagePath);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.Entries.Count).IsEqualTo(3);
+        await Assert.That(pending.Entries[2].Text).IsEqualTo("Three");
+    }
+
+    [Test]
+    public async Task WithMessageFile_MissingPath_IsNoOp()
+    {
+        var (save, _, _) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithMessageFile("missing.mes", new MesFile { Entries = [new MessageEntry(1, "X")] });
+
+        await Assert.That(editor.GetPendingMessageFile("missing.mes")).IsNull();
+        await Assert.That(editor.GetCurrentMessageFile("missing.mes")).IsNull();
+    }
+
+    [Test]
+    public async Task WithTownMapFog_QueuesUpdate_CurrentAndPendingViewsReflectBytes()
+    {
+        var (save, _, tmfPath) = MakeSaveWithPcAndTownMapFog();
+        var editor = new SaveGameEditor(save);
+        var updated = new TownMapFog { RawBytes = [0xAA, 0xBB, 0xCC] };
+
+        editor.WithTownMapFog(tmfPath, updated);
+
+        var current = editor.GetCurrentTownMapFog(tmfPath);
+        var pending = editor.GetPendingTownMapFog(tmfPath);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.RawBytes.SequenceEqual(updated.RawBytes)).IsTrue();
+        await Assert.That(pending!.RawBytes.SequenceEqual(updated.RawBytes)).IsTrue();
+    }
+
+    [Test]
+    public async Task WithTownMapFog_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, tmfPath) = MakeSaveWithPcAndTownMapFog([1]);
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithTownMapFog(tmfPath, fog => new TownMapFog { RawBytes = [.. fog.RawBytes, 2] })
+            .WithTownMapFog(tmfPath, fog => new TownMapFog { RawBytes = [.. fog.RawBytes, 4] });
+
+        var pending = editor.GetPendingTownMapFog(tmfPath);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.RawBytes.SequenceEqual(new byte[] { 1, 2, 4 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithTownMapFog_MissingPath_IsNoOp()
+    {
+        var (save, _, _) = MakeSaveWithPcAndTownMapFog();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithTownMapFog("missing.tmf", new TownMapFog { RawBytes = [0x10] });
+
+        await Assert.That(editor.GetPendingTownMapFog("missing.tmf")).IsNull();
+        await Assert.That(editor.GetCurrentTownMapFog("missing.tmf")).IsNull();
+    }
+
+    [Test]
+    public async Task WithDataSav_QueuesUpdate_CurrentAndPendingViewsReflectStructure()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+        var updated = save.DataSavFiles[dataSavPath].WithHeader(25, 31);
+
+        editor.WithDataSav(dataSavPath, updated);
+
+        var current = editor.GetCurrentDataSav(dataSavPath);
+        var pending = editor.GetPendingDataSav(dataSavPath);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.Header1).IsEqualTo(31);
+        await Assert.That(pending!.Header1).IsEqualTo(31);
+    }
+
+    [Test]
+    public async Task WithDataSav_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithDataSav(dataSavPath, dataSav => dataSav.WithHeader(25, 31))
+            .WithDataSav(dataSavPath, dataSav => dataSav.WithRemainderInt(1, 999));
+
+        var pending = editor.GetPendingDataSav(dataSavPath);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.Header1).IsEqualTo(31);
+        await Assert.That(pending.GetRemainderInt(1)).IsEqualTo(999);
+    }
+
+    [Test]
+    public async Task WithDataSav_StructuralRangeEditsCompose()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+        var rows = new DataSavQuadRow[2];
+        rows[0] = new DataSavQuadRow(8, 19, 2072, 0x02440000);
+        rows[1] = new DataSavQuadRow(26, 7, 2072, 0x021CE520);
+
+        editor.WithDataSav(dataSavPath, dataSav => dataSav.WithQuadRows(0, rows).WithRemainderInts(0, [777, 999]));
+
+        var pending = editor.GetPendingDataSav(dataSavPath);
+        var copiedRows = new DataSavQuadRow[2];
+        var copiedRemainder = new int[2];
+        pending!.CopyQuadRows(0, copiedRows);
+        pending.CopyRemainderInts(0, copiedRemainder);
+
+        await Assert.That(copiedRows.SequenceEqual(rows)).IsTrue();
+        await Assert.That(copiedRemainder.SequenceEqual(new[] { 777, 999 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithDataSav_BuilderUpdate_ComposesStructuralEdits()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+        var rows = new DataSavQuadRow[2];
+        rows[0] = new DataSavQuadRow(8, 19, 2072, 0x02440000);
+        rows[1] = new DataSavQuadRow(26, 7, 2072, 0x021CE520);
+
+        editor.WithDataSav(
+            dataSavPath,
+            builder =>
+            {
+                builder.WithHeader(25, 31).WithQuadRows(0, rows).WithRemainderInts(0, [777, 999]);
+            }
+        );
+
+        var pending = editor.GetPendingDataSav(dataSavPath);
+        var copiedRows = new DataSavQuadRow[2];
+        var copiedRemainder = new int[2];
+        pending!.CopyQuadRows(0, copiedRows);
+        pending.CopyRemainderInts(0, copiedRemainder);
+
+        await Assert.That(pending.Header1).IsEqualTo(31);
+        await Assert.That(copiedRows.SequenceEqual(rows)).IsTrue();
+        await Assert.That(copiedRemainder.SequenceEqual(new[] { 777, 999 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithDataSav_MissingPath_IsNoOp()
+    {
+        var (save, _, _) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithDataSav("missing.sav", new DataSavFile { RawBytes = BuildDataSavBytes() });
+
+        await Assert.That(editor.GetPendingDataSav("missing.sav")).IsNull();
+        await Assert.That(editor.GetCurrentDataSav("missing.sav")).IsNull();
+    }
+
+    [Test]
+    public async Task WithData2Sav_QueuesUpdate_CurrentAndPendingViewsReflectValue()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+        var updated = save.Data2SavFiles[data2Path].WithIdPairValue(50005, 17);
+
+        editor.WithData2Sav(data2Path, updated);
+
+        var current = editor.GetCurrentData2Sav(data2Path);
+        var pending = editor.GetPendingData2Sav(data2Path);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.TryGetIdPairValue(50005, out var currentValue)).IsTrue();
+        await Assert.That(currentValue).IsEqualTo(17);
+        await Assert.That(pending!.TryGetIdPairValue(50005, out var pendingValue)).IsTrue();
+        await Assert.That(pendingValue).IsEqualTo(17);
+    }
+
+    [Test]
+    public async Task WithData2Sav_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithData2Sav(data2Path, data2 => data2.WithIdPairValue(50005, 17))
+            .WithData2Sav(data2Path, data2 => data2.WithIdPairValue(50006, 18));
+
+        var pending = editor.GetPendingData2Sav(data2Path);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.TryGetIdPairValue(50005, out var valueA)).IsTrue();
+        await Assert.That(valueA).IsEqualTo(17);
+        await Assert.That(pending.TryGetIdPairValue(50006, out var valueB)).IsTrue();
+        await Assert.That(valueB).IsEqualTo(18);
+    }
+
+    [Test]
+    public async Task WithData2Sav_StructuralPrefixAndSuffixEditsCompose()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithData2Sav(data2Path, data2 => data2.WithPrefixInt(5, 11))
+            .WithData2Sav(data2Path, data2 => data2.WithSuffixInt(1, 27));
+
+        var pending = editor.GetPendingData2Sav(data2Path);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.GetPrefixInt(5)).IsEqualTo(11);
+        await Assert.That(pending.GetSuffixInt(1)).IsEqualTo(27);
+    }
+
+    [Test]
+    public async Task WithData2Sav_StructuralRangeEditsCompose()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithData2Sav(data2Path, data2 => data2.WithPrefixInts(2, [11, 12, 13]).WithSuffixInts(0, [27, 28]));
+
+        var pending = editor.GetPendingData2Sav(data2Path);
+        var prefix = new int[3];
+        var suffix = new int[2];
+        pending!.CopyPrefixInts(2, prefix);
+        pending.CopySuffixInts(0, suffix);
+
+        await Assert.That(prefix.SequenceEqual(new[] { 11, 12, 13 })).IsTrue();
+        await Assert.That(suffix.SequenceEqual(new[] { 27, 28 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithData2Sav_BuilderUpdate_ComposesPairAndStructuralEdits()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithData2Sav(
+            data2Path,
+            builder =>
+            {
+                builder.WithIdPairValue(50005, 17).WithPrefixInts(2, [11, 12, 13]).WithSuffixInts(0, [27, 28]);
+            }
+        );
+
+        var pending = editor.GetPendingData2Sav(data2Path);
+        var prefix = new int[3];
+        var suffix = new int[2];
+        pending!.CopyPrefixInts(2, prefix);
+        pending.CopySuffixInts(0, suffix);
+
+        await Assert.That(pending.TryGetIdPairValue(50005, out var value)).IsTrue();
+        await Assert.That(value).IsEqualTo(17);
+        await Assert.That(prefix.SequenceEqual(new[] { 11, 12, 13 })).IsTrue();
+        await Assert.That(suffix.SequenceEqual(new[] { 27, 28 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithData2Sav_MissingPath_IsNoOp()
+    {
+        var (save, _, _) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithData2Sav(
+            "missing.sav",
+            new Data2SavFile
+            {
+                RawBytes = BuildData2SavBytes(),
+                IdPairTableStartInt = 6,
+                IdPairs = [new Data2SavIdPairEntry(50000, 1)],
+            }
+        );
+
+        await Assert.That(editor.GetPendingData2Sav("missing.sav")).IsNull();
+        await Assert.That(editor.GetCurrentData2Sav("missing.sav")).IsNull();
+    }
+
+    [Test]
+    public async Task LoadFromParsed_RawFiles_ContainsOnlyUntypedPaths()
+    {
+        var (save, mdyPath, rawPath) = MakeSaveWithPcAndRawFile();
+
+        await Assert.That(save.RawFiles.ContainsKey(rawPath)).IsTrue();
+        await Assert.That(save.RawFiles[rawPath].SequenceEqual(save.Files[rawPath])).IsTrue();
+        await Assert.That(save.RawFiles.ContainsKey(mdyPath)).IsFalse();
+    }
+
+    [Test]
+    public async Task LoadFromParsed_DataSavFiles_AreTypedAndExcludedFromRawFiles()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+
+        await Assert.That(save.DataSavFiles.ContainsKey(dataSavPath)).IsTrue();
+        await Assert.That(save.RawFiles.ContainsKey(dataSavPath)).IsFalse();
+        await Assert.That(save.DataSavFiles[dataSavPath].Header0).IsEqualTo(25);
+        await Assert.That(save.DataSavFiles[dataSavPath].Header1).IsEqualTo(32);
+    }
+
+    [Test]
+    public async Task LoadFromParsed_Data2SavFiles_AreTypedAndExcludedFromRawFiles()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+
+        await Assert.That(save.Data2SavFiles.ContainsKey(data2Path)).IsTrue();
+        await Assert.That(save.RawFiles.ContainsKey(data2Path)).IsFalse();
+        await Assert.That(save.Data2SavFiles[data2Path].TryGetIdPairValue(50005, out var value)).IsTrue();
+        await Assert.That(value).IsEqualTo(5);
+    }
+
+    [Test]
+    public async Task LoadFromParsed_MessageFiles_AreTypedAndExcludedFromRawFiles()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+
+        await Assert.That(save.Messages.ContainsKey(messagePath)).IsTrue();
+        await Assert.That(save.RawFiles.ContainsKey(messagePath)).IsFalse();
+        await Assert.That(save.Messages[messagePath].Entries[0].Text).IsEqualTo("Alpha");
+    }
+
+    [Test]
+    public async Task WithRawFile_QueuesUpdate_CurrentAndPendingViewsReflectBytes()
+    {
+        var (save, _, rawPath) = MakeSaveWithPcAndRawFile();
+        var editor = new SaveGameEditor(save);
+        byte[] updated = [0xAA, 0xBB, 0xCC, 0xDD];
+
+        editor.WithRawFile(rawPath, updated);
+
+        var current = editor.GetCurrentRawFile(rawPath);
+        var pending = editor.GetPendingRawFile(rawPath);
+
+        await Assert.That(current.HasValue).IsTrue();
+        await Assert.That(pending.HasValue).IsTrue();
+        await Assert.That(current!.Value.ToArray().SequenceEqual(updated)).IsTrue();
+        await Assert.That(pending!.Value.ToArray().SequenceEqual(updated)).IsTrue();
+    }
+
+    [Test]
+    public async Task WithRawFile_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, rawPath) = MakeSaveWithPcAndRawFile([1, 2, 3, 4]);
+        var editor = new SaveGameEditor(save);
+
+        editor.WithRawFile(rawPath, bytes => [.. bytes.Span, 5]).WithRawFile(rawPath, bytes => [.. bytes.Span, 6]);
+
+        var pending = editor.GetPendingRawFile(rawPath);
+
+        await Assert.That(pending.HasValue).IsTrue();
+        await Assert.That(pending!.Value.ToArray().SequenceEqual(new byte[] { 1, 2, 3, 4, 5, 6 })).IsTrue();
+    }
+
+    [Test]
+    public async Task WithRawFile_MissingPath_IsNoOp()
+    {
+        var (save, _, _) = MakeSaveWithPcAndRawFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithRawFile("missing.sav", [0x10]);
+
+        await Assert.That(editor.GetPendingRawFile("missing.sav")).IsNull();
+        await Assert.That(editor.GetCurrentRawFile("missing.sav")).IsNull();
+    }
+
+    [Test]
+    public async Task WithRawFile_TypedPath_IsNoOp()
+    {
+        var (save, mdyPath, _) = MakeSaveWithPcAndRawFile();
+        var editor = new SaveGameEditor(save);
+
+        editor.WithRawFile(mdyPath, [0x10]);
+
+        await Assert.That(editor.GetPendingRawFile(mdyPath)).IsNull();
+        await Assert.That(editor.GetCurrentRawFile(mdyPath)).IsNull();
+    }
+
     // ── Save → Load round-trip ────────────────────────────────────────────────
+
+    [Test]
+    public async Task Save_WithTownMapFogUpdate_RoundTrips()
+    {
+        var (save, _, tmfPath) = MakeSaveWithPcAndTownMapFog([0x01]);
+        var editor = new SaveGameEditor(save);
+        var updated = new TownMapFog { RawBytes = [0xFF, 0x00, 0x81] };
+        editor.WithTownMapFog(tmfPath, updated);
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.TownMapFogs[tmfPath].RawBytes.SequenceEqual(updated.RawBytes)).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithDataSavUpdate_RoundTrips()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+        editor.WithDataSav(
+            dataSavPath,
+            dataSav => dataSav.WithHeader(25, 31).WithQuadRow(1, new DataSavQuadRow(26, 7, 2072, 0x021CE520))
+        );
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.DataSavFiles.ContainsKey(dataSavPath)).IsTrue();
+            await Assert.That(loaded.DataSavFiles[dataSavPath].Header1).IsEqualTo(31);
+            await Assert
+                .That(loaded.DataSavFiles[dataSavPath].GetQuadRow(1))
+                .IsEqualTo(new DataSavQuadRow(26, 7, 2072, 0x021CE520));
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithDataSavRangeUpdate_RoundTrips()
+    {
+        var (save, _, dataSavPath) = MakeSaveWithPcAndDataSavFile();
+        var editor = new SaveGameEditor(save);
+        var rows = new DataSavQuadRow[2];
+        rows[0] = new DataSavQuadRow(8, 19, 2072, 0x02440000);
+        rows[1] = new DataSavQuadRow(26, 7, 2072, 0x021CE520);
+        editor.WithDataSav(dataSavPath, dataSav => dataSav.WithQuadRows(0, rows).WithRemainderInts(0, [777, 999]));
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+            var copiedRows = new DataSavQuadRow[2];
+            var copiedRemainder = new int[2];
+            loaded.DataSavFiles[dataSavPath].CopyQuadRows(0, copiedRows);
+            loaded.DataSavFiles[dataSavPath].CopyRemainderInts(0, copiedRemainder);
+
+            await Assert.That(copiedRows.SequenceEqual(rows)).IsTrue();
+            await Assert.That(copiedRemainder.SequenceEqual(new[] { 777, 999 })).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithMessageFileUpdate_RoundTrips()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save);
+        var updated = new MesFile { Entries = [new MessageEntry(10, "Alpha+"), new MessageEntry(40, "Delta")] };
+        editor.WithMessageFile(messagePath, updated);
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.Messages.ContainsKey(messagePath)).IsTrue();
+            await Assert.That(loaded.Messages[messagePath].Entries.Count).IsEqualTo(2);
+            await Assert.That(loaded.Messages[messagePath].Entries[0].Text).IsEqualTo("Alpha+");
+            await Assert.That(loaded.Messages[messagePath].Entries[1].Index).IsEqualTo(40);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithRawFileUpdate_RoundTrips()
+    {
+        var (save, _, rawPath) = MakeSaveWithPcAndRawFile([0x19, 0x00, 0x00, 0x00]);
+        var editor = new SaveGameEditor(save);
+        byte[] updated = [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02];
+        editor.WithRawFile(rawPath, updated);
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.Files[rawPath].SequenceEqual(updated)).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Save_WithData2SavUpdate_RoundTrips()
+    {
+        var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
+        var editor = new SaveGameEditor(save);
+        editor.WithData2Sav(
+            data2Path,
+            data2 => data2.WithIdPairValue(50005, 17).WithPrefixInts(4, [10, 11]).WithSuffixInts(0, [27, 28])
+        );
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            editor.Save(tmpDir, "test");
+            var loaded = SaveGameLoader.Load(tmpDir, "test");
+
+            await Assert.That(loaded.Data2SavFiles.ContainsKey(data2Path)).IsTrue();
+            await Assert.That(loaded.Data2SavFiles[data2Path].TryGetIdPairValue(50005, out var value)).IsTrue();
+            await Assert.That(value).IsEqualTo(17);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetPrefixInt(4)).IsEqualTo(10);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetPrefixInt(5)).IsEqualTo(11);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetSuffixInt(0)).IsEqualTo(27);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetSuffixInt(1)).IsEqualTo(28);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
 
     [Test]
     public async Task Save_WithLevelChange_RoundTrips()

@@ -111,4 +111,10 @@ public class FileFormatTests
     {
         await Assert.That(FileFormatExtensions.FromExtension(".tfaf")).IsEqualTo(FileFormat.SaveData);
     }
+
+    [Test]
+    public async Task FromExtension_TmfExtension_ReturnsTownMapFog()
+    {
+        await Assert.That(FileFormatExtensions.FromExtension(".tmf")).IsEqualTo(FileFormat.TownMapFog);
+    }
 }

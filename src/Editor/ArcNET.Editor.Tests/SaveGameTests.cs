@@ -1,4 +1,5 @@
-﻿using ArcNET.Core.Primitives;
+﻿using System.Buffers.Binary;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -1004,6 +1005,404 @@ public class SaveGameTests
             var loaded = SaveGameLoader.Load(tmpDir, "testslot");
             await Assert.That(loaded.MapPropertiesList.ContainsKey(prpPath)).IsTrue();
             await Assert.That(loaded.MapPropertiesList[prpPath].ArtId).IsEqualTo(77);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    // ── MessageFile ──────────────────────────────────────────────────────────
+
+    private static (LoadedSave save, string messagePath) MakeSaveWithMessageFile(MesFile? message = null)
+    {
+        var mobBytes = MobFormat.WriteToArray(MakePc());
+        var mesFile =
+            message ?? new MesFile { Entries = [new MessageEntry(10, "Alpha"), new MessageEntry(20, "Beta")] };
+        var messageBytes = MessageFormat.WriteToArray(in mesFile);
+
+        const string messagePath = "modules/Arcanum/Arcanum.mes";
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["maps/map01/mobile/G_pc.mob"] = mobBytes,
+            [messagePath] = messageBytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children = [new TfaiFileEntry { Name = "G_pc.mob", Size = mobBytes.Length }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                new TfaiDirectoryEntry
+                {
+                    Name = "modules",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum",
+                            Children = [new TfaiFileEntry { Name = "Arcanum.mes", Size = messageBytes.Length }],
+                        },
+                    ],
+                },
+            ],
+        };
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(MakeInfo(), index, tfafBytes), messagePath);
+    }
+
+    [Test]
+    public async Task LoadFromParsed_ParsesMessageFiles()
+    {
+        var (save, messagePath) = MakeSaveWithMessageFile();
+
+        await Assert.That(save.Messages.ContainsKey(messagePath)).IsTrue();
+        await Assert.That(save.Messages[messagePath].Entries.Count).IsEqualTo(2);
+        await Assert.That(save.Messages[messagePath].Entries[1].Text).IsEqualTo("Beta");
+        await Assert.That(save.RawFiles.ContainsKey(messagePath)).IsFalse();
+    }
+
+    [Test]
+    public async Task Save_WithUpdatedMessageFile_PersistsChanges()
+    {
+        var (save, messagePath) = MakeSaveWithMessageFile();
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            var updated = new MesFile { Entries = [new MessageEntry(10, "Alpha+"), new MessageEntry(30, "Gamma")] };
+            SaveGameWriter.Save(
+                save,
+                tmpDir,
+                "testslot",
+                new SaveGameUpdates { UpdatedMessages = new Dictionary<string, MesFile> { [messagePath] = updated } }
+            );
+
+            var loaded = SaveGameLoader.Load(tmpDir, "testslot");
+            await Assert.That(loaded.Messages.ContainsKey(messagePath)).IsTrue();
+            await Assert.That(loaded.Messages[messagePath].Entries.Count).IsEqualTo(2);
+            await Assert.That(loaded.Messages[messagePath].Entries[0].Text).IsEqualTo("Alpha+");
+            await Assert.That(loaded.Messages[messagePath].Entries[1].Index).IsEqualTo(30);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    // ── TownMapFog ───────────────────────────────────────────────────────────
+
+    private static (LoadedSave save, string tmfPath) MakeSaveWithTownMapFog(byte[]? rawBytes = null)
+    {
+        var mobBytes = MobFormat.WriteToArray(MakePc());
+        var fog = new TownMapFog { RawBytes = rawBytes ?? [0x03, 0x80] };
+        var tmfBytes = TownMapFogFormat.WriteToArray(in fog);
+
+        const string tmfPath = "Tsen Ang.tmf";
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["maps/map01/mobile/G_pc.mob"] = mobBytes,
+            [tmfPath] = tmfBytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children = [new TfaiFileEntry { Name = "G_pc.mob", Size = mobBytes.Length }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = tmfPath, Size = tmfBytes.Length },
+            ],
+        };
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(MakeInfo(), index, tfafBytes), tmfPath);
+    }
+
+    private static (LoadedSave save, string dataSavPath) MakeSaveWithDataSavFile(byte[]? rawBytes = null)
+    {
+        var mobBytes = MobFormat.WriteToArray(MakePc());
+        var dataSavBytes = rawBytes ?? BuildDataSavBytes();
+
+        const string dataSavPath = "data.sav";
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["maps/map01/mobile/G_pc.mob"] = mobBytes,
+            [dataSavPath] = dataSavBytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children = [new TfaiFileEntry { Name = "G_pc.mob", Size = mobBytes.Length }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = dataSavPath, Size = dataSavBytes.Length },
+            ],
+        };
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(MakeInfo(), index, tfafBytes), dataSavPath);
+    }
+
+    private static (LoadedSave save, string data2Path) MakeSaveWithData2SavFile(byte[]? rawBytes = null)
+    {
+        var mobBytes = MobFormat.WriteToArray(MakePc());
+        var data2Bytes = rawBytes ?? BuildData2SavBytes();
+
+        const string data2Path = "data2.sav";
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["maps/map01/mobile/G_pc.mob"] = mobBytes,
+            [data2Path] = data2Bytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children = [new TfaiFileEntry { Name = "G_pc.mob", Size = mobBytes.Length }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                new TfaiFileEntry { Name = data2Path, Size = data2Bytes.Length },
+            ],
+        };
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(MakeInfo(), index, tfafBytes), data2Path);
+    }
+
+    private static byte[] BuildData2SavBytes(int startInt = 6, int pairCount = 40)
+    {
+        var totalInts = startInt + pairCount * 2 + 2;
+        var bytes = new byte[totalInts * 4];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 0);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), -1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0);
+
+        for (var index = 0; index < pairCount; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2) * 4, 4), index % 6);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + index * 2 + 1) * 4, 4), 50000 + index);
+        }
+
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2) * 4, 4), 169);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan((startInt + pairCount * 2 + 1) * 4, 4), 186);
+        return bytes;
+    }
+
+    private static byte[] BuildDataSavBytes()
+    {
+        var bytes = new byte[50];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4, 4), 32);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 7);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 0x02441780);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24, 4), 18);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28, 4), 25);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(32, 4), 2072);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(36, 4), 0x02559988);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40, 4), 123);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(44, 4), 456);
+        bytes[48] = 0xAA;
+        bytes[49] = 0xBB;
+        return bytes;
+    }
+
+    [Test]
+    public async Task LoadFromParsed_ParsesTownMapFogFiles()
+    {
+        var (save, tmfPath) = MakeSaveWithTownMapFog();
+
+        await Assert.That(save.TownMapFogs.ContainsKey(tmfPath)).IsTrue();
+        await Assert.That(save.TownMapFogs[tmfPath].RevealedTiles).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task Save_WithUpdatedTownMapFog_PersistsChanges()
+    {
+        var (save, tmfPath) = MakeSaveWithTownMapFog([0x01]);
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            var updated = new TownMapFog { RawBytes = [0xFF, 0x00, 0x01] };
+            SaveGameWriter.Save(
+                save,
+                tmpDir,
+                "testslot",
+                new SaveGameUpdates { UpdatedTownMapFogs = new Dictionary<string, TownMapFog> { [tmfPath] = updated } }
+            );
+
+            var loaded = SaveGameLoader.Load(tmpDir, "testslot");
+            await Assert.That(loaded.TownMapFogs.ContainsKey(tmfPath)).IsTrue();
+            await Assert.That(loaded.TownMapFogs[tmfPath].RawBytes.SequenceEqual(updated.RawBytes)).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    // ── data.sav ─────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task LoadFromParsed_ParsesDataSavFiles()
+    {
+        var (save, dataSavPath) = MakeSaveWithDataSavFile();
+
+        await Assert.That(save.DataSavFiles.ContainsKey(dataSavPath)).IsTrue();
+        await Assert.That(save.DataSavFiles[dataSavPath].Header0).IsEqualTo(25);
+        await Assert.That(save.DataSavFiles[dataSavPath].Header1).IsEqualTo(32);
+        await Assert
+            .That(save.DataSavFiles[dataSavPath].GetQuadRow(0))
+            .IsEqualTo(new DataSavQuadRow(7, 18, 2072, 0x02441780));
+        await Assert.That(save.RawFiles.ContainsKey(dataSavPath)).IsFalse();
+    }
+
+    [Test]
+    public async Task Save_WithUpdatedDataSavFile_PersistsChanges()
+    {
+        var (save, dataSavPath) = MakeSaveWithDataSavFile();
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            var updated = save.DataSavFiles[dataSavPath]
+                .WithHeader(25, 31)
+                .WithQuadRow(1, new DataSavQuadRow(26, 7, 2072, 0x021CE520))
+                .WithRemainderInt(1, 999);
+            SaveGameWriter.Save(
+                save,
+                tmpDir,
+                "testslot",
+                new SaveGameUpdates
+                {
+                    UpdatedDataSavFiles = new Dictionary<string, DataSavFile> { [dataSavPath] = updated },
+                }
+            );
+
+            var loaded = SaveGameLoader.Load(tmpDir, "testslot");
+            await Assert.That(loaded.DataSavFiles.ContainsKey(dataSavPath)).IsTrue();
+            await Assert.That(loaded.DataSavFiles[dataSavPath].Header1).IsEqualTo(31);
+            await Assert
+                .That(loaded.DataSavFiles[dataSavPath].GetQuadRow(1))
+                .IsEqualTo(new DataSavQuadRow(26, 7, 2072, 0x021CE520));
+            await Assert.That(loaded.DataSavFiles[dataSavPath].GetRemainderInt(1)).IsEqualTo(999);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, recursive: true);
+        }
+    }
+
+    // ── data2.sav ────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task LoadFromParsed_ParsesData2SavFiles()
+    {
+        var (save, data2Path) = MakeSaveWithData2SavFile();
+
+        await Assert.That(save.Data2SavFiles.ContainsKey(data2Path)).IsTrue();
+        await Assert.That(save.Data2SavFiles[data2Path].TryGetIdPairValue(50005, out var value)).IsTrue();
+        await Assert.That(value).IsEqualTo(5);
+        await Assert.That(save.RawFiles.ContainsKey(data2Path)).IsFalse();
+    }
+
+    [Test]
+    public async Task Save_WithUpdatedData2SavFile_PersistsChanges()
+    {
+        var (save, data2Path) = MakeSaveWithData2SavFile();
+        var tmpDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            var updated = save.Data2SavFiles[data2Path]
+                .WithIdPairValue(50005, 17)
+                .WithPrefixInt(5, 11)
+                .WithSuffixInt(1, 27);
+            SaveGameWriter.Save(
+                save,
+                tmpDir,
+                "testslot",
+                new SaveGameUpdates
+                {
+                    UpdatedData2SavFiles = new Dictionary<string, Data2SavFile> { [data2Path] = updated },
+                }
+            );
+
+            var loaded = SaveGameLoader.Load(tmpDir, "testslot");
+            await Assert.That(loaded.Data2SavFiles.ContainsKey(data2Path)).IsTrue();
+            await Assert.That(loaded.Data2SavFiles[data2Path].TryGetIdPairValue(50005, out var value)).IsTrue();
+            await Assert.That(value).IsEqualTo(17);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetPrefixInt(5)).IsEqualTo(11);
+            await Assert.That(loaded.Data2SavFiles[data2Path].GetSuffixInt(1)).IsEqualTo(27);
         }
         finally
         {
