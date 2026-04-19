@@ -73,6 +73,10 @@ public static class SaveGameReader
     {
         var builders = new Dictionary<string, MapStateBuilder>(StringComparer.OrdinalIgnoreCase);
         var messageFiles = new List<(string VirtualPath, byte[] Data)>();
+        var townMapFogs = new List<(string VirtualPath, TownMapFog Data)>();
+        var dataSavFiles = new List<(string VirtualPath, DataSavFile Data)>();
+        var data2SavFiles = new List<(string VirtualPath, Data2SavFile Data)>();
+        var rawFiles = new List<(string VirtualPath, byte[] Data)>();
 
         foreach (var (virtualPath, data) in payloads)
         {
@@ -90,7 +94,22 @@ public static class SaveGameReader
             {
                 messageFiles.Add((virtualPath, data));
             }
-            // Non-map, non-mes entries are silently skipped (no known format).
+            else if (virtualPath.EndsWith(".tmf", StringComparison.OrdinalIgnoreCase))
+            {
+                townMapFogs.Add((virtualPath, TownMapFogFormat.ParseMemory(data)));
+            }
+            else if (Path.GetFileName(virtualPath).Equals("data.sav", StringComparison.OrdinalIgnoreCase))
+            {
+                dataSavFiles.Add((virtualPath, DataSavFormat.ParseMemory(data)));
+            }
+            else if (Path.GetFileName(virtualPath).Equals("data2.sav", StringComparison.OrdinalIgnoreCase))
+            {
+                data2SavFiles.Add((virtualPath, Data2SavFormat.ParseMemory(data)));
+            }
+            else
+            {
+                rawFiles.Add((virtualPath, data));
+            }
         }
 
         var maps = builders
@@ -104,6 +123,10 @@ public static class SaveGameReader
             EngineVersion = DetectEngineVersion(maps),
             Maps = maps,
             MessageFiles = messageFiles,
+            TownMapFogs = townMapFogs,
+            DataSavFiles = dataSavFiles,
+            Data2SavFiles = data2SavFiles,
+            RawFiles = rawFiles,
         };
     }
 

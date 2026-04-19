@@ -50,4 +50,7 @@ public enum FileFormat : byte
 
     /// <summary>Save game archive data blob file (.tfaf).</summary>
     SaveData = 15,
+
+    /// <summary>Town map fog bit-array file (.tmf).</summary>
+    TownMapFog = 16,
 }

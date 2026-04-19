@@ -19,6 +19,7 @@ public static class FileFormatExtensions
         [".dlg"] = FileFormat.Dialog,
         [".tdf"] = FileFormat.Terrain,
         [".prp"] = FileFormat.MapProperties,
+        [".tmf"] = FileFormat.TownMapFog,
         [".dat"] = FileFormat.DataArchive,
         [".gsi"] = FileFormat.SaveInfo,
         [".tfai"] = FileFormat.SaveIndex,

@@ -87,6 +87,20 @@ public static class SaveGameWriter
         foreach (var (virtualPath, data) in save.MessageFiles)
             result[virtualPath] = data;
 
+        // Top-level typed save-global files.
+        foreach (var (virtualPath, fog) in save.TownMapFogs)
+            result[virtualPath] = TownMapFogFormat.WriteToArray(fog);
+
+        foreach (var (virtualPath, dataSav) in save.DataSavFiles)
+            result[virtualPath] = DataSavFormat.WriteToArray(dataSav);
+
+        foreach (var (virtualPath, data2) in save.Data2SavFiles)
+            result[virtualPath] = Data2SavFormat.WriteToArray(data2);
+
+        // Top-level raw save-global files that are still under reverse-engineering.
+        foreach (var (virtualPath, data) in save.RawFiles)
+            result[virtualPath] = data;
+
         // Per-map files.
         foreach (var map in save.Maps)
         {
@@ -183,10 +197,21 @@ public static class SaveGameWriter
             moduleEntries.Add(new TfaiDirectoryEntry { Name = moduleName, Children = children });
         }
 
-        var root = new List<TfaiEntry>
-        {
-            new TfaiDirectoryEntry { Name = "modules", Children = moduleEntries },
-        };
+        var root = new List<TfaiEntry>();
+        if (moduleEntries.Count > 0)
+            root.Add(new TfaiDirectoryEntry { Name = "modules", Children = moduleEntries });
+
+        foreach (var (virtualPath, _) in save.TownMapFogs)
+            AddPath(root, virtualPath, payloads[virtualPath].Length);
+
+        foreach (var (virtualPath, _) in save.DataSavFiles)
+            AddPath(root, virtualPath, payloads[virtualPath].Length);
+
+        foreach (var (virtualPath, _) in save.Data2SavFiles)
+            AddPath(root, virtualPath, payloads[virtualPath].Length);
+
+        foreach (var (virtualPath, _) in save.RawFiles)
+            AddPath(root, virtualPath, payloads[virtualPath].Length);
 
         return new SaveIndex { Root = root };
     }
@@ -281,4 +306,42 @@ public static class SaveGameWriter
         var parts = virtualPath.Split('/');
         return parts.Length >= 2 ? parts[1] : string.Empty;
     }
+
+    private static void AddPath(List<TfaiEntry> entries, string virtualPath, int size)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(virtualPath);
+
+        var parts = virtualPath.Split('/');
+        var current = entries;
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = parts[index];
+            if (index == parts.Length - 1)
+            {
+                current.Add(new TfaiFileEntry { Name = part, Size = size });
+                return;
+            }
+
+            var dir = FindOrCreateDirectory(current, part);
+            current = GetMutableChildren(dir);
+        }
+    }
+
+    private static TfaiDirectoryEntry FindOrCreateDirectory(List<TfaiEntry> entries, string name)
+    {
+        foreach (var entry in entries)
+        {
+            if (entry is TfaiDirectoryEntry dir && dir.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                return dir;
+        }
+
+        var children = new List<TfaiEntry>();
+        var created = new TfaiDirectoryEntry { Name = name, Children = children };
+        entries.Add(created);
+        return created;
+    }
+
+    private static List<TfaiEntry> GetMutableChildren(TfaiDirectoryEntry dir) =>
+        dir.Children as List<TfaiEntry>
+        ?? throw new InvalidOperationException("Save index builder requires mutable TfaiDirectoryEntry child lists.");
 }
