@@ -5,6 +5,8 @@ using ArcNET.Editor;
 using ArcNET.Formats;
 using Bia.ValueBuffers;
 using Probe;
+using static Probe.Commands.PcDataCommandModels;
+using PcDataSlotSnapshot = Probe.Commands.PcDataCommandModels.PcDataSlotSnapshot;
 
 namespace Probe.Commands;
 
@@ -64,191 +66,15 @@ internal sealed class PcDataCommand : IProbeCommand
 
     private static readonly string[] s_savFileNames = ["data.sav", "data2.sav"];
 
-    private readonly record struct SavFileSnapshot(
-        byte[] Bytes,
-        int Header0,
-        int Header1,
-        int TotalInts,
-        int TrailingBytes,
-        int NonZeroCount,
-        int BeefCafeCount,
-        int MinusOneCount,
-        SaveIdPairTableSnapshot? SaveIdPairs,
-        AlignedQuadSummary? QuadSummary,
-        Data2SavFile? Data2Sav
-    );
-
-    private readonly record struct AlignedQuadSignature(int B, int C, int D);
-
-    private readonly record struct AlignedQuadSummary(
-        int StartInt,
-        int QuadCount,
-        int RemainderInts,
-        int DistinctSignatures,
-        int SectionCount,
-        int ZeroSectionCount,
-        int LongestZeroSectionStart,
-        int LongestZeroSectionLength,
-        int FrontMatterRowCount,
-        int FrontMatterSectionCount,
-        IReadOnlyList<AlignedQuadRunSummary> FrontMatterRuns,
-        int TailRowStart,
-        int TailRowCount,
-        int TailSectionCount,
-        IReadOnlyList<AlignedQuadRunSummary> TailRuns,
-        IReadOnlyList<AlignedQuadRunSummary> LeadingRuns,
-        IReadOnlyList<AlignedQuadRunSummary> TrailingRuns,
-        IReadOnlyList<AlignedQuadSignatureSummary> TopSignatures,
-        IReadOnlyList<AlignedQuadRunSummary> TopRuns
-    );
-
-    private readonly record struct AlignedQuadSignatureSummary(
-        AlignedQuadSignature Signature,
-        int Count,
-        int FirstRow,
-        int LastRow,
-        int FirstA,
-        int LastA,
-        int LongestRunLength,
-        int LongestRunStart,
-        int LongestRunFirstA,
-        int LongestRunLastA
-    );
-
-    private readonly record struct AlignedQuadRunSummary(
-        int StartRow,
-        int Length,
-        AlignedQuadSignature Signature,
-        int FirstA,
-        int LastA
-    );
-
-    private readonly record struct PlayerStateSnapshot(
-        int QuestCount,
-        int RumorsCount,
-        int Blessings,
-        int Curses,
-        int Schematics,
-        IReadOnlyDictionary<int, int>? Reputation
-    );
-
-    private readonly record struct ContiguousIntWindow(
-        int StartInt,
-        int RemovedInts,
-        int AddedInts,
-        int CommonSuffixInts
-    );
-
-    private readonly record struct WindowPattern(int StartInt, int RemovedInts, int AddedInts);
-
-    private readonly record struct WindowTraceSpec(int StartInt, int Width);
-
-    private readonly record struct FrontMatterFamilyKey(int RowCount, int SectionCount, string Sequence);
-
-    private readonly record struct TailFamilyKey(int RowCount, int SectionCount, string Sequence);
-
-    private readonly record struct Data2RegionFamilyKey(int IntCount, string Sequence, string Preview);
-
-    private readonly record struct SaveIdPairTableSnapshot(
-        int StartInt,
-        int PairCount,
-        int EndInt,
-        int FirstId,
-        int LastId,
-        int NonZeroPairs,
-        int MaxValue,
-        IReadOnlyDictionary<int, int> Values
-    );
-
-    private readonly record struct TownMapFogFileSnapshot(byte[] Bytes, int RevealedTiles);
-
-    private readonly record struct TownMapFogSnapshot(
-        int FileCount,
-        int RevealedTiles,
-        IReadOnlyDictionary<string, TownMapFogFileSnapshot> Files
-    );
-
-    private readonly record struct SlotSnapshot(
-        int Slot,
-        string SlotStem,
-        string LeaderName,
-        int LeaderLevel,
-        IReadOnlyDictionary<string, SavFileSnapshot> Files,
-        PlayerStateSnapshot? Player,
-        TownMapFogSnapshot TownMapFogs
-    );
-
-    private sealed class AlignedQuadSignatureAccumulator
-    {
-        public AlignedQuadSignatureAccumulator(AlignedQuadSignature signature, int row, int a)
-        {
-            Signature = signature;
-            Count = 1;
-            FirstRow = row;
-            LastRow = row;
-            FirstA = a;
-            LastA = a;
-            LongestRunLength = 0;
-            LongestRunStart = row;
-            LongestRunFirstA = a;
-            LongestRunLastA = a;
-        }
-
-        public AlignedQuadSignature Signature { get; }
-
-        public int Count { get; private set; }
-
-        public int FirstRow { get; }
-
-        public int LastRow { get; private set; }
-
-        public int FirstA { get; }
-
-        public int LastA { get; private set; }
-
-        public int LongestRunLength { get; private set; }
-
-        public int LongestRunStart { get; private set; }
-
-        public int LongestRunFirstA { get; private set; }
-
-        public int LongestRunLastA { get; private set; }
-
-        public void AddRow(int row, int a)
-        {
-            Count++;
-            LastRow = row;
-            LastA = a;
-        }
-
-        public void RecordRun(int startRow, int length, int firstA, int lastA)
-        {
-            if (length <= LongestRunLength)
-                return;
-
-            LongestRunLength = length;
-            LongestRunStart = startRow;
-            LongestRunFirstA = firstA;
-            LongestRunLastA = lastA;
-        }
-
-        public AlignedQuadSignatureSummary ToSummary() =>
-            new(
-                Signature,
-                Count,
-                FirstRow,
-                LastRow,
-                FirstA,
-                LastA,
-                LongestRunLength,
-                LongestRunStart,
-                LongestRunFirstA,
-                LongestRunLastA
-            );
-    }
-
     public Task RunAsync(string saveDir, string[] args)
     {
+        if (!Directory.Exists(saveDir))
+        {
+            Console.Error.WriteLine($"[probe] Save directory not found: {saveDir}");
+            Console.Error.WriteLine("[probe] Pass --save-dir <path> to point Probe at a valid Arcanum save folder.");
+            return Task.CompletedTask;
+        }
+
         var firstSlot = 13;
         var lastSlot = 13;
         if (args.Length >= 1)
@@ -302,7 +128,7 @@ internal sealed class PcDataCommand : IProbeCommand
     {
         Console.WriteLine($"\n=== Mode 17: data.sav/data2.sav range diff - slots {firstSlot:D4}-{lastSlot:D4} ===");
 
-        var snapshots = new List<SlotSnapshot>();
+        var snapshots = new List<PcDataSlotSnapshot>();
         for (var slot = firstSlot; slot <= lastSlot; slot++)
         {
             var snapshot = TryLoadSnapshot(saveDir, slot);
@@ -398,7 +224,7 @@ internal sealed class PcDataCommand : IProbeCommand
         return Task.CompletedTask;
     }
 
-    private static SlotSnapshot? TryLoadSnapshot(string saveDir, int slot)
+    private static PcDataSlotSnapshot? TryLoadSnapshot(string saveDir, int slot)
     {
         var slotStem = $"Slot{slot:D4}";
         var gsiFiles = Directory.GetFiles(saveDir, slotStem + "*.gsi");
@@ -429,7 +255,7 @@ internal sealed class PcDataCommand : IProbeCommand
             }
         }
 
-        return new SlotSnapshot(
+        return new PcDataSlotSnapshot(
             slot,
             slotStem,
             save.Info.LeaderName,
@@ -468,7 +294,7 @@ internal sealed class PcDataCommand : IProbeCommand
         );
     }
 
-    private static void PrintSlotSummary(in SlotSnapshot snapshot)
+    private static void PrintSlotSummary(in PcDataSlotSnapshot snapshot)
     {
         Console.WriteLine($"\n  [{snapshot.SlotStem}] {snapshot.LeaderName} lv={snapshot.LeaderLevel}");
         Span<char> initial = stackalloc char[256];
@@ -520,7 +346,7 @@ internal sealed class PcDataCommand : IProbeCommand
         PrintTypedStateSummary(snapshot.Player, in townMapFogs, "    typed: ");
     }
 
-    private static void PrintTypedContextLine(in SlotSnapshot before, in SlotSnapshot after)
+    private static void PrintTypedContextLine(in PcDataSlotSnapshot before, in PcDataSlotSnapshot after)
     {
         Span<char> initial = stackalloc char[256];
         var sb = new ValueStringBuilder(initial);
@@ -576,8 +402,8 @@ internal sealed class PcDataCommand : IProbeCommand
     private static void AppendTypedDeltaPreview(
         ref ValueStringBuilder sb,
         ref bool hasContent,
-        in SlotSnapshot before,
-        in SlotSnapshot after
+        in PcDataSlotSnapshot before,
+        in PcDataSlotSnapshot after
     )
     {
         if (before.Player is { } beforePlayer && after.Player is { } afterPlayer)
@@ -1415,7 +1241,7 @@ internal sealed class PcDataCommand : IProbeCommand
         Console.WriteLine(sb.ToString());
     }
 
-    private static void PrintFrontMatterFamilySummary(IReadOnlyList<SlotSnapshot> snapshots)
+    private static void PrintFrontMatterFamilySummary(IReadOnlyList<PcDataSlotSnapshot> snapshots)
     {
         var families = new Dictionary<FrontMatterFamilyKey, List<int>>();
         foreach (var snapshot in snapshots)
@@ -1476,7 +1302,7 @@ internal sealed class PcDataCommand : IProbeCommand
             Console.WriteLine($"      ... {families.Count - previewed} more families omitted");
     }
 
-    private static void PrintTailFamilySummary(IReadOnlyList<SlotSnapshot> snapshots)
+    private static void PrintTailFamilySummary(IReadOnlyList<PcDataSlotSnapshot> snapshots)
     {
         var families = new Dictionary<TailFamilyKey, List<int>>();
         foreach (var snapshot in snapshots)
@@ -1537,7 +1363,7 @@ internal sealed class PcDataCommand : IProbeCommand
             Console.WriteLine($"      ... {families.Count - previewed} more families omitted");
     }
 
-    private static void PrintData2UnresolvedFamilySummary(IReadOnlyList<SlotSnapshot> snapshots)
+    private static void PrintData2UnresolvedFamilySummary(IReadOnlyList<PcDataSlotSnapshot> snapshots)
     {
         var prefixFamilies = BuildData2RegionFamilies(snapshots, isPrefix: true);
         var suffixFamilies = BuildData2RegionFamilies(snapshots, isPrefix: false);
@@ -1550,7 +1376,7 @@ internal sealed class PcDataCommand : IProbeCommand
     }
 
     private static Dictionary<Data2RegionFamilyKey, List<int>> BuildData2RegionFamilies(
-        IReadOnlyList<SlotSnapshot> snapshots,
+        IReadOnlyList<PcDataSlotSnapshot> snapshots,
         bool isPrefix
     )
     {
@@ -1573,7 +1399,7 @@ internal sealed class PcDataCommand : IProbeCommand
     }
 
     private static bool TryBuildData2RegionFamilyKey(
-        in SlotSnapshot snapshot,
+        in PcDataSlotSnapshot snapshot,
         bool isPrefix,
         out Data2RegionFamilyKey key
     )
@@ -1684,7 +1510,7 @@ internal sealed class PcDataCommand : IProbeCommand
 
     private static void PrintWindowTraceSummary(
         string fileName,
-        IReadOnlyList<SlotSnapshot> snapshots,
+        IReadOnlyList<PcDataSlotSnapshot> snapshots,
         Dictionary<WindowTraceSpec, int> traces
     )
     {
@@ -1779,7 +1605,7 @@ internal sealed class PcDataCommand : IProbeCommand
         sb.Append(hits);
     }
 
-    private static bool TryBuildFrontMatterFamilyKey(in SlotSnapshot snapshot, out FrontMatterFamilyKey key)
+    private static bool TryBuildFrontMatterFamilyKey(in PcDataSlotSnapshot snapshot, out FrontMatterFamilyKey key)
     {
         if (!snapshot.Files.TryGetValue("data.sav", out var file) || file.QuadSummary is not { } quadSummary)
         {
@@ -1802,7 +1628,7 @@ internal sealed class PcDataCommand : IProbeCommand
         return true;
     }
 
-    private static bool TryBuildTailFamilyKey(in SlotSnapshot snapshot, out TailFamilyKey key)
+    private static bool TryBuildTailFamilyKey(in PcDataSlotSnapshot snapshot, out TailFamilyKey key)
     {
         if (!snapshot.Files.TryGetValue("data.sav", out var file) || file.QuadSummary is not { } quadSummary)
         {

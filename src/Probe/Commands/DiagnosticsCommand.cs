@@ -40,6 +40,16 @@ internal sealed class DiagnosticsCommand : IProbeCommand
             Console.WriteLine(
                 $"  PC[0] props: {ValueBufferText.JoinFormatted(firstPc.Properties, ", ", new PropertyBitFormatter())}"
             );
+
+            Console.WriteLine("  PC link-field raw sizes:");
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterFleeingFrom);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterGold);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterArrows);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterBullets);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterPowerCells);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterFuel);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterInventoryListIdx);
+            PrintLinkFieldSummary(ctx, ObjectField.ObjFCritterFollowerIdx);
         }
 
         Console.WriteLine("\n  mobile.md record types across all maps:");
@@ -77,6 +87,25 @@ internal sealed class DiagnosticsCommand : IProbeCommand
         }
 
         return Task.CompletedTask;
+    }
+
+    private static void PrintLinkFieldSummary(SharedProbeContext ctx, ObjectField field)
+    {
+        var matches = ctx.AllPcs
+            .SelectMany(pc => pc.data.Properties.Where(property => property.Field == field))
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            Console.WriteLine($"    {field}(bit={(int)field}): absent");
+            return;
+        }
+
+        var rawSizes = matches.Select(property => property.RawBytes.Length).Distinct().Order().ToArray();
+        var sampleHex = ValueBufferText.FormatHex(matches[0].RawBytes);
+        Console.WriteLine(
+            $"    {field}(bit={(int)field}): count={matches.Count} rawSizes=[{string.Join(",", rawSizes)}] sample={sampleHex}"
+        );
     }
 
     private readonly struct PropertyBitFormatter : IValueStringBuilderFormatter<ObjectProperty>
