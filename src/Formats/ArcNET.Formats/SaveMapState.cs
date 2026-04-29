@@ -58,4 +58,11 @@ public sealed class SaveMapState
     /// <see langword="null"/> when no <c>mobile.mdy</c> file is present for this map.
     /// </summary>
     public MobileMdyFile? DynamicObjects { get; init; }
+
+    /// <summary>
+    /// Unknown or not-yet-typed files preserved under this map directory.
+    /// Paths are relative to <see cref="MapPath"/> and may include nested folders
+    /// such as <c>state/custom.bin</c>.
+    /// </summary>
+    public IReadOnlyList<(string RelativePath, byte[] Data)> UnknownFiles { get; init; } = [];
 }

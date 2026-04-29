@@ -27,7 +27,22 @@ public static class TfafFormat
     {
         var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var offset = 0;
-        WalkEntries(index.Root, string.Empty, tfafData, ref offset, result);
+        TfaiTreeTraversal.Traverse(
+            index.Root,
+            string.Empty,
+            onFile: (path, file) =>
+            {
+                var end = offset + file.Size;
+                if (end > tfafData.Length)
+                    throw new InvalidDataException(
+                        $"TFAF blob is too short: entry '{file.Name}' at offset {offset} "
+                            + $"requires {file.Size} bytes but only {tfafData.Length - offset} remain."
+                    );
+
+                result[path] = tfafData.Slice(offset, file.Size).ToArray();
+                offset = end;
+            }
+        );
         return result;
     }
 
@@ -63,7 +78,7 @@ public static class TfafFormat
     public static int TotalPayloadSize(SaveIndex index)
     {
         var total = 0;
-        CountSize(index.Root, ref total);
+        TfaiTreeTraversal.Traverse(index.Root, string.Empty, onFile: (_, file) => total += file.Size);
         return total;
     }
 
@@ -88,7 +103,21 @@ public static class TfafFormat
     public static byte[] Pack(SaveIndex index, IReadOnlyDictionary<string, byte[]> payloads)
     {
         var ordered = new List<byte[]>();
-        CollectPayloads(index.Root, string.Empty, payloads, ordered);
+        TfaiTreeTraversal.Traverse(
+            index.Root,
+            string.Empty,
+            onFile: (path, file) =>
+            {
+                if (!payloads.TryGetValue(path, out var payload))
+                    throw new KeyNotFoundException($"No payload provided for '{path}'.");
+                if (payload.Length != file.Size)
+                    throw new ArgumentException(
+                        $"Payload for '{path}' is {payload.Length} bytes but index declares {file.Size}."
+                    );
+
+                ordered.Add(payload);
+            }
+        );
         var totalSize = 0;
         foreach (var p in ordered)
             totalSize += p.Length;
@@ -100,92 +129,5 @@ public static class TfafFormat
             offset += p.Length;
         }
         return result;
-    }
-
-    private static void CollectPayloads(
-        IReadOnlyList<TfaiEntry> entries,
-        string pathPrefix,
-        IReadOnlyDictionary<string, byte[]> payloads,
-        List<byte[]> ordered
-    )
-    {
-        foreach (var entry in entries)
-        {
-            switch (entry)
-            {
-                case TfaiFileEntry file:
-                {
-                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                    if (!payloads.TryGetValue(key, out var payload))
-                        throw new KeyNotFoundException($"No payload provided for '{key}'.");
-                    if (payload.Length != file.Size)
-                        throw new ArgumentException(
-                            $"Payload for '{key}' is {payload.Length} bytes but index declares {file.Size}."
-                        );
-                    ordered.Add(payload);
-                    break;
-                }
-
-                case TfaiDirectoryEntry dir:
-                {
-                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                    CollectPayloads(dir.Children, childPrefix, payloads, ordered);
-                    break;
-                }
-            }
-        }
-    }
-
-    private static void CountSize(IReadOnlyList<TfaiEntry> entries, ref int total)
-    {
-        foreach (var entry in entries)
-        {
-            switch (entry)
-            {
-                case TfaiFileEntry file:
-                    total += file.Size;
-                    break;
-                case TfaiDirectoryEntry dir:
-                    CountSize(dir.Children, ref total);
-                    break;
-            }
-        }
-    }
-
-    private static void WalkEntries(
-        IReadOnlyList<TfaiEntry> entries,
-        string pathPrefix,
-        ReadOnlyMemory<byte> blob,
-        ref int offset,
-        Dictionary<string, byte[]> result
-    )
-    {
-        foreach (var entry in entries)
-        {
-            switch (entry)
-            {
-                case TfaiFileEntry file:
-                {
-                    var end = offset + file.Size;
-                    if (end > blob.Length)
-                        throw new InvalidDataException(
-                            $"TFAF blob is too short: entry '{file.Name}' at offset {offset} "
-                                + $"requires {file.Size} bytes but only {blob.Length - offset} remain."
-                        );
-
-                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                    result[key] = blob.Slice(offset, file.Size).ToArray();
-                    offset = end;
-                    break;
-                }
-
-                case TfaiDirectoryEntry dir:
-                {
-                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                    WalkEntries(dir.Children, childPrefix, blob, ref offset, result);
-                    break;
-                }
-            }
-        }
     }
 }

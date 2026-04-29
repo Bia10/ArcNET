@@ -285,4 +285,91 @@ public sealed class SaveGameBuilderTests
         var globals = index.Root.OfType<TfaiDirectoryEntry>().Single(static d => d.Name == "globals");
         await Assert.That(globals.Children.OfType<TfaiFileEntry>().Any(static f => f.Name == "custom.bin")).IsTrue();
     }
+
+    [Test]
+    public async Task ParseMemory_RoundTrips_UnknownMapLocalFiles()
+    {
+        var save = SaveGameBuilder.CreateNew(MakeInfo("Elsbeth"), "modules/Arcanum/maps/Map01", MakePc("Elsbeth"));
+        byte[] unknownPayload = [0xDE, 0xAD, 0xBE, 0xEF, 0x42];
+
+        var initialPayloads = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["modules/Arcanum/maps/Map01/map.jmp"] = JmpFormat.WriteToArray(new JmpFile { Jumps = [] }),
+            ["modules/Arcanum/maps/Map01/mobile.mdy"] = MobileMdyFormat.WriteToArray(save.Maps[0].DynamicObjects!),
+            ["modules/Arcanum/maps/Map01/state/custom.bin"] = unknownPayload,
+        };
+
+        var initialIndex = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "modules",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "maps",
+                                    Children =
+                                    [
+                                        new TfaiDirectoryEntry
+                                        {
+                                            Name = "Map01",
+                                            Children =
+                                            [
+                                                new TfaiFileEntry
+                                                {
+                                                    Name = "map.jmp",
+                                                    Size = initialPayloads["modules/Arcanum/maps/Map01/map.jmp"].Length,
+                                                },
+                                                new TfaiFileEntry
+                                                {
+                                                    Name = "mobile.mdy",
+                                                    Size = initialPayloads[
+                                                        "modules/Arcanum/maps/Map01/mobile.mdy"
+                                                    ].Length,
+                                                },
+                                                new TfaiDirectoryEntry
+                                                {
+                                                    Name = "state",
+                                                    Children =
+                                                    [
+                                                        new TfaiFileEntry
+                                                        {
+                                                            Name = "custom.bin",
+                                                            Size = unknownPayload.Length,
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var parsed = SaveGameReader.ParseMemory(
+            SaveIndexFormat.WriteToArray(initialIndex),
+            TfafFormat.Pack(initialIndex, initialPayloads),
+            SaveInfoFormat.WriteToArray(save.Info)
+        );
+
+        var (roundTripTfai, roundTripTfaf, _) = SaveGameWriter.SaveToMemory(parsed);
+        var roundTripPayloads = TfafFormat.ExtractAll(SaveIndexFormat.ParseMemory(roundTripTfai), roundTripTfaf);
+
+        await Assert.That(roundTripPayloads.ContainsKey("modules/Arcanum/maps/Map01/state/custom.bin")).IsTrue();
+        await Assert
+            .That(roundTripPayloads["modules/Arcanum/maps/Map01/state/custom.bin"])
+            .IsEquivalentTo(unknownPayload);
+    }
 }
