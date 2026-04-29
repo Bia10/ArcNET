@@ -61,6 +61,7 @@ All code targets `net10.0` / C# 14.
   - [Discover patches at runtime](#discover-patches-at-runtime)
   - [Track patch state](#track-patch-state)
 - [ArcNET.Editor](#arcneteditor)
+    - [Open a combined editor workspace](#open-a-combined-editor-workspace)
     - [Load a save slot](#load-a-save-slot)
     - [Edit the player character](#edit-the-player-character)
     - [Edit save metadata](#edit-save-metadata)
@@ -854,6 +855,107 @@ PatchStateStore.RecordRevert(gameDir, patchSet);
 ---
 
 ## ArcNET.Editor
+
+### Open a combined editor workspace
+
+```csharp
+using ArcNET.Editor;
+
+EditorWorkspace workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+    gameDir: @"C:\Games\Arcanum",
+    new EditorWorkspaceLoadOptions
+    {
+        SaveFolder = @"C:\Games\Arcanum\modules\Arcanum\Save",
+        SaveSlotName = "Slot0001",
+    });
+
+Console.WriteLine($"Messages: {workspace.GameData.Messages.Count}");
+Console.WriteLine($"Scripts : {workspace.GameData.Scripts.Count}");
+Console.WriteLine($"Dialogs : {workspace.GameData.Dialogs.Count}");
+Console.WriteLine($"Assets  : {workspace.Assets.Count}");
+Console.WriteLine($"Has save: {workspace.HasSaveLoaded}");
+Console.WriteLine($"Install : {workspace.InstallationType}");
+Console.WriteLine($"Skipped assets: {workspace.LoadReport.SkippedAssets.Count}");
+Console.WriteLine($"Validation findings: {workspace.Validation.Issues.Count}");
+Console.WriteLine(
+    $"Validation warnings: {workspace.Validation.Issues.Count(issue => issue.Severity == EditorWorkspaceValidationSeverity.Warning)}");
+
+// Validation currently covers missing proto/script definitions, install-aware
+// proto display-name entries, broken dialog response targets, and unknown
+// script attachment slots.
+
+for (var i = 0; i < Math.Min(5, workspace.Validation.Issues.Count); i++)
+    Console.WriteLine(workspace.Validation.Issues[i]);
+
+var gameMes = workspace.Assets.Find("mes/game.mes");
+if (gameMes is not null)
+{
+    Console.WriteLine($"game.mes source kind : {gameMes.SourceKind}");
+    Console.WriteLine($"game.mes source path : {gameMes.SourcePath}");
+}
+
+var proto6051 = workspace.Index.FindProtoDefinition(6051);
+if (proto6051 is not null)
+    Console.WriteLine($"Proto 6051: {proto6051.AssetPath}");
+
+var proto6051Refs = workspace.Index.FindProtoReferences(6051);
+Console.WriteLine($"Proto 6051 reference assets: {proto6051Refs.Count}");
+
+var msg10Assets = workspace.Index.FindMessageAssets(10);
+Console.WriteLine($"Message 10 appears in {msg10Assets.Count} asset(s)");
+
+if (workspace.Index.MapNames.Count > 0)
+{
+    var firstMap = workspace.Index.MapNames[0];
+    Console.WriteLine($"First map: {firstMap}");
+    Console.WriteLine($"First map asset count: {workspace.Index.FindMapAssets(firstMap).Count}");
+}
+
+var script1Defs = workspace.Index.FindScriptDefinitions(1);
+Console.WriteLine($"Script 1 definition assets: {script1Defs.Count}");
+
+var script1Details = workspace.Index.FindScriptDetails(1);
+foreach (var script in script1Details)
+{
+    Console.WriteLine(
+        $"Script {script.ScriptId}: {script.Asset.AssetPath} => {script.ActiveAttachmentCount} active attachment(s) [{string.Join(", ", script.ActiveAttachmentPoints)}]"
+    );
+}
+
+var dialog1Defs = workspace.Index.FindDialogDefinitions(1);
+Console.WriteLine($"Dialog 1 definition assets: {dialog1Defs.Count}");
+
+var dialog1Details = workspace.Index.FindDialogDetails(1);
+foreach (var dialog in dialog1Details)
+{
+    Console.WriteLine(
+        $"Dialog {dialog.DialogId}: {dialog.Asset.AssetPath} => {dialog.EntryCount} entries, {dialog.ControlEntryCount} control entries, {dialog.MissingResponseTargetNumbers.Count} missing positive target(s)"
+    );
+}
+
+var script1Refs = workspace.Index.FindScriptReferences(1);
+Console.WriteLine($"Script 1 reference assets: {script1Refs.Count}");
+
+var artRefSample = workspace.Index.FindArtReferences(0x00112233);
+Console.WriteLine($"Art 0x00112233 reference assets: {artRefSample.Count}");
+
+if (workspace.HasSaveLoaded)
+{
+    var editor = workspace.CreateSaveEditor();
+    Console.WriteLine($"Leader: {editor.GetCurrentSaveInfo().LeaderName}");
+}
+
+// Loose or extracted content still works when you want to bypass install DATs.
+EditorWorkspace looseWorkspace = await EditorWorkspaceLoader.LoadAsync(
+    contentDirectory: @"C:\ArcanumExtracted",
+    new EditorWorkspaceLoadOptions { GameDirectory = @"C:\Games\Arcanum" });
+```
+
+The same workspace report is available from the repo CLI:
+
+```shell
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor validate "C:\Games\Arcanum" --severity warning --top 20
+```
 
 ### Load a save slot
 

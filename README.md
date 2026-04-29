@@ -6,30 +6,32 @@
 [![codecov](https://codecov.io/gh/Bia10/ArcNET/branch/main/graph/badge.svg)](https://codecov.io/gh/Bia10/ArcNET)
 [![License](https://img.shields.io/github/license/Bia10/ArcNET)](https://github.com/Bia10/ArcNET/blob/main/LICENSE)
 
-Read/write SDK for **Arcanum: Of Steamworks and Magick Obscura** game data formats.
-Span-based, zero-allocation binary parsing with a UI-agnostic library API — usable from console tools, Avalonia editors, Blazor WASM, and anything in between.
+Modular SDK for **Arcanum: Of Steamworks and Magick Obscura** editors, content tooling, and save workflows.
+Span-based, low-allocation, UI-agnostic library APIs — usable from console tools, Avalonia editors, Blazor WASM, and anything in between.
 
 ⭐ Please star this project if you find it useful. ⭐
 
-[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](docs/examples.md) · [Public API](docs/PublicApi.md)
+[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](docs/examples.md) · [Editor SDK Roadmap](docs/EditorSdkRoadmap.md) · [Public API](docs/PublicApi.md)
 
 ---
 
 ## Packages
 
-| Package | NuGet | Status | Description |
+| Package | NuGet | Description | Status |
 |---|---|---|---|
-| `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | ✅ Ready | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`, `PrefixedString`) |
-| `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | ✅ Ready | Full game-object model — 22 typed data classes with explicit `Read` + `Write` |
-| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | ✅ Ready | Binary format parsers/writers for MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP |
-| `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | ✅ Ready | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support |
-| `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | ✅ Ready | `GameDataLoader` (MES, SEC, PRO, MOB wired; per-source origin tracking), `GameDataStore` with dirty tracking + GUID index + `*BySource` maps, `GameDataSaver` (preserves file origins), `GameDataExporter` (AOT-safe JSON) |
-| `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | ✅ Ready | HighRes patch configuration, installer, and uninstaller |
-| `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | ✅ Ready | Human-readable text dumpers for all game data formats (MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP) |
-| `ArcNET.BinaryPatch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | ✅ Ready | JSON-driven binary patching for bug fixes and mod authoring — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify |
-| `ArcNET.Editor` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Editor?label=NuGet)](https://www.nuget.org/packages/ArcNET.Editor) | ✅ Ready | Save-game editing pipeline (`LoadedSave`, `SaveGameEditor`, `SaveGameLoader`, `SaveGameWriter`) for player and `.gsi` metadata edits, plus fluent builders (`MobDataBuilder`, `CharacterBuilder`, `DialogBuilder`, `SectorBuilder`, `ScriptBuilder`) |
+| `ArcNET.Core` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`, `PrefixedString`) | 🚧 WIP |
+| `ArcNET.GameObjects` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameObjects?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameObjects) | Full game-object model — 22 typed data classes with explicit `Read` + `Write` | 🚧 WIP |
+| `ArcNET.Formats` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | Binary format parsers/writers for content, archives, and save-game formats including MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, TFAI, TFAF, GSI, TMF, and structural save-global files | 🚧 WIP |
+| `ArcNET.Archive` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support | 🚧 WIP |
+| `ArcNET.GameData` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | `GameDataLoader`, `GameDataStore`, `GameDataSaver`, and `GameDataExporter` for loose/extracted content workflows with preserved relative source paths and per-source MES/SEC/PRO/MOB/SCR/DLG tracking | 🚧 WIP |
+| `ArcNET.Patch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Patch?label=NuGet)](https://www.nuget.org/packages/ArcNET.Patch) | HighRes patch configuration, installer, and uninstaller | 🚧 WIP |
+| `ArcNET.Dumpers` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | Human-readable text dumpers for game data, archive, and save formats | 🚧 WIP |
+| `ArcNET.BinaryPatch` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | JSON-driven binary patching for bug fixes and mod authoring — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify | 🚧 WIP |
+| `ArcNET.Editor` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Editor?label=NuGet)](https://www.nuget.org/packages/ArcNET.Editor) | Unified editor workspace/session loading for real installs or loose content plus optional saves (`EditorWorkspaceLoader`), parsed asset catalog plus loose-vs-DAT provenance (`EditorWorkspace.Assets`), load diagnostics for skipped archives/assets (`EditorWorkspace.LoadReport`), cross-file workspace validation findings including install-aware proto display-name coverage (`EditorWorkspace.Validation`), map/message/proto/script/dialog/art index queries including multi-asset script/dialog definition lookup plus script/dialog semantic summaries (`EditorWorkspace.Index`), save-game editing pipeline (`LoadedSave`, `SaveGameEditor`, `SaveGameLoader`, `SaveGameWriter`), and fluent builders for authoring workflows | 🚧 WIP |
 
-All packages target `net10.0`, carry no dependencies outside the BCL, and are AOT / trim compatible.
+All packages target `net10.0` and are AOT / trim compatible. Runtime dependencies are intentionally small; the shared non-BCL package currently used across the core libraries is `Bia.ValueBuffers` for low-allocation buffer building.
+
+The NuGet packages are already consumable, but the overall SDK is still under active construction toward the full modular editor goal described in [docs/EditorSdkRoadmap.md](docs/EditorSdkRoadmap.md).
 
 ---
 
@@ -61,11 +63,11 @@ The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples
 - **ArcNET.Formats** — MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP parsers; round-trip serialization; file discovery
 - **ArcNET.Archive** — open, enumerate, extract single/all entries, read without extracting, pack a directory, TFAF sub-archive
 - **ArcNET.GameObjects** — read full game objects, read headers only, `GameObjectStore`
-- **ArcNET.GameData** — load MES/SEC/PRO/MOB from directory or in-memory buffers (per-source origin tracking), save to disk / memory restoring original filenames, dirty tracking, AOT-safe JSON export
+- **ArcNET.GameData** — load MES/SEC/PRO/MOB/SCR/DLG from directory or in-memory buffers (per-source origin tracking), save to disk / memory restoring original source paths, dirty tracking, AOT-safe JSON export
 - **ArcNET.Patch** — install / uninstall the HighRes patch, read and modify `HighResConfig`
 - **ArcNET.Dumpers** — human-readable text dumps for all parsed formats (mob, proto, sector, art, dialog, script, message, etc.)
 - **ArcNET.BinaryPatch** — JSON-driven binary patching: field-level PRO/MOB mutations, raw byte offsets, backup/revert/verify, patch state tracking
-- **ArcNET.Editor** — save-game round-trip: load a save slot into `LoadedSave`, inspect and mutate parsed mobiles / sectors / scripts, edit the player or `.gsi` metadata via `SaveGameEditor`, and write back with `SaveGameWriter`; fluent `MobDataBuilder`, `CharacterBuilder`, `DialogBuilder`, `SectorBuilder`, and `ScriptBuilder` for constructing or editing objects
+- **ArcNET.Editor** — unified editor workspace loading for real installs or loose content plus optional save slots via `EditorWorkspaceLoader`, parsed asset catalog plus winning-source provenance via `EditorWorkspace.Assets`, skipped-load diagnostics via `EditorWorkspace.LoadReport`, cross-file validation findings including install-aware proto display-name coverage via `EditorWorkspace.Validation`, map/message/proto/script/dialog/art lookup plus script attachment and dialog graph semantic summaries via `EditorWorkspace.Index`, save-game round-trip via `LoadedSave` / `SaveGameEditor`, and fluent `MobDataBuilder`, `CharacterBuilder`, `DialogBuilder`, `SectorBuilder`, and `ScriptBuilder` for constructing or editing objects
 - **ArcNET.Core** — low-level `SpanReader` / `SpanWriter`, primitive round-trips, `EnumLookup`
 
 ---

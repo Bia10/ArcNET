@@ -15,6 +15,7 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.GameData")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.GameObjects")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Patch")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Probe")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace ArcNET.Core
 {
@@ -49,17 +50,25 @@ namespace ArcNET.Core
         public SpanReader(System.ReadOnlySpan<byte> data) { }
         public int Position { get; }
         public int Remaining { get; }
+        public System.ReadOnlySpan<byte> RemainingSpan { get; }
         public int PeekInt32At(int offset) { }
+        public System.ReadOnlySpan<byte> PeekSpan(int count) { }
+        public uint PeekUInt32At(int offset) { }
         public byte ReadByte() { }
         public System.ReadOnlySpan<byte> ReadBytes(int count) { }
         public double ReadDouble() { }
         public short ReadInt16() { }
         public int ReadInt32() { }
+        public void ReadInt32Array(System.Span<int> dest) { }
         public long ReadInt64() { }
         public float ReadSingle() { }
         public ushort ReadUInt16() { }
+        public void ReadUInt16Array(System.Span<ushort> dest) { }
         public uint ReadUInt32() { }
+        public void ReadUInt32Array(System.Span<uint> dest) { }
         public ulong ReadUInt64() { }
+        public void ReadUnmanaged<T>(System.Span<T> dest)
+            where T :  unmanaged { }
         public void Skip(int count) { }
         public ArcNET.Core.SpanReader Slice(int length) { }
         public bool TryPeek(out byte value) { }
@@ -76,7 +85,7 @@ namespace ArcNET.Core
     {
         public SpanWriter(System.Buffers.IBufferWriter<byte> output) { }
         public void WriteByte(byte v) { }
-        public void WriteBytes(System.ReadOnlySpan<byte> data) { }
+        public void WriteBytes([System.Runtime.CompilerServices.ScopedRef] System.ReadOnlySpan<byte> data) { }
         public void WriteDouble(double v) { }
         public void WriteInt16(short v) { }
         public void WriteInt32(int v) { }
@@ -85,6 +94,8 @@ namespace ArcNET.Core
         public void WriteUInt16(ushort v) { }
         public void WriteUInt32(uint v) { }
         public void WriteUInt64(ulong v) { }
+        public void WriteUnmanaged<T>(System.ReadOnlySpan<T> data)
+            where T :  unmanaged { }
     }
     public static class SpanWriterExtensions
     {
@@ -94,7 +105,10 @@ namespace ArcNET.Core
         public static void WriteLocation(ref this ArcNET.Core.SpanWriter writer, in ArcNET.Core.Primitives.Location value) { }
         public static void WritePrefixedString(ref this ArcNET.Core.SpanWriter writer, in ArcNET.Core.Primitives.PrefixedString value) { }
     }
-    public static class StackAllocPolicy { }
+    public static class StackAllocPolicy
+    {
+        public const int MaxStackAllocBytes = 256;
+    }
     public delegate void WriteElement<T>(ref ArcNET.Core.SpanWriter writer, T item);
 }
 namespace ArcNET.Core.Primitives
@@ -125,12 +139,20 @@ namespace ArcNET.Core.Primitives
     }
     public readonly struct GameObjectGuid : ArcNET.Core.IBinarySerializable<ArcNET.Core.Primitives.GameObjectGuid, ArcNET.Core.SpanReader>, System.IEquatable<ArcNET.Core.Primitives.GameObjectGuid>, System.IFormattable, System.ISpanFormattable
     {
+        public const short OidTypeA = 1;
+        public const short OidTypeBlocked = -1;
+        public const short OidTypeGuid = 2;
+        public const short OidTypeHandle = -2;
+        public const short OidTypeNull = 0;
+        public const short OidTypeP = 3;
         public GameObjectGuid(short OidType, short Padding2, int Padding4, System.Guid Id) { }
         public System.Guid Id { get; init; }
         public bool IsProto { get; }
         public short OidType { get; init; }
         public short Padding2 { get; init; }
         public int Padding4 { get; init; }
+        public int? GetProtoNumber() { }
+        public string ToLabel() { }
         public override string ToString() { }
         public string ToString(string? format, System.IFormatProvider? provider) { }
         public bool TryFormat(System.Span<char> dest, out int written, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) { }
@@ -237,10 +259,10 @@ namespace ArcNET.Formats
         public required uint FrameCount { get; init; }
         public required uint FrameRate { get; init; }
         public required ArcNET.Formats.ArtFrame[][] Frames { get; init; }
-        public required int[] PaletteIds { get; init; }
-        public required ArcNET.Formats.ArtPaletteEntry[]?[] Palettes { get; init; }
         public required uint[] PaletteData1 { get; init; }
         public required uint[] PaletteData2 { get; init; }
+        public required int[] PaletteIds { get; init; }
+        public required ArcNET.Formats.ArtPaletteEntry[]?[] Palettes { get; init; }
     }
     [System.Flags]
     public enum ArtFlags : uint
@@ -250,7 +272,7 @@ namespace ArcNET.Formats
         Critter = 2u,
         Font = 4u,
     }
-    public sealed class ArtFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.ArtFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ArtFile>
+    public sealed class ArtFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.ArtFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.ArtFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.ArtFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ArtFile>
     {
         public ArtFormat() { }
         public static ArcNET.Formats.ArtFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -284,6 +306,219 @@ namespace ArcNET.Formats
         public byte Green { get; init; }
         public byte Red { get; init; }
     }
+    public static class BlockMaskExtensions
+    {
+        public static int CountBlocked(this System.ReadOnlySpan<uint> blockMask) { }
+        public static int CountBlocked(this uint[] blockMask) { }
+        public static bool IsBlocked(this System.ReadOnlySpan<uint> blockMask, int tileIndex) { }
+        public static bool IsBlocked(this uint[] blockMask, int tileIndex) { }
+        public static bool IsBlocked(this System.ReadOnlySpan<uint> blockMask, int tileX, int tileY) { }
+        public static bool IsBlocked(this uint[] blockMask, int tileX, int tileY) { }
+        public static void SetBlocked(this System.Span<uint> blockMask, int tileIndex, bool blocked) { }
+        public static void SetBlocked(this uint[] blockMask, int tileIndex, bool blocked) { }
+        public static void SetBlocked(this System.Span<uint> blockMask, int tileX, int tileY, bool blocked) { }
+        public static void SetBlocked(this uint[] blockMask, int tileX, int tileY, bool blocked) { }
+    }
+    public sealed class CharacterMdyRecord : System.IEquatable<ArcNET.Formats.CharacterMdyRecord>
+    {
+        public CharacterMdyRecord() { }
+        public int Arrows { get; }
+        public required int[] BasicSkills { get; init; }
+        public int BlessingProtoElementCount { get; init; }
+        public int[]? BlessingRaw { get; }
+        public byte[]? BlessingTsRaw { get; }
+        public int Bullets { get; }
+        public int CurseProtoElementCount { get; init; }
+        public int[]? CurseRaw { get; }
+        public byte[]? CurseTsRaw { get; }
+        public int[]? EffectCauses { get; }
+        public int[]? Effects { get; }
+        public int FatigueDamage { get; }
+        public int[]? FatigueDamageRaw { get; }
+        public int Gold { get; }
+        public required bool HasCompleteData { get; init; }
+        public int HpDamage { get; }
+        public int[]? HpDamageRaw { get; }
+        public int MaxFollowers { get; }
+        public string? Name { get; }
+        public int PortraitIndex { get; }
+        public int[]? PositionAiRaw { get; }
+        public int PowerCells { get; }
+        public int[]? QuestActiveIds { get; }
+        public int[]? QuestBitsetRaw { get; }
+        public int QuestCount { get; init; }
+        public byte[]? QuestDataRaw { get; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "ProtoId",
+                "Context",
+                "Timestamp",
+                "State"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<int, int, int, int>>? QuestEntries { get; }
+        public required byte[] RawBytes { get; init; }
+        public int[]? ReputationFactionSlots { get; }
+        public int[]? ReputationRaw { get; }
+        public int RumorsCount { get; init; }
+        public byte[]? RumorsRaw { get; }
+        public int SchematicsElementCount { get; init; }
+        public int[]? SchematicsRaw { get; }
+        public required int[] SpellTech { get; init; }
+        public required int[] Stats { get; init; }
+        public required int[] TechSkills { get; init; }
+        public int TotalKills { get; }
+        public ArcNET.Formats.CharacterMdyRecord WithArrows(int arrows) { }
+        public ArcNET.Formats.CharacterMdyRecord WithBasicSkills(int[] basicSkills) { }
+        public ArcNET.Formats.CharacterMdyRecord WithBlessingRaw(System.ReadOnlySpan<int> blessingProtoIds) { }
+        public ArcNET.Formats.CharacterMdyRecord WithBullets(int bullets) { }
+        public ArcNET.Formats.CharacterMdyRecord WithCurseRaw(System.ReadOnlySpan<int> curseProtoIds) { }
+        public ArcNET.Formats.CharacterMdyRecord WithFatigueDamage(int[] values) { }
+        public ArcNET.Formats.CharacterMdyRecord WithFatigueDamageValue(int damage) { }
+        public ArcNET.Formats.CharacterMdyRecord WithGold(int gold) { }
+        public ArcNET.Formats.CharacterMdyRecord WithHpDamage(int[] values) { }
+        public ArcNET.Formats.CharacterMdyRecord WithHpDamageValue(int damage) { }
+        public ArcNET.Formats.CharacterMdyRecord WithMaxFollowers(int maxFollowers) { }
+        public ArcNET.Formats.CharacterMdyRecord WithName(string? newName) { }
+        public ArcNET.Formats.CharacterMdyRecord WithPortraitIndex(int portraitIndex) { }
+        public ArcNET.Formats.CharacterMdyRecord WithPositionAi(int[] values) { }
+        public ArcNET.Formats.CharacterMdyRecord WithPowerCells(int powerCells) { }
+        public ArcNET.Formats.CharacterMdyRecord WithQuestDataRaw(System.ReadOnlySpan<byte> newData) { }
+        public ArcNET.Formats.CharacterMdyRecord WithQuestStateRaw(System.ReadOnlySpan<byte> newData, System.ReadOnlySpan<int> newBitset) { }
+        public ArcNET.Formats.CharacterMdyRecord WithReputationRaw(System.ReadOnlySpan<int> values) { }
+        public ArcNET.Formats.CharacterMdyRecord WithRumorsRaw(System.ReadOnlySpan<byte> newData) { }
+        public ArcNET.Formats.CharacterMdyRecord WithSchematicsRaw(System.ReadOnlySpan<int> schematicProtoIds) { }
+        public ArcNET.Formats.CharacterMdyRecord WithSpellTech(int[] spellTech) { }
+        public ArcNET.Formats.CharacterMdyRecord WithStats(int[] stats) { }
+        public ArcNET.Formats.CharacterMdyRecord WithTechSkills(int[] techSkills) { }
+        public ArcNET.Formats.CharacterMdyRecord WithTotalKills(int totalKills) { }
+        public static ArcNET.Formats.CharacterMdyRecord Parse(System.ReadOnlySpan<byte> span, out int consumed) { }
+    }
+    public static class CharacterMdyRecordBuilder
+    {
+        public static ArcNET.Formats.CharacterMdyRecord Create(int[] stats, int[] basicSkills, int[] techSkills, int[] spellTech, int gold = 0, string name = "Hero", int portraitIndex = 0, int maxFollowers = 5) { }
+    }
+    public sealed class Data2SavFile
+    {
+        public Data2SavFile() { }
+        public int Header0 { get; }
+        public int Header1 { get; }
+        public int IdPairTableEndInt { get; }
+        public required int IdPairTableStartInt { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Data2SavIdPairEntry> IdPairs { get; init; }
+        public int PrefixIntCount { get; }
+        public required byte[] RawBytes { get; init; }
+        public int SuffixIntCount { get; }
+        public int TotalInts { get; }
+        public int TrailingBytes { get; }
+        public void CopyPrefixInts(int startIndex, System.Span<int> destination) { }
+        public void CopySuffixInts(int startIndex, System.Span<int> destination) { }
+        public int GetPrefixInt(int index) { }
+        public int GetSuffixInt(int index) { }
+        public ArcNET.Formats.Data2SavFile.Builder ToBuilder() { }
+        public bool TryGetIdPairValue(int id, out int value) { }
+        public ArcNET.Formats.Data2SavFile WithIdPairValue(int id, int value) { }
+        public ArcNET.Formats.Data2SavFile WithPrefixInt(int index, int value) { }
+        public ArcNET.Formats.Data2SavFile WithPrefixInts(int startIndex, System.ReadOnlySpan<int> values) { }
+        public ArcNET.Formats.Data2SavFile WithSuffixInt(int index, int value) { }
+        public ArcNET.Formats.Data2SavFile WithSuffixInts(int startIndex, System.ReadOnlySpan<int> values) { }
+        public sealed class Builder
+        {
+            public Builder(ArcNET.Formats.Data2SavFile from) { }
+            public int Header0 { get; }
+            public int Header1 { get; }
+            public int IdPairTableEndInt { get; }
+            public int IdPairTableStartInt { get; }
+            public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Data2SavIdPairEntry> IdPairs { get; }
+            public int PrefixIntCount { get; }
+            public int SuffixIntCount { get; }
+            public int TotalInts { get; }
+            public int TrailingBytes { get; }
+            public ArcNET.Formats.Data2SavFile Build() { }
+            public void CopyPrefixInts(int startIndex, System.Span<int> destination) { }
+            public void CopySuffixInts(int startIndex, System.Span<int> destination) { }
+            public int GetPrefixInt(int index) { }
+            public int GetSuffixInt(int index) { }
+            public bool TryGetIdPairValue(int id, out int value) { }
+            public ArcNET.Formats.Data2SavFile.Builder WithIdPairValue(int id, int value) { }
+            public ArcNET.Formats.Data2SavFile.Builder WithPrefixInt(int index, int value) { }
+            public ArcNET.Formats.Data2SavFile.Builder WithPrefixInts(int startIndex, System.ReadOnlySpan<int> values) { }
+            public ArcNET.Formats.Data2SavFile.Builder WithSuffixInt(int index, int value) { }
+            public ArcNET.Formats.Data2SavFile.Builder WithSuffixInts(int startIndex, System.ReadOnlySpan<int> values) { }
+        }
+    }
+    public sealed class Data2SavFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.Data2SavFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.Data2SavFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.Data2SavFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.Data2SavFile>
+    {
+        public Data2SavFormat() { }
+        public static ArcNET.Formats.Data2SavFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.Data2SavFile ParseFile(string path) { }
+        public static ArcNET.Formats.Data2SavFile ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static void Write(in ArcNET.Formats.Data2SavFile value, ref ArcNET.Core.SpanWriter writer) { }
+        public static byte[] WriteToArray(in ArcNET.Formats.Data2SavFile value) { }
+        public static void WriteToFile(in ArcNET.Formats.Data2SavFile value, string path) { }
+    }
+    public readonly struct Data2SavIdPairEntry : System.IEquatable<ArcNET.Formats.Data2SavIdPairEntry>
+    {
+        public Data2SavIdPairEntry(int Id, int Value) { }
+        public int Id { get; init; }
+        public int Value { get; init; }
+    }
+    public sealed class DataSavFile
+    {
+        public DataSavFile() { }
+        public int Header0 { get; }
+        public int Header1 { get; }
+        public int QuadRowCount { get; }
+        public required byte[] RawBytes { get; init; }
+        public int RemainderIntCount { get; }
+        public int TotalInts { get; }
+        public int TrailingBytes { get; }
+        public void CopyQuadRows(int startRowIndex, System.Span<ArcNET.Formats.DataSavQuadRow> destination) { }
+        public void CopyRemainderInts(int startIndex, System.Span<int> destination) { }
+        public ArcNET.Formats.DataSavQuadRow GetQuadRow(int rowIndex) { }
+        public int GetRemainderInt(int index) { }
+        public ArcNET.Formats.DataSavFile.Builder ToBuilder() { }
+        public ArcNET.Formats.DataSavFile WithHeader(int header0, int header1) { }
+        public ArcNET.Formats.DataSavFile WithQuadRow(int rowIndex, ArcNET.Formats.DataSavQuadRow row) { }
+        public ArcNET.Formats.DataSavFile WithQuadRows(int startRowIndex, System.ReadOnlySpan<ArcNET.Formats.DataSavQuadRow> rows) { }
+        public ArcNET.Formats.DataSavFile WithRemainderInt(int index, int value) { }
+        public ArcNET.Formats.DataSavFile WithRemainderInts(int startIndex, System.ReadOnlySpan<int> values) { }
+        public sealed class Builder
+        {
+            public Builder(ArcNET.Formats.DataSavFile from) { }
+            public int Header0 { get; }
+            public int Header1 { get; }
+            public int QuadRowCount { get; }
+            public int RemainderIntCount { get; }
+            public int TotalInts { get; }
+            public int TrailingBytes { get; }
+            public ArcNET.Formats.DataSavFile Build() { }
+            public void CopyQuadRows(int startRowIndex, System.Span<ArcNET.Formats.DataSavQuadRow> destination) { }
+            public void CopyRemainderInts(int startIndex, System.Span<int> destination) { }
+            public ArcNET.Formats.DataSavQuadRow GetQuadRow(int rowIndex) { }
+            public int GetRemainderInt(int index) { }
+            public ArcNET.Formats.DataSavFile.Builder WithHeader(int header0, int header1) { }
+            public ArcNET.Formats.DataSavFile.Builder WithQuadRow(int rowIndex, ArcNET.Formats.DataSavQuadRow row) { }
+            public ArcNET.Formats.DataSavFile.Builder WithQuadRows(int startRowIndex, System.ReadOnlySpan<ArcNET.Formats.DataSavQuadRow> rows) { }
+            public ArcNET.Formats.DataSavFile.Builder WithRemainderInt(int index, int value) { }
+            public ArcNET.Formats.DataSavFile.Builder WithRemainderInts(int startIndex, System.ReadOnlySpan<int> values) { }
+        }
+    }
+    public sealed class DataSavFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.DataSavFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.DataSavFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.DataSavFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.DataSavFile>
+    {
+        public DataSavFormat() { }
+        public static ArcNET.Formats.DataSavFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.DataSavFile ParseFile(string path) { }
+        public static ArcNET.Formats.DataSavFile ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static void Write(in ArcNET.Formats.DataSavFile value, ref ArcNET.Core.SpanWriter writer) { }
+        public static byte[] WriteToArray(in ArcNET.Formats.DataSavFile value) { }
+        public static void WriteToFile(in ArcNET.Formats.DataSavFile value, string path) { }
+    }
+    public readonly struct DataSavQuadRow : System.IEquatable<ArcNET.Formats.DataSavQuadRow>
+    {
+        public DataSavQuadRow(int A, int B, int C, int D) { }
+        public int A { get; init; }
+        public int B { get; init; }
+        public int C { get; init; }
+        public int D { get; init; }
+    }
     public sealed class DialogEntry
     {
         public DialogEntry() { }
@@ -295,7 +530,7 @@ namespace ArcNET.Formats
         public required int ResponseVal { get; init; }
         public required string Text { get; init; }
     }
-    public sealed class DialogFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.DlgFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.DlgFile>
+    public sealed class DialogFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.DlgFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.DlgFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.DlgFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.DlgFile>
     {
         public DialogFormat() { }
         public static ArcNET.Formats.DlgFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -317,7 +552,7 @@ namespace ArcNET.Formats
         public uint X { get; init; }
         public uint Y { get; init; }
     }
-    public sealed class FacWalkFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.FacadeWalk>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.FacadeWalk>
+    public sealed class FacWalkFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.FacadeWalk>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.FacadeWalk>, ArcNET.Formats.IFormatReader<ArcNET.Formats.FacadeWalk>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.FacadeWalk>
     {
         public FacWalkFormat() { }
         public static ArcNET.Formats.FacadeWalk Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -360,30 +595,48 @@ namespace ArcNET.Formats
         SaveInfo = 13,
         SaveIndex = 14,
         SaveData = 15,
+        TownMapFog = 16,
     }
     public static class FileFormatExtensions
     {
         public static ArcNET.Formats.FileFormat FromExtension(string extension) { }
         public static ArcNET.Formats.FileFormat FromPath(string path) { }
     }
+    public static class FormatIo
+    {
+        public static T ParseFile<TFormat, T>(string path)
+            where TFormat : ArcNET.Formats.IFormatFileReader<T> { }
+        public static T ParseMemory<TFormat, T>(System.ReadOnlyMemory<byte> memory)
+            where TFormat : ArcNET.Formats.IFormatReader<T> { }
+        public static byte[] WriteToArray<TFormat, T>(in T value)
+            where TFormat : ArcNET.Formats.IFormatWriter<T> { }
+        public static void WriteToFile<TFormat, T>(in T value, string path)
+            where TFormat : ArcNET.Formats.IFormatFileWriter<T> { }
+    }
+    public interface IFormatFileReader<T> : ArcNET.Formats.IFormatReader<T>
+    {
+        T ParseFile(string path);
+    }
+    public interface IFormatFileWriter<T> : ArcNET.Formats.IFormatWriter<T>
+    {
+        void WriteToFile(in T value, string path);
+    }
     public interface IFormatReader<T>
     {
         T Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader);
-        T ParseFile(string path);
         T ParseMemory(System.ReadOnlyMemory<byte> memory);
     }
     public interface IFormatWriter<T>
     {
         void Write(in T value, ref ArcNET.Core.SpanWriter writer);
         byte[] WriteToArray(in T value);
-        void WriteToFile(in T value, string path);
     }
     public sealed class JmpFile
     {
         public JmpFile() { }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.JumpEntry> Jumps { get; init; }
     }
-    public sealed class JmpFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.JmpFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.JmpFile>
+    public sealed class JmpFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.JmpFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.JmpFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.JmpFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.JmpFile>
     {
         public JmpFormat() { }
         public static ArcNET.Formats.JmpFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -413,7 +666,7 @@ namespace ArcNET.Formats
         public required ulong LimitY { get; init; }
         public required int Unused { get; init; }
     }
-    public sealed class MapPropertiesFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.MapProperties>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MapProperties>
+    public sealed class MapPropertiesFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.MapProperties>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.MapProperties>, ArcNET.Formats.IFormatReader<ArcNET.Formats.MapProperties>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MapProperties>
     {
         public MapPropertiesFormat() { }
         public static ArcNET.Formats.MapProperties Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -436,7 +689,7 @@ namespace ArcNET.Formats
         public string? SoundId { get; init; }
         public string Text { get; init; }
     }
-    public sealed class MessageFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.MesFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MesFile>
+    public sealed class MessageFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.MesFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.MesFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.MesFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MesFile>
     {
         public MessageFormat() { }
         public static ArcNET.Formats.MesFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -454,7 +707,20 @@ namespace ArcNET.Formats
         public required ArcNET.GameObjects.GameObjectHeader Header { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> Properties { get; init; }
     }
-    public sealed class MobFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.MobData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MobData>
+    public static class MobDataExtensions
+    {
+        public static ArcNET.Formats.ObjectProperty? GetProperty(this ArcNET.Formats.MobData mob, ArcNET.GameObjects.ObjectField field) { }
+        public static ArcNET.Formats.ObjectProperty? GetProperty(this ArcNET.Formats.ProtoData proto, ArcNET.GameObjects.ObjectField field) { }
+        public static ArcNET.Formats.MobData RebuildHeader(this ArcNET.Formats.MobData mob) { }
+        public static ArcNET.Formats.ProtoData RebuildHeader(this ArcNET.Formats.ProtoData proto) { }
+        public static ArcNET.GameObjects.GameObject ToGameObject(this ArcNET.Formats.MobData data) { }
+        public static ArcNET.Formats.MobData ToMobData(this ArcNET.GameObjects.GameObject obj) { }
+        public static ArcNET.Formats.MobData WithProperty(this ArcNET.Formats.MobData mob, ArcNET.Formats.ObjectProperty property) { }
+        public static ArcNET.Formats.ProtoData WithProperty(this ArcNET.Formats.ProtoData proto, ArcNET.Formats.ObjectProperty property) { }
+        public static ArcNET.Formats.MobData WithoutProperty(this ArcNET.Formats.MobData mob, ArcNET.GameObjects.ObjectField field) { }
+        public static ArcNET.Formats.ProtoData WithoutProperty(this ArcNET.Formats.ProtoData proto, ArcNET.GameObjects.ObjectField field) { }
+    }
+    public sealed class MobFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.MobData>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.MobData>, ArcNET.Formats.IFormatReader<ArcNET.Formats.MobData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MobData>
     {
         public MobFormat() { }
         public static ArcNET.Formats.MobData Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -464,10 +730,71 @@ namespace ArcNET.Formats
         public static byte[] WriteToArray(in ArcNET.Formats.MobData value) { }
         public static void WriteToFile(in ArcNET.Formats.MobData value, string path) { }
     }
+    public sealed class MobileMdFile
+    {
+        public MobileMdFile() { }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobileMdRecord> Records { get; init; }
+    }
+    public sealed class MobileMdFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.MobileMdFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.MobileMdFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.MobileMdFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MobileMdFile>
+    {
+        public MobileMdFormat() { }
+        public static ArcNET.Formats.MobileMdFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.MobileMdFile ParseFile(string path) { }
+        public static ArcNET.Formats.MobileMdFile ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static void Write(in ArcNET.Formats.MobileMdFile value, ref ArcNET.Core.SpanWriter writer) { }
+        public static byte[] WriteToArray(in ArcNET.Formats.MobileMdFile value) { }
+        public static void WriteToFile(in ArcNET.Formats.MobileMdFile value, string path) { }
+    }
+    public sealed class MobileMdRecord
+    {
+        public MobileMdRecord() { }
+        public ArcNET.Formats.MobData? Data { get; init; }
+        public bool IsCompact { get; init; }
+        public required ArcNET.Core.Primitives.GameObjectGuid MapObjectId { get; init; }
+        public string? ParseNote { get; init; }
+        public required byte[] RawMobBytes { get; init; }
+        public byte[]? TailBytes { get; init; }
+        public required int Version { get; init; }
+    }
+    public sealed class MobileMdyFile
+    {
+        public MobileMdyFile() { }
+        public System.Collections.Generic.IEnumerable<ArcNET.Formats.CharacterMdyRecord> Characters { get; }
+        public System.Collections.Generic.IEnumerable<ArcNET.Formats.MobData> Mobs { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobileMdyRecord> Records { get; init; }
+    }
+    public sealed class MobileMdyFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.MobileMdyFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.MobileMdyFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.MobileMdyFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.MobileMdyFile>
+    {
+        public MobileMdyFormat() { }
+        public static ArcNET.Formats.MobileMdyFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.MobileMdyFile ParseFile(string path) { }
+        public static ArcNET.Formats.MobileMdyFile ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static void Write(in ArcNET.Formats.MobileMdyFile value, ref ArcNET.Core.SpanWriter writer) { }
+        public static byte[] WriteToArray(in ArcNET.Formats.MobileMdyFile value) { }
+        public static void WriteToFile(in ArcNET.Formats.MobileMdyFile value, string path) { }
+    }
+    public sealed class MobileMdyRecord
+    {
+        public ArcNET.Formats.CharacterMdyRecord? Character { get; }
+        [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(false, "Mob")]
+        [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(true, "Character")]
+        [get: System.Diagnostics.CodeAnalysis.MemberNotNullWhen(false, "Mob")]
+        [get: System.Diagnostics.CodeAnalysis.MemberNotNullWhen(true, "Character")]
+        public bool IsCharacter { get; }
+        [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(false, "Character")]
+        [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(true, "Mob")]
+        [get: System.Diagnostics.CodeAnalysis.MemberNotNullWhen(false, "Character")]
+        [get: System.Diagnostics.CodeAnalysis.MemberNotNullWhen(true, "Mob")]
+        public bool IsMob { get; }
+        public ArcNET.Formats.MobData? Mob { get; }
+        public static ArcNET.Formats.MobileMdyRecord FromCharacter(ArcNET.Formats.CharacterMdyRecord character) { }
+        public static ArcNET.Formats.MobileMdyRecord FromMob(ArcNET.Formats.MobData mob) { }
+    }
     public sealed class ObjectProperty
     {
         public ObjectProperty() { }
         public required ArcNET.GameObjects.ObjectField Field { get; init; }
+        public string? ParseNote { get; init; }
         public required byte[] RawBytes { get; init; }
     }
     public static class ObjectPropertyExtensions
@@ -499,9 +826,25 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.ObjectProperty WithInt64Array(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<long> values) { }
         public static ArcNET.Formats.ObjectProperty WithLocation(this ArcNET.Formats.ObjectProperty property, int x, int y) { }
         public static ArcNET.Formats.ObjectProperty WithObjectIdArray(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<System.Guid> ids) { }
+        public static ArcNET.Formats.ObjectProperty WithObjectIdArrayFull(this ArcNET.Formats.ObjectProperty property, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "OidType",
+                "ProtoOrData1",
+                "Id"})] System.ReadOnlySpan<System.ValueTuple<short, int, System.Guid>> ids) { }
         public static ArcNET.Formats.ObjectProperty WithScriptArray(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<ArcNET.Formats.ObjectPropertyScript> scripts) { }
         public static ArcNET.Formats.ObjectProperty WithString(this ArcNET.Formats.ObjectProperty property, string value) { }
         public static ArcNET.Formats.ObjectProperty WithUInt32Array(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<uint> values) { }
+    }
+    public static class ObjectPropertyFactory
+    {
+        public static ArcNET.Formats.ObjectProperty ForEmptyObjectIdArray(ArcNET.GameObjects.ObjectField field) { }
+        public static ArcNET.Formats.ObjectProperty ForFloat(ArcNET.GameObjects.ObjectField field, float value) { }
+        public static ArcNET.Formats.ObjectProperty ForInt32(ArcNET.GameObjects.ObjectField field, int value) { }
+        public static ArcNET.Formats.ObjectProperty ForInt32Array(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<int> values) { }
+        public static ArcNET.Formats.ObjectProperty ForInt64(ArcNET.GameObjects.ObjectField field, long value) { }
+        public static ArcNET.Formats.ObjectProperty ForInt64Array(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<long> values) { }
+        public static ArcNET.Formats.ObjectProperty ForLocation(ArcNET.GameObjects.ObjectField field, int tileX, int tileY) { }
+        public static ArcNET.Formats.ObjectProperty ForObjectIdArray(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<System.Guid> ids) { }
+        public static ArcNET.Formats.ObjectProperty ForString(ArcNET.GameObjects.ObjectField field, string value) { }
     }
     public readonly struct ObjectPropertyScript : System.IEquatable<ArcNET.Formats.ObjectPropertyScript>
     {
@@ -510,13 +853,17 @@ namespace ArcNET.Formats
         public uint Flags { get; init; }
         public int ScriptId { get; init; }
     }
+    [System.Runtime.CompilerServices.InlineArray(8)]
+    public struct OpTypeBuffer { }
+    [System.Runtime.CompilerServices.InlineArray(8)]
+    public struct OpValueBuffer { }
     public sealed class ProtoData
     {
         public ProtoData() { }
         public required ArcNET.GameObjects.GameObjectHeader Header { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> Properties { get; init; }
     }
-    public sealed class ProtoFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.ProtoData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ProtoData>
+    public sealed class ProtoFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.ProtoData>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.ProtoData>, ArcNET.Formats.IFormatReader<ArcNET.Formats.ProtoData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ProtoData>
     {
         public ProtoFormat() { }
         public static ArcNET.Formats.ProtoData Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -526,12 +873,67 @@ namespace ArcNET.Formats
         public static byte[] WriteToArray(in ArcNET.Formats.ProtoData value) { }
         public static void WriteToFile(in ArcNET.Formats.ProtoData value, string path) { }
     }
+    public enum SaveEngineVersion
+    {
+        Vanilla = 8,
+        ArcanumCE = 119,
+    }
+    public sealed class SaveGame
+    {
+        public SaveGame() { }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "VirtualPath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, ArcNET.Formats.Data2SavFile>> Data2SavFiles { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "VirtualPath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, ArcNET.Formats.DataSavFile>> DataSavFiles { get; init; }
+        public ArcNET.Formats.SaveEngineVersion EngineVersion { get; init; }
+        public required ArcNET.Formats.SaveInfo Info { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.SaveMapState> Maps { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "VirtualPath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, byte[]>> MessageFiles { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "VirtualPath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, byte[]>> RawFiles { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "VirtualPath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, ArcNET.Formats.TownMapFog>> TownMapFogs { get; init; }
+    }
+    public static class SaveGameBuilder
+    {
+        public static ArcNET.Formats.SaveGame CreateNew(ArcNET.Formats.SaveInfo info, ArcNET.Formats.SaveMapState map) { }
+        public static ArcNET.Formats.SaveGame CreateNew(ArcNET.Formats.SaveInfo info, string mapPath, ArcNET.Formats.CharacterMdyRecord pc) { }
+    }
+    public static class SaveGameReader
+    {
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath) { }
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath) { }
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath, string gsiPath) { }
+        public static ArcNET.Formats.SaveGame ParseMemory(System.ReadOnlyMemory<byte> tfaiData, System.ReadOnlyMemory<byte> tfafData, System.ReadOnlyMemory<byte> gsiData) { }
+    }
+    public static class SaveGameWriter
+    {
+        public static void Save(ArcNET.Formats.SaveGame save, string tfaiPath) { }
+        public static void Save(ArcNET.Formats.SaveGame save, string tfaiPath, string tfafPath) { }
+        public static void Save(ArcNET.Formats.SaveGame save, string tfaiPath, string tfafPath, string gsiPath) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Tfai",
+                "Tfaf",
+                "Gsi"})]
+        public static System.ValueTuple<byte[], byte[], byte[]> SaveToMemory(ArcNET.Formats.SaveGame save) { }
+    }
     public sealed class SaveIndex
     {
         public SaveIndex() { }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.TfaiEntry> Root { get; init; }
     }
-    public sealed class SaveIndexFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.SaveIndex>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.SaveIndex>
+    public sealed class SaveIndexFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.SaveIndex>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.SaveIndex>, ArcNET.Formats.IFormatReader<ArcNET.Formats.SaveIndex>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.SaveIndex>
     {
         public SaveIndexFormat() { }
         public static ArcNET.Formats.SaveIndex Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -555,8 +957,10 @@ namespace ArcNET.Formats
         public required int MapId { get; init; }
         public required string ModuleName { get; init; }
         public required int StoryState { get; init; }
+        public int Version { get; init; }
+        public ArcNET.Formats.SaveInfo With(string? moduleName = null, string? leaderName = null, string? displayName = null, int? mapId = default, int? gameTimeDays = default, int? gameTimeMs = default, int? leaderPortraitId = default, int? leaderLevel = default, int? leaderTileX = default, int? leaderTileY = default, int? storyState = default) { }
     }
-    public sealed class SaveInfoFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.SaveInfo>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.SaveInfo>
+    public sealed class SaveInfoFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.SaveInfo>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.SaveInfo>, ArcNET.Formats.IFormatReader<ArcNET.Formats.SaveInfo>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.SaveInfo>
     {
         public SaveInfoFormat() { }
         public static ArcNET.Formats.SaveInfo Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -565,6 +969,27 @@ namespace ArcNET.Formats
         public static void Write(in ArcNET.Formats.SaveInfo value, ref ArcNET.Core.SpanWriter writer) { }
         public static byte[] WriteToArray(in ArcNET.Formats.SaveInfo value) { }
         public static void WriteToFile(in ArcNET.Formats.SaveInfo value, string path) { }
+    }
+    public sealed class SaveMapState
+    {
+        public SaveMapState() { }
+        public ArcNET.Formats.MobileMdyFile? DynamicObjects { get; init; }
+        public ArcNET.Formats.JmpFile? JumpPoints { get; init; }
+        public required string MapPath { get; init; }
+        public ArcNET.Formats.MapProperties? Properties { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string?[]?[] {
+                "FileName",
+                "Data"})]
+        public required System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, ArcNET.Formats.Sector>> Sectors { get; init; }
+        public ArcNET.Formats.MobileMdFile? StaticDiffs { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string?[]?[] {
+                "FileName",
+                "Data"})]
+        public required System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, ArcNET.Formats.MobData>> StaticObjects { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string?[]?[] {
+                "RelativePath",
+                "Data"})]
+        public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, byte[]>> UnknownFiles { get; init; }
     }
     public sealed class ScrFile
     {
@@ -577,9 +1002,10 @@ namespace ArcNET.Formats
     }
     public readonly struct ScriptActionData : System.IEquatable<ArcNET.Formats.ScriptActionData>
     {
-        public ScriptActionData(int Type, byte[] OpTypes, int[] OpValues) { }
-        public byte[] OpTypes { get; init; }
-        public int[] OpValues { get; init; }
+        public ScriptActionData(int Type, ArcNET.Formats.OpTypeBuffer OpTypes, ArcNET.Formats.OpValueBuffer OpValues) { }
+        public ArcNET.Formats.ScriptActionType ActionType { get; }
+        public ArcNET.Formats.OpTypeBuffer OpTypes { get; init; }
+        public ArcNET.Formats.OpValueBuffer OpValues { get; init; }
         public int Type { get; init; }
     }
     public enum ScriptActionType : byte
@@ -768,11 +1194,12 @@ namespace ArcNET.Formats
     }
     public readonly struct ScriptConditionData : System.IEquatable<ArcNET.Formats.ScriptConditionData>
     {
-        public ScriptConditionData(int Type, byte[] OpTypes, int[] OpValues, ArcNET.Formats.ScriptActionData Action, ArcNET.Formats.ScriptActionData Else) { }
+        public ScriptConditionData(int Type, ArcNET.Formats.OpTypeBuffer OpTypes, ArcNET.Formats.OpValueBuffer OpValues, ArcNET.Formats.ScriptActionData Action, ArcNET.Formats.ScriptActionData Else) { }
         public ArcNET.Formats.ScriptActionData Action { get; init; }
+        public ArcNET.Formats.ScriptConditionType ConditionType { get; }
         public ArcNET.Formats.ScriptActionData Else { get; init; }
-        public byte[] OpTypes { get; init; }
-        public int[] OpValues { get; init; }
+        public ArcNET.Formats.OpTypeBuffer OpTypes { get; init; }
+        public ArcNET.Formats.OpValueBuffer OpValues { get; init; }
         public int Type { get; init; }
     }
     public enum ScriptConditionType : byte
@@ -872,7 +1299,7 @@ namespace ArcNET.Formats
         EveryItemInVicinity = 22,
         AnyItemInVicinity = 23,
     }
-    public sealed class ScriptFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.ScrFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ScrFile>
+    public sealed class ScriptFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.ScrFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.ScrFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.ScrFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.ScrFile>
     {
         public ScriptFormat() { }
         public static ArcNET.Formats.ScrFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -909,7 +1336,7 @@ namespace ArcNET.Formats
         public required int TownmapInfo { get; init; }
         public static uint GetSectorLoc(int x, int y) { }
     }
-    public sealed class SectorFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.Sector>
+    public sealed class SectorFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatReader<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.Sector>
     {
         public SectorFormat() { }
         public static ArcNET.Formats.Sector Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -919,9 +1346,8 @@ namespace ArcNET.Formats
         public static byte[] WriteToArray(in ArcNET.Formats.Sector value) { }
         public static void WriteToFile(in ArcNET.Formats.Sector value, string path) { }
     }
-    public sealed class SectorLight
+    public readonly struct SectorLight : System.IEquatable<ArcNET.Formats.SectorLight>
     {
-        public SectorLight() { }
         public required uint ArtId { get; init; }
         public required byte B { get; init; }
         public required ArcNET.Formats.SectorLightFlags Flags { get; init; }
@@ -947,9 +1373,8 @@ namespace ArcNET.Formats
         Indoor = 8u,
         Outdoor = 16u,
     }
-    public sealed class SectorSoundList
+    public readonly struct SectorSoundList : System.IEquatable<ArcNET.Formats.SectorSoundList>
     {
-        public SectorSoundList() { }
         public required int AmbientSchemeIdx { get; init; }
         public required uint Flags { get; init; }
         public required int MusicSchemeIdx { get; init; }
@@ -965,7 +1390,7 @@ namespace ArcNET.Formats
         public required float Version { get; init; }
         public required long Width { get; init; }
     }
-    public sealed class TerrainFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.TerrainData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.TerrainData>
+    public sealed class TerrainFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.TerrainData>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.TerrainData>, ArcNET.Formats.IFormatReader<ArcNET.Formats.TerrainData>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.TerrainData>
     {
         public TerrainFormat() { }
         public static ArcNET.Formats.TerrainData Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -1008,7 +1433,7 @@ namespace ArcNET.Formats
         public TextDataFile() { }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.TextDataEntry> Entries { get; init; }
     }
-    public sealed class TextDataFormat : ArcNET.Formats.IFormatReader<ArcNET.Formats.TextDataFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.TextDataFile>
+    public sealed class TextDataFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.TextDataFile>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.TextDataFile>, ArcNET.Formats.IFormatReader<ArcNET.Formats.TextDataFile>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.TextDataFile>
     {
         public TextDataFormat() { }
         public static ArcNET.Formats.TextDataFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
@@ -1048,14 +1473,31 @@ namespace ArcNET.Formats
         public TfaiFileEntry() { }
         public required int Size { get; init; }
     }
-    public sealed class TileScript
+    public readonly struct TileScript : System.IEquatable<ArcNET.Formats.TileScript>
     {
-        public TileScript() { }
         public required uint NodeFlags { get; init; }
         public required uint ScriptCounters { get; init; }
         public required uint ScriptFlags { get; init; }
         public required int ScriptNum { get; init; }
         public required uint TileId { get; init; }
+    }
+    public sealed class TownMapFog
+    {
+        public TownMapFog() { }
+        public double CoveragePercent { get; }
+        public required byte[] RawBytes { get; init; }
+        public int RevealedTiles { get; }
+        public int TotalTiles { get; }
+    }
+    public sealed class TownMapFogFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.TownMapFog>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.TownMapFog>, ArcNET.Formats.IFormatReader<ArcNET.Formats.TownMapFog>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.TownMapFog>
+    {
+        public TownMapFogFormat() { }
+        public static ArcNET.Formats.TownMapFog Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.TownMapFog ParseFile(string path) { }
+        public static ArcNET.Formats.TownMapFog ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static void Write(in ArcNET.Formats.TownMapFog value, ref ArcNET.Core.SpanWriter writer) { }
+        public static byte[] WriteToArray(in ArcNET.Formats.TownMapFog value) { }
+        public static void WriteToFile(in ArcNET.Formats.TownMapFog value, string path) { }
     }
 }```
 
@@ -1071,129 +1513,13 @@ namespace ArcNET.Formats
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.GameData")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.GameObjects.Tests")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
-namespace ArcNET.GameObjects.Classes
-{
-    public enum BasicStatType : byte
-    {
-        Gender = 0,
-        Race = 1,
-        Strength = 2,
-        Dexterity = 3,
-        Constitution = 4,
-        Beauty = 5,
-        Intelligence = 6,
-        Willpower = 7,
-        Charisma = 8,
-        Perception = 9,
-        TechPoints = 10,
-        MagickPoints = 11,
-    }
-    public enum DamageType : byte
-    {
-        Normal = 0,
-        Fatigue = 1,
-        Poison = 2,
-        Electrical = 3,
-        Fire = 4,
-    }
-    public class Entity
-    {
-        public Entity() { }
-        public int AIPacket { get; set; }
-        public int Alignment { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "ArtNumber",
-                "Palette"})]
-        public System.ValueTuple<int, int> ArtNumberAndPalette { get; set; }
-        public int AutoLevelScheme { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "Stat",
-                "Value"})]
-        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.BasicStatType, int>> BasicStats { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFBlitFlags> BlitFlags { get; set; }
-        public int Category { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags> CritterFlags { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags2> CritterFlags2 { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "Type",
-                "Min",
-                "Max"})]
-        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.DamageType, int, int>> Damages { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "Id",
-                "Text"})]
-        public System.ValueTuple<int, string> Description { get; set; }
-        public int Faction { get; set; }
-        public int Fatigue { get; set; }
-        public int HitChart { get; set; }
-        public int HitPoints { get; set; }
-        public int InternalName { get; set; }
-        public int InventorySource { get; set; }
-        public int Level { get; set; }
-        public int Material { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFNpcFlags> NpcFlags { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFFlags> ObjectFlags { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "Type",
-                "Value"})]
-        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.ResistanceType, int>> Resistances { get; set; }
-        public int Scale { get; set; }
-        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "A",
-                "B",
-                "C",
-                "D",
-                "E",
-                "F"})]
-        public System.Collections.Generic.List<System.ValueTuple<int, int, int, int, int, int>> Scripts { get; set; }
-        public int SoundBank { get; set; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFSpellFlags> SpellFlags { get; set; }
-        public System.Collections.Generic.List<string> Spells { get; set; }
-    }
-    public sealed class InventorySource
-    {
-        public InventorySource() { }
-        public System.Collections.Generic.List<ArcNET.GameObjects.Classes.InventorySourceEntry> Entries { get; set; }
-        public int Id { get; set; }
-        public string Name { get; set; }
-    }
-    public sealed class InventorySourceBuy
-    {
-        public InventorySourceBuy() { }
-        public System.Collections.Generic.List<ArcNET.GameObjects.Classes.InventorySourceBuyEntry> Entries { get; set; }
-        public int Id { get; set; }
-        public string Name { get; set; }
-    }
-    public sealed class InventorySourceBuyEntry : System.IEquatable<ArcNET.GameObjects.Classes.InventorySourceBuyEntry>
-    {
-        public InventorySourceBuyEntry(int PrototypeId) { }
-        public int PrototypeId { get; init; }
-    }
-    public sealed class InventorySourceEntry : System.IEquatable<ArcNET.GameObjects.Classes.InventorySourceEntry>
-    {
-        public InventorySourceEntry(int PrototypeId, double DropChance) { }
-        public double DropChance { get; init; }
-        public int PrototypeId { get; init; }
-    }
-    public sealed class Monster : ArcNET.GameObjects.Classes.Entity
-    {
-        public Monster() { }
-    }
-    public enum ResistanceType : byte
-    {
-        Damage = 0,
-        Fire = 1,
-        Electrical = 2,
-        Poison = 3,
-        Magic = 4,
-    }
-    public sealed class Unique : ArcNET.GameObjects.Classes.Entity
-    {
-        public Unique() { }
-    }
-}
 namespace ArcNET.GameObjects
 {
+    public static class BitArrayObjectExtensions
+    {
+        public static bool HasField(this byte[] bitmap, ArcNET.GameObjects.ObjectField field) { }
+        public static void SetField(this byte[] bitmap, ArcNET.GameObjects.ObjectField field, bool value) { }
+    }
     public sealed class GameObject : ArcNET.GameObjects.IGameObject
     {
         public GameObject() { }
@@ -1203,26 +1529,28 @@ namespace ArcNET.GameObjects
         public ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; }
         public ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; }
         public ArcNET.GameObjects.ObjectType Type { get; }
+        public byte[] WriteToArray() { }
         public static ArcNET.GameObjects.GameObject Read(ref ArcNET.Core.SpanReader reader) { }
     }
     public sealed class GameObjectHeader
     {
         public GameObjectHeader() { }
-        public required System.Collections.BitArray Bitmap { get; init; }
+        public required byte[] Bitmap { get; init; }
         public required ArcNET.GameObjects.ObjectType GameObjectType { get; init; }
+        public bool IsOriginalVersion { get; }
         public bool IsPrototype { get; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
         public short PropCollectionItems { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
         public required int Version { get; init; }
     }
-    public sealed class GameObjectScript : ArcNET.Core.IBinarySerializable<ArcNET.GameObjects.GameObjectScript, ArcNET.Core.SpanReader>
+    public readonly struct GameObjectScript : ArcNET.Core.IBinarySerializable<ArcNET.GameObjects.GameObjectScript, ArcNET.Core.SpanReader>, System.IEquatable<ArcNET.GameObjects.GameObjectScript>
     {
-        public GameObjectScript() { }
-        public required byte[] Counters { get; init; }
-        public required int Flags { get; init; }
+        public GameObjectScript(uint Counters, int Flags, int ScriptId) { }
+        public uint Counters { get; init; }
+        public int Flags { get; init; }
         public bool IsEmpty { get; }
-        public required int ScriptId { get; init; }
+        public int ScriptId { get; init; }
         public void Write(ref ArcNET.Core.SpanWriter writer) { }
         public static ArcNET.GameObjects.GameObjectScript Read(ref ArcNET.Core.SpanReader reader) { }
     }
@@ -1567,6 +1895,29 @@ namespace ArcNET.GameObjects
         ObjFPadFloat1 = 38,
         ObjFRadius = 39,
         ObjFHeight = 40,
+        ObjFConditions = 41,
+        ObjFConditionArg0 = 42,
+        ObjFPermanentMods = 43,
+        ObjFInitiative = 44,
+        ObjFDispatcher = 45,
+        ObjFSubinitiative = 46,
+        ObjFSecretdoorFlags = 47,
+        ObjFSecretdoorEffectName = 48,
+        ObjFSecretdoorDc = 49,
+        ObjFPadI7 = 50,
+        ObjFPadI8 = 51,
+        ObjFPadI9 = 52,
+        ObjFPadI0 = 53,
+        ObjFOffsetZ = 54,
+        ObjFRotationPitch = 55,
+        ObjFPadF3 = 56,
+        ObjFPadF4 = 57,
+        ObjFPadF5 = 58,
+        ObjFPadF6 = 59,
+        ObjFPadF7 = 60,
+        ObjFPadF8 = 61,
+        ObjFPadF9 = 62,
+        ObjFPadF0 = 63,
         ObjFWallFlags = 64,
         ObjFWallPadI1 = 65,
         ObjFWallPadI2 = 66,
@@ -1801,7 +2152,11 @@ namespace ArcNET.GameObjects
         ObjFNpcGeneratorData = 149,
         ObjFNpcPadI1 = 150,
         ObjFNpcDamageIdx = 151,
-        ObjFNpcShitListIdx = 152,
+        ObjFNpcHostileListIdx = 152,
+    }
+    public static class ObjectFieldBitmapSize
+    {
+        public static int For(ArcNET.GameObjects.ObjectType type) { }
     }
     public enum ObjectType : byte
     {
@@ -1825,372 +2180,412 @@ namespace ArcNET.GameObjects
         Trap = 17,
     }
 }
+namespace ArcNET.GameObjects.Classes
+{
+    public enum BasicStatType : byte
+    {
+        Gender = 0,
+        Race = 1,
+        Strength = 2,
+        Dexterity = 3,
+        Constitution = 4,
+        Beauty = 5,
+        Intelligence = 6,
+        Willpower = 7,
+        Charisma = 8,
+        Perception = 9,
+        TechPoints = 10,
+        MagickPoints = 11,
+    }
+    public enum DamageType : byte
+    {
+        Normal = 0,
+        Fatigue = 1,
+        Poison = 2,
+        Electrical = 3,
+        Fire = 4,
+    }
+    public class Entity
+    {
+        public Entity() { }
+        public int AIPacket { get; init; }
+        public int Alignment { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "ArtNumber",
+                "Palette"})]
+        public System.ValueTuple<int, int> ArtNumberAndPalette { get; init; }
+        public int AutoLevelScheme { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Stat",
+                "Value"})]
+        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.BasicStatType, int>> BasicStats { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFBlitFlags> BlitFlags { get; init; }
+        public int Category { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags> CritterFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags2> CritterFlags2 { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Type",
+                "Min",
+                "Max"})]
+        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.DamageType, int, int>> Damages { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Id",
+                "Text"})]
+        public System.ValueTuple<int, string> Description { get; init; }
+        public int Faction { get; init; }
+        public int Fatigue { get; init; }
+        public int HitChart { get; init; }
+        public int HitPoints { get; init; }
+        public int InternalName { get; init; }
+        public int InventorySource { get; init; }
+        public int Level { get; init; }
+        public int Material { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFNpcFlags> NpcFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFFlags> ObjectFlags { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Type",
+                "Value"})]
+        public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.ResistanceType, int>> Resistances { get; init; }
+        public int Scale { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "A",
+                "B",
+                "C",
+                "D",
+                "E",
+                "F"})]
+        public System.Collections.Generic.List<System.ValueTuple<int, int, int, int, int, int>> Scripts { get; init; }
+        public int SoundBank { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFSpellFlags> SpellFlags { get; init; }
+        public System.Collections.Generic.List<string> Spells { get; init; }
+    }
+    public sealed class InventorySource
+    {
+        public InventorySource() { }
+        public System.Collections.Generic.List<ArcNET.GameObjects.Classes.InventorySourceEntry> Entries { get; set; }
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+    public sealed class InventorySourceBuy
+    {
+        public InventorySourceBuy() { }
+        public System.Collections.Generic.List<ArcNET.GameObjects.Classes.InventorySourceBuyEntry> Entries { get; set; }
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+    public sealed class InventorySourceBuyEntry : System.IEquatable<ArcNET.GameObjects.Classes.InventorySourceBuyEntry>
+    {
+        public InventorySourceBuyEntry(int PrototypeId) { }
+        public int PrototypeId { get; init; }
+    }
+    public sealed class InventorySourceEntry : System.IEquatable<ArcNET.GameObjects.Classes.InventorySourceEntry>
+    {
+        public InventorySourceEntry(int PrototypeId, double DropChance) { }
+        public double DropChance { get; init; }
+        public int PrototypeId { get; init; }
+    }
+    public sealed class Monster : ArcNET.GameObjects.Classes.Entity
+    {
+        public Monster() { }
+    }
+    public enum ResistanceType : byte
+    {
+        Damage = 0,
+        Fire = 1,
+        Electrical = 2,
+        Poison = 3,
+        Magic = 4,
+    }
+    public sealed class Unique : ArcNET.GameObjects.Classes.Entity
+    {
+        public Unique() { }
+    }
+}
 namespace ArcNET.GameObjects.Types
 {
     public sealed class ObjectAmmo : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectAmmo() { }
-        public int AmmoFlags { get; set; }
-        public int AmmoPadI1 { get; set; }
-        public int AmmoPadI2 { get; set; }
-        public long AmmoPadI64As1 { get; set; }
-        public int AmmoPadIas1 { get; set; }
-        public int AmmoQuantity { get; set; }
-        public int AmmoType { get; set; }
+        public int AmmoFlags { get; }
+        public int Quantity { get; }
+        public int Type { get; }
     }
     public sealed class ObjectArmor : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectArmor() { }
-        public int ArmorAcAdj { get; set; }
-        public int ArmorFlags { get; set; }
-        public int ArmorMagicAcAdj { get; set; }
-        public int[] ArmorMagicResistanceAdj { get; set; }
-        public int ArmorMagicSilentMoveAdj { get; set; }
-        public int ArmorPadI2 { get; set; }
-        public long ArmorPadI64As1 { get; set; }
-        public int ArmorPadIas1 { get; set; }
-        public int ArmorPaperDollAid { get; set; }
-        public int[] ArmorResistanceAdj { get; set; }
-        public int ArmorSilentMoveAdj { get; set; }
-        public int ArmorUnarmedBonusDamage { get; set; }
+        public int AcAdj { get; }
+        public ArcNET.GameObjects.ObjFArmorFlags ArmorFlags { get; }
+        public int MagicAcAdj { get; }
+        public int[] MagicResistanceAdj { get; }
+        public int MagicSilentMoveAdj { get; }
+        public int PaperDollAid { get; }
+        public int[] ResistanceAdj { get; }
+        public int SilentMoveAdj { get; }
+        public int UnarmedBonusDamage { get; }
     }
-    public class ObjectCommon
+    public abstract class ObjectCommon
     {
-        public ObjectCommon() { }
-        public int Ac { get; set; }
-        public ArcNET.Core.Primitives.ArtId Aid { get; set; }
-        public int BlitAlpha { get; set; }
-        public ArcNET.Core.Primitives.Color BlitColor { get; set; }
-        public int BlitFlags { get; set; }
-        public int BlitScale { get; set; }
-        public int BlockingMask { get; set; }
-        public int Category { get; set; }
-        public ArcNET.Core.Primitives.ArtId CurrentAid { get; set; }
-        public int Description { get; set; }
-        public ArcNET.Core.Primitives.ArtId DestroyedAid { get; set; }
-        public int Flags { get; set; }
-        public int HpAdj { get; set; }
-        public int HpDamage { get; set; }
-        public int HpPts { get; set; }
-        public ArcNET.Core.Primitives.ArtId LightAid { get; set; }
-        public ArcNET.Core.Primitives.Color LightColor { get; set; }
-        public int LightFlags { get; set; }
-        public ArcNET.Core.Primitives.Location? Location { get; set; }
-        public int Material { get; set; }
-        public int Name { get; set; }
-        public int OffsetX { get; set; }
-        public int OffsetY { get; set; }
-        public int[] OverlayBack { get; set; }
-        public int[] OverlayFore { get; set; }
-        public int[] OverlayLightAid { get; set; }
-        public int OverlayLightColor { get; set; }
-        public int OverlayLightFlags { get; set; }
-        public long PadI64As1 { get; set; }
-        public int PadIas1 { get; set; }
-        public int[] ResistanceIdx { get; set; }
-        public ArcNET.GameObjects.GameObjectScript[] ScriptsIdx { get; set; }
-        public ArcNET.Core.Primitives.ArtId Shadow { get; set; }
-        public int SoundEffect { get; set; }
-        public int SpellFlags { get; set; }
-        public int[] Underlay { get; set; }
-        protected void ReadCommonFields(ref ArcNET.Core.SpanReader reader, System.Collections.BitArray bitmap, bool isPrototype) { }
-        protected void WriteCommonFields(ref ArcNET.Core.SpanWriter writer, System.Collections.BitArray bitmap, bool isPrototype) { }
+        protected ObjectCommon() { }
+        public int Ac { get; }
+        public ArcNET.Core.Primitives.ArtId Aid { get; }
+        public int BlitAlpha { get; }
+        public ArcNET.Core.Primitives.Color BlitColor { get; }
+        public int BlitFlags { get; }
+        public int BlitScale { get; }
+        public int BlockingMask { get; }
+        public int Category { get; }
+        public ArcNET.Core.Primitives.ArtId CurrentAid { get; }
+        public int Description { get; }
+        public ArcNET.Core.Primitives.ArtId DestroyedAid { get; }
+        public int HpAdj { get; }
+        public int HpDamage { get; }
+        public int HpPts { get; }
+        public ArcNET.Core.Primitives.ArtId LightAid { get; }
+        public ArcNET.Core.Primitives.Color LightColor { get; }
+        public int LightFlags { get; }
+        public ArcNET.Core.Primitives.Location? Location { get; }
+        public int Material { get; }
+        public int Name { get; }
+        public ArcNET.GameObjects.ObjFFlags ObjectFlags { get; }
+        public int OffsetX { get; }
+        public int OffsetY { get; }
+        public int[] OverlayBack { get; }
+        public int[] OverlayFore { get; }
+        public int[] OverlayLightAid { get; }
+        public int OverlayLightColor { get; }
+        public int OverlayLightFlags { get; }
+        public int[] ResistanceIdx { get; }
+        public ArcNET.GameObjects.GameObjectScript[] ScriptsIdx { get; }
+        public ArcNET.Core.Primitives.ArtId Shadow { get; }
+        public int SoundEffect { get; }
+        public ArcNET.GameObjects.ObjFSpellFlags SpellFlags { get; }
+        public int[] Underlay { get; }
+        protected void ReadCommonFields(ref ArcNET.Core.SpanReader reader, byte[] bitmap, bool isPrototype) { }
+        protected void WriteCommonFields(ref ArcNET.Core.SpanWriter writer, byte[] bitmap, bool isPrototype) { }
     }
     public sealed class ObjectContainer : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectContainer() { }
-        public int ContainerFlags { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid[] ContainerInventoryList { get; set; }
-        public int ContainerInventoryNum { get; set; }
-        public int ContainerInventorySource { get; set; }
-        public int ContainerKeyId { get; set; }
-        public int ContainerLockDifficulty { get; set; }
-        public int ContainerNotifyNpc { get; set; }
-        public int ContainerPadI1 { get; set; }
-        public int ContainerPadI2 { get; set; }
-        public long ContainerPadI64As1 { get; set; }
-        public int ContainerPadIas1 { get; set; }
+        public ArcNET.GameObjects.ObjFContainerFlags ContainerFlags { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid[] InventoryList { get; }
+        public int InventorySource { get; }
+        public int KeyId { get; }
+        public int LockDifficulty { get; }
+        public int NotifyNpc { get; }
     }
     public class ObjectCritter : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectCritter() { }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterArrows { get; set; }
-        public int CritterAutoLevelScheme { get; set; }
-        public int[] CritterBasicSkill { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterBullets { get; set; }
-        public int CritterCritHitChart { get; set; }
-        public int CritterDeathTime { get; set; }
-        public int CritterDescriptionUnknown { get; set; }
-        public int[] CritterEffectCause { get; set; }
-        public int[] CritterEffects { get; set; }
-        public int CritterFatigueAdj { get; set; }
-        public int CritterFatigueDamage { get; set; }
-        public int CritterFatiguePts { get; set; }
-        public int CritterFlags { get; set; }
-        public int CritterFlags2 { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterFleeingFrom { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid[] CritterFollowers { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterFuel { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterGold { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid[] CritterInventoryList { get; set; }
-        public int CritterInventoryNum { get; set; }
-        public int CritterInventorySource { get; set; }
-        public int CritterPadI1 { get; set; }
-        public int CritterPadI2 { get; set; }
-        public int CritterPadI3 { get; set; }
-        public long CritterPadI64As1 { get; set; }
-        public int CritterPadIas1 { get; set; }
-        public int CritterPortrait { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid CritterPowerCells { get; set; }
-        public int[] CritterSpellTech { get; set; }
-        public int[] CritterStatBase { get; set; }
-        public int[] CritterTechSkill { get; set; }
-        public ArcNET.Core.Primitives.Location CritterTeleportDest { get; set; }
-        public int CritterTeleportMap { get; set; }
-        protected void ReadCritterFields(ref ArcNET.Core.SpanReader reader, System.Collections.BitArray bitmap, bool isPrototype) { }
-        protected void WriteCritterFields(ref ArcNET.Core.SpanWriter writer, System.Collections.BitArray bitmap, bool isPrototype) { }
+        public int CritterArrows { get; }
+        public int CritterAutoLevelScheme { get; }
+        public int[] CritterBasicSkill { get; }
+        public int CritterBullets { get; }
+        public int CritterCritHitChart { get; }
+        public int CritterDeathTime { get; }
+        public int CritterDescriptionUnknown { get; }
+        public int[] CritterEffectCause { get; }
+        public int[] CritterEffects { get; }
+        public int CritterFatigueAdj { get; }
+        public int CritterFatigueDamage { get; }
+        public int CritterFatiguePts { get; }
+        public ArcNET.GameObjects.ObjFCritterFlags CritterFlags { get; }
+        public ArcNET.GameObjects.ObjFCritterFlags2 CritterFlags2 { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterFleeingFrom { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid[] CritterFollowers { get; }
+        public int CritterFuel { get; }
+        public int CritterGold { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid[] CritterInventoryList { get; }
+        public int CritterInventorySource { get; }
+        public int CritterPortrait { get; }
+        public int CritterPowerCells { get; }
+        public int[] CritterSpellTech { get; }
+        public int[] CritterStatBase { get; }
+        public int[] CritterTechSkill { get; }
+        public ArcNET.Core.Primitives.Location CritterTeleportDest { get; }
+        public int CritterTeleportMap { get; }
+        protected void ReadCritterFields(ref ArcNET.Core.SpanReader reader, byte[] bitmap, bool isPrototype) { }
+        protected void WriteCritterFields(ref ArcNET.Core.SpanWriter writer, byte[] bitmap, bool isPrototype) { }
     }
     public sealed class ObjectFood : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectFood() { }
-        public int FoodFlags { get; set; }
-        public int FoodPadI1 { get; set; }
-        public int FoodPadI2 { get; set; }
-        public long FoodPadI64As1 { get; set; }
-        public int FoodPadIas1 { get; set; }
+        public int FoodFlags { get; }
     }
     public sealed class ObjectGeneric : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectGeneric() { }
-        public int GenericFlags { get; set; }
-        public long GenericPadI64As1 { get; set; }
-        public int GenericPadIas1 { get; set; }
-        public int GenericUsageBonus { get; set; }
-        public int GenericUsageCountRemaining { get; set; }
+        public int GenericFlags { get; }
+        public int UsageBonus { get; }
+        public int UsageCountRemaining { get; }
     }
     public sealed class ObjectGold : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectGold() { }
-        public int GoldFlags { get; set; }
-        public int GoldPadI1 { get; set; }
-        public int GoldPadI2 { get; set; }
-        public long GoldPadI64As1 { get; set; }
-        public int GoldPadIas1 { get; set; }
-        public int GoldQuantity { get; set; }
+        public int GoldFlags { get; }
+        public int Quantity { get; }
     }
     public class ObjectItem : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectItem() { }
-        public int ItemAiAction { get; set; }
-        public int ItemDescriptionEffects { get; set; }
-        public int ItemDescriptionUnknown { get; set; }
-        public int ItemDiscipline { get; set; }
-        public int ItemFlags { get; set; }
-        public int ItemInvAid { get; set; }
-        public int ItemInvLocation { get; set; }
-        public int ItemMagicTechComplexity { get; set; }
-        public int ItemMagicWeightAdj { get; set; }
-        public int ItemManaStore { get; set; }
-        public int ItemPadI1 { get; set; }
-        public long ItemPadI64As1 { get; set; }
-        public int ItemPadIas1 { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid ItemParent { get; set; }
-        public int ItemSpell1 { get; set; }
-        public int ItemSpell2 { get; set; }
-        public int ItemSpell3 { get; set; }
-        public int ItemSpell4 { get; set; }
-        public int ItemSpell5 { get; set; }
-        public int ItemSpellManaStore { get; set; }
-        public int ItemUseAidFragment { get; set; }
-        public int ItemWeight { get; set; }
-        public int ItemWorth { get; set; }
-        protected void ReadItemFields(ref ArcNET.Core.SpanReader reader, System.Collections.BitArray bitmap, bool isPrototype) { }
-        protected void WriteItemFields(ref ArcNET.Core.SpanWriter writer, System.Collections.BitArray bitmap, bool isPrototype) { }
+        public int ItemAiAction { get; }
+        public int ItemDescriptionEffects { get; }
+        public int ItemDescriptionUnknown { get; }
+        public int ItemDiscipline { get; }
+        public ArcNET.GameObjects.ObjFItemFlags ItemFlags { get; }
+        public int ItemInvAid { get; }
+        public int ItemInvLocation { get; }
+        public int ItemMagicTechComplexity { get; }
+        public int ItemMagicWeightAdj { get; }
+        public int ItemManaStore { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid ItemParent { get; }
+        public int ItemSpell1 { get; }
+        public int ItemSpell2 { get; }
+        public int ItemSpell3 { get; }
+        public int ItemSpell4 { get; }
+        public int ItemSpell5 { get; }
+        public int ItemSpellManaStore { get; }
+        public int ItemUseAidFragment { get; }
+        public int ItemWeight { get; }
+        public int ItemWorth { get; }
+        protected void ReadItemFields(ref ArcNET.Core.SpanReader reader, byte[] bitmap, bool isPrototype) { }
+        protected void WriteItemFields(ref ArcNET.Core.SpanWriter writer, byte[] bitmap, bool isPrototype) { }
     }
     public sealed class ObjectKey : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectKey() { }
-        public int KeyKeyId { get; set; }
-        public int KeyPadI1 { get; set; }
-        public int KeyPadI2 { get; set; }
-        public long KeyPadI64As1 { get; set; }
-        public int KeyPadIas1 { get; set; }
+        public int KeyId { get; }
     }
     public sealed class ObjectKeyRing : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectKeyRing() { }
-        public int KeyRingFlags { get; set; }
-        public int[] KeyRingList { get; set; }
-        public int KeyRingPadI1 { get; set; }
-        public int KeyRingPadI2 { get; set; }
-        public long KeyRingPadI64As1 { get; set; }
-        public int KeyRingPadIas1 { get; set; }
+        public int KeyRingFlags { get; }
+        public int[] List { get; }
     }
     public sealed class ObjectNpc : ArcNET.GameObjects.Types.ObjectCritter
     {
         public ObjectNpc() { }
-        public int NpcAiData { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid NpcCombatFocus { get; set; }
-        public int[] NpcDamage { get; set; }
-        public int NpcExperiencePool { get; set; }
-        public int NpcExperienceWorth { get; set; }
-        public int NpcFaction { get; set; }
-        public int NpcFlags { get; set; }
-        public int NpcGeneratorData { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid NpcLeader { get; set; }
-        public int NpcOrigin { get; set; }
-        public int NpcPadI1 { get; set; }
-        public int NpcReactionBase { get; set; }
-        public int[] NpcReactionLevel { get; set; }
-        public int[] NpcReactionPc { get; set; }
-        public int[] NpcReactionTime { get; set; }
-        public int NpcRetailPriceMultiplier { get; set; }
-        public int[] NpcShitList { get; set; }
-        public int NpcSocialClass { get; set; }
-        public ArcNET.Core.Primitives.Location NpcStandpointDay { get; set; }
-        public ArcNET.Core.Primitives.Location NpcStandpointNight { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid NpcSubstituteInventory { get; set; }
-        public int NpcWait { get; set; }
-        public int NpcWaypointCurrent { get; set; }
-        public ArcNET.Core.Primitives.Location[] NpcWaypoints { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid NpcWhoHitMeLast { get; set; }
+        public int AiData { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CombatFocus { get; }
+        public int[] Damage { get; }
+        public int ExperiencePool { get; }
+        public int ExperienceWorth { get; }
+        public int Faction { get; }
+        public int GeneratorData { get; }
+        public int[] HostileList { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid Leader { get; }
+        public ArcNET.GameObjects.ObjFNpcFlags NpcFlags { get; }
+        public int Origin { get; }
+        public int ReactionBase { get; }
+        public int[] ReactionLevel { get; }
+        public int[] ReactionPc { get; }
+        public int[] ReactionTime { get; }
+        public int RetailPriceMultiplier { get; }
+        public int SocialClass { get; }
+        public ArcNET.Core.Primitives.Location StandpointDay { get; }
+        public ArcNET.Core.Primitives.Location StandpointNight { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid SubstituteInventory { get; }
+        public int Wait { get; }
+        public int WaypointCurrent { get; }
+        public ArcNET.Core.Primitives.Location[] Waypoints { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid WhoHitMeLast { get; }
     }
     public sealed class ObjectPc : ArcNET.GameObjects.Types.ObjectCritter
     {
         public ObjectPc() { }
-        public int PcBackground { get; set; }
-        public int PcBackgroundText { get; set; }
-        public int PcBankMoney { get; set; }
-        public int[] PcBlessing { get; set; }
-        public int[] PcBlessingTs { get; set; }
-        public int[] PcCurse { get; set; }
-        public int[] PcCurseTs { get; set; }
-        public int PcFlags { get; set; }
-        public int PcFlagsFate { get; set; }
-        public int PcFogMask { get; set; }
-        public int[] PcGlobalFlags { get; set; }
-        public int[] PcGlobalVariables { get; set; }
-        public int[] PcLogbookEgo { get; set; }
-        public int PcPadI1 { get; set; }
-        public int PcPadI2 { get; set; }
-        public long PcPadI64As1 { get; set; }
-        public int PcPadIas1 { get; set; }
-        public int PcPadIas2 { get; set; }
-        public int PcPartyId { get; set; }
-        public ArcNET.Core.Primitives.PrefixedString PcPlayerName { get; set; }
-        public int[] PcQuest { get; set; }
-        public int[] PcReputation { get; set; }
-        public int[] PcReputationTs { get; set; }
-        public int[] PcRumor { get; set; }
-        public int[] PcSchematicsFound { get; set; }
+        public int Background { get; }
+        public int BackgroundText { get; }
+        public int BankMoney { get; }
+        public int[] Blessing { get; }
+        public int[] BlessingTs { get; }
+        public int[] Curse { get; }
+        public int[] CurseTs { get; }
+        public int FateFlags { get; }
+        public int FogMask { get; }
+        public int[] GlobalFlags { get; }
+        public int[] GlobalVariables { get; }
+        public int[] LogbookEgo { get; }
+        public int PartyId { get; }
+        public int PcFlags { get; }
+        public ArcNET.Core.Primitives.PrefixedString PlayerName { get; }
+        public int[] Quest { get; }
+        public int[] Reputation { get; }
+        public int[] ReputationTs { get; }
+        public int[] Rumor { get; }
+        public int[] SchematicsFound { get; }
     }
     public sealed class ObjectPortal : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectPortal() { }
-        public int PortalFlags { get; set; }
-        public int PortalKeyId { get; set; }
-        public int PortalLockDifficulty { get; set; }
-        public int PortalNotifyNpc { get; set; }
-        public int PortalPadI1 { get; set; }
-        public int PortalPadI2 { get; set; }
-        public long PortalPadI64As1 { get; set; }
-        public int PortalPadIas1 { get; set; }
+        public int KeyId { get; }
+        public int LockDifficulty { get; }
+        public int NotifyNpc { get; }
+        public ArcNET.GameObjects.ObjFPortalFlags PortalFlags { get; }
     }
     public sealed class ObjectProjectile : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectProjectile() { }
-        public int ProjectileFlagsCombat { get; set; }
-        public int ProjectileFlagsCombatDamage { get; set; }
-        public ArcNET.Core.Primitives.Location ProjectileHitLoc { get; set; }
-        public int ProjectilePadI1 { get; set; }
-        public int ProjectilePadI2 { get; set; }
-        public long ProjectilePadI64As1 { get; set; }
-        public int ProjectilePadIas1 { get; set; }
-        public int ProjectileParentWeapon { get; set; }
+        public int CombatDamageFlags { get; }
+        public int CombatFlags { get; }
+        public ArcNET.Core.Primitives.Location HitLoc { get; }
+        public int ParentWeapon { get; }
     }
     public sealed class ObjectScenery : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectScenery() { }
-        public int SceneryFlags { get; set; }
-        public int SceneryPadI2 { get; set; }
-        public long SceneryPadI64As1 { get; set; }
-        public int SceneryPadIas1 { get; set; }
-        public int SceneryRespawnDelay { get; set; }
-        public ArcNET.Core.Primitives.GameObjectGuid SceneryWhosInMe { get; set; }
+        public int RespawnDelay { get; }
+        public ArcNET.GameObjects.ObjFSceneryFlags SceneryFlags { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid WhosInMe { get; }
     }
     public sealed class ObjectScroll : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectScroll() { }
-        public int ScrollFlags { get; set; }
-        public int ScrollPadI1 { get; set; }
-        public int ScrollPadI2 { get; set; }
-        public long ScrollPadI64As1 { get; set; }
-        public int ScrollPadIas1 { get; set; }
+        public int ScrollFlags { get; }
     }
     public sealed class ObjectTrap : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectTrap() { }
-        public int TrapDifficulty { get; set; }
-        public int TrapFlags { get; set; }
-        public int TrapPadI2 { get; set; }
-        public long TrapPadI64As1 { get; set; }
-        public int TrapPadIas1 { get; set; }
-    }
-    public sealed class ObjectUnknown : ArcNET.GameObjects.Types.ObjectCommon
-    {
-        public ObjectUnknown() { }
+        public int Difficulty { get; }
+        public int TrapFlags { get; }
     }
     public sealed class ObjectWall : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectWall() { }
-        public int WallFlags { get; set; }
-        public int WallPadI1 { get; set; }
-        public int WallPadI2 { get; set; }
-        public long WallPadI64As1 { get; set; }
-        public int WallPadIas1 { get; set; }
+        public int WallFlags { get; }
     }
     public sealed class ObjectWeapon : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectWeapon() { }
-        public int WeaponAmmoConsumption { get; set; }
-        public int WeaponAmmoType { get; set; }
-        public int WeaponBonusToHit { get; set; }
-        public int WeaponCritHitChart { get; set; }
-        public int WeaponCritMissChart { get; set; }
-        public int[] WeaponDamageLower { get; set; }
-        public int[] WeaponDamageUpper { get; set; }
-        public int WeaponFlags { get; set; }
-        public int WeaponMagicCritHitChance { get; set; }
-        public int WeaponMagicCritHitEffect { get; set; }
-        public int WeaponMagicCritMissChance { get; set; }
-        public int WeaponMagicCritMissEffect { get; set; }
-        public int[] WeaponMagicDamageAdj { get; set; }
-        public int WeaponMagicHitAdj { get; set; }
-        public int WeaponMagicMinStrengthAdj { get; set; }
-        public int WeaponMagicRangeAdj { get; set; }
-        public int WeaponMagicSpeedAdj { get; set; }
-        public int WeaponMinStrength { get; set; }
-        public int WeaponMissileAid { get; set; }
-        public int WeaponPadI1 { get; set; }
-        public int WeaponPadI2 { get; set; }
-        public long WeaponPadI64As1 { get; set; }
-        public int WeaponPadIas1 { get; set; }
-        public int WeaponPaperDollAid { get; set; }
-        public int WeaponRange { get; set; }
-        public int WeaponSpeedFactor { get; set; }
-        public int WeaponVisualEffectAid { get; set; }
+        public int AmmoConsumption { get; }
+        public int AmmoType { get; }
+        public int BonusToHit { get; }
+        public int CritHitChart { get; }
+        public int CritMissChart { get; }
+        public int[] DamageLower { get; }
+        public int[] DamageUpper { get; }
+        public int MagicCritHitChance { get; }
+        public int MagicCritHitEffect { get; }
+        public int MagicCritMissChance { get; }
+        public int MagicCritMissEffect { get; }
+        public int[] MagicDamageAdj { get; }
+        public int MagicHitAdj { get; }
+        public int MagicMinStrengthAdj { get; }
+        public int MagicRangeAdj { get; }
+        public int MagicSpeedAdj { get; }
+        public int MinStrength { get; }
+        public int MissileAid { get; }
+        public int PaperDollAid { get; }
+        public int Range { get; }
+        public int SpeedFactor { get; }
+        public int VisualEffectAid { get; }
+        public ArcNET.GameObjects.ObjFWeaponFlags WeaponFlags { get; }
     }
     public sealed class ObjectWritten : ArcNET.GameObjects.Types.ObjectItem
     {
         public ObjectWritten() { }
-        public int WrittenFlags { get; set; }
-        public int WrittenPadI1 { get; set; }
-        public int WrittenPadI2 { get; set; }
-        public long WrittenPadI64As1 { get; set; }
-        public int WrittenPadIas1 { get; set; }
-        public int WrittenSubtype { get; set; }
-        public int WrittenTextEndLine { get; set; }
-        public int WrittenTextStartLine { get; set; }
+        public int Subtype { get; }
+        public int TextEndLine { get; }
+        public int TextStartLine { get; }
+        public int WrittenFlags { get; }
     }
 }```
 
@@ -2228,9 +2623,8 @@ namespace ArcNET.GameData
         public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromMemoryAsync(System.Collections.Generic.IReadOnlyDictionary<string, System.ReadOnlyMemory<byte>> files, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default) { }
         public static System.Collections.Generic.IReadOnlyDictionary<int, string> LoadMessages(string dirPath) { }
     }
-    public sealed class GameDataSaver
+    public static class GameDataSaver
     {
-        public GameDataSaver() { }
         public static void SaveMessagesToFile(ArcNET.GameData.GameDataStore store, string outputPath) { }
         public static byte[] SaveMessagesToMemory(ArcNET.GameData.GameDataStore store) { }
         public static void SaveMobsToDirectory(ArcNET.GameData.GameDataStore store, string outputDir) { }
@@ -2242,6 +2636,8 @@ namespace ArcNET.GameData
     public sealed class GameDataStore
     {
         public GameDataStore() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.DlgFile> Dialogs { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.DlgFile>> DialogsBySource { get; }
         public System.Collections.Generic.IReadOnlySet<ArcNET.Core.Primitives.GameObjectGuid> DirtyObjects { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MessageEntry> Messages { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MessageEntry>> MessagesBySource { get; }
@@ -2250,17 +2646,23 @@ namespace ArcNET.GameData
         public System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.GameObjectHeader> Objects { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ProtoData> Protos { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ProtoData>> ProtosBySource { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ScrFile> Scripts { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ScrFile>> ScriptsBySource { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Sector> Sectors { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Sector>> SectorsBySource { get; }
         public event System.EventHandler<ArcNET.Core.Primitives.GameObjectGuid>? ObjectChanged;
+        public void AddDialog(ArcNET.Formats.DlgFile dialog) { }
         public void AddMessage(ArcNET.Formats.MessageEntry entry) { }
         public void AddMob(ArcNET.Formats.MobData mob) { }
         public void AddObject(ArcNET.GameObjects.GameObjectHeader header) { }
         public void AddProto(ArcNET.Formats.ProtoData proto) { }
+        public void AddScript(ArcNET.Formats.ScrFile script) { }
         public void AddSector(ArcNET.Formats.Sector sector) { }
         public void Clear() { }
         public void ClearDirty() { }
         public ArcNET.GameObjects.GameObjectHeader? FindByGuid(in ArcNET.Core.Primitives.GameObjectGuid id) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.GameObjectHeader> FindByProtoId(in ArcNET.Core.Primitives.GameObjectGuid protoId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.GameObjectHeader> FindByType(ArcNET.GameObjects.ObjectType type) { }
         public void MarkDirty(in ArcNET.Core.Primitives.GameObjectGuid id) { }
     }
     public sealed class GameObjectHeaderDto : System.IEquatable<ArcNET.GameData.GameObjectHeaderDto>
@@ -2308,6 +2710,614 @@ namespace ArcNET.GameData
     }
 }```
 
+## ArcNET.Editor
+
+```csharp
+[assembly: System.CLSCompliant(false)]
+[assembly: System.Reflection.AssemblyMetadata("IsAotCompatible", "True")]
+[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
+[assembly: System.Resources.NeutralResourcesLanguage("en")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Editor.Tests")]
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace ArcNET.Editor
+{
+    public sealed class CharacterBuilder
+    {
+        public CharacterBuilder(ArcNET.Formats.MobData existing) { }
+        public CharacterBuilder(ArcNET.GameObjects.ObjectType type, ArcNET.Core.Primitives.GameObjectGuid objectId, ArcNET.Core.Primitives.GameObjectGuid protoId) { }
+        public ArcNET.Formats.MobData Build() { }
+        public ArcNET.Editor.CharacterBuilder WithBankMoney(int amount) { }
+        public ArcNET.Editor.CharacterBuilder WithBaseStats(System.ReadOnlySpan<int> stats) { }
+        public ArcNET.Editor.CharacterBuilder WithBasicSkills(System.ReadOnlySpan<int> skills) { }
+        public ArcNET.Editor.CharacterBuilder WithFatigue(int pts, int adj = 0) { }
+        public ArcNET.Editor.CharacterBuilder WithFollowers(System.ReadOnlySpan<System.Guid> followerIds) { }
+        public ArcNET.Editor.CharacterBuilder WithGold(int amount) { }
+        public ArcNET.Editor.CharacterBuilder WithHitPoints(int pts, int adj = 0) { }
+        public ArcNET.Editor.CharacterBuilder WithHpDamage(int damage) { }
+        public ArcNET.Editor.CharacterBuilder WithInventory(System.ReadOnlySpan<System.Guid> itemIds) { }
+        public ArcNET.Editor.CharacterBuilder WithLocation(int tileX, int tileY) { }
+        public ArcNET.Editor.CharacterBuilder WithPlayerName(string name) { }
+        public ArcNET.Editor.CharacterBuilder WithPortrait(int portraitId) { }
+        public ArcNET.Editor.CharacterBuilder WithProperty(ArcNET.Formats.ObjectProperty property) { }
+        public ArcNET.Editor.CharacterBuilder WithSpellTech(System.ReadOnlySpan<int> ranks) { }
+        public ArcNET.Editor.CharacterBuilder WithTechSkills(System.ReadOnlySpan<int> skills) { }
+        public ArcNET.Editor.CharacterBuilder WithoutProperty(ArcNET.GameObjects.ObjectField field) { }
+    }
+    public sealed class CharacterRecord
+    {
+        public int AcAdjustment { get; }
+        public int Age { get; }
+        public int Alignment { get; }
+        public int Arrows { get; }
+        public int Beauty { get; }
+        public int BlessingProtoElementCount { get; }
+        public int[]? BlessingRaw { get; }
+        public byte[]? BlessingTsRaw { get; }
+        public int Bullets { get; }
+        public int CarryWeight { get; }
+        public int Charisma { get; }
+        public int Constitution { get; }
+        public int CurseProtoElementCount { get; }
+        public int[]? CurseRaw { get; }
+        public byte[]? CurseTsRaw { get; }
+        public int DamageBonus { get; }
+        public int Dexterity { get; }
+        public int ExperiencePoints { get; }
+        public int FatePoints { get; }
+        public int FatigueDamage { get; }
+        public int[]? FatigueDamageRaw { get; }
+        public int Gender { get; }
+        public int Gold { get; }
+        public bool HasCompleteData { get; }
+        public int HealRate { get; }
+        public int HpDamage { get; }
+        public int[]? HpDamageRaw { get; }
+        public int Intelligence { get; }
+        public int Level { get; }
+        public int MagickPoints { get; }
+        public int MagickTechAptitude { get; }
+        public int MaxFollowers { get; }
+        public string? Name { get; }
+        public int Perception { get; }
+        public int PoisonLevel { get; }
+        public int PoisonRecovery { get; }
+        public int PortraitIndex { get; }
+        public int[]? PositionAiRaw { get; }
+        public int PowerCells { get; }
+        public int[]? QuestBitsetRaw { get; }
+        public int QuestCount { get; }
+        public byte[]? QuestDataRaw { get; }
+        public int Race { get; }
+        public int ReactionModifier { get; }
+        public int[]? ReputationRaw { get; }
+        public int RumorsCount { get; }
+        public byte[]? RumorsRaw { get; }
+        public int SchematicsElementCount { get; }
+        public int[]? SchematicsRaw { get; }
+        public int SkillBackstab { get; }
+        public int SkillBow { get; }
+        public int SkillDisarmTraps { get; }
+        public int SkillDodge { get; }
+        public int SkillFirearms { get; }
+        public int SkillGambling { get; }
+        public int SkillHaggle { get; }
+        public int SkillHeal { get; }
+        public int SkillMelee { get; }
+        public int SkillPersuasion { get; }
+        public int SkillPickLocks { get; }
+        public int SkillPickPocket { get; }
+        public int SkillProwling { get; }
+        public int SkillRepair { get; }
+        public int SkillSpotTrap { get; }
+        public int SkillThrowing { get; }
+        public int Speed { get; }
+        public int SpellAir { get; }
+        public int SpellConveyance { get; }
+        public int SpellDivination { get; }
+        public int SpellEarth { get; }
+        public int SpellFire { get; }
+        public int SpellForce { get; }
+        public int SpellMastery { get; }
+        public int SpellMental { get; }
+        public int SpellMeta { get; }
+        public int SpellMorph { get; }
+        public int SpellNature { get; }
+        public int SpellNecroBlack { get; }
+        public int SpellNecroWhite { get; }
+        public int SpellPhantasm { get; }
+        public int SpellSummoning { get; }
+        public int SpellTemporal { get; }
+        public int SpellWater { get; }
+        public int Strength { get; }
+        public int TechChemistry { get; }
+        public int TechElectric { get; }
+        public int TechExplosives { get; }
+        public int TechGun { get; }
+        public int TechHerbology { get; }
+        public int TechMechanical { get; }
+        public int TechPoints { get; }
+        public int TechSmithy { get; }
+        public int TechTherapeutics { get; }
+        public int TotalKills { get; }
+        public int UnspentPoints { get; }
+        public int Willpower { get; }
+        public ArcNET.Formats.CharacterMdyRecord ApplyTo(ArcNET.Formats.CharacterMdyRecord original) { }
+        public ArcNET.Editor.CharacterRecord.Builder ToBuilder() { }
+        public static ArcNET.Editor.CharacterRecord From(ArcNET.Formats.CharacterMdyRecord rec) { }
+        public sealed class Builder
+        {
+            public Builder() { }
+            public Builder(ArcNET.Editor.CharacterRecord from) { }
+            public ArcNET.Editor.CharacterRecord Build() { }
+            public ArcNET.Editor.CharacterRecord.Builder WithAcAdjustment(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithAge(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithAlignment(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithArrows(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithBeauty(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithBlessingRaw(int[] bless) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithBlessingTsRaw(byte[] ts) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithBullets(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithCarryWeight(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithCharisma(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithConstitution(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithCurseRaw(int[] curse) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithCurseTsRaw(byte[] ts) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithDamageBonus(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithDexterity(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithExperiencePoints(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithFatePoints(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithFatigueDamage(int damage) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithFatigueDamageRaw(int[] v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithGender(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithGold(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithHealRate(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithHpDamage(int damage) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithHpDamageRaw(int[] v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithIntelligence(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithLevel(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithMagickPoints(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithMagickTechAptitude(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithMaxFollowers(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithName(string? v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPerception(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPoisonLevel(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPoisonRecovery(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPortraitIndex(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPositionAiRaw(int[] v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithPowerCells(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithQuestBitsetRaw(int[] bitset) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithQuestDataRaw(byte[] data) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithRace(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithReactionModifier(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithReputationRaw(int[] rep) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithRumorsRaw(byte[] rumors) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSchematicsRaw(int[] sch) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillBackstab(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillBow(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillDisarmTraps(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillDodge(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillFirearms(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillGambling(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillHaggle(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillHeal(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillMelee(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillPersuasion(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillPickLocks(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillPickPocket(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillProwling(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillRepair(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillSpotTrap(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSkillThrowing(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpeed(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellAir(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellConveyance(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellDivination(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellEarth(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellFire(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellForce(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellMastery(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellMental(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellMeta(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellMorph(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellNature(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellNecroBlack(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellNecroWhite(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellPhantasm(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellSummoning(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellTemporal(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithSpellWater(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithStrength(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechChemistry(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechElectric(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechExplosives(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechGun(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechHerbology(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechMechanical(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechPoints(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechSmithy(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTechTherapeutics(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithTotalKills(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithUnspentPoints(int v) { }
+            public ArcNET.Editor.CharacterRecord.Builder WithWillpower(int v) { }
+        }
+    }
+    public sealed class DialogBuilder
+    {
+        public DialogBuilder() { }
+        public DialogBuilder(ArcNET.Formats.DlgFile existing) { }
+        public ArcNET.Editor.DialogBuilder AddEntry(ArcNET.Formats.DialogEntry entry) { }
+        public ArcNET.Formats.DlgFile Build() { }
+        public ArcNET.Editor.DialogBuilder RemoveEntry(int num) { }
+        public ArcNET.Editor.DialogBuilder UpdateEntry(int num, System.Func<ArcNET.Formats.DialogEntry, ArcNET.Formats.DialogEntry> update) { }
+    }
+    public sealed class EditorArtReference
+    {
+        public EditorArtReference() { }
+        public required uint ArtId { get; init; }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required int Count { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+    }
+    public sealed class EditorAssetCatalog
+    {
+        public int Count { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> Entries { get; }
+        public static ArcNET.Editor.EditorAssetCatalog Empty { get; }
+        public ArcNET.Editor.EditorAssetEntry? Find(string assetPath) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindByFormat(ArcNET.Formats.FileFormat format) { }
+    }
+    public sealed class EditorAssetEntry
+    {
+        public EditorAssetEntry() { }
+        public required string AssetPath { get; init; }
+        public required ArcNET.Formats.FileFormat Format { get; init; }
+        public required int ItemCount { get; init; }
+        public string? SourceEntryPath { get; init; }
+        public required ArcNET.Editor.EditorAssetSourceKind SourceKind { get; init; }
+        public required string SourcePath { get; init; }
+    }
+    public sealed class EditorAssetIndex
+    {
+        public System.Collections.Generic.IReadOnlyList<string> MapNames { get; }
+        public static ArcNET.Editor.EditorAssetIndex Empty { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtReference> FindArtReferences(uint artId) { }
+        public string? FindAssetMap(string assetPath) { }
+        public ArcNET.Editor.EditorAssetEntry? FindDialogDefinition(int dialogId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindDialogDefinitions(int dialogId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> FindDialogDetails(int dialogId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMapAssets(string mapName) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMessageAssets(int messageIndex) { }
+        public ArcNET.Editor.EditorAssetEntry? FindProtoDefinition(int protoNumber) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProtoReference> FindProtoReferences(int protoNumber) { }
+        public ArcNET.Editor.EditorAssetEntry? FindScriptDefinition(int scriptId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindScriptDefinitions(int scriptId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptDefinition> FindScriptDetails(int scriptId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptReference> FindScriptReferences(int scriptId) { }
+    }
+    public enum EditorAssetSourceKind
+    {
+        LooseFile = 0,
+        DatArchive = 1,
+    }
+    public sealed class EditorDialogDefinition
+    {
+        public EditorDialogDefinition() { }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required int ControlEntryCount { get; init; }
+        public required int DialogId { get; init; }
+        public required int EntryCount { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public bool HasMissingResponseTargets { get; }
+        public required System.Collections.Generic.IReadOnlyList<int> MissingResponseTargetNumbers { get; init; }
+        public required int NpcEntryCount { get; init; }
+        public required int PcOptionCount { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> RootEntryNumbers { get; init; }
+        public required int TerminalEntryCount { get; init; }
+        public required int TransitionCount { get; init; }
+    }
+    public sealed class EditorProtoReference
+    {
+        public EditorProtoReference() { }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required int Count { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public required int ProtoNumber { get; init; }
+    }
+    public sealed class EditorScriptDefinition
+    {
+        public EditorScriptDefinition() { }
+        public required int ActiveAttachmentCount { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ScriptAttachmentPoint> ActiveAttachmentPoints { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> ActiveAttachmentSlots { get; init; }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required string Description { get; init; }
+        public required int EntryCount { get; init; }
+        public required ArcNET.Formats.ScriptFlags Flags { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public bool HasUnknownAttachmentSlots { get; }
+        public required int ScriptId { get; init; }
+    }
+    public sealed class EditorScriptReference
+    {
+        public EditorScriptReference() { }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required int Count { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public required int ScriptId { get; init; }
+    }
+    public sealed class EditorSkippedArchiveCandidate
+    {
+        public EditorSkippedArchiveCandidate() { }
+        public required string Path { get; init; }
+        public required string Reason { get; init; }
+    }
+    public sealed class EditorSkippedAsset
+    {
+        public EditorSkippedAsset() { }
+        public required string AssetPath { get; init; }
+        public required ArcNET.Formats.FileFormat Format { get; init; }
+        public required string Reason { get; init; }
+        public string? SourceEntryPath { get; init; }
+        public required ArcNET.Editor.EditorAssetSourceKind SourceKind { get; init; }
+        public required string SourcePath { get; init; }
+    }
+    public sealed class EditorWorkspace
+    {
+        public EditorWorkspace() { }
+        public ArcNET.Editor.EditorAssetCatalog Assets { get; init; }
+        public required string ContentDirectory { get; init; }
+        public required ArcNET.GameData.GameDataStore GameData { get; init; }
+        public string? GameDirectory { get; init; }
+        public bool HasSaveLoaded { get; }
+        public ArcNET.Editor.EditorAssetIndex Index { get; init; }
+        public ArcNET.Core.ArcanumInstallationType? InstallationType { get; init; }
+        public ArcNET.Editor.EditorWorkspaceLoadReport LoadReport { get; init; }
+        public ArcNET.Editor.LoadedSave? Save { get; init; }
+        public string? SaveFolder { get; init; }
+        public string? SaveSlotName { get; init; }
+        public ArcNET.Editor.EditorWorkspaceValidationReport Validation { get; init; }
+        public ArcNET.Editor.SaveGameEditor CreateSaveEditor() { }
+    }
+    public sealed class EditorWorkspaceLoadOptions
+    {
+        public EditorWorkspaceLoadOptions() { }
+        public string? GameDirectory { get; init; }
+        public string? SaveFolder { get; init; }
+        public string? SaveSlotName { get; init; }
+    }
+    public sealed class EditorWorkspaceLoadReport
+    {
+        public EditorWorkspaceLoadReport() { }
+        public bool HasSkippedInputs { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedArchiveCandidate> SkippedArchiveCandidates { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedAsset> SkippedAssets { get; init; }
+        public static ArcNET.Editor.EditorWorkspaceLoadReport Empty { get; }
+    }
+    public static class EditorWorkspaceLoader
+    {
+        public static ArcNET.Editor.EditorWorkspace Load(string contentDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadAsync(string contentDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static ArcNET.Editor.EditorWorkspace LoadFromGameInstall(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromGameInstallAsync(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class EditorWorkspaceValidationIssue : System.IEquatable<ArcNET.Editor.EditorWorkspaceValidationIssue>
+    {
+        public EditorWorkspaceValidationIssue() { }
+        public string? AssetPath { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.Editor.EditorWorkspaceValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class EditorWorkspaceValidationReport
+    {
+        public EditorWorkspaceValidationReport() { }
+        public bool HasErrors { get; }
+        public bool HasIssues { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorWorkspaceValidationIssue> Issues { get; init; }
+        public static ArcNET.Editor.EditorWorkspaceValidationReport Empty { get; }
+    }
+    public enum EditorWorkspaceValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+    public sealed class LoadedSave
+    {
+        public LoadedSave() { }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile> Data2SavFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile> DataSavFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile> Dialogs { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> Files { get; init; }
+        public required ArcNET.Formats.SaveIndex Index { get; init; }
+        public required ArcNET.Formats.SaveInfo Info { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile> JumpFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties> MapPropertiesList { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile> Messages { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile> MobileMds { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile> MobileMdys { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData> Mobiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, string> ParseErrors { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> RawFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile> Scripts { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> Sectors { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog> TownMapFogs { get; init; }
+    }
+    public sealed class MobDataBuilder
+    {
+        public MobDataBuilder(ArcNET.Formats.MobData existing) { }
+        public MobDataBuilder(ArcNET.GameObjects.ObjectType type, ArcNET.Core.Primitives.GameObjectGuid objectId, ArcNET.Core.Primitives.GameObjectGuid protoId) { }
+        public ArcNET.Formats.MobData Build() { }
+        public ArcNET.Editor.MobDataBuilder WithLocation(int tileX, int tileY) { }
+        public ArcNET.Editor.MobDataBuilder WithProperty(ArcNET.Formats.ObjectProperty property) { }
+        public ArcNET.Editor.MobDataBuilder WithoutProperty(ArcNET.GameObjects.ObjectField field) { }
+    }
+    public sealed class SaveGameEditor
+    {
+        public SaveGameEditor(ArcNET.Editor.LoadedSave save) { }
+        public ArcNET.Formats.Data2SavFile? GetCurrentData2Sav(string path) { }
+        public ArcNET.Formats.DataSavFile? GetCurrentDataSav(string path) { }
+        public ArcNET.Formats.MesFile? GetCurrentMessageFile(string path) { }
+        public System.ReadOnlyMemory<byte>? GetCurrentRawFile(string path) { }
+        public ArcNET.Formats.SaveInfo GetCurrentSaveInfo() { }
+        public ArcNET.Formats.TownMapFog? GetCurrentTownMapFog(string path) { }
+        public ArcNET.Formats.Data2SavFile? GetPendingData2Sav(string path) { }
+        public ArcNET.Formats.DataSavFile? GetPendingDataSav(string path) { }
+        public ArcNET.Formats.MesFile? GetPendingMessageFile(string path) { }
+        public ArcNET.Formats.MobileMdyFile? GetPendingMobileMdy(string mdyPath) { }
+        public System.ReadOnlyMemory<byte>? GetPendingRawFile(string path) { }
+        public ArcNET.Formats.SaveInfo? GetPendingSaveInfo() { }
+        public ArcNET.Formats.TownMapFog? GetPendingTownMapFog(string path) { }
+        public void Save(string saveFolder, string slotName) { }
+        public void Save(string gsiPath, string tfaiPath, string tfafPath) { }
+        public System.Threading.Tasks.Task SaveAsync(string saveFolder, string slotName, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task SaveAsync(string gsiPath, string tfaiPath, string tfafPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public bool TryFindCharacter(System.Func<ArcNET.Editor.CharacterRecord, bool> predicate, out ArcNET.Editor.CharacterRecord character, out string mdyPath) { }
+        public bool TryFindPendingPlayerCharacter(out ArcNET.Editor.CharacterRecord character) { }
+        public bool TryFindPlayerCharacter(out ArcNET.Editor.CharacterRecord character) { }
+        public bool TryFindPlayerCharacter(out ArcNET.Editor.CharacterRecord character, out string mdyPath) { }
+        public ArcNET.Editor.SaveGameEditor WithCharacter(string mdyPath, System.Func<ArcNET.Editor.CharacterRecord, bool> predicate, ArcNET.Editor.CharacterRecord updated) { }
+        public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, ArcNET.Formats.Data2SavFile updated) { }
+        public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, System.Action<ArcNET.Formats.Data2SavFile.Builder> update) { }
+        public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, System.Func<ArcNET.Formats.Data2SavFile, ArcNET.Formats.Data2SavFile> update) { }
+        public ArcNET.Editor.SaveGameEditor WithDataSav(string path, ArcNET.Formats.DataSavFile updated) { }
+        public ArcNET.Editor.SaveGameEditor WithDataSav(string path, System.Action<ArcNET.Formats.DataSavFile.Builder> update) { }
+        public ArcNET.Editor.SaveGameEditor WithDataSav(string path, System.Func<ArcNET.Formats.DataSavFile, ArcNET.Formats.DataSavFile> update) { }
+        public ArcNET.Editor.SaveGameEditor WithMessageFile(string path, ArcNET.Formats.MesFile updated) { }
+        public ArcNET.Editor.SaveGameEditor WithMessageFile(string path, System.Func<ArcNET.Formats.MesFile, ArcNET.Formats.MesFile> update) { }
+        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(ArcNET.Editor.CharacterRecord updated) { }
+        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(System.Func<ArcNET.Editor.CharacterRecord, ArcNET.Editor.CharacterRecord> update) { }
+        public ArcNET.Editor.SaveGameEditor WithRawFile(string path, System.Func<System.ReadOnlyMemory<byte>, byte[]> update) { }
+        public ArcNET.Editor.SaveGameEditor WithRawFile(string path, byte[] updatedBytes) { }
+        public ArcNET.Editor.SaveGameEditor WithSaveInfo(ArcNET.Formats.SaveInfo updated) { }
+        public ArcNET.Editor.SaveGameEditor WithSaveInfo(System.Func<ArcNET.Formats.SaveInfo, ArcNET.Formats.SaveInfo> update) { }
+        public ArcNET.Editor.SaveGameEditor WithTownMapFog(string path, ArcNET.Formats.TownMapFog updated) { }
+        public ArcNET.Editor.SaveGameEditor WithTownMapFog(string path, System.Func<ArcNET.Formats.TownMapFog, ArcNET.Formats.TownMapFog> update) { }
+    }
+    public static class SaveGameLoader
+    {
+        public static ArcNET.Editor.LoadedSave Load(string saveFolder, string slotName) { }
+        public static ArcNET.Editor.LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string saveFolder, string slotName, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string gsiPath, string tfaiPath, string tfafPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveGameUpdates : System.IEquatable<ArcNET.Editor.SaveGameUpdates>
+    {
+        public SaveGameUpdates() { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? RawFileUpdates { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile>? UpdatedData2SavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile>? UpdatedDataSavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile>? UpdatedDialogs { get; init; }
+        public ArcNET.Formats.SaveInfo? UpdatedInfo { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile>? UpdatedJumpFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties>? UpdatedMapProperties { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile>? UpdatedMessages { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile>? UpdatedMobileMds { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile>? UpdatedMobileMdys { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData>? UpdatedMobiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile>? UpdatedScripts { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector>? UpdatedSectors { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog>? UpdatedTownMapFogs { get; init; }
+    }
+    public static class SaveGameValidator
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> Validate(ArcNET.Editor.LoadedSave save) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMob(string virtualPath, ArcNET.Formats.MobData mob) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMd(string virtualPath, ArcNET.Formats.MobileMdFile md) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMdy(string virtualPath, ArcNET.Formats.MobileMdyFile mdy) { }
+    }
+    public static class SaveGameWriter
+    {
+        public static void Save(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null) { }
+        public static void Save(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveValidationIssue : System.IEquatable<ArcNET.Editor.SaveValidationIssue>
+    {
+        public SaveValidationIssue() { }
+        public string? FilePath { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.Editor.SaveValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public enum SaveValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+    public sealed class ScriptBuilder
+    {
+        public ScriptBuilder() { }
+        public ScriptBuilder(ArcNET.Formats.ScrFile existing) { }
+        public ArcNET.Editor.ScriptBuilder AddCondition(ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Formats.ScrFile Build() { }
+        public ArcNET.Editor.ScriptBuilder RemoveCondition(int index) { }
+        public ArcNET.Editor.ScriptBuilder ReplaceCondition(int index, ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Editor.ScriptBuilder WithDescription(string description) { }
+        public ArcNET.Editor.ScriptBuilder WithFlags(ArcNET.Formats.ScriptFlags flags) { }
+        public ArcNET.Editor.ScriptBuilder WithHeaderCounters(uint counters) { }
+        public ArcNET.Editor.ScriptBuilder WithHeaderFlags(uint flags) { }
+    }
+    public sealed class SectorBuilder
+    {
+        public SectorBuilder() { }
+        public SectorBuilder(ArcNET.Formats.Sector sector) { }
+        public ArcNET.Editor.SectorBuilder AddLight(ArcNET.Formats.SectorLight light) { }
+        public ArcNET.Editor.SectorBuilder AddObject(ArcNET.Formats.MobData obj) { }
+        public ArcNET.Editor.SectorBuilder AddTileScript(ArcNET.Formats.TileScript script) { }
+        public ArcNET.Formats.Sector Build() { }
+        public ArcNET.Editor.SectorBuilder ClearLights() { }
+        public ArcNET.Editor.SectorBuilder ClearObjects() { }
+        public ArcNET.Editor.SectorBuilder ClearRoofs() { }
+        public ArcNET.Editor.SectorBuilder RemoveLight(int index) { }
+        public ArcNET.Editor.SectorBuilder RemoveObject(int index) { }
+        public ArcNET.Editor.SectorBuilder RemoveTileScript(int index) { }
+        public ArcNET.Editor.SectorBuilder SetBlocked(int tileX, int tileY, bool blocked) { }
+        public ArcNET.Editor.SectorBuilder SetRoof(int roofX, int roofY, uint artId) { }
+        public ArcNET.Editor.SectorBuilder SetTile(int tileX, int tileY, uint artId) { }
+        public ArcNET.Editor.SectorBuilder WithAptitudeAdjustment(int value) { }
+        public ArcNET.Editor.SectorBuilder WithLightSchemeIdx(int value) { }
+        public ArcNET.Editor.SectorBuilder WithSectorScript(ArcNET.GameObjects.GameObjectScript? script) { }
+        public ArcNET.Editor.SectorBuilder WithSoundList(ArcNET.Formats.SectorSoundList soundList) { }
+        public ArcNET.Editor.SectorBuilder WithTownmapInfo(int value) { }
+    }
+}
+namespace ArcNET.Editor.Runtime
+{
+    public enum CharacterSheetPropertyId
+    {
+        HpBonus = 27,
+        HpLoss = 29,
+        MpBonus = 224,
+        MpLoss = 226,
+        Name = 270,
+        Flags = 19,
+    }
+    public static class CharacterSheetRuntimeLayout
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> BasicSkillsFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> MainStatsFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> SpellAndTechFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> TechSkillsFields { get; }
+    }
+    public enum CharacterSheetSubstructureId
+    {
+        MainStats = 220,
+        BasicSkills = 221,
+        TechSkills = 222,
+        SpellAndTech = 223,
+    }
+    public readonly struct RuntimeFieldDescriptor : System.IEquatable<ArcNET.Editor.Runtime.RuntimeFieldDescriptor>
+    {
+        public RuntimeFieldDescriptor(string Name, int Offset) { }
+        public string Name { get; init; }
+        public int Offset { get; init; }
+    }
+}```
+
 ## ArcNET.Patch
 
 ```csharp
@@ -2324,6 +3334,8 @@ namespace ArcNET.Patch
     public sealed class GitHubRelease
     {
         public GitHubRelease() { }
+        [System.Text.Json.Serialization.JsonPropertyName("assets")]
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Patch.GitHubReleaseAsset> Assets { get; init; }
         [System.Text.Json.Serialization.JsonPropertyName("body")]
         public string Body { get; init; }
         [System.Text.Json.Serialization.JsonPropertyName("html_url")]
@@ -2332,6 +3344,16 @@ namespace ArcNET.Patch
         public string Name { get; init; }
         [System.Text.Json.Serialization.JsonPropertyName("tag_name")]
         public string TagName { get; init; }
+    }
+    public sealed class GitHubReleaseAsset
+    {
+        public GitHubReleaseAsset() { }
+        [System.Text.Json.Serialization.JsonPropertyName("browser_download_url")]
+        public string BrowserDownloadUrl { get; init; }
+        [System.Text.Json.Serialization.JsonPropertyName("content_type")]
+        public string ContentType { get; init; }
+        [System.Text.Json.Serialization.JsonPropertyName("name")]
+        public string Name { get; init; }
     }
     public static class GitHubReleaseClient
     {
@@ -2372,7 +3394,7 @@ namespace ArcNET.Patch
     public static class PatchUninstaller
     {
         public static bool IsPatchInstalled(string gameDir) { }
-        public static System.Threading.Tasks.Task UninstallAsync(string gameDir, System.Threading.CancellationToken cancellationToken = default) { }
+        public static void Uninstall(string gameDir) { }
     }
 }```
 
@@ -2399,6 +3421,7 @@ namespace ArcNET.BinaryPatch
     public static class BinaryPatcher
     {
         public static System.Collections.Generic.IReadOnlyList<ArcNET.BinaryPatch.PatchResult> Apply(ArcNET.BinaryPatch.BinaryPatchSet patchSet, string gameDir, ArcNET.BinaryPatch.PatchOptions? options = null) { }
+        public static string ResolvePath(string gameDir, string relativePath) { }
         public static System.Collections.Generic.IReadOnlyList<ArcNET.BinaryPatch.PatchResult> Revert(ArcNET.BinaryPatch.BinaryPatchSet patchSet, string gameDir) { }
         public static System.Collections.Generic.IReadOnlyList<ArcNET.BinaryPatch.PatchVerifyResult> Verify(ArcNET.BinaryPatch.BinaryPatchSet patchSet, string gameDir) { }
     }
@@ -2472,25 +3495,29 @@ namespace ArcNET.BinaryPatch.Json
 }
 namespace ArcNET.BinaryPatch.Patches
 {
-    public sealed class MobFieldPatch : ArcNET.BinaryPatch.IBinaryPatch
+    public sealed class MobFieldPatch : ArcNET.BinaryPatch.Patches.ObjectFieldPatchBase
     {
-        public string Description { get; }
-        public string Id { get; }
-        public string PatchSummary { get; }
-        public ArcNET.BinaryPatch.PatchTarget Target { get; }
-        public byte[] Apply(System.ReadOnlyMemory<byte> original) { }
-        public bool NeedsApply(System.ReadOnlyMemory<byte> original) { }
+        protected override System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> ParseProperties(System.ReadOnlyMemory<byte> data) { }
+        protected override byte[] ParseTransformSerialize(System.ReadOnlyMemory<byte> original, System.Func<System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>> transform) { }
         public static ArcNET.BinaryPatch.Patches.MobFieldPatch Custom(string id, string description, string relativePath, ArcNET.GameObjects.ObjectField field, System.Func<ArcNET.Formats.ObjectProperty, bool>? needsApplyPredicate, System.Func<ArcNET.Formats.ObjectProperty, ArcNET.Formats.ObjectProperty> transform) { }
         public static ArcNET.BinaryPatch.Patches.MobFieldPatch SetInt32(string id, string description, string relativePath, ArcNET.GameObjects.ObjectField field, int expectedValue, int newValue) { }
     }
-    public sealed class ProtoFieldPatch : ArcNET.BinaryPatch.IBinaryPatch
+    public abstract class ObjectFieldPatchBase : ArcNET.BinaryPatch.IBinaryPatch
     {
+        protected ObjectFieldPatchBase(string id, string description, ArcNET.BinaryPatch.PatchTarget target, ArcNET.GameObjects.ObjectField field, System.Func<ArcNET.Formats.ObjectProperty, bool>? predicate, System.Func<ArcNET.Formats.ObjectProperty, ArcNET.Formats.ObjectProperty> transform) { }
         public string Description { get; }
         public string Id { get; }
         public string PatchSummary { get; }
         public ArcNET.BinaryPatch.PatchTarget Target { get; }
         public byte[] Apply(System.ReadOnlyMemory<byte> original) { }
         public bool NeedsApply(System.ReadOnlyMemory<byte> original) { }
+        protected abstract System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> ParseProperties(System.ReadOnlyMemory<byte> data);
+        protected abstract byte[] ParseTransformSerialize(System.ReadOnlyMemory<byte> original, System.Func<System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>> transform);
+    }
+    public sealed class ProtoFieldPatch : ArcNET.BinaryPatch.Patches.ObjectFieldPatchBase
+    {
+        protected override System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> ParseProperties(System.ReadOnlyMemory<byte> data) { }
+        protected override byte[] ParseTransformSerialize(System.ReadOnlyMemory<byte> original, System.Func<System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty>> transform) { }
         public static ArcNET.BinaryPatch.Patches.ProtoFieldPatch Custom(string id, string description, string relativePath, ArcNET.GameObjects.ObjectField field, System.Func<ArcNET.Formats.ObjectProperty, bool>? needsApplyPredicate, System.Func<ArcNET.Formats.ObjectProperty, ArcNET.Formats.ObjectProperty> transform) { }
         public static ArcNET.BinaryPatch.Patches.ProtoFieldPatch SetInt32(string id, string description, string relativePath, ArcNET.GameObjects.ObjectField field, int expectedValue, int newValue) { }
     }
@@ -2556,10 +3583,10 @@ namespace ArcNET.Dumpers
     }
     public static class ItemDumper
     {
-        public static string DumpContainerItems(ArcNET.Archive.DatArchive archive, string containerMobPath, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup) { }
-        public static string DumpContainerItems(ArcNET.Formats.MobData container, ArcNET.Archive.DatArchive archiveForItems, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup) { }
-        public static void DumpContainerItems(ArcNET.Archive.DatArchive archive, string containerMobPath, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, System.IO.TextWriter writer) { }
-        public static void DumpContainerItems(ArcNET.Formats.MobData container, ArcNET.Archive.DatArchive archiveForItems, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, System.IO.TextWriter writer) { }
+        public static string DumpContainerItems(ArcNET.Archive.DatArchive archive, string containerMobPath, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, ArcNET.Core.ArcanumInstallationType installation = 0) { }
+        public static string DumpContainerItems(ArcNET.Formats.MobData container, ArcNET.Archive.DatArchive archiveForItems, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, ArcNET.Core.ArcanumInstallationType installation = 0) { }
+        public static void DumpContainerItems(ArcNET.Archive.DatArchive archive, string containerMobPath, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, System.IO.TextWriter writer, ArcNET.Core.ArcanumInstallationType installation = 0) { }
+        public static void DumpContainerItems(ArcNET.Formats.MobData container, ArcNET.Archive.DatArchive archiveForItems, string mapDirPrefix, System.Collections.Generic.Dictionary<int, string> nameLookup, System.IO.TextWriter writer, ArcNET.Core.ArcanumInstallationType installation = 0) { }
         public static string DumpItem(ArcNET.Formats.MobData mob, int protoId, System.Collections.Generic.Dictionary<int, string> nameLookup, ArcNET.Core.ArcanumInstallationType installation) { }
         public static void DumpItem(ArcNET.Formats.MobData mob, int protoId, System.Collections.Generic.Dictionary<int, string> nameLookup, ArcNET.Core.ArcanumInstallationType installation, System.IO.TextWriter writer) { }
         public static string? DumpProtoById(string gameDir, int protoId, System.Collections.Generic.Dictionary<int, string> nameLookup, ArcNET.Core.ArcanumInstallationType installation) { }
@@ -2591,6 +3618,13 @@ namespace ArcNET.Dumpers
     {
         public static string Dump(ArcNET.Formats.ProtoData proto) { }
         public static void Dump(ArcNET.Formats.ProtoData proto, System.IO.TextWriter writer) { }
+    }
+    public static class SaveDumper
+    {
+        public static string Dump(string saveDir) { }
+        public static void Dump(string saveDir, System.IO.TextWriter writer) { }
+        public static string Dump(string gsiPath, string tfaiPath, string tfafPath) { }
+        public static void Dump(string gsiPath, string tfaiPath, string tfafPath, System.IO.TextWriter writer) { }
     }
     public static class SaveIndexDumper
     {
