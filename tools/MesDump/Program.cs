@@ -9,9 +9,8 @@ if (args.Length < 1)
 }
 
 var gameDir = args[0];
-var targetIds = Enumerable
-    .Range(11055, 110) // scrolls: 11055-11164
-    .ToHashSet();
+var targetIds = args.Length > 1 ? args[1..].Select(int.Parse).ToHashSet() : Enumerable.Range(11055, 110).ToHashSet(); // scrolls: 11055-11164
+var searchAllMesFiles = args.Length > 1;
 
 // ── MES entries ────────────────────────────────────────────────────────────────
 foreach (var datFile in Directory.GetFiles(gameDir, "*.dat"))
@@ -34,14 +33,18 @@ foreach (var datFile in Directory.GetFiles(gameDir, "*.dat"))
             var p = entry.Path;
             bool isDesc = p.Equals("mes\\description.mes", StringComparison.OrdinalIgnoreCase);
             bool isOname = p.Equals("oemes\\oname.mes", StringComparison.OrdinalIgnoreCase);
-            if (!isDesc && !isOname)
+            bool isMes = p.EndsWith(".mes", StringComparison.OrdinalIgnoreCase);
+            if (searchAllMesFiles ? !isMes : !isDesc && !isOname)
                 continue;
 
             var mes = MessageFormat.ParseMemory(archive.ReadEntry(entry));
+            var matches = mes.Entries.Where(e => targetIds.Contains(e.Index)).ToArray();
+            if (matches.Length == 0)
+                continue;
+
             Console.WriteLine($"\n=== {Path.GetFileName(datFile)} :: {p} ({mes.Entries.Count} entries) ===");
-            foreach (var e in mes.Entries)
-                if (targetIds.Contains(e.Index))
-                    Console.WriteLine($"  [{e.Index}] {e.Text}");
+            foreach (var e in matches)
+                Console.WriteLine($"  [{e.Index}] {e.Text}");
         }
     }
 }
