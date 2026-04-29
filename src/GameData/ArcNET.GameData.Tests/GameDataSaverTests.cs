@@ -210,4 +210,27 @@ public sealed class GameDataSaverTests
                 Directory.Delete(outDir, recursive: true);
         }
     }
+
+    [Test]
+    public async Task SaveToDirectoryAsync_WithNestedMessageSource_WritesNestedFiles()
+    {
+        var blobs = new Dictionary<string, ReadOnlyMemory<byte>>
+        {
+            ["mes/game.mes"] = System.Text.Encoding.UTF8.GetBytes("{10}{Alpha}\n"),
+        };
+        var store = await GameDataLoader.LoadFromMemoryAsync(blobs);
+
+        var outDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            await GameDataSaver.SaveToDirectoryAsync(store, outDir);
+
+            await Assert.That(File.Exists(Path.Combine(outDir, "mes", "game.mes"))).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+                Directory.Delete(outDir, recursive: true);
+        }
+    }
 }

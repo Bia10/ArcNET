@@ -9,6 +9,49 @@ namespace ArcNET.GameData;
 /// </summary>
 public static class GameDataLoader
 {
+    private delegate void MemoryLoadHandler(GameDataStore store, ReadOnlyMemory<byte> memory, string sourcePath);
+
+    private static readonly IReadOnlyDictionary<FileFormat, MemoryLoadHandler> s_memoryLoadHandlers = new Dictionary<
+        FileFormat,
+        MemoryLoadHandler
+    >
+    {
+        [FileFormat.Message] = static (store, memory, sourcePath) =>
+        {
+            var mesFile = MessageFormat.ParseMemory(memory);
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            foreach (var entry in mesFile.Entries)
+                store.AddMessage(entry, normalizedPath);
+        },
+        [FileFormat.Sector] = static (store, memory, sourcePath) =>
+        {
+            var sector = SectorFormat.ParseMemory(memory);
+            store.AddSector(sector, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.Proto] = static (store, memory, sourcePath) =>
+        {
+            var proto = ProtoFormat.ParseMemory(memory);
+            store.AddProto(proto, NormalizeSourcePath(sourcePath));
+            store.AddObject(proto.Header);
+        },
+        [FileFormat.Mob] = static (store, memory, sourcePath) =>
+        {
+            var mob = MobFormat.ParseMemory(memory);
+            store.AddMob(mob, NormalizeSourcePath(sourcePath));
+            store.AddObject(mob.Header);
+        },
+        [FileFormat.Script] = static (store, memory, sourcePath) =>
+        {
+            var script = ScriptFormat.ParseMemory(memory);
+            store.AddScript(script, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.Dialog] = static (store, memory, sourcePath) =>
+        {
+            var dialog = DialogFormat.ParseMemory(memory);
+            store.AddDialog(dialog, NormalizeSourcePath(sourcePath));
+        },
+    };
+
     /// <summary>Discovers all files grouped by their <see cref="FileFormat"/>.</summary>
     /// <param name="dirPath">Root directory to search recursively.</param>
     /// <returns>A dictionary mapping format to matched file paths.</returns>
@@ -74,7 +117,7 @@ public static class GameDataLoader
             throw new DirectoryNotFoundException($"Directory not found: {dirPath}");
 
         var files = await Task.Run(() => DiscoverFiles(dirPath), ct).ConfigureAwait(false);
-        return await LoadFromDiscoveredFilesAsync(files, progress, ct).ConfigureAwait(false);
+        return await LoadFromDiscoveredFilesAsync(dirPath, files, progress, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -121,6 +164,7 @@ public static class GameDataLoader
             : current;
 
     private static async Task<GameDataStore> LoadFromDiscoveredFilesAsync(
+        string rootDir,
         IReadOnlyDictionary<FileFormat, IReadOnlyList<string>> files,
         IProgress<float>? progress,
         CancellationToken ct
@@ -137,7 +181,7 @@ public static class GameDataLoader
             foreach (var path in paths)
             {
                 ct.ThrowIfCancellationRequested();
-                await LoadEntryFromFileAsync(store, format, path, ct).ConfigureAwait(false);
+                await LoadEntryFromFileAsync(store, format, rootDir, path, ct).ConfigureAwait(false);
                 progress?.Report(++done / (float)total);
             }
         }
@@ -148,12 +192,14 @@ public static class GameDataLoader
     private static async Task LoadEntryFromFileAsync(
         GameDataStore store,
         FileFormat format,
+        string rootDir,
         string path,
         CancellationToken ct
     )
     {
         var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
-        await LoadEntryFromMemoryAsync(store, format, bytes, Path.GetFileName(path), ct).ConfigureAwait(false);
+        var relativePath = Path.GetRelativePath(rootDir, path);
+        await LoadEntryFromMemoryAsync(store, format, bytes, relativePath, ct).ConfigureAwait(false);
     }
 
     private static Task LoadEntryFromMemoryAsync(
@@ -162,45 +208,14 @@ public static class GameDataLoader
         ReadOnlyMemory<byte> memory,
         string sourcePath,
         CancellationToken ct
-    ) =>
-        format switch
-        {
-            FileFormat.Message => Task.Run(
-                () =>
-                {
-                    var mesFile = MessageFormat.ParseMemory(memory);
-                    var name = Path.GetFileName(sourcePath);
-                    foreach (var e in mesFile.Entries)
-                        store.AddMessage(e, name);
-                },
-                ct
-            ),
-            FileFormat.Sector => Task.Run(
-                () =>
-                {
-                    var sector = SectorFormat.ParseMemory(memory);
-                    store.AddSector(sector, Path.GetFileName(sourcePath));
-                },
-                ct
-            ),
-            FileFormat.Proto => Task.Run(
-                () =>
-                {
-                    var proto = ProtoFormat.ParseMemory(memory);
-                    store.AddProto(proto, Path.GetFileName(sourcePath));
-                    store.AddObject(proto.Header);
-                },
-                ct
-            ),
-            FileFormat.Mob => Task.Run(
-                () =>
-                {
-                    var mob = MobFormat.ParseMemory(memory);
-                    store.AddMob(mob, Path.GetFileName(sourcePath));
-                    store.AddObject(mob.Header);
-                },
-                ct
-            ),
-            _ => Task.CompletedTask,
-        };
+    )
+    {
+        if (!s_memoryLoadHandlers.TryGetValue(format, out var handler))
+            return Task.CompletedTask;
+
+        return Task.Run(() => handler(store, memory, sourcePath), ct);
+    }
+
+    private static string NormalizeSourcePath(string sourcePath) =>
+        sourcePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 }

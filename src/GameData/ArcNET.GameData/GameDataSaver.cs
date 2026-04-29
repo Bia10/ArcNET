@@ -50,7 +50,8 @@ public static class GameDataSaver
         {
             foreach (var (sourceName, sectors) in store.SectorsBySource)
             {
-                var path = Path.Combine(outputDir, sourceName);
+                var path = GetOutputPath(outputDir, sourceName);
+                EnsureParentDirectory(path);
                 foreach (var s in sectors)
                     SectorFormat.WriteToFile(in s, path);
             }
@@ -81,7 +82,8 @@ public static class GameDataSaver
         {
             foreach (var (sourceName, protos) in store.ProtosBySource)
             {
-                var path = Path.Combine(outputDir, sourceName);
+                var path = GetOutputPath(outputDir, sourceName);
+                EnsureParentDirectory(path);
                 foreach (var p in protos)
                     ProtoFormat.WriteToFile(in p, path);
             }
@@ -112,7 +114,8 @@ public static class GameDataSaver
         {
             foreach (var (sourceName, mobs) in store.MobsBySource)
             {
-                var path = Path.Combine(outputDir, sourceName);
+                var path = GetOutputPath(outputDir, sourceName);
+                EnsureParentDirectory(path);
                 foreach (var m in mobs)
                     MobFormat.WriteToFile(in m, path);
             }
@@ -166,7 +169,7 @@ public static class GameDataSaver
                         if (store.MessagesBySource.Count > 0)
                         {
                             foreach (var (sourceName, entries) in store.MessagesBySource)
-                                WriteMessageEntriesToFile(entries, Path.Combine(outputDir, sourceName));
+                                WriteMessageEntriesToFile(entries, GetOutputPath(outputDir, sourceName));
                         }
                         else
                         {
@@ -306,9 +309,7 @@ public static class GameDataSaver
 
     private static void WriteMessageEntriesToFile(IEnumerable<MessageEntry> entries, string path)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
+        EnsureParentDirectory(path);
 
         var sb = new ValueStringBuilder(stackalloc char[512]);
         try
@@ -332,6 +333,21 @@ public static class GameDataSaver
         {
             sb.Dispose();
         }
+    }
+
+    private static string GetOutputPath(string outputDir, string sourcePath) =>
+        Path.Combine(
+            outputDir,
+            sourcePath
+                .Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar)
+        );
+
+    private static void EnsureParentDirectory(string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
     }
 
     private static byte[] WriteMessageEntriesToArray(IEnumerable<MessageEntry> entries)

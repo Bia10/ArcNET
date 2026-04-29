@@ -17,6 +17,34 @@ public class GameDataStoreTests
             Bitmap = new byte[2], // 2 bytes = 16 bits
         };
 
+    private static ScrFile MakeScript(string description = "Test script") =>
+        new()
+        {
+            HeaderFlags = 0,
+            HeaderCounters = 0,
+            Description = description,
+            Flags = 0,
+            Entries = [],
+        };
+
+    private static DlgFile MakeDialog(string text = "Hello") =>
+        new()
+        {
+            Entries =
+            [
+                new DialogEntry
+                {
+                    Num = 1,
+                    Text = text,
+                    GenderField = string.Empty,
+                    Iq = 0,
+                    Conditions = string.Empty,
+                    ResponseVal = 0,
+                    Actions = string.Empty,
+                },
+            ],
+        };
+
     [Test]
     public async Task AddObject_IncreasesCount()
     {
@@ -109,11 +137,27 @@ public class GameDataStoreTests
         var store = new GameDataStore();
         store.AddObject(MakeHeader(1));
         store.AddMessage(new MessageEntry(1, "x"));
+        store.AddScript(MakeScript());
+        store.AddDialog(MakeDialog());
         store.Clear();
 
         await Assert.That(store.Objects.Count).IsEqualTo(0);
         await Assert.That(store.Messages.Count).IsEqualTo(0);
+        await Assert.That(store.Scripts.Count).IsEqualTo(0);
+        await Assert.That(store.Dialogs.Count).IsEqualTo(0);
         await Assert.That(store.DirtyObjects.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task AddDialogAndScript_IncreaseCounts()
+    {
+        var store = new GameDataStore();
+        store.AddScript(MakeScript());
+        store.AddDialog(MakeDialog());
+
+        await Assert.That(store.Scripts.Count).IsEqualTo(1);
+        await Assert.That(store.Dialogs.Count).IsEqualTo(1);
+        await Assert.That(store.Dialogs[0].Entries[0].Text).IsEqualTo("Hello");
     }
 
     // ── G4: MessagesBySource origin tracking ────────────────────────────

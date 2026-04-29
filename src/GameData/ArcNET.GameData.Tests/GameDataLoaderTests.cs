@@ -6,6 +6,43 @@ namespace ArcNET.GameData.Tests;
 
 public class GameDataLoaderTests
 {
+    private static ScrFile MakeScript(string description = "Test script") =>
+        new()
+        {
+            HeaderFlags = 0,
+            HeaderCounters = 0,
+            Description = description,
+            Flags = 0,
+            Entries =
+            [
+                new ScriptConditionData(
+                    1,
+                    default,
+                    default,
+                    new ScriptActionData(0, default, default),
+                    new ScriptActionData(0, default, default)
+                ),
+            ],
+        };
+
+    private static DlgFile MakeDialog(string text = "Hello") =>
+        new()
+        {
+            Entries =
+            [
+                new DialogEntry
+                {
+                    Num = 1,
+                    Text = text,
+                    GenderField = string.Empty,
+                    Iq = 0,
+                    Conditions = string.Empty,
+                    ResponseVal = 0,
+                    Actions = string.Empty,
+                },
+            ],
+        };
+
     [Test]
     public void DiscoverFiles_NonExistentDir_Throws()
     {
@@ -113,6 +150,8 @@ public class GameDataLoaderTests
 
         await Assert.That(store.Messages.Count).IsEqualTo(0);
         await Assert.That(store.Objects.Count).IsEqualTo(0);
+        await Assert.That(store.Scripts.Count).IsEqualTo(0);
+        await Assert.That(store.Dialogs.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -188,6 +227,28 @@ public class GameDataLoaderTests
         }
     }
 
+    [Test]
+    public async Task LoadFromDirectoryAsync_NestedMesPath_PreservesRelativeSourcePath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var mesDir = Path.Combine(tempDir, "mes");
+        Directory.CreateDirectory(mesDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(mesDir, "game.mes"), "{500}{Sword}\n");
+
+            var store = await GameDataLoader.LoadFromDirectoryAsync(tempDir);
+
+            await Assert.That(store.MessagesBySource.ContainsKey("mes/game.mes")).IsTrue();
+            await Assert.That(store.MessagesBySource["mes/game.mes"][0].Text).IsEqualTo("Sword");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     // ── G5: duplicate index detection ─────────────────────────────────────
 
     [Test]
@@ -228,5 +289,38 @@ public class GameDataLoaderTests
         await Assert.That(store.MessagesBySource.ContainsKey("items.mes")).IsTrue();
         await Assert.That(store.MessagesBySource["game.mes"][0].Text).IsEqualTo("Alpha");
         await Assert.That(store.MessagesBySource["items.mes"][0].Text).IsEqualTo("Beta");
+    }
+
+    [Test]
+    public async Task LoadFromMemoryAsync_NestedMesPath_PreservesVirtualSourcePath()
+    {
+        var blobs = new Dictionary<string, ReadOnlyMemory<byte>>
+        {
+            ["mes\\game.mes"] = Encoding.UTF8.GetBytes("{10}{Alpha}\n"),
+        };
+
+        var store = await GameDataLoader.LoadFromMemoryAsync(blobs);
+
+        await Assert.That(store.MessagesBySource.ContainsKey("mes/game.mes")).IsTrue();
+        await Assert.That(store.MessagesBySource["mes/game.mes"][0].Text).IsEqualTo("Alpha");
+    }
+
+    [Test]
+    public async Task LoadFromMemoryAsync_ScriptAndDialogBytes_PopulateStoreAndSourcePaths()
+    {
+        var blobs = new Dictionary<string, ReadOnlyMemory<byte>>
+        {
+            ["scr\\00777.scr"] = ScriptFormat.WriteToArray(MakeScript("Alpha script")),
+            ["dlg\\00123.dlg"] = DialogFormat.WriteToArray(MakeDialog("Hello dialog")),
+        };
+
+        var store = await GameDataLoader.LoadFromMemoryAsync(blobs);
+
+        await Assert.That(store.Scripts.Count).IsEqualTo(1);
+        await Assert.That(store.Dialogs.Count).IsEqualTo(1);
+        await Assert.That(store.Scripts[0].Description).IsEqualTo("Alpha script");
+        await Assert.That(store.Dialogs[0].Entries[0].Text).IsEqualTo("Hello dialog");
+        await Assert.That(store.ScriptsBySource.ContainsKey("scr/00777.scr")).IsTrue();
+        await Assert.That(store.DialogsBySource.ContainsKey("dlg/00123.dlg")).IsTrue();
     }
 }

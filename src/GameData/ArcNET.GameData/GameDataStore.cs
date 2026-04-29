@@ -16,6 +16,8 @@ public sealed class GameDataStore
     private readonly List<Sector> _sectors = [];
     private readonly List<ProtoData> _protos = [];
     private readonly List<MobData> _mobs = [];
+    private readonly List<ScrFile> _scripts = [];
+    private readonly List<DlgFile> _dialogs = [];
     private readonly HashSet<GameObjectGuid> _dirty = [];
     private FrozenDictionary<GameObjectGuid, GameObjectHeader>? _indexByGuid;
 
@@ -24,12 +26,16 @@ public sealed class GameDataStore
     private readonly Dictionary<string, List<Sector>> _sectorsBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ProtoData>> _protosBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<MobData>> _mobsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ScrFile>> _scriptsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<DlgFile>> _dialogsBySource = new(StringComparer.OrdinalIgnoreCase);
 
     // Lazy read-only views — rebuilt only when a new source entry is added or the store is cleared.
     private IReadOnlyDictionary<string, IReadOnlyList<MessageEntry>>? _messagesBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<Sector>>? _sectorsBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<ProtoData>>? _protosBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<MobData>>? _mobsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<ScrFile>>? _scriptsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<DlgFile>>? _dialogsBySourceView;
 
     /// <summary>Gets all loaded object headers.</summary>
     public IReadOnlyList<GameObjectHeader> Objects => _objects;
@@ -46,8 +52,14 @@ public sealed class GameDataStore
     /// <summary>Gets all loaded mobile (MOB) data.</summary>
     public IReadOnlyList<MobData> Mobs => _mobs;
 
+    /// <summary>Gets all loaded compiled script (.scr) files.</summary>
+    public IReadOnlyList<ScrFile> Scripts => _scripts;
+
+    /// <summary>Gets all loaded dialog (.dlg) files.</summary>
+    public IReadOnlyList<DlgFile> Dialogs => _dialogs;
+
     /// <summary>
-    /// Gets message entries grouped by their source filename.
+    /// Gets message entries grouped by their source path.
     /// Empty when entries were added programmatically without origin information.
     /// Use this to restore per-file structure during save.
     /// </summary>
@@ -55,25 +67,39 @@ public sealed class GameDataStore
         _messagesBySourceView ??= BuildView(_messagesBySource);
 
     /// <summary>
-    /// Gets sectors grouped by their source filename.
+    /// Gets sectors grouped by their source path.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<Sector>> SectorsBySource =>
         _sectorsBySourceView ??= BuildView(_sectorsBySource);
 
     /// <summary>
-    /// Gets prototypes grouped by their source filename.
+    /// Gets prototypes grouped by their source path.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ProtoData>> ProtosBySource =>
         _protosBySourceView ??= BuildView(_protosBySource);
 
     /// <summary>
-    /// Gets mobile objects grouped by their source filename.
+    /// Gets mobile objects grouped by their source path.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<MobData>> MobsBySource =>
         _mobsBySourceView ??= BuildView(_mobsBySource);
+
+    /// <summary>
+    /// Gets compiled scripts grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ScrFile>> ScriptsBySource =>
+        _scriptsBySourceView ??= BuildView(_scriptsBySource);
+
+    /// <summary>
+    /// Gets dialogs grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<DlgFile>> DialogsBySource =>
+        _dialogsBySourceView ??= BuildView(_dialogsBySource);
 
     /// <summary>Gets the set of GUIDs that have been marked dirty since the last <see cref="ClearDirty"/>.</summary>
     public IReadOnlySet<GameObjectGuid> DirtyObjects => _dirty;
@@ -137,6 +163,30 @@ public sealed class GameDataStore
         _mobsBySourceView = null;
     }
 
+    /// <summary>Appends a parsed compiled script.</summary>
+    public void AddScript(ScrFile script) => AddScript(script, null);
+
+    internal void AddScript(ScrFile script, string? sourcePath)
+    {
+        _scripts.Add(script);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_scriptsBySource, sourcePath).Add(script);
+        _scriptsBySourceView = null;
+    }
+
+    /// <summary>Appends a parsed dialog file.</summary>
+    public void AddDialog(DlgFile dialog) => AddDialog(dialog, null);
+
+    internal void AddDialog(DlgFile dialog, string? sourcePath)
+    {
+        _dialogs.Add(dialog);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_dialogsBySource, sourcePath).Add(dialog);
+        _dialogsBySourceView = null;
+    }
+
     /// <summary>
     /// Returns all loaded object headers whose <see cref="GameObjectHeader.GameObjectType"/>
     /// matches <paramref name="type"/>.
@@ -191,16 +241,22 @@ public sealed class GameDataStore
         _sectors.Clear();
         _protos.Clear();
         _mobs.Clear();
+        _scripts.Clear();
+        _dialogs.Clear();
         _messagesBySource.Clear();
         _sectorsBySource.Clear();
         _protosBySource.Clear();
         _mobsBySource.Clear();
+        _scriptsBySource.Clear();
+        _dialogsBySource.Clear();
         _dirty.Clear();
         _indexByGuid = null;
         _messagesBySourceView = null;
         _sectorsBySourceView = null;
         _protosBySourceView = null;
         _mobsBySourceView = null;
+        _scriptsBySourceView = null;
+        _dialogsBySourceView = null;
     }
 
     private FrozenDictionary<GameObjectGuid, GameObjectHeader> BuildGuidIndex() =>
