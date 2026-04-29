@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
     <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
     <ProjectReference Include="..\..\GameData\ArcNET.GameData\ArcNET.GameData.csproj" />
+    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
     <ProjectReference Include="..\..\Patch\ArcNET.Patch\ArcNET.Patch.csproj" />
     <ProjectReference Include="..\..\BinaryPatch\ArcNET.BinaryPatch\ArcNET.BinaryPatch.csproj" />
     <ProjectReference Include="..\..\Dumpers\ArcNET.Dumpers\ArcNET.Dumpers.csproj" />
