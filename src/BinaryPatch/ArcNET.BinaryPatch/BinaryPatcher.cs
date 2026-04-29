@@ -1,6 +1,4 @@
-﻿using ArcNET.Archive;
-
-namespace ArcNET.BinaryPatch;
+﻿namespace ArcNET.BinaryPatch;
 
 /// <summary>
 /// Applies, reverts, and verifies <see cref="BinaryPatchSet"/> instances against a game directory.
@@ -27,8 +25,6 @@ namespace ArcNET.BinaryPatch;
 /// </remarks>
 public static class BinaryPatcher
 {
-    private const string BackupExtension = ".bak";
-
     // ── Apply ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -109,219 +105,15 @@ public static class BinaryPatcher
     /// Thrown when <paramref name="relativePath"/> contains path-traversal segments (e.g. <c>../</c>)
     /// that would place the target outside <paramref name="gameDir"/>.
     /// </exception>
-    public static string ResolvePath(string gameDir, string relativePath)
-    {
-        var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        var fullPath = Path.GetFullPath(Path.Combine(gameDir, normalized));
-        // Append the separator so that a game dir of "/foo" does not match "/foobar".
-        var gameRoot = Path.GetFullPath(gameDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!fullPath.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException(
-                $"Patch target '{relativePath}' resolves to '{fullPath}' which is outside the game directory '{gameDir}'."
-            );
-        return fullPath;
-    }
+    public static string ResolvePath(string gameDir, string relativePath) =>
+        PatchFileAccess.ResolvePath(gameDir, relativePath);
 
-    // Returns (Data: non-null, Error: null) on success; (Data: null, Error: non-null) on failure.
-    private static (byte[]? Data, string? Error) TryReadOriginalBytes(IBinaryPatch patch, string path, string gameDir)
-    {
-        if (File.Exists(path))
-        {
-            try
-            {
-                return (File.ReadAllBytes(path), null);
-            }
-            catch (Exception ex)
-            {
-                return (null, $"Read failed: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
+    private static PatchResult ApplyOne(IBinaryPatch patch, string gameDir, PatchOptions options) =>
+        PatchApplyOperation.Apply(patch, gameDir, options);
 
-        if (patch.Target.SourceDatPath is not null)
-            return ReadFromDat(patch, gameDir);
+    private static PatchResult RevertOne(IBinaryPatch patch, string gameDir) =>
+        PatchRevertOperation.Revert(patch, gameDir);
 
-        return (null, $"File not found: {path}");
-    }
-
-    private static PatchResult ApplyOne(IBinaryPatch patch, string gameDir, PatchOptions options)
-    {
-        var path = ResolvePath(gameDir, patch.Target.RelativePath);
-        var isDatSourced = patch.Target.SourceDatPath is not null;
-
-        var (original, readError) = TryReadOriginalBytes(patch, path, gameDir);
-        if (readError is not null)
-            return new PatchResult(patch.Id, PatchStatus.Failed, null, readError);
-
-        var originalBytes = original!;
-
-        bool needs;
-        try
-        {
-            needs = patch.NeedsApply(originalBytes);
-        }
-        catch (Exception ex)
-        {
-            return new PatchResult(
-                patch.Id,
-                PatchStatus.Failed,
-                null,
-                $"NeedsApply threw: {ex.GetType().Name}: {ex.Message}"
-            );
-        }
-
-        if (!needs)
-            return new PatchResult(patch.Id, PatchStatus.AlreadyApplied, null, null);
-
-        if (options.DryRun)
-            return new PatchResult(patch.Id, PatchStatus.Skipped, null, "Dry run — no file written.");
-
-        // DAT-sourced files write to a loose override path — no backup is needed because
-        // the original bytes remain safely in the DAT; revert simply deletes the loose file.
-        string? backupPath = null;
-        if (options.CreateBackup && !isDatSourced)
-        {
-            backupPath = path + BackupExtension;
-            try
-            {
-                File.Copy(path, backupPath, overwrite: true);
-            }
-            catch (Exception ex)
-            {
-                return new PatchResult(
-                    patch.Id,
-                    PatchStatus.Failed,
-                    null,
-                    $"Backup failed: {ex.GetType().Name}: {ex.Message}"
-                );
-            }
-        }
-
-        byte[] patched;
-        try
-        {
-            patched = patch.Apply(originalBytes);
-        }
-        catch (Exception ex)
-        {
-            return new PatchResult(
-                patch.Id,
-                PatchStatus.Failed,
-                backupPath,
-                $"Apply threw: {ex.GetType().Name}: {ex.Message}"
-            );
-        }
-
-        // Write to a temp file and atomically move it into place so that a crash or
-        // cancellation during the write cannot leave the target in a half-written state.
-        var tempPath = path + ".tmp";
-        try
-        {
-            if (isDatSourced)
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(tempPath, patched);
-            File.Move(tempPath, path, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            TryDeleteSilently(tempPath);
-            return new PatchResult(
-                patch.Id,
-                PatchStatus.Failed,
-                backupPath,
-                $"Write failed: {ex.GetType().Name}: {ex.Message}"
-            );
-        }
-
-        return new PatchResult(patch.Id, PatchStatus.Applied, backupPath, null);
-    }
-
-    private static PatchResult RevertOne(IBinaryPatch patch, string gameDir)
-    {
-        var path = ResolvePath(gameDir, patch.Target.RelativePath);
-
-        // DAT-sourced files revert by deleting the loose override so the game falls back to the DAT.
-        if (patch.Target.SourceDatPath is not null)
-        {
-            if (!File.Exists(path))
-                return new PatchResult(patch.Id, PatchStatus.Skipped, null, "No loose override to delete.");
-
-            try
-            {
-                File.Delete(path);
-                return new PatchResult(patch.Id, PatchStatus.Applied, null, null);
-            }
-            catch (Exception ex)
-            {
-                return new PatchResult(patch.Id, PatchStatus.Failed, null, $"{ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        var backupPath = path + BackupExtension;
-        if (!File.Exists(backupPath))
-            return new PatchResult(patch.Id, PatchStatus.Skipped, null, "No backup found.");
-
-        try
-        {
-            File.Copy(backupPath, path, overwrite: true);
-            File.Delete(backupPath);
-            return new PatchResult(patch.Id, PatchStatus.Applied, null, null);
-        }
-        catch (Exception ex)
-        {
-            return new PatchResult(patch.Id, PatchStatus.Failed, backupPath, $"{ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    private static PatchVerifyResult VerifyOne(IBinaryPatch patch, string gameDir)
-    {
-        var path = ResolvePath(gameDir, patch.Target.RelativePath);
-
-        var (original, readError) = TryReadOriginalBytes(patch, path, gameDir);
-        if (readError is not null)
-        {
-            var fileExists = File.Exists(path);
-            return new PatchVerifyResult(patch.Id, false, fileExists, readError);
-        }
-
-        try
-        {
-            var needs = patch.NeedsApply(original!);
-            return new PatchVerifyResult(patch.Id, needs, true, null);
-        }
-        catch (Exception ex)
-        {
-            return new PatchVerifyResult(patch.Id, false, true, $"NeedsApply threw: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    private static void TryDeleteSilently(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch
-        { /* best effort */
-        }
-    }
-
-    private static (byte[]? Data, string? Error) ReadFromDat(IBinaryPatch patch, string gameDir)
-    {
-        var datPath = ResolvePath(gameDir, patch.Target.SourceDatPath!);
-        if (!File.Exists(datPath))
-            return (null, $"DAT archive not found: {datPath}");
-
-        try
-        {
-            using var dat = DatArchive.Open(datPath);
-            var entry = dat.FindEntry(patch.Target.DatEntryPath!);
-            if (entry is null)
-                return (null, $"Entry '{patch.Target.DatEntryPath}' not found in '{Path.GetFileName(datPath)}'.");
-            return (dat.ReadEntry(entry), null);
-        }
-        catch (Exception ex)
-        {
-            return (null, $"DAT read failed: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
+    private static PatchVerifyResult VerifyOne(IBinaryPatch patch, string gameDir) =>
+        PatchVerifyOperation.Verify(patch, gameDir);
 }
