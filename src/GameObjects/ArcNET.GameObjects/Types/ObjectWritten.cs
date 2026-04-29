@@ -4,60 +4,61 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectWritten : ObjectItem
 {
+    private int _writtenPadI1Reserved;
+    private int _writtenPadI2Reserved;
+    private int _writtenPadIas1Reserved;
+    private long _writtenPadI64As1Reserved;
+
     public int WrittenFlags { get; internal set; }
-    public int WrittenSubtype { get; internal set; }
-    public int WrittenTextStartLine { get; internal set; }
-    public int WrittenTextEndLine { get; internal set; }
-    public int WrittenPadI1 { get; internal set; }
-    public int WrittenPadI2 { get; internal set; }
-    public int WrittenPadIas1 { get; internal set; }
-    public long WrittenPadI64As1 { get; internal set; }
+    public int Subtype { get; internal set; }
+    public int TextStartLine { get; internal set; }
+    public int TextEndLine { get; internal set; }
 
     internal static ObjectWritten Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectWritten();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFWrittenFlags))
             obj.WrittenFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenSubtype))
-            obj.WrittenSubtype = reader.ReadInt32();
+            obj.Subtype = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenTextStartLine))
-            obj.WrittenTextStartLine = reader.ReadInt32();
+            obj.TextStartLine = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenTextEndLine))
-            obj.WrittenTextEndLine = reader.ReadInt32();
+            obj.TextEndLine = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenPadI1))
-            obj.WrittenPadI1 = reader.ReadInt32();
+            obj._writtenPadI1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenPadI2))
-            obj.WrittenPadI2 = reader.ReadInt32();
+            obj._writtenPadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenPadIas1))
-            obj.WrittenPadIas1 = reader.ReadInt32();
+            obj._writtenPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWrittenPadI64As1))
-            obj.WrittenPadI64As1 = reader.ReadInt64();
+            obj._writtenPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFWrittenFlags))
             writer.WriteInt32(WrittenFlags);
         if (Bit(ObjectField.ObjFWrittenSubtype))
-            writer.WriteInt32(WrittenSubtype);
+            writer.WriteInt32(Subtype);
         if (Bit(ObjectField.ObjFWrittenTextStartLine))
-            writer.WriteInt32(WrittenTextStartLine);
+            writer.WriteInt32(TextStartLine);
         if (Bit(ObjectField.ObjFWrittenTextEndLine))
-            writer.WriteInt32(WrittenTextEndLine);
+            writer.WriteInt32(TextEndLine);
         if (Bit(ObjectField.ObjFWrittenPadI1))
-            writer.WriteInt32(WrittenPadI1);
+            writer.WriteInt32(_writtenPadI1Reserved);
         if (Bit(ObjectField.ObjFWrittenPadI2))
-            writer.WriteInt32(WrittenPadI2);
+            writer.WriteInt32(_writtenPadI2Reserved);
         if (Bit(ObjectField.ObjFWrittenPadIas1))
-            writer.WriteInt32(WrittenPadIas1);
+            writer.WriteInt32(_writtenPadIas1Reserved);
         if (Bit(ObjectField.ObjFWrittenPadI64As1))
-            writer.WriteInt64(WrittenPadI64As1);
+            writer.WriteInt64(_writtenPadI64As1Reserved);
     }
 }

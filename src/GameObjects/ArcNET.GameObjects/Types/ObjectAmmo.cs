@@ -4,55 +4,56 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectAmmo : ObjectItem
 {
+    private int _ammoPadI1Reserved;
+    private int _ammoPadI2Reserved;
+    private int _ammoPadIas1Reserved;
+    private long _ammoPadI64As1Reserved;
+
     public int AmmoFlags { get; internal set; }
-    public int AmmoQuantity { get; internal set; }
-    public int AmmoType { get; internal set; }
-    public int AmmoPadI1 { get; internal set; }
-    public int AmmoPadI2 { get; internal set; }
-    public int AmmoPadIas1 { get; internal set; }
-    public long AmmoPadI64As1 { get; internal set; }
+    public int Quantity { get; internal set; }
+    public int Type { get; internal set; }
 
     internal static ObjectAmmo Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectAmmo();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFAmmoFlags))
             obj.AmmoFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoQuantity))
-            obj.AmmoQuantity = reader.ReadInt32();
+            obj.Quantity = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoType))
-            obj.AmmoType = reader.ReadInt32();
+            obj.Type = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoPadI1))
-            obj.AmmoPadI1 = reader.ReadInt32();
+            obj._ammoPadI1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoPadI2))
-            obj.AmmoPadI2 = reader.ReadInt32();
+            obj._ammoPadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoPadIas1))
-            obj.AmmoPadIas1 = reader.ReadInt32();
+            obj._ammoPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFAmmoPadI64As1))
-            obj.AmmoPadI64As1 = reader.ReadInt64();
+            obj._ammoPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFAmmoFlags))
             writer.WriteInt32(AmmoFlags);
         if (Bit(ObjectField.ObjFAmmoQuantity))
-            writer.WriteInt32(AmmoQuantity);
+            writer.WriteInt32(Quantity);
         if (Bit(ObjectField.ObjFAmmoType))
-            writer.WriteInt32(AmmoType);
+            writer.WriteInt32(Type);
         if (Bit(ObjectField.ObjFAmmoPadI1))
-            writer.WriteInt32(AmmoPadI1);
+            writer.WriteInt32(_ammoPadI1Reserved);
         if (Bit(ObjectField.ObjFAmmoPadI2))
-            writer.WriteInt32(AmmoPadI2);
+            writer.WriteInt32(_ammoPadI2Reserved);
         if (Bit(ObjectField.ObjFAmmoPadIas1))
-            writer.WriteInt32(AmmoPadIas1);
+            writer.WriteInt32(_ammoPadIas1Reserved);
         if (Bit(ObjectField.ObjFAmmoPadI64As1))
-            writer.WriteInt64(AmmoPadI64As1);
+            writer.WriteInt64(_ammoPadI64As1Reserved);
     }
 }

@@ -5,58 +5,59 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectProjectile : ObjectCommon
 {
-    public int ProjectileFlagsCombat { get; internal set; }
-    public int ProjectileFlagsCombatDamage { get; internal set; }
-    public Location ProjectileHitLoc { get; internal set; }
-    public int ProjectileParentWeapon { get; internal set; }
-    public int ProjectilePadI1 { get; internal set; }
-    public int ProjectilePadI2 { get; internal set; }
-    public int ProjectilePadIas1 { get; internal set; }
-    public long ProjectilePadI64As1 { get; internal set; }
+    private int _projectilePadI1Reserved;
+    private int _projectilePadI2Reserved;
+    private int _projectilePadIas1Reserved;
+    private long _projectilePadI64As1Reserved;
+
+    public int CombatFlags { get; internal set; }
+    public int CombatDamageFlags { get; internal set; }
+    public Location HitLoc { get; internal set; }
+    public int ParentWeapon { get; internal set; }
 
     internal static ObjectProjectile Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectProjectile();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFProjectileFlagsCombat))
-            obj.ProjectileFlagsCombat = reader.ReadInt32();
+            obj.CombatFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))
-            obj.ProjectileFlagsCombatDamage = reader.ReadInt32();
+            obj.CombatDamageFlags = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectileHitLoc))
-            obj.ProjectileHitLoc = reader.ReadLocation();
+            obj.HitLoc = reader.ReadLocation();
         if (Bit(ObjectField.ObjFProjectileParentWeapon))
-            obj.ProjectileParentWeapon = reader.ReadInt32();
+            obj.ParentWeapon = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectilePadI1))
-            obj.ProjectilePadI1 = reader.ReadInt32();
+            obj._projectilePadI1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectilePadI2))
-            obj.ProjectilePadI2 = reader.ReadInt32();
+            obj._projectilePadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectilePadIas1))
-            obj.ProjectilePadIas1 = reader.ReadInt32();
+            obj._projectilePadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFProjectilePadI64As1))
-            obj.ProjectilePadI64As1 = reader.ReadInt64();
+            obj._projectilePadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFProjectileFlagsCombat))
-            writer.WriteInt32(ProjectileFlagsCombat);
+            writer.WriteInt32(CombatFlags);
         if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))
-            writer.WriteInt32(ProjectileFlagsCombatDamage);
+            writer.WriteInt32(CombatDamageFlags);
         if (Bit(ObjectField.ObjFProjectileHitLoc))
-            ProjectileHitLoc.Write(ref writer);
+            HitLoc.Write(ref writer);
         if (Bit(ObjectField.ObjFProjectileParentWeapon))
-            writer.WriteInt32(ProjectileParentWeapon);
+            writer.WriteInt32(ParentWeapon);
         if (Bit(ObjectField.ObjFProjectilePadI1))
-            writer.WriteInt32(ProjectilePadI1);
+            writer.WriteInt32(_projectilePadI1Reserved);
         if (Bit(ObjectField.ObjFProjectilePadI2))
-            writer.WriteInt32(ProjectilePadI2);
+            writer.WriteInt32(_projectilePadI2Reserved);
         if (Bit(ObjectField.ObjFProjectilePadIas1))
-            writer.WriteInt32(ProjectilePadIas1);
+            writer.WriteInt32(_projectilePadIas1Reserved);
         if (Bit(ObjectField.ObjFProjectilePadI64As1))
-            writer.WriteInt64(ProjectilePadI64As1);
+            writer.WriteInt64(_projectilePadI64As1Reserved);
     }
 }

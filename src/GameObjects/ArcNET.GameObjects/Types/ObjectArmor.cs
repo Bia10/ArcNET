@@ -4,80 +4,81 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectArmor : ObjectItem
 {
-    public int ArmorFlags { get; internal set; }
-    public int ArmorPaperDollAid { get; internal set; }
-    public int ArmorAcAdj { get; internal set; }
-    public int ArmorMagicAcAdj { get; internal set; }
-    public int[] ArmorResistanceAdj { get; internal set; } = [];
-    public int[] ArmorMagicResistanceAdj { get; internal set; } = [];
-    public int ArmorSilentMoveAdj { get; internal set; }
-    public int ArmorMagicSilentMoveAdj { get; internal set; }
-    public int ArmorUnarmedBonusDamage { get; internal set; }
-    public int ArmorPadI2 { get; internal set; }
-    public int ArmorPadIas1 { get; internal set; }
-    public long ArmorPadI64As1 { get; internal set; }
+    private int _armorPadI2Reserved;
+    private int _armorPadIas1Reserved;
+    private long _armorPadI64As1Reserved;
+
+    public ObjFArmorFlags ArmorFlags { get; internal set; }
+    public int PaperDollAid { get; internal set; }
+    public int AcAdj { get; internal set; }
+    public int MagicAcAdj { get; internal set; }
+    public int[] ResistanceAdj { get; internal set; } = [];
+    public int[] MagicResistanceAdj { get; internal set; } = [];
+    public int SilentMoveAdj { get; internal set; }
+    public int MagicSilentMoveAdj { get; internal set; }
+    public int UnarmedBonusDamage { get; internal set; }
 
     internal static ObjectArmor Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectArmor();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFArmorFlags))
-            obj.ArmorFlags = reader.ReadInt32();
+            obj.ArmorFlags = unchecked((ObjFArmorFlags)(uint)reader.ReadInt32());
         if (Bit(ObjectField.ObjFArmorPaperDollAid))
-            obj.ArmorPaperDollAid = reader.ReadInt32();
+            obj.PaperDollAid = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorAcAdj))
-            obj.ArmorAcAdj = reader.ReadInt32();
+            obj.AcAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorMagicAcAdj))
-            obj.ArmorMagicAcAdj = reader.ReadInt32();
+            obj.MagicAcAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorResistanceAdjIdx))
-            obj.ArmorResistanceAdj = ReadIndexedInts(ref reader);
+            obj.ResistanceAdj = ReadIndexedInts(ref reader);
         if (Bit(ObjectField.ObjFArmorMagicResistanceAdjIdx))
-            obj.ArmorMagicResistanceAdj = ReadIndexedInts(ref reader);
+            obj.MagicResistanceAdj = ReadIndexedInts(ref reader);
         if (Bit(ObjectField.ObjFArmorSilentMoveAdj))
-            obj.ArmorSilentMoveAdj = reader.ReadInt32();
+            obj.SilentMoveAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorMagicSilentMoveAdj))
-            obj.ArmorMagicSilentMoveAdj = reader.ReadInt32();
+            obj.MagicSilentMoveAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorUnarmedBonusDamage))
-            obj.ArmorUnarmedBonusDamage = reader.ReadInt32();
+            obj.UnarmedBonusDamage = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorPadI2))
-            obj.ArmorPadI2 = reader.ReadInt32();
+            obj._armorPadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorPadIas1))
-            obj.ArmorPadIas1 = reader.ReadInt32();
+            obj._armorPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFArmorPadI64As1))
-            obj.ArmorPadI64As1 = reader.ReadInt64();
+            obj._armorPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFArmorFlags))
-            writer.WriteInt32(ArmorFlags);
+            writer.WriteInt32(unchecked((int)ArmorFlags));
         if (Bit(ObjectField.ObjFArmorPaperDollAid))
-            writer.WriteInt32(ArmorPaperDollAid);
+            writer.WriteInt32(PaperDollAid);
         if (Bit(ObjectField.ObjFArmorAcAdj))
-            writer.WriteInt32(ArmorAcAdj);
+            writer.WriteInt32(AcAdj);
         if (Bit(ObjectField.ObjFArmorMagicAcAdj))
-            writer.WriteInt32(ArmorMagicAcAdj);
+            writer.WriteInt32(MagicAcAdj);
         if (Bit(ObjectField.ObjFArmorResistanceAdjIdx))
-            WriteIndexedInts(ref writer, ArmorResistanceAdj);
+            WriteIndexedInts(ref writer, ResistanceAdj);
         if (Bit(ObjectField.ObjFArmorMagicResistanceAdjIdx))
-            WriteIndexedInts(ref writer, ArmorMagicResistanceAdj);
+            WriteIndexedInts(ref writer, MagicResistanceAdj);
         if (Bit(ObjectField.ObjFArmorSilentMoveAdj))
-            writer.WriteInt32(ArmorSilentMoveAdj);
+            writer.WriteInt32(SilentMoveAdj);
         if (Bit(ObjectField.ObjFArmorMagicSilentMoveAdj))
-            writer.WriteInt32(ArmorMagicSilentMoveAdj);
+            writer.WriteInt32(MagicSilentMoveAdj);
         if (Bit(ObjectField.ObjFArmorUnarmedBonusDamage))
-            writer.WriteInt32(ArmorUnarmedBonusDamage);
+            writer.WriteInt32(UnarmedBonusDamage);
         if (Bit(ObjectField.ObjFArmorPadI2))
-            writer.WriteInt32(ArmorPadI2);
+            writer.WriteInt32(_armorPadI2Reserved);
         if (Bit(ObjectField.ObjFArmorPadIas1))
-            writer.WriteInt32(ArmorPadIas1);
+            writer.WriteInt32(_armorPadIas1Reserved);
         if (Bit(ObjectField.ObjFArmorPadI64As1))
-            writer.WriteInt64(ArmorPadI64As1);
+            writer.WriteInt64(_armorPadI64As1Reserved);
     }
 }

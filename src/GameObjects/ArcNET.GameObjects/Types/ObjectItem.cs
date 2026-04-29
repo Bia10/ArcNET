@@ -6,7 +6,11 @@ namespace ArcNET.GameObjects.Types;
 /// <summary>Item fields, shared by Weapon, Ammo, Armor, Gold, Food, Scroll, Key, KeyRing, Written, Generic.</summary>
 public class ObjectItem : ObjectCommon
 {
-    public int ItemFlags { get; internal set; }
+    private int _itemPadI1Reserved;
+    private int _itemPadIas1Reserved;
+    private long _itemPadI64As1Reserved;
+
+    public ObjFItemFlags ItemFlags { get; internal set; }
     public GameObjectGuid ItemParent { get; internal set; }
     public int ItemWeight { get; internal set; }
     public int ItemMagicWeightAdj { get; internal set; }
@@ -26,9 +30,6 @@ public class ObjectItem : ObjectCommon
     public int ItemSpell5 { get; internal set; }
     public int ItemSpellManaStore { get; internal set; }
     public int ItemAiAction { get; internal set; }
-    public int ItemPadI1 { get; internal set; }
-    public int ItemPadIas1 { get; internal set; }
-    public long ItemPadI64As1 { get; internal set; }
 
     internal static ObjectItem ReadItem(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
@@ -38,12 +39,18 @@ public class ObjectItem : ObjectCommon
         return obj;
     }
 
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    {
+        WriteCommonFields(ref writer, bitmap, isPrototype);
+        WriteItemFields(ref writer, bitmap, isPrototype);
+    }
+
     protected void ReadItemFields(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
         if (Bit(ObjectField.ObjFItemFlags))
-            ItemFlags = reader.ReadInt32();
+            ItemFlags = unchecked((ObjFItemFlags)(uint)reader.ReadInt32());
         if (Bit(ObjectField.ObjFItemParent))
             ItemParent = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.ObjFItemWeight))
@@ -83,19 +90,19 @@ public class ObjectItem : ObjectCommon
         if (Bit(ObjectField.ObjFItemAiAction))
             ItemAiAction = reader.ReadInt32();
         if (Bit(ObjectField.ObjFItemPadI1))
-            ItemPadI1 = reader.ReadInt32();
+            _itemPadI1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFItemPadIas1))
-            ItemPadIas1 = reader.ReadInt32();
+            _itemPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFItemPadI64As1))
-            ItemPadI64As1 = reader.ReadInt64();
+            _itemPadI64As1Reserved = reader.ReadInt64();
     }
 
     protected void WriteItemFields(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
         if (Bit(ObjectField.ObjFItemFlags))
-            writer.WriteInt32(ItemFlags);
+            writer.WriteInt32(unchecked((int)ItemFlags));
         if (Bit(ObjectField.ObjFItemParent))
             ItemParent.Write(ref writer);
         if (Bit(ObjectField.ObjFItemWeight))
@@ -135,10 +142,10 @@ public class ObjectItem : ObjectCommon
         if (Bit(ObjectField.ObjFItemAiAction))
             writer.WriteInt32(ItemAiAction);
         if (Bit(ObjectField.ObjFItemPadI1))
-            writer.WriteInt32(ItemPadI1);
+            writer.WriteInt32(_itemPadI1Reserved);
         if (Bit(ObjectField.ObjFItemPadIas1))
-            writer.WriteInt32(ItemPadIas1);
+            writer.WriteInt32(_itemPadIas1Reserved);
         if (Bit(ObjectField.ObjFItemPadI64As1))
-            writer.WriteInt64(ItemPadI64As1);
+            writer.WriteInt64(_itemPadI64As1Reserved);
     }
 }

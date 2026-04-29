@@ -11,8 +11,30 @@ namespace ArcNET.GameObjects;
 /// </summary>
 public sealed class GameObject : IGameObject
 {
-    public required GameObjectHeader Header { get; init; }
-    public required ObjectCommon Common { get; init; }
+    private GameObjectHeader? _header;
+    private ObjectCommon? _common;
+
+    public required GameObjectHeader Header
+    {
+        get => _header ?? throw new InvalidOperationException("GameObject header is not initialized.");
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _header = value;
+            ValidateHeaderAndBody(_header, _common);
+        }
+    }
+
+    public required ObjectCommon Common
+    {
+        get => _common ?? throw new InvalidOperationException("GameObject body is not initialized.");
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _common = value;
+            ValidateHeaderAndBody(_header, _common);
+        }
+    }
 
     public ObjectType Type => Header.GameObjectType;
     public GameObjectGuid ObjectId => Header.ObjectId;
@@ -30,28 +52,7 @@ public sealed class GameObject : IGameObject
         var bitmap = header.Bitmap;
         var isProto = header.IsPrototype;
 
-        ObjectCommon common = header.GameObjectType switch
-        {
-            ObjectType.Wall => ObjectWall.Read(ref reader, bitmap, isProto),
-            ObjectType.Portal => ObjectPortal.Read(ref reader, bitmap, isProto),
-            ObjectType.Container => ObjectContainer.Read(ref reader, bitmap, isProto),
-            ObjectType.Scenery => ObjectScenery.Read(ref reader, bitmap, isProto),
-            ObjectType.Projectile => ObjectProjectile.Read(ref reader, bitmap, isProto),
-            ObjectType.Trap => ObjectTrap.Read(ref reader, bitmap, isProto),
-            ObjectType.Weapon => ObjectWeapon.Read(ref reader, bitmap, isProto),
-            ObjectType.Ammo => ObjectAmmo.Read(ref reader, bitmap, isProto),
-            ObjectType.Armor => ObjectArmor.Read(ref reader, bitmap, isProto),
-            ObjectType.Gold => ObjectGold.Read(ref reader, bitmap, isProto),
-            ObjectType.Food => ObjectFood.Read(ref reader, bitmap, isProto),
-            ObjectType.Scroll => ObjectScroll.Read(ref reader, bitmap, isProto),
-            ObjectType.Key => ObjectKey.Read(ref reader, bitmap, isProto),
-            ObjectType.KeyRing => ObjectKeyRing.Read(ref reader, bitmap, isProto),
-            ObjectType.Written => ObjectWritten.Read(ref reader, bitmap, isProto),
-            ObjectType.Generic => ObjectGeneric.Read(ref reader, bitmap, isProto),
-            ObjectType.Pc => ObjectPc.Read(ref reader, bitmap, isProto),
-            ObjectType.Npc => ObjectNpc.Read(ref reader, bitmap, isProto),
-            _ => new ObjectUnknown(),
-        };
+        var common = ObjectTypeRegistry.Read(header.GameObjectType, ref reader, bitmap, isProto);
 
         return new GameObject { Header = header, Common = common };
     }
@@ -63,71 +64,24 @@ public sealed class GameObject : IGameObject
     /// </summary>
     public byte[] WriteToArray()
     {
+        var header = Header;
+        var common = Common;
+        ObjectTypeRegistry.Validate(header.GameObjectType, common);
+
         var buf = new ArrayBufferWriter<byte>();
         var writer = new SpanWriter(buf);
-        Header.Write(ref writer);
-        var bitmap = Header.Bitmap;
-        var isProto = Header.IsPrototype;
-        switch (Common)
-        {
-            case ObjectPc pc:
-                pc.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectNpc npc:
-                npc.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectWall wall:
-                wall.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectPortal portal:
-                portal.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectContainer container:
-                container.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectScenery scenery:
-                scenery.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectTrap trap:
-                trap.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectProjectile projectile:
-                projectile.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectWeapon weapon:
-                weapon.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectAmmo ammo:
-                ammo.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectArmor armor:
-                armor.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectGold gold:
-                gold.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectFood food:
-                food.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectScroll scroll:
-                scroll.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectKey key:
-                key.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectKeyRing keyRing:
-                keyRing.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectWritten written:
-                written.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectGeneric generic:
-                generic.Write(ref writer, bitmap, isProto);
-                break;
-            case ObjectUnknown unknown:
-                unknown.Write(ref writer, bitmap, isProto);
-                break;
-        }
+        header.Write(ref writer);
+        var bitmap = header.Bitmap;
+        var isProto = header.IsPrototype;
+        ObjectTypeRegistry.Write(header.GameObjectType, common, ref writer, bitmap, isProto);
         return buf.WrittenSpan.ToArray();
+    }
+
+    private static void ValidateHeaderAndBody(GameObjectHeader? header, ObjectCommon? common)
+    {
+        if (header is null || common is null)
+            return;
+
+        ObjectTypeRegistry.Validate(header.GameObjectType, common);
     }
 }

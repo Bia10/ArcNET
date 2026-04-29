@@ -4,155 +4,156 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectWeapon : ObjectItem
 {
-    public int WeaponFlags { get; internal set; }
-    public int WeaponPaperDollAid { get; internal set; }
-    public int WeaponBonusToHit { get; internal set; }
-    public int WeaponMagicHitAdj { get; internal set; }
-    public int[] WeaponDamageLower { get; internal set; } = [];
-    public int[] WeaponDamageUpper { get; internal set; } = [];
-    public int[] WeaponMagicDamageAdj { get; internal set; } = [];
-    public int WeaponSpeedFactor { get; internal set; }
-    public int WeaponMagicSpeedAdj { get; internal set; }
-    public int WeaponRange { get; internal set; }
-    public int WeaponMagicRangeAdj { get; internal set; }
-    public int WeaponMinStrength { get; internal set; }
-    public int WeaponMagicMinStrengthAdj { get; internal set; }
-    public int WeaponAmmoType { get; internal set; }
-    public int WeaponAmmoConsumption { get; internal set; }
-    public int WeaponMissileAid { get; internal set; }
-    public int WeaponVisualEffectAid { get; internal set; }
-    public int WeaponCritHitChart { get; internal set; }
-    public int WeaponMagicCritHitChance { get; internal set; }
-    public int WeaponMagicCritHitEffect { get; internal set; }
-    public int WeaponCritMissChart { get; internal set; }
-    public int WeaponMagicCritMissChance { get; internal set; }
-    public int WeaponMagicCritMissEffect { get; internal set; }
-    public int WeaponPadI1 { get; internal set; }
-    public int WeaponPadI2 { get; internal set; }
-    public int WeaponPadIas1 { get; internal set; }
-    public long WeaponPadI64As1 { get; internal set; }
+    private int _weaponPadI1Reserved;
+    private int _weaponPadI2Reserved;
+    private int _weaponPadIas1Reserved;
+    private long _weaponPadI64As1Reserved;
+
+    public ObjFWeaponFlags WeaponFlags { get; internal set; }
+    public int PaperDollAid { get; internal set; }
+    public int BonusToHit { get; internal set; }
+    public int MagicHitAdj { get; internal set; }
+    public int[] DamageLower { get; internal set; } = [];
+    public int[] DamageUpper { get; internal set; } = [];
+    public int[] MagicDamageAdj { get; internal set; } = [];
+    public int SpeedFactor { get; internal set; }
+    public int MagicSpeedAdj { get; internal set; }
+    public int Range { get; internal set; }
+    public int MagicRangeAdj { get; internal set; }
+    public int MinStrength { get; internal set; }
+    public int MagicMinStrengthAdj { get; internal set; }
+    public int AmmoType { get; internal set; }
+    public int AmmoConsumption { get; internal set; }
+    public int MissileAid { get; internal set; }
+    public int VisualEffectAid { get; internal set; }
+    public int CritHitChart { get; internal set; }
+    public int MagicCritHitChance { get; internal set; }
+    public int MagicCritHitEffect { get; internal set; }
+    public int CritMissChart { get; internal set; }
+    public int MagicCritMissChance { get; internal set; }
+    public int MagicCritMissEffect { get; internal set; }
 
     internal static ObjectWeapon Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectWeapon();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFWeaponFlags))
-            obj.WeaponFlags = reader.ReadInt32();
+            obj.WeaponFlags = unchecked((ObjFWeaponFlags)(uint)reader.ReadInt32());
         if (Bit(ObjectField.ObjFWeaponPaperDollAid))
-            obj.WeaponPaperDollAid = reader.ReadInt32();
+            obj.PaperDollAid = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponBonusToHit))
-            obj.WeaponBonusToHit = reader.ReadInt32();
+            obj.BonusToHit = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicHitAdj))
-            obj.WeaponMagicHitAdj = reader.ReadInt32();
+            obj.MagicHitAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponDamageLowerIdx))
-            obj.WeaponDamageLower = ReadIndexedInts(ref reader);
+            obj.DamageLower = ReadIndexedInts(ref reader);
         if (Bit(ObjectField.ObjFWeaponDamageUpperIdx))
-            obj.WeaponDamageUpper = ReadIndexedInts(ref reader);
+            obj.DamageUpper = ReadIndexedInts(ref reader);
         if (Bit(ObjectField.ObjFWeaponMagicDamageAdjIdx))
-            obj.WeaponMagicDamageAdj = ReadIndexedInts(ref reader);
+            obj.MagicDamageAdj = ReadIndexedInts(ref reader);
         if (Bit(ObjectField.ObjFWeaponSpeedFactor))
-            obj.WeaponSpeedFactor = reader.ReadInt32();
+            obj.SpeedFactor = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicSpeedAdj))
-            obj.WeaponMagicSpeedAdj = reader.ReadInt32();
+            obj.MagicSpeedAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponRange))
-            obj.WeaponRange = reader.ReadInt32();
+            obj.Range = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicRangeAdj))
-            obj.WeaponMagicRangeAdj = reader.ReadInt32();
+            obj.MagicRangeAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMinStrength))
-            obj.WeaponMinStrength = reader.ReadInt32();
+            obj.MinStrength = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicMinStrengthAdj))
-            obj.WeaponMagicMinStrengthAdj = reader.ReadInt32();
+            obj.MagicMinStrengthAdj = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponAmmoType))
-            obj.WeaponAmmoType = reader.ReadInt32();
+            obj.AmmoType = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponAmmoConsumption))
-            obj.WeaponAmmoConsumption = reader.ReadInt32();
+            obj.AmmoConsumption = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMissileAid))
-            obj.WeaponMissileAid = reader.ReadInt32();
+            obj.MissileAid = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponVisualEffectAid))
-            obj.WeaponVisualEffectAid = reader.ReadInt32();
+            obj.VisualEffectAid = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponCritHitChart))
-            obj.WeaponCritHitChart = reader.ReadInt32();
+            obj.CritHitChart = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicCritHitChance))
-            obj.WeaponMagicCritHitChance = reader.ReadInt32();
+            obj.MagicCritHitChance = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicCritHitEffect))
-            obj.WeaponMagicCritHitEffect = reader.ReadInt32();
+            obj.MagicCritHitEffect = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponCritMissChart))
-            obj.WeaponCritMissChart = reader.ReadInt32();
+            obj.CritMissChart = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicCritMissChance))
-            obj.WeaponMagicCritMissChance = reader.ReadInt32();
+            obj.MagicCritMissChance = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponMagicCritMissEffect))
-            obj.WeaponMagicCritMissEffect = reader.ReadInt32();
+            obj.MagicCritMissEffect = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponPadI1))
-            obj.WeaponPadI1 = reader.ReadInt32();
+            obj._weaponPadI1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponPadI2))
-            obj.WeaponPadI2 = reader.ReadInt32();
+            obj._weaponPadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponPadIas1))
-            obj.WeaponPadIas1 = reader.ReadInt32();
+            obj._weaponPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFWeaponPadI64As1))
-            obj.WeaponPadI64As1 = reader.ReadInt64();
+            obj._weaponPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFWeaponFlags))
-            writer.WriteInt32(WeaponFlags);
+            writer.WriteInt32(unchecked((int)WeaponFlags));
         if (Bit(ObjectField.ObjFWeaponPaperDollAid))
-            writer.WriteInt32(WeaponPaperDollAid);
+            writer.WriteInt32(PaperDollAid);
         if (Bit(ObjectField.ObjFWeaponBonusToHit))
-            writer.WriteInt32(WeaponBonusToHit);
+            writer.WriteInt32(BonusToHit);
         if (Bit(ObjectField.ObjFWeaponMagicHitAdj))
-            writer.WriteInt32(WeaponMagicHitAdj);
+            writer.WriteInt32(MagicHitAdj);
         if (Bit(ObjectField.ObjFWeaponDamageLowerIdx))
-            WriteIndexedInts(ref writer, WeaponDamageLower);
+            WriteIndexedInts(ref writer, DamageLower);
         if (Bit(ObjectField.ObjFWeaponDamageUpperIdx))
-            WriteIndexedInts(ref writer, WeaponDamageUpper);
+            WriteIndexedInts(ref writer, DamageUpper);
         if (Bit(ObjectField.ObjFWeaponMagicDamageAdjIdx))
-            WriteIndexedInts(ref writer, WeaponMagicDamageAdj);
+            WriteIndexedInts(ref writer, MagicDamageAdj);
         if (Bit(ObjectField.ObjFWeaponSpeedFactor))
-            writer.WriteInt32(WeaponSpeedFactor);
+            writer.WriteInt32(SpeedFactor);
         if (Bit(ObjectField.ObjFWeaponMagicSpeedAdj))
-            writer.WriteInt32(WeaponMagicSpeedAdj);
+            writer.WriteInt32(MagicSpeedAdj);
         if (Bit(ObjectField.ObjFWeaponRange))
-            writer.WriteInt32(WeaponRange);
+            writer.WriteInt32(Range);
         if (Bit(ObjectField.ObjFWeaponMagicRangeAdj))
-            writer.WriteInt32(WeaponMagicRangeAdj);
+            writer.WriteInt32(MagicRangeAdj);
         if (Bit(ObjectField.ObjFWeaponMinStrength))
-            writer.WriteInt32(WeaponMinStrength);
+            writer.WriteInt32(MinStrength);
         if (Bit(ObjectField.ObjFWeaponMagicMinStrengthAdj))
-            writer.WriteInt32(WeaponMagicMinStrengthAdj);
+            writer.WriteInt32(MagicMinStrengthAdj);
         if (Bit(ObjectField.ObjFWeaponAmmoType))
-            writer.WriteInt32(WeaponAmmoType);
+            writer.WriteInt32(AmmoType);
         if (Bit(ObjectField.ObjFWeaponAmmoConsumption))
-            writer.WriteInt32(WeaponAmmoConsumption);
+            writer.WriteInt32(AmmoConsumption);
         if (Bit(ObjectField.ObjFWeaponMissileAid))
-            writer.WriteInt32(WeaponMissileAid);
+            writer.WriteInt32(MissileAid);
         if (Bit(ObjectField.ObjFWeaponVisualEffectAid))
-            writer.WriteInt32(WeaponVisualEffectAid);
+            writer.WriteInt32(VisualEffectAid);
         if (Bit(ObjectField.ObjFWeaponCritHitChart))
-            writer.WriteInt32(WeaponCritHitChart);
+            writer.WriteInt32(CritHitChart);
         if (Bit(ObjectField.ObjFWeaponMagicCritHitChance))
-            writer.WriteInt32(WeaponMagicCritHitChance);
+            writer.WriteInt32(MagicCritHitChance);
         if (Bit(ObjectField.ObjFWeaponMagicCritHitEffect))
-            writer.WriteInt32(WeaponMagicCritHitEffect);
+            writer.WriteInt32(MagicCritHitEffect);
         if (Bit(ObjectField.ObjFWeaponCritMissChart))
-            writer.WriteInt32(WeaponCritMissChart);
+            writer.WriteInt32(CritMissChart);
         if (Bit(ObjectField.ObjFWeaponMagicCritMissChance))
-            writer.WriteInt32(WeaponMagicCritMissChance);
+            writer.WriteInt32(MagicCritMissChance);
         if (Bit(ObjectField.ObjFWeaponMagicCritMissEffect))
-            writer.WriteInt32(WeaponMagicCritMissEffect);
+            writer.WriteInt32(MagicCritMissEffect);
         if (Bit(ObjectField.ObjFWeaponPadI1))
-            writer.WriteInt32(WeaponPadI1);
+            writer.WriteInt32(_weaponPadI1Reserved);
         if (Bit(ObjectField.ObjFWeaponPadI2))
-            writer.WriteInt32(WeaponPadI2);
+            writer.WriteInt32(_weaponPadI2Reserved);
         if (Bit(ObjectField.ObjFWeaponPadIas1))
-            writer.WriteInt32(WeaponPadIas1);
+            writer.WriteInt32(_weaponPadIas1Reserved);
         if (Bit(ObjectField.ObjFWeaponPadI64As1))
-            writer.WriteInt64(WeaponPadI64As1);
+            writer.WriteInt64(_weaponPadI64As1Reserved);
     }
 }

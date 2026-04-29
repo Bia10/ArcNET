@@ -5,48 +5,49 @@ namespace ArcNET.GameObjects.Types;
 
 public sealed class ObjectScenery : ObjectCommon
 {
-    public int SceneryFlags { get; internal set; }
-    public GameObjectGuid SceneryWhosInMe { get; internal set; }
-    public int SceneryRespawnDelay { get; internal set; }
-    public int SceneryPadI2 { get; internal set; }
-    public int SceneryPadIas1 { get; internal set; }
-    public long SceneryPadI64As1 { get; internal set; }
+    private int _sceneryPadI2Reserved;
+    private int _sceneryPadIas1Reserved;
+    private long _sceneryPadI64As1Reserved;
+
+    public ObjFSceneryFlags SceneryFlags { get; internal set; }
+    public GameObjectGuid WhosInMe { get; internal set; }
+    public int RespawnDelay { get; internal set; }
 
     internal static ObjectScenery Read(ref SpanReader reader, byte[] bitmap, bool isPrototype)
     {
         var obj = new ObjectScenery();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFSceneryFlags))
-            obj.SceneryFlags = reader.ReadInt32();
+            obj.SceneryFlags = unchecked((ObjFSceneryFlags)(uint)reader.ReadInt32());
         if (Bit(ObjectField.ObjFSceneryWhosInMe))
-            obj.SceneryWhosInMe = reader.ReadGameObjectGuid();
+            obj.WhosInMe = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.ObjFSceneryRespawnDelay))
-            obj.SceneryRespawnDelay = reader.ReadInt32();
+            obj.RespawnDelay = reader.ReadInt32();
         if (Bit(ObjectField.ObjFSceneryPadI2))
-            obj.SceneryPadI2 = reader.ReadInt32();
+            obj._sceneryPadI2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFSceneryPadIas1))
-            obj.SceneryPadIas1 = reader.ReadInt32();
+            obj._sceneryPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFSceneryPadI64As1))
-            obj.SceneryPadI64As1 = reader.ReadInt64();
+            obj._sceneryPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
 
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype)
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
-        bool Bit(ObjectField f) => ((bitmap[(int)f >> 3] & (1 << ((int)f & 7))) != 0) || isPrototype;
+        bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
         if (Bit(ObjectField.ObjFSceneryFlags))
-            writer.WriteInt32(SceneryFlags);
+            writer.WriteInt32(unchecked((int)SceneryFlags));
         if (Bit(ObjectField.ObjFSceneryWhosInMe))
-            SceneryWhosInMe.Write(ref writer);
+            WhosInMe.Write(ref writer);
         if (Bit(ObjectField.ObjFSceneryRespawnDelay))
-            writer.WriteInt32(SceneryRespawnDelay);
+            writer.WriteInt32(RespawnDelay);
         if (Bit(ObjectField.ObjFSceneryPadI2))
-            writer.WriteInt32(SceneryPadI2);
+            writer.WriteInt32(_sceneryPadI2Reserved);
         if (Bit(ObjectField.ObjFSceneryPadIas1))
-            writer.WriteInt32(SceneryPadIas1);
+            writer.WriteInt32(_sceneryPadIas1Reserved);
         if (Bit(ObjectField.ObjFSceneryPadI64As1))
-            writer.WriteInt64(SceneryPadI64As1);
+            writer.WriteInt64(_sceneryPadI64As1Reserved);
     }
 }

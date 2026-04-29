@@ -389,5 +389,5 @@ public enum ObjectField : byte
     ObjFNpcGeneratorData = 149,
     ObjFNpcPadI1 = 150,
     ObjFNpcDamageIdx = 151,
-    ObjFNpcShitListIdx = 152,
+    ObjFNpcHostileListIdx = 152,
 }

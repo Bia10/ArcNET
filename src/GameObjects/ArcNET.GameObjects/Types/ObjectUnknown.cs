@@ -3,11 +3,11 @@
 namespace ArcNET.GameObjects.Types;
 
 /// <summary>
-/// Placeholder for game objects whose type is not recognized by this version of the library.
-/// Fields are intentionally absent — the raw bytes are not consumed.
+/// Placeholder for unsupported game object types.
+/// The registry no longer produces this type because the original body bytes cannot be preserved safely.
 /// </summary>
-public sealed class ObjectUnknown : ObjectCommon
+internal sealed class ObjectUnknown : ObjectCommon
 {
-    internal void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype) =>
-        WriteCommonFields(ref writer, bitmap, isPrototype);
+    internal override void Write(ref SpanWriter writer, byte[] bitmap, bool isPrototype) =>
+        throw new InvalidDataException("ObjectUnknown cannot be serialized because its body codec is unavailable.");
 }

@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Reflection;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects.Types;
@@ -45,8 +46,8 @@ public class ObjectTypeRoundTripTests
         obj.OverlayLightFlags = 1;
         obj.OverlayLightAid = [11, 22];
         obj.OverlayLightColor = 0x112233;
-        obj.Flags = 0xF0F0;
-        obj.SpellFlags = 0x0F0F;
+        obj.ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent | ObjFFlags.Inventory;
+        obj.SpellFlags = ObjFSpellFlags.Invisible | ObjFSpellFlags.DetectingMagic | ObjFSpellFlags.Shielded;
         obj.BlockingMask = 0xAA;
         obj.Name = 42;
         obj.Description = 99;
@@ -65,14 +66,14 @@ public class ObjectTypeRoundTripTests
         ];
         obj.SoundEffect = 55;
         obj.Category = 7;
-        obj.PadIas1 = 0xDEAD;
-        obj.PadI64As1 = 0x123456789ABCDE0L;
+        obj.CommonPadIas1Reserved = 0xDEAD;
+        obj.CommonPadI64As1Reserved = 0x123456789ABCDE0L;
     }
 
     private static void PopulateItem(ObjectItem obj)
     {
         PopulateCommon(obj);
-        obj.ItemFlags = 5;
+        obj.ItemFlags = ObjFItemFlags.Identified | ObjFItemFlags.IsMagical;
         obj.ItemParent = TestGuid;
         obj.ItemWeight = 10;
         obj.ItemMagicWeightAdj = 2;
@@ -92,9 +93,9 @@ public class ObjectTypeRoundTripTests
         obj.ItemSpell5 = 55;
         obj.ItemSpellManaStore = 99;
         obj.ItemAiAction = 7;
-        obj.ItemPadI1 = 0xBEEF;
-        obj.ItemPadIas1 = 0xC0DE;
-        obj.ItemPadI64As1 = 0xFEDCBA987654320L;
+        SetReserved<ObjectItem>(obj, "_itemPadI1Reserved", 0xBEEF);
+        SetReserved<ObjectItem>(obj, "_itemPadIas1Reserved", 0xC0DE);
+        SetReserved<ObjectItem>(obj, "_itemPadI64As1Reserved", 0xFEDCBA987654320L);
     }
 
     private static byte[] WriteAndCapture(Action<SpanWriter> write)
@@ -105,6 +106,56 @@ public class ObjectTypeRoundTripTests
         return buf.WrittenMemory.ToArray();
     }
 
+    private static GameObject RoundTripGameObject(ObjectType objectType, ObjectCommon common)
+    {
+        var gameObject = new GameObject
+        {
+            Header = new GameObjectHeader
+            {
+                Version = 0x77,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = TestGuid,
+                GameObjectType = objectType,
+                Bitmap = new byte[ObjectFieldBitmapSize.For(objectType)],
+            },
+            Common = common,
+        };
+
+        var bytes = gameObject.WriteToArray();
+        var reader = new SpanReader(bytes);
+        return GameObject.Read(ref reader);
+    }
+
+    private static void PopulateCritterReserved(ObjectCritter obj)
+    {
+        obj.CritterPadI1Reserved = 0x1111;
+        obj.CritterPadI2Reserved = 0x2222;
+        obj.CritterPadI3Reserved = 0x3333;
+        obj.CritterPadIas1Reserved = 0x4444;
+        obj.CritterPadI64As1Reserved = 0x5555666677778888L;
+    }
+
+    private static void PopulatePcReserved(ObjectPc obj)
+    {
+        obj.PcPadIas2Reserved = 0x9090;
+        obj.PcPadI1Reserved = 0xA0A0;
+        obj.PcPadI2Reserved = 0xB0B0;
+        obj.PcPadIas1Reserved = 0xC0C0;
+        obj.PcPadI64As1Reserved = 0x1111222233334444L;
+    }
+
+    private static void PopulateNpcReserved(ObjectNpc obj) => obj.NpcPadI1Reserved = 0x8181;
+
+    private static void SetReserved<TDeclaring>(object target, string fieldName, object value)
+    {
+        var field =
+            typeof(TDeclaring).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException(
+                $"Missing reserved field '{fieldName}' on {typeof(TDeclaring).Name}."
+            );
+        field.SetValue(target, value);
+    }
+
     // ── ObjectWall ───────────────────────────────────────────────────────────
 
     [Test]
@@ -113,10 +164,10 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectWall();
         PopulateCommon(original);
         original.WallFlags = 0xFF;
-        original.WallPadI1 = 1;
-        original.WallPadI2 = 2;
-        original.WallPadIas1 = 3;
-        original.WallPadI64As1 = 999L;
+        SetReserved<ObjectWall>(original, "_wallPadI1Reserved", 1);
+        SetReserved<ObjectWall>(original, "_wallPadI2Reserved", 2);
+        SetReserved<ObjectWall>(original, "_wallPadIas1Reserved", 3);
+        SetReserved<ObjectWall>(original, "_wallPadI64As1Reserved", 999L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -135,14 +186,14 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectPortal();
         PopulateCommon(original);
-        original.PortalFlags = 1;
-        original.PortalLockDifficulty = 50;
-        original.PortalKeyId = 7;
-        original.PortalNotifyNpc = 1;
-        original.PortalPadI1 = 2;
-        original.PortalPadI2 = 3;
-        original.PortalPadIas1 = 4;
-        original.PortalPadI64As1 = 888L;
+        original.PortalFlags = ObjFPortalFlags.Locked;
+        original.LockDifficulty = 50;
+        original.KeyId = 7;
+        original.NotifyNpc = 1;
+        SetReserved<ObjectPortal>(original, "_portalPadI1Reserved", 2);
+        SetReserved<ObjectPortal>(original, "_portalPadI2Reserved", 3);
+        SetReserved<ObjectPortal>(original, "_portalPadIas1Reserved", 4);
+        SetReserved<ObjectPortal>(original, "_portalPadI64As1Reserved", 888L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -159,21 +210,20 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectContainer();
         PopulateCommon(original);
-        original.ContainerFlags = 2;
-        original.ContainerLockDifficulty = 30;
-        original.ContainerKeyId = 5;
-        original.ContainerInventoryNum = 2;
-        original.ContainerInventoryList =
+        original.ContainerFlags = ObjFContainerFlags.Jammed;
+        original.LockDifficulty = 30;
+        original.KeyId = 5;
+        original.InventoryList =
         [
             TestGuid,
             new GameObjectGuid((short)5, (short)6, 7, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8)),
         ];
-        original.ContainerInventorySource = 1;
-        original.ContainerNotifyNpc = 0;
-        original.ContainerPadI1 = 1;
-        original.ContainerPadI2 = 2;
-        original.ContainerPadIas1 = 3;
-        original.ContainerPadI64As1 = 777L;
+        original.InventorySource = 1;
+        original.NotifyNpc = 0;
+        original.ContainerPadI1Reserved = 1;
+        original.ContainerPadI2Reserved = 2;
+        original.ContainerPadIas1Reserved = 3;
+        original.ContainerPadI64As1Reserved = 777L;
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -183,6 +233,19 @@ public class ObjectTypeRoundTripTests
         await Assert.That(bytes1.SequenceEqual(bytes2)).IsTrue();
     }
 
+    [Test]
+    public async Task ObjectContainer_SeparatesObjectFlagsAndContainerFlags()
+    {
+        ObjectCommon common = new ObjectContainer();
+        common.ObjectFlags = ObjFFlags.Dynamic | ObjFFlags.Inventory;
+
+        var container = (ObjectContainer)common;
+        container.ContainerFlags = ObjFContainerFlags.Locked | ObjFContainerFlags.Jammed;
+
+        await Assert.That(common.ObjectFlags).IsEqualTo(ObjFFlags.Dynamic | ObjFFlags.Inventory);
+        await Assert.That(container.ContainerFlags).IsEqualTo(ObjFContainerFlags.Locked | ObjFContainerFlags.Jammed);
+    }
+
     // ── ObjectScenery ────────────────────────────────────────────────────────
 
     [Test]
@@ -190,12 +253,12 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectScenery();
         PopulateCommon(original);
-        original.SceneryFlags = 0xA;
-        original.SceneryWhosInMe = TestGuid;
-        original.SceneryRespawnDelay = 120;
-        original.SceneryPadI2 = 1;
-        original.SceneryPadIas1 = 2;
-        original.SceneryPadI64As1 = 555L;
+        original.SceneryFlags = ObjFSceneryFlags.Busted | ObjFSceneryFlags.MarksTownmap;
+        original.WhosInMe = TestGuid;
+        original.RespawnDelay = 120;
+        SetReserved<ObjectScenery>(original, "_sceneryPadI2Reserved", 1);
+        SetReserved<ObjectScenery>(original, "_sceneryPadIas1Reserved", 2);
+        SetReserved<ObjectScenery>(original, "_sceneryPadI64As1Reserved", 555L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -212,14 +275,14 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectProjectile();
         PopulateCommon(original);
-        original.ProjectileFlagsCombat = 3;
-        original.ProjectileFlagsCombatDamage = 15;
-        original.ProjectileHitLoc = TestLocation;
-        original.ProjectileParentWeapon = 42;
-        original.ProjectilePadI1 = 1;
-        original.ProjectilePadI2 = 2;
-        original.ProjectilePadIas1 = 3;
-        original.ProjectilePadI64As1 = 444L;
+        original.CombatFlags = 3;
+        original.CombatDamageFlags = 15;
+        original.HitLoc = TestLocation;
+        original.ParentWeapon = 42;
+        SetReserved<ObjectProjectile>(original, "_projectilePadI1Reserved", 1);
+        SetReserved<ObjectProjectile>(original, "_projectilePadI2Reserved", 2);
+        SetReserved<ObjectProjectile>(original, "_projectilePadIas1Reserved", 3);
+        SetReserved<ObjectProjectile>(original, "_projectilePadI64As1Reserved", 444L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -237,10 +300,10 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectTrap();
         PopulateCommon(original);
         original.TrapFlags = 5;
-        original.TrapDifficulty = 80;
-        original.TrapPadI2 = 1;
-        original.TrapPadIas1 = 2;
-        original.TrapPadI64As1 = 333L;
+        original.Difficulty = 80;
+        SetReserved<ObjectTrap>(original, "_trapPadI2Reserved", 1);
+        SetReserved<ObjectTrap>(original, "_trapPadIas1Reserved", 2);
+        SetReserved<ObjectTrap>(original, "_trapPadI64As1Reserved", 333L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -257,33 +320,33 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectWeapon();
         PopulateItem(original);
-        original.WeaponFlags = 1;
-        original.WeaponPaperDollAid = 2;
-        original.WeaponBonusToHit = 3;
-        original.WeaponMagicHitAdj = 1;
-        original.WeaponDamageLower = [5, 6];
-        original.WeaponDamageUpper = [12, 15];
-        original.WeaponMagicDamageAdj = [2];
-        original.WeaponSpeedFactor = 4;
-        original.WeaponMagicSpeedAdj = 1;
-        original.WeaponRange = 2;
-        original.WeaponMagicRangeAdj = 0;
-        original.WeaponMinStrength = 6;
-        original.WeaponMagicMinStrengthAdj = 0;
-        original.WeaponAmmoType = 1;
-        original.WeaponAmmoConsumption = 1;
-        original.WeaponMissileAid = 0;
-        original.WeaponVisualEffectAid = 0;
-        original.WeaponCritHitChart = 1;
-        original.WeaponMagicCritHitChance = 5;
-        original.WeaponMagicCritHitEffect = 2;
-        original.WeaponCritMissChart = 1;
-        original.WeaponMagicCritMissChance = 3;
-        original.WeaponMagicCritMissEffect = 1;
-        original.WeaponPadI1 = 0;
-        original.WeaponPadI2 = 0;
-        original.WeaponPadIas1 = 0;
-        original.WeaponPadI64As1 = 0L;
+        original.WeaponFlags = ObjFWeaponFlags.Loud;
+        original.PaperDollAid = 2;
+        original.BonusToHit = 3;
+        original.MagicHitAdj = 1;
+        original.DamageLower = [5, 6];
+        original.DamageUpper = [12, 15];
+        original.MagicDamageAdj = [2];
+        original.SpeedFactor = 4;
+        original.MagicSpeedAdj = 1;
+        original.Range = 2;
+        original.MagicRangeAdj = 0;
+        original.MinStrength = 6;
+        original.MagicMinStrengthAdj = 0;
+        original.AmmoType = 1;
+        original.AmmoConsumption = 1;
+        original.MissileAid = 0;
+        original.VisualEffectAid = 0;
+        original.CritHitChart = 1;
+        original.MagicCritHitChance = 5;
+        original.MagicCritHitEffect = 2;
+        original.CritMissChart = 1;
+        original.MagicCritMissChance = 3;
+        original.MagicCritMissEffect = 1;
+        SetReserved<ObjectWeapon>(original, "_weaponPadI1Reserved", 0x5151);
+        SetReserved<ObjectWeapon>(original, "_weaponPadI2Reserved", 0x5252);
+        SetReserved<ObjectWeapon>(original, "_weaponPadIas1Reserved", 0x5353);
+        SetReserved<ObjectWeapon>(original, "_weaponPadI64As1Reserved", 0x5454545454545454L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -301,12 +364,12 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectAmmo();
         PopulateItem(original);
         original.AmmoFlags = 0;
-        original.AmmoQuantity = 50;
-        original.AmmoType = 2;
-        original.AmmoPadI1 = 1;
-        original.AmmoPadI2 = 2;
-        original.AmmoPadIas1 = 3;
-        original.AmmoPadI64As1 = 111L;
+        original.Quantity = 50;
+        original.Type = 2;
+        SetReserved<ObjectAmmo>(original, "_ammoPadI1Reserved", 1);
+        SetReserved<ObjectAmmo>(original, "_ammoPadI2Reserved", 2);
+        SetReserved<ObjectAmmo>(original, "_ammoPadIas1Reserved", 3);
+        SetReserved<ObjectAmmo>(original, "_ammoPadI64As1Reserved", 111L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -323,18 +386,18 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectArmor();
         PopulateItem(original);
-        original.ArmorFlags = 4;
-        original.ArmorPaperDollAid = 7;
-        original.ArmorAcAdj = 5;
-        original.ArmorMagicAcAdj = 2;
-        original.ArmorResistanceAdj = [1, 2, 3];
-        original.ArmorMagicResistanceAdj = [4, 5];
-        original.ArmorSilentMoveAdj = -2;
-        original.ArmorMagicSilentMoveAdj = 0;
-        original.ArmorUnarmedBonusDamage = 1;
-        original.ArmorPadI2 = 0;
-        original.ArmorPadIas1 = 0;
-        original.ArmorPadI64As1 = 0L;
+        original.ArmorFlags = ObjFArmorFlags.SizeLarge;
+        original.PaperDollAid = 7;
+        original.AcAdj = 5;
+        original.MagicAcAdj = 2;
+        original.ResistanceAdj = [1, 2, 3];
+        original.MagicResistanceAdj = [4, 5];
+        original.SilentMoveAdj = -2;
+        original.MagicSilentMoveAdj = 0;
+        original.UnarmedBonusDamage = 1;
+        SetReserved<ObjectArmor>(original, "_armorPadI2Reserved", 0x6161);
+        SetReserved<ObjectArmor>(original, "_armorPadIas1Reserved", 0x6262);
+        SetReserved<ObjectArmor>(original, "_armorPadI64As1Reserved", 0x6363636363636363L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -352,11 +415,11 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectGold();
         PopulateItem(original);
         original.GoldFlags = 0;
-        original.GoldQuantity = 100;
-        original.GoldPadI1 = 1;
-        original.GoldPadI2 = 2;
-        original.GoldPadIas1 = 3;
-        original.GoldPadI64As1 = 0L;
+        original.Quantity = 100;
+        SetReserved<ObjectGold>(original, "_goldPadI1Reserved", 1);
+        SetReserved<ObjectGold>(original, "_goldPadI2Reserved", 2);
+        SetReserved<ObjectGold>(original, "_goldPadIas1Reserved", 3);
+        SetReserved<ObjectGold>(original, "_goldPadI64As1Reserved", 0x6464646464646464L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -374,10 +437,10 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectFood();
         PopulateItem(original);
         original.FoodFlags = 1;
-        original.FoodPadI1 = 1;
-        original.FoodPadI2 = 2;
-        original.FoodPadIas1 = 3;
-        original.FoodPadI64As1 = 0L;
+        SetReserved<ObjectFood>(original, "_foodPadI1Reserved", 1);
+        SetReserved<ObjectFood>(original, "_foodPadI2Reserved", 2);
+        SetReserved<ObjectFood>(original, "_foodPadIas1Reserved", 3);
+        SetReserved<ObjectFood>(original, "_foodPadI64As1Reserved", 0x6565656565656565L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -395,10 +458,10 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectScroll();
         PopulateItem(original);
         original.ScrollFlags = 2;
-        original.ScrollPadI1 = 1;
-        original.ScrollPadI2 = 2;
-        original.ScrollPadIas1 = 3;
-        original.ScrollPadI64As1 = 0L;
+        SetReserved<ObjectScroll>(original, "_scrollPadI1Reserved", 1);
+        SetReserved<ObjectScroll>(original, "_scrollPadI2Reserved", 2);
+        SetReserved<ObjectScroll>(original, "_scrollPadIas1Reserved", 3);
+        SetReserved<ObjectScroll>(original, "_scrollPadI64As1Reserved", 0x6666666666666666L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -415,11 +478,11 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectKey();
         PopulateItem(original);
-        original.KeyKeyId = 13;
-        original.KeyPadI1 = 1;
-        original.KeyPadI2 = 2;
-        original.KeyPadIas1 = 3;
-        original.KeyPadI64As1 = 0L;
+        original.KeyId = 13;
+        SetReserved<ObjectKey>(original, "_keyPadI1Reserved", 1);
+        SetReserved<ObjectKey>(original, "_keyPadI2Reserved", 2);
+        SetReserved<ObjectKey>(original, "_keyPadIas1Reserved", 3);
+        SetReserved<ObjectKey>(original, "_keyPadI64As1Reserved", 0x6767676767676767L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -437,11 +500,11 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectKeyRing();
         PopulateItem(original);
         original.KeyRingFlags = 0;
-        original.KeyRingList = [1, 5, 13];
-        original.KeyRingPadI1 = 1;
-        original.KeyRingPadI2 = 2;
-        original.KeyRingPadIas1 = 3;
-        original.KeyRingPadI64As1 = 0L;
+        original.List = [1, 5, 13];
+        SetReserved<ObjectKeyRing>(original, "_keyRingPadI1Reserved", 1);
+        SetReserved<ObjectKeyRing>(original, "_keyRingPadI2Reserved", 2);
+        SetReserved<ObjectKeyRing>(original, "_keyRingPadIas1Reserved", 3);
+        SetReserved<ObjectKeyRing>(original, "_keyRingPadI64As1Reserved", 0x6868686868686868L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -459,13 +522,13 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectWritten();
         PopulateItem(original);
         original.WrittenFlags = 3;
-        original.WrittenSubtype = 1;
-        original.WrittenTextStartLine = 10;
-        original.WrittenTextEndLine = 20;
-        original.WrittenPadI1 = 1;
-        original.WrittenPadI2 = 2;
-        original.WrittenPadIas1 = 3;
-        original.WrittenPadI64As1 = 0L;
+        original.Subtype = 1;
+        original.TextStartLine = 10;
+        original.TextEndLine = 20;
+        SetReserved<ObjectWritten>(original, "_writtenPadI1Reserved", 1);
+        SetReserved<ObjectWritten>(original, "_writtenPadI2Reserved", 2);
+        SetReserved<ObjectWritten>(original, "_writtenPadIas1Reserved", 3);
+        SetReserved<ObjectWritten>(original, "_writtenPadI64As1Reserved", 0x6969696969696969L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -483,10 +546,10 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectGeneric();
         PopulateItem(original);
         original.GenericFlags = 6;
-        original.GenericUsageBonus = 1;
-        original.GenericUsageCountRemaining = 5;
-        original.GenericPadIas1 = 3;
-        original.GenericPadI64As1 = 0L;
+        original.UsageBonus = 1;
+        original.UsageCountRemaining = 5;
+        SetReserved<ObjectGeneric>(original, "_genericPadIas1Reserved", 3);
+        SetReserved<ObjectGeneric>(original, "_genericPadI64As1Reserved", 0x7070707070707070L);
 
         var bitmap = EmptyBitmap;
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -504,30 +567,100 @@ public class ObjectTypeRoundTripTests
         var bitmap = EmptyBitmap;
         var original = new ObjectNpc();
         PopulateCommon(original);
-        original.CritterFlags = 7;
-        original.CritterFlags2 = 3;
+        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.Animal | ObjFCritterFlags.Sleeping;
+        original.CritterFlags2 = ObjFCritterFlags2.AutoAnimates | ObjFCritterFlags2.UsingBoomerang;
         original.CritterStatBase = [10, 11, 12];
-        original.CritterInventoryNum = 1;
         original.CritterInventoryList = [TestGuid];
         original.CritterFollowers =
         [
             new GameObjectGuid((short)9, (short)8, 7, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6)),
         ];
         original.CritterTeleportDest = TestLocation;
-        original.NpcFlags = 1;
-        original.NpcLeader = TestGuid;
-        original.NpcExperienceWorth = 250;
-        original.NpcWaypoints = [TestLocation, new Location(30, 40)];
-        original.NpcWaypointCurrent = 0;
-        original.NpcStandpointDay = TestLocation;
-        original.NpcStandpointNight = new Location(5, 5);
-        original.NpcReactionPc = [100, 50];
+        PopulateCritterReserved(original);
+        original.NpcFlags = ObjFNpcFlags.Fighting;
+        original.Leader = TestGuid;
+        original.ExperienceWorth = 250;
+        original.Waypoints = [TestLocation, new Location(30, 40)];
+        original.WaypointCurrent = 0;
+        original.StandpointDay = TestLocation;
+        original.StandpointNight = new Location(5, 5);
+        original.ReactionPc = [100, 50];
+        PopulateNpcReserved(original);
 
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
         var reader = new SpanReader(bytes1);
         var restored = ObjectNpc.Read(ref reader, bitmap, isPrototype: true);
         var bytes2 = WriteAndCapture(w => restored.Write(ref w, bitmap, isPrototype: true));
         await Assert.That(bytes1.SequenceEqual(bytes2)).IsTrue();
+    }
+
+    [Test]
+    public async Task ObjectCritter_RestoresSemanticFieldsAfterRoundTrip()
+    {
+        var bitmap = EmptyBitmap;
+        var original = new ObjectCritter();
+        PopulateCommon(original);
+        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee;
+        original.CritterFlags2 = ObjFCritterFlags2.DarkSight | ObjFCritterFlags2.NoDecay;
+        original.CritterStatBase = [10, 11, 12];
+        original.CritterEffects = [5, 6];
+        original.CritterFleeingFrom = TestGuid;
+        original.CritterGold = 77;
+        original.CritterInventoryList = [TestGuid];
+        original.CritterFollowers =
+        [
+            new GameObjectGuid((short)9, (short)8, 7, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6)),
+        ];
+        original.CritterTeleportDest = TestLocation;
+        original.CritterTeleportMap = 5;
+
+        var bytes = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
+        var reader = new SpanReader(bytes);
+        var restored = ObjectCritter.Read(ref reader, bitmap, isPrototype: true);
+
+        await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
+        await Assert.That(restored.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent | ObjFFlags.Inventory);
+        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+        await Assert.That(restored.CritterFlags2).IsEqualTo(ObjFCritterFlags2.DarkSight | ObjFCritterFlags2.NoDecay);
+        await Assert.That(restored.CritterStatBase).IsEquivalentTo([10, 11, 12]);
+        await Assert.That(restored.CritterEffects).IsEquivalentTo([5, 6]);
+        await Assert.That(restored.CritterFleeingFrom).IsEqualTo(TestGuid);
+        await Assert.That(restored.CritterGold).IsEqualTo(77);
+        await Assert.That(restored.CritterInventoryList).IsEquivalentTo([TestGuid]);
+        await Assert.That(restored.CritterFollowers.Length).IsEqualTo(1);
+        await Assert.That(restored.CritterTeleportDest).IsEqualTo(TestLocation);
+        await Assert.That(restored.CritterTeleportMap).IsEqualTo(5);
+    }
+
+    [Test]
+    public async Task GameObject_NpcRoundTrip_RestoresSemanticFields()
+    {
+        var original = new ObjectNpc();
+        PopulateCommon(original);
+        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.Animal;
+        original.CritterInventoryList = [TestGuid];
+        original.CritterFollowers = [];
+        original.CritterTeleportDest = TestLocation;
+        original.NpcFlags = ObjFNpcFlags.Fighting;
+        original.Leader = TestGuid;
+        original.ExperienceWorth = 250;
+        original.Waypoints = [TestLocation, new Location(30, 40)];
+        original.ReactionPc = [100, 50];
+
+        var restoredGameObject = RoundTripGameObject(ObjectType.Npc, original);
+
+        await Assert.That(restoredGameObject.Common).IsTypeOf<ObjectNpc>();
+        var restored = (ObjectNpc)restoredGameObject.Common;
+
+        await Assert.That(restoredGameObject.Type).IsEqualTo(ObjectType.Npc);
+        await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
+        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.Animal);
+        await Assert.That(restored.CritterInventoryList).IsEquivalentTo([TestGuid]);
+        await Assert.That(restored.NpcFlags).IsEqualTo(ObjFNpcFlags.Fighting);
+        await Assert.That(restored.Leader).IsEqualTo(TestGuid);
+        await Assert.That(restored.ExperienceWorth).IsEqualTo(250);
+        await Assert.That(restored.Waypoints).IsEquivalentTo([TestLocation, new Location(30, 40)]);
+        await Assert.That(restored.ReactionPc).IsEquivalentTo([100, 50]);
     }
 
     // ── ObjectPc ─────────────────────────────────────────────────────────────
@@ -538,22 +671,247 @@ public class ObjectTypeRoundTripTests
         var bitmap = EmptyBitmap;
         var original = new ObjectPc();
         PopulateCommon(original);
-        original.CritterFlags = 5;
-        original.CritterInventoryNum = 0;
+        original.CritterFlags = ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead;
+        original.CritterGold = 166;
+        original.CritterArrows = 60;
+        original.CritterBullets = 100;
+        original.CritterPowerCells = 4;
+        original.CritterFuel = 2;
         original.CritterInventoryList = [];
         original.CritterFollowers = [];
+        PopulateCritterReserved(original);
         original.PcFlags = 2;
-        original.PcPlayerName = new PrefixedString("TestChar");
-        original.PcBankMoney = 9999;
-        original.PcReputation = [1, 2];
-        original.PcQuest = [10, 20, 30];
-        original.PcGlobalFlags = [1, 0, 1];
-        original.PcGlobalVariables = [42];
+        original.PlayerName = new PrefixedString("TestChar");
+        original.BankMoney = 9999;
+        original.Reputation = [1, 2];
+        original.Quest = [10, 20, 30];
+        original.GlobalFlags = [1, 0, 1];
+        original.GlobalVariables = [42];
+        PopulatePcReserved(original);
 
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
         var reader = new SpanReader(bytes1);
         var restored = ObjectPc.Read(ref reader, bitmap, isPrototype: true);
         var bytes2 = WriteAndCapture(w => restored.Write(ref w, bitmap, isPrototype: true));
         await Assert.That(bytes1.SequenceEqual(bytes2)).IsTrue();
+    }
+
+    [Test]
+    public async Task GameObject_PcRoundTrip_RestoresSemanticFields()
+    {
+        var original = new ObjectPc();
+        PopulateCommon(original);
+        original.CritterFlags = ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead;
+        original.CritterGold = 166;
+        original.CritterArrows = 60;
+        original.CritterBullets = 100;
+        original.CritterPowerCells = 4;
+        original.CritterFuel = 2;
+        original.CritterInventoryList = [];
+        original.CritterFollowers = [];
+        original.PcFlags = 2;
+        original.PlayerName = new PrefixedString("TestChar");
+        original.BankMoney = 9999;
+        original.Reputation = [1, 2];
+        original.Quest = [10, 20, 30];
+        original.GlobalFlags = [1, 0, 1];
+        original.GlobalVariables = [42];
+
+        var restoredGameObject = RoundTripGameObject(ObjectType.Pc, original);
+
+        await Assert.That(restoredGameObject.Common).IsTypeOf<ObjectPc>();
+        var restored = (ObjectPc)restoredGameObject.Common;
+
+        await Assert.That(restoredGameObject.Type).IsEqualTo(ObjectType.Pc);
+        await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
+        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead);
+        await Assert.That(restored.CritterGold).IsEqualTo(166);
+        await Assert.That(restored.CritterArrows).IsEqualTo(60);
+        await Assert.That(restored.PcFlags).IsEqualTo(2);
+        await Assert.That(restored.PlayerName).IsEqualTo(new PrefixedString("TestChar"));
+        await Assert.That(restored.BankMoney).IsEqualTo(9999);
+        await Assert.That(restored.Reputation).IsEquivalentTo([1, 2]);
+        await Assert.That(restored.Quest).IsEquivalentTo([10, 20, 30]);
+        await Assert.That(restored.GlobalFlags).IsEquivalentTo([1, 0, 1]);
+        await Assert.That(restored.GlobalVariables).IsEquivalentTo([42]);
+    }
+
+    [Test]
+    public async Task ObjectTypeRegistry_Read_RejectsUnsupportedObjectType()
+    {
+        var threw = false;
+
+        try
+        {
+            var reader = new SpanReader(Array.Empty<byte>());
+            ObjectTypeRegistry.Read((ObjectType)255, ref reader, Array.Empty<byte>(), isPrototype: true);
+        }
+        catch (InvalidDataException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
+
+    [Test]
+    public async Task GameObject_RejectsSupportedHeaderBodyMismatch()
+    {
+        var body = new ObjectNpc();
+        PopulateCommon(body);
+
+        await Assert
+            .That(() =>
+                new GameObject
+                {
+                    Header = new GameObjectHeader
+                    {
+                        Version = 0x77,
+                        ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                        ObjectId = TestGuid,
+                        GameObjectType = ObjectType.Pc,
+                        Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Pc)],
+                    },
+                    Common = body,
+                }
+            )
+            .Throws<InvalidDataException>();
+    }
+
+    [Test]
+    public async Task GameObject_RejectsUnsupportedCommonType()
+    {
+        await Assert
+            .That(() =>
+                new GameObject
+                {
+                    Header = new GameObjectHeader
+                    {
+                        Version = 0x77,
+                        ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                        ObjectId = TestGuid,
+                        GameObjectType = ObjectType.Generic,
+                        Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Generic)],
+                    },
+                    Common = new ObjectUnknown(),
+                }
+            )
+            .Throws<InvalidDataException>();
+    }
+
+    [Test]
+    public async Task GameObject_WriteToArray_AllowsMatchingHeaderBodyType()
+    {
+        var body = new ObjectPc();
+        PopulateCommon(body);
+
+        var gameObject = new GameObject
+        {
+            Header = new GameObjectHeader
+            {
+                Version = 0x77,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = TestGuid,
+                GameObjectType = ObjectType.Pc,
+                Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Pc)],
+            },
+            Common = body,
+        };
+
+        var threw = false;
+
+        try
+        {
+            _ = gameObject.WriteToArray();
+        }
+        catch (InvalidDataException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsFalse();
+    }
+
+    [Test]
+    public async Task GameObject_WriteToArray_AllowsSupportedCommonType()
+    {
+        var body = new ObjectGeneric();
+        PopulateCommon(body);
+
+        var gameObject = new GameObject
+        {
+            Header = new GameObjectHeader
+            {
+                Version = 0x77,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = TestGuid,
+                GameObjectType = ObjectType.Generic,
+                Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Generic)],
+            },
+            Common = body,
+        };
+
+        var threw = false;
+
+        try
+        {
+            _ = gameObject.WriteToArray();
+        }
+        catch (InvalidDataException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsFalse();
+    }
+
+    [Test]
+    public async Task ObjectContainer_UsesInventoryListLength_WhenInventoryListIsSerialized()
+    {
+        var bitmap = EmptyBitmap;
+        bitmap.SetField(ObjectField.ObjFContainerInventoryNum, true);
+        bitmap.SetField(ObjectField.ObjFContainerInventoryListIdx, true);
+
+        var original = new ObjectContainer();
+        original.InventoryList = [TestGuid, TestGuid];
+        original.InventoryCountReserved = 99;
+
+        var bytes = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: false));
+        var reader = new SpanReader(bytes);
+        var restored = ObjectContainer.Read(ref reader, bitmap, isPrototype: false);
+
+        await Assert.That(restored.InventoryList.Length).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task ObjectCritter_UsesInventoryListLength_WhenInventoryListIsSerialized()
+    {
+        var bitmap = EmptyBitmap;
+        bitmap.SetField(ObjectField.ObjFCritterInventoryNum, true);
+        bitmap.SetField(ObjectField.ObjFCritterInventoryListIdx, true);
+
+        var original = new ObjectCritter();
+        original.CritterInventoryList = [TestGuid];
+        original.InventoryCountReserved = 99;
+
+        var bytes = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: false));
+        var reader = new SpanReader(bytes);
+        var restored = ObjectCritter.Read(ref reader, bitmap, isPrototype: false);
+
+        await Assert.That(restored.CritterInventoryList.Length).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ObjectContainer_RejectsInventoryListBitmapWithoutCount()
+    {
+        var bitmap = EmptyBitmap;
+        bitmap.SetField(ObjectField.ObjFContainerInventoryListIdx, true);
+
+        var original = new ObjectContainer();
+        original.InventoryList = [TestGuid];
+
+        await Assert
+            .That(() => WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: false)))
+            .Throws<InvalidOperationException>();
     }
 }
