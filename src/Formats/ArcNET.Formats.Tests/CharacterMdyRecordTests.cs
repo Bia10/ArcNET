@@ -735,15 +735,36 @@ public class CharacterMdyRecordTests
     }
 
     [Test]
-    public async Task WithPositionAi_WrongLength_ReturnsUnchanged()
+    public async Task WithPositionAi_WrongLength_ThrowsArgumentException()
     {
         var bytes = BuildRecordWithPositionAiSar(currentAid: 1, location: 200, offsetX: 3);
         var rec = CharacterMdyRecord.Parse(bytes, out _);
 
-        // WithPositionAi requires exactly 3 elements; passing 2 should be a no-op.
-        var patched = rec.WithPositionAi([10, 20]);
+        var action = () => rec.WithPositionAi([10, 20]);
 
-        await Assert.That(patched.PositionAiRaw![0]).IsEqualTo(1);
+        await Assert.That(action).Throws<ArgumentException>();
+    }
+
+    [Test]
+    public async Task WithHpDamage_WrongLength_ThrowsArgumentException()
+    {
+        var bytes = BuildRecordWithHpSar(0, 0, 0, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var action = () => rec.WithHpDamage([10, 20, 30]);
+
+        await Assert.That(action).Throws<ArgumentException>();
+    }
+
+    [Test]
+    public async Task WithFatigueDamage_WrongLength_ThrowsArgumentException()
+    {
+        var bytes = BuildRecordWithFatigueSar(0, 0, 0, 0);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var action = () => rec.WithFatigueDamage([10, 20, 30]);
+
+        await Assert.That(action).Throws<ArgumentException>();
     }
 
     // ── Effects / EffectCauses (bsId=0x49FC / 0x49FD) ────────────────────────
@@ -931,6 +952,22 @@ public class CharacterMdyRecordTests
         await Assert.That((bs[0] >> 10) & 1).IsEqualTo(1); // slot 10
         await Assert.That((bs[1] >> 18) & 1).IsEqualTo(1); // slot 50
         await Assert.That((bs[3] >> 4) & 1).IsEqualTo(1); // slot 100
+    }
+
+    [Test]
+    public async Task Parse_WithQuestSar_QueryCachesArePerInstance()
+    {
+        var bytes = BuildRecordWithQuestSar(questCnt: 3, activeSlotIds: [10, 50, 100]);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        var ids = rec.QuestActiveIds;
+        var entries = rec.QuestEntries;
+        var clone = rec with { RawBytes = [.. rec.RawBytes] };
+
+        await Assert.That(object.ReferenceEquals(ids, rec.QuestActiveIds)).IsTrue();
+        await Assert.That(object.ReferenceEquals(entries, rec.QuestEntries)).IsTrue();
+        await Assert.That(object.ReferenceEquals(ids, clone.QuestActiveIds)).IsFalse();
+        await Assert.That(object.ReferenceEquals(entries, clone.QuestEntries)).IsFalse();
     }
 
     [Test]

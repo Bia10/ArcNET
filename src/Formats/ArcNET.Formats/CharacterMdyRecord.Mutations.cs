@@ -10,129 +10,74 @@ public sealed partial record CharacterMdyRecord
     /// <summary>Returns a new record with the stats array replaced by <paramref name="stats"/>.</summary>
     public CharacterMdyRecord WithStats(int[] stats)
     {
-        var raw = PatchInts(RawBytes, StatsDataOffset, stats);
+        var raw = CharacterMdyRecordBinary.PatchInts(RawBytes, StatsDataOffset, stats);
         return this with { RawBytes = raw, Stats = stats };
     }
 
     /// <summary>Returns a new record with the basic skills array replaced by <paramref name="basicSkills"/>.</summary>
-    public CharacterMdyRecord WithBasicSkills(int[] basicSkills)
-    {
-        if (BasicSkillsDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, BasicSkillsDataOffset, basicSkills);
-        return this with { RawBytes = raw, BasicSkills = basicSkills };
-    }
+    public CharacterMdyRecord WithBasicSkills(int[] basicSkills) =>
+        PatchIntsIfPresent(
+            BasicSkillsDataOffset,
+            basicSkills,
+            raw => this with { RawBytes = raw, BasicSkills = basicSkills }
+        );
 
     /// <summary>Returns a new record with the tech skills array replaced by <paramref name="techSkills"/>.</summary>
-    public CharacterMdyRecord WithTechSkills(int[] techSkills)
-    {
-        if (TechSkillsDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, TechSkillsDataOffset, techSkills);
-        return this with { RawBytes = raw, TechSkills = techSkills };
-    }
+    public CharacterMdyRecord WithTechSkills(int[] techSkills) =>
+        PatchIntsIfPresent(
+            TechSkillsDataOffset,
+            techSkills,
+            raw => this with { RawBytes = raw, TechSkills = techSkills }
+        );
 
     /// <summary>Returns a new record with the spell / tech array replaced by <paramref name="spellTech"/>.</summary>
-    public CharacterMdyRecord WithSpellTech(int[] spellTech)
-    {
-        if (SpellTechDataOffset < 0)
-            return this;
-        var raw = PatchInts(RawBytes, SpellTechDataOffset, spellTech);
-        return this with { RawBytes = raw, SpellTech = spellTech };
-    }
+    public CharacterMdyRecord WithSpellTech(int[] spellTech) =>
+        PatchIntsIfPresent(SpellTechDataOffset, spellTech, raw => this with { RawBytes = raw, SpellTech = spellTech });
 
     /// <summary>
     /// Returns a new record with the gold amount set to <paramref name="gold"/>.
     /// Returns this record unchanged when the gold SAR is absent.
     /// </summary>
-    public CharacterMdyRecord WithGold(int gold)
-    {
-        if (GoldDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(GoldDataOffset, 4), gold);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithGold(int gold) => PatchInt32IfPresent(GoldDataOffset, gold);
 
     /// <summary>
     /// Returns a new record with the arrow count set to <paramref name="arrows"/>.
     /// Returns this record unchanged when the game-statistics SAR is absent.
     /// </summary>
-    public CharacterMdyRecord WithArrows(int arrows)
-    {
-        if (ArrowsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(ArrowsDataOffset, 4), arrows);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithArrows(int arrows) => PatchInt32IfPresent(ArrowsDataOffset, arrows);
 
     /// <summary>
     /// Returns a new record with the portrait index set to <paramref name="portraitIndex"/>.
     /// Returns this record unchanged when the portrait SAR is absent.
     /// </summary>
-    public CharacterMdyRecord WithPortraitIndex(int portraitIndex)
-    {
-        if (PortraitDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(PortraitDataOffset, 4), portraitIndex);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithPortraitIndex(int portraitIndex) =>
+        PatchInt32IfPresent(PortraitDataOffset, portraitIndex);
 
     /// <summary>
     /// Returns a new record with the max-followers computed value set to <paramref name="maxFollowers"/>
     /// (bsId=0x4DA4[0]).
     /// Returns this record unchanged when the portrait SAR is absent.
     /// </summary>
-    public CharacterMdyRecord WithMaxFollowers(int maxFollowers)
-    {
-        var off = MaxFollowersDataOffset;
-        if (off < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(off, 4), maxFollowers);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithMaxFollowers(int maxFollowers) =>
+        PatchInt32IfPresent(MaxFollowersDataOffset, maxFollowers);
 
     /// <summary>
     /// Returns a new record with the total kill count set to <paramref name="totalKills"/>.
     /// Returns this record unchanged when the game-statistics SAR is absent.
     /// </summary>
-    public CharacterMdyRecord WithTotalKills(int totalKills)
-    {
-        if (TotalKillsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(TotalKillsDataOffset, 4), totalKills);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithTotalKills(int totalKills) => PatchInt32IfPresent(TotalKillsDataOffset, totalKills);
 
     /// <summary>
     /// Returns a new record with the bullet count set to <paramref name="bullets"/>.
     /// Returns this record unchanged when the tech-char Bullets slot is absent.
     /// </summary>
-    public CharacterMdyRecord WithBullets(int bullets)
-    {
-        if (BulletsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(BulletsDataOffset, 4), bullets);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithBullets(int bullets) => PatchInt32IfPresent(BulletsDataOffset, bullets);
 
     /// <summary>
     /// Returns a new record with the power-cell count set to <paramref name="powerCells"/>.
     /// Returns this record unchanged when the tech-char PowerCells slot is absent.
     /// </summary>
-    public CharacterMdyRecord WithPowerCells(int powerCells)
-    {
-        if (PowerCellsDataOffset < 0)
-            return this;
-        var raw = (byte[])RawBytes.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(PowerCellsDataOffset, 4), powerCells);
-        return this with { RawBytes = raw };
-    }
+    public CharacterMdyRecord WithPowerCells(int powerCells) => PatchInt32IfPresent(PowerCellsDataOffset, powerCells);
 
     /// <summary>
     /// Returns a new record with the three position / AI SAR values replaced (bsId=0x4DA3).
@@ -141,10 +86,13 @@ public sealed partial record CharacterMdyRecord
     /// </summary>
     public CharacterMdyRecord WithPositionAi(int[] values)
     {
-        if (PositionAiDataOffset < 0 || values.Length != 3)
+        ArgumentNullException.ThrowIfNull(values);
+        if (PositionAiDataOffset < 0)
             return this;
-        var raw = PatchInts(RawBytes, PositionAiDataOffset, values);
-        return this with { RawBytes = raw };
+        if (values.Length != 3)
+            throw new ArgumentException("Must have exactly 3 elements.", nameof(values));
+
+        return PatchIntsIfPresent(PositionAiDataOffset, values);
     }
 
     /// <summary>
@@ -154,10 +102,13 @@ public sealed partial record CharacterMdyRecord
     /// </summary>
     public CharacterMdyRecord WithHpDamage(int[] values)
     {
-        if (HpDamageDataOffset < 0 || values.Length != 4)
+        ArgumentNullException.ThrowIfNull(values);
+        if (HpDamageDataOffset < 0)
             return this;
-        var raw = PatchInts(RawBytes, HpDamageDataOffset, values);
-        return this with { RawBytes = raw };
+        if (values.Length != 4)
+            throw new ArgumentException("Must have exactly 4 elements.", nameof(values));
+
+        return PatchIntsIfPresent(HpDamageDataOffset, values);
     }
 
     /// <summary>
@@ -180,10 +131,13 @@ public sealed partial record CharacterMdyRecord
     /// </summary>
     public CharacterMdyRecord WithFatigueDamage(int[] values)
     {
-        if (FatigueDamageDataOffset < 0 || values.Length != 4)
+        ArgumentNullException.ThrowIfNull(values);
+        if (FatigueDamageDataOffset < 0)
             return this;
-        var raw = PatchInts(RawBytes, FatigueDamageDataOffset, values);
-        return this with { RawBytes = raw };
+        if (values.Length != 4)
+            throw new ArgumentException("Must have exactly 4 elements.", nameof(values));
+
+        return PatchIntsIfPresent(FatigueDamageDataOffset, values);
     }
 
     /// <summary>
@@ -368,5 +322,39 @@ public sealed partial record CharacterMdyRecord
             return this;
         var raw = PatchInts(RawBytes, SchematicsDataOffset, schematicProtoIds);
         return this with { RawBytes = raw };
+    }
+
+    private CharacterMdyRecord PatchInt32IfPresent(int offset, int value)
+    {
+        if (offset < 0)
+            return this;
+
+        return this with
+        {
+            RawBytes = CharacterMdyRecordBinary.CloneAndWriteInt32(RawBytes, offset, value),
+        };
+    }
+
+    private CharacterMdyRecord PatchIntsIfPresent(int offset, ReadOnlySpan<int> values)
+    {
+        if (offset < 0)
+            return this;
+
+        return this with
+        {
+            RawBytes = CharacterMdyRecordBinary.PatchInts(RawBytes, offset, values),
+        };
+    }
+
+    private CharacterMdyRecord PatchIntsIfPresent(
+        int offset,
+        ReadOnlySpan<int> values,
+        Func<byte[], CharacterMdyRecord> apply
+    )
+    {
+        if (offset < 0)
+            return this;
+
+        return apply(CharacterMdyRecordBinary.PatchInts(RawBytes, offset, values));
     }
 }

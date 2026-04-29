@@ -1,5 +1,4 @@
-﻿using System.Buffers.Binary;
-using Bia.ValueBuffers;
+﻿using Bia.ValueBuffers;
 
 namespace ArcNET.Formats;
 
@@ -20,11 +19,6 @@ namespace ArcNET.Formats;
 /// </remarks>
 public static class CharacterMdyRecordBuilder
 {
-    // bsId constants — must match the values expected by CharacterMdyRecord.Parse()
-    // and the Arcanum engine for the extended-scan recognised SARs.
-    private const int GoldBsId = 0x4B13;
-    private const int PortraitBsId = 0x4DA4;
-
     /// <summary>
     /// Validates argument lengths for <see cref="Create"/>.
     /// </summary>
@@ -75,22 +69,12 @@ public static class CharacterMdyRecordBuilder
         ValidateArrays(stats, basicSkills, techSkills, spellTech);
         ValidateName(name);
 
-        var bytes = BuildRecordBytes(
-            stats,
-            basicSkills,
-            techSkills,
-            spellTech,
-            gold,
-            name,
-            portraitIndex,
-            maxFollowers
-        );
-        return CharacterMdyRecord.Parse(bytes, out _);
+        return BuildRecord(stats, basicSkills, techSkills, spellTech, gold, name, portraitIndex, maxFollowers);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static byte[] BuildRecordBytes(
+    private static CharacterMdyRecord BuildRecord(
         int[] stats,
         int[] basicSkills,
         int[] techSkills,
@@ -101,24 +85,66 @@ public static class CharacterMdyRecordBuilder
         int maxFollowers
     )
     {
-        // V2 magic header — identifies this as a v2 PC/NPC record.
-        ReadOnlySpan<byte> magic = CharacterMdyRecord.V2Magic;
-
         Span<byte> initial = stackalloc byte[512];
         var buf = new ValueByteBuffer(initial);
 
-        buf.Write(magic);
-        AppendInt32Sar(ref buf, 0, stats);
-        AppendInt32Sar(ref buf, 0, basicSkills);
-        AppendInt32Sar(ref buf, 0, techSkills);
-        AppendInt32Sar(ref buf, 0, spellTech);
-        AppendInt32Sar(ref buf, GoldBsId, [gold]);
-        AppendInt32Sar(ref buf, PortraitBsId, [maxFollowers, portraitIndex, 0]);
-        AppendNameField(ref buf, name);
+        try
+        {
+            buf.Write(CharacterMdyRecordSchema.V2Magic);
 
-        var result = buf.ToArray();
-        buf.Dispose();
-        return result;
+            int[] goldValue = [gold];
+            int[] portraitValues = [maxFollowers, portraitIndex, 0];
+
+            var statsSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, 0, stats);
+
+            var basicSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, 0, basicSkills);
+
+            var techSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, 0, techSkills);
+
+            var spellSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, 0, spellTech);
+
+            var goldSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, CharacterMdyRecordSchema.GoldAmountBsId, goldValue);
+
+            var portraitSarOffset = buf.WrittenSpan.Length;
+            AppendInt32Sar(ref buf, CharacterMdyRecordSchema.PortraitBsId, portraitValues);
+
+            var nameFieldOffset = buf.WrittenSpan.Length;
+            AppendNameField(ref buf, name);
+
+            var rawBytes = buf.ToArray();
+            var layout = new CharacterMdyRecordLayout
+            {
+                StatsDataOffset = statsSarOffset + CharacterMdyRecordSchema.SarHeaderSize,
+                BasicSkillsDataOffset = basicSarOffset + CharacterMdyRecordSchema.SarHeaderSize,
+                TechSkillsDataOffset = techSarOffset + CharacterMdyRecordSchema.SarHeaderSize,
+                SpellTechDataOffset = spellSarOffset + CharacterMdyRecordSchema.SarHeaderSize,
+                GoldDataOffset = goldSarOffset + CharacterMdyRecordSchema.SarHeaderSize,
+                PortraitDataOffset =
+                    portraitSarOffset
+                    + CharacterMdyRecordSchema.SarHeaderSize
+                    + CharacterMdyRecordSchema.PortraitIndexElement * 4,
+                NameLengthOffset = nameFieldOffset + 1,
+            };
+
+            return CharacterMdyRecordFactory.Create(
+                rawBytes,
+                (int[])stats.Clone(),
+                (int[])basicSkills.Clone(),
+                (int[])techSkills.Clone(),
+                (int[])spellTech.Clone(),
+                hasCompleteData: true,
+                layout
+            );
+        }
+        finally
+        {
+            buf.Dispose();
+        }
     }
 
     /// <summary>Appends a SAR packet for an array of int32 values with the given bsId directly into <paramref name="buf"/>.</summary>

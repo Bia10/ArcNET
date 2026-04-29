@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 
 namespace ArcNET.Formats;
 
@@ -19,105 +20,19 @@ namespace ArcNET.Formats;
 /// </summary>
 public sealed partial record CharacterMdyRecord
 {
-    // ── Wire signatures ───────────────────────────────────────────────────────
+    private static readonly ConditionalWeakTable<CharacterMdyRecord, QueryCache> s_queryCache = new();
 
-    /// <summary>12-byte magic that identifies a v2 character record.</summary>
-    internal static ReadOnlySpan<byte> V2Magic =>
-        [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    internal static ReadOnlySpan<byte> V2Magic => CharacterMdyRecordSchema.V2Magic;
+    private const int SarHeaderSize = CharacterMdyRecordSchema.SarHeaderSize;
+    private const int QuestSarElementSize = CharacterMdyRecordSchema.QuestSarElementSize;
+    private const int QuestSarBitsetWords = CharacterMdyRecordSchema.QuestSarBitsetWords;
+    private const int ReputationSarElementCount = CharacterMdyRecordSchema.ReputationSarElementCount;
+    private const int BlessingTsElementSize = CharacterMdyRecordSchema.BlessingTsElementSize;
+    private const int RumorsSarElementSize = CharacterMdyRecordSchema.RumorsSarElementSize;
+    private const int RumorsSarBitsetWords = CharacterMdyRecordSchema.RumorsSarBitsetWords;
+    private const int PortraitIndexElement = CharacterMdyRecordSchema.PortraitIndexElement;
 
-    // presence(1B)=0x01 + elemSz(4B) + elemCnt(4B) — SAR array signatures.
-    private static ReadOnlySpan<byte> StatSig => [0x04, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x00, 0x00]; // elemCnt=28
-    private static ReadOnlySpan<byte> BasicSkillSig => [0x04, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00]; // elemCnt=12
-    private static ReadOnlySpan<byte> TechSkillSig => [0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00]; // elemCnt=4
-    private static ReadOnlySpan<byte> SpellTechSig => [0x04, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00]; // elemCnt=25
-
-    // presence(1B) + elemSz(4B) + elemCnt(4B) + bitsetId(4B)
-    private const int SarHeaderSize = 13;
-    private const int MaxScanDistance = 4096;
-
-    // ── bsIds confirmed via live-save RE (Probe, session 6) ──────────────────
-    // Primary arrays (found by signature scan; bsIds documented for reference).
-    // Stats (28-elem INT32):       bsId=0x4299
-    // BasicSkills (12-elem INT32): bsId=0x43C3
-    // TechSkills (4-elem INT32):   bsId=0x4A07
-    // SpellTech (25-elem INT32):   bsId=0x4A08
-
-    // bsId for the single-INT32 gold-amount SAR that follows the known four arrays.
-    private const int GoldAmountBsId = 0x4B13;
-
-    // bsId for the OBJ_TYPE_Gold item handle (24-byte ObjectID) — the actual gold object
-    // owned by the PC.  The gold quantity is on the object itself; bsId=0x4B13 caches it.
-    // Read-only: not patched (patching the gold-object handle would require a separate probe).
-    private const int GoldHandleBsId = 0x4D77;
-
-    // bsId for the active-effects INT32 array (CritterEffectsIdx, ObjF bit 74).
-    // Probe confirmed: variable element count per character (5 effects in the test save).
-    // Element layout: each int32 is an effect prototype ID currently active on the critter.
-    private const int EffectsBsId = 0x49FC;
-
-    // bsId for the effect-cause INT32 array (CritterEffectCauseIdx, ObjF bit 75).
-    // Parallel to EffectsBsId: element[n] is the cause ID for Effects[n].
-    private const int EffectCausesBsId = 0x49FD;
-
-    // bsId for the 11-element game-statistics SAR (PC-wide data embedded in the v2 record).
-    // Confirmed element layout:
-    //   [0]=TotalKills, [1..7]=misc counters, [8]=Arrows, [9..10]=critter flags copies.
-    //   Inner bits 11/12 = Bullets/PowerCells — absent for magic-focused characters;
-    //   present as elements [11]/[12] for tech characters (eCnt grows to 13).
-    private const int GameStatsBsId = 0x4D68;
-    private const int GameStatsElementCount = 11; // magic-char baseline; tech chars have 13
-    private const int GameStatsTotalKillsIndex = 0;
-    private const int GameStatsArrowsIndex = 8;
-    private const int GameStatsBulletsIndex = 11; // tech chars only (eCnt >= 12)
-    private const int GameStatsPowerCellsIndex = 12; // tech chars only (eCnt >= 13)
-
-    // bsId for the 3-element portrait / followers SAR.
-    // Confirmed element layout: [0]=MaxFollowersComputed, [1]=PortraitIndex, [2]=0.
-    private const int PortraitBsId = 0x4DA4;
-    private const int PortraitElementCount = 3;
-    private const int PortraitMaxFollowersElement = 0;
-    private const int PortraitIndexElement = 1;
-
-    // Quest-log SAR structural fingerprint (session-independent — bsId varies per game session).
-    // eSize=16: each quest-log entry is a 16-byte record (4 × INT32).
-    // bsCnt=37: the bitset following the data is always 37 uint32 words (1184 bits), covering
-    //   the full Arcanum quest-slot address space.  This value is stable across all tested saves:
-    //   Slot0013 (bsId=0x4A00, eCnt=9), Slot0100 (bsId=0x45C7, eCnt=34), Slot0120 (bsId=0x6AFD, eCnt=46).
-    // The Nth set bit in the 37-word bitset is the Arcanum quest-slot ID for the Nth 16-byte entry.
-    private const int QuestSarElementSize = 16;
-    private const int QuestSarBitsetWords = 37;
-
-    // Reputation SAR (PC field bit 130 — PcReputationIdx): INT32[19] with bcCnt=3.
-    // Absent in early saves (not triggered until PC interacts with factions).
-    // Confirmed: Slot0100 (bsId=0x51E4), Slot0120 (bsId=0x4E2A), Slot0177 (bsId=0x5244) — all same session.
-    private const int ReputationSarElementCount = 19;
-    private const int ReputationSarBitsetWords = 3;
-
-    // Blessing / Curse / Schematics SAR structural detection (session 12 RE findings, Slot0177):
-    //
-    // Blessing pair (PcBlessingIdx bit 135 + PcBlessingTsIdx bit 136):
-    //   First occurrence of a consecutive 4:N:2 + 8:N:2 pair (same N) found in the post-stat
-    //   extended scan region.  The INT32[N] contains blessing-effect prototype IDs, one per god.
-    //   The 8B×N array contains timestamp data (8 bytes per blessing entry).
-    //   Confirmed: Slot0177 SAR#13/14 — bsIds 0x48E9/0x48EA — N grew from 5→7 at Slot0174→0177.
-    //
-    // Curse pair (PcCurseIdx bit 137 + PcCurseTsIdx bit 138):
-    //   Second occurrence of a consecutive 4:M:2 + 8:M:2 pair.
-    //   Confirmed: Slot0177 SAR#16/17 — bsIds 0x2AA3/0x48E2 — M=2 (2 gods' curses), values [67,53].
-    //
-    // Schematics (PcSchematicsFoundIdx bit 142):
-    //   Standalone 4:K:2 in extended scan whose first INT32 value exceeds 1000 (tech proto ID range)
-    //   and is NOT immediately followed by a matching 8:K:2 SAR.
-    //   Confirmed: Slot0177 SAR#19 — bsId=0x5228 — K=4 values [5090,4810,4010,5410].
-    private const int BlessingTsElementSize = 8; // each blessing/curse timestamp entry is 8 bytes in v2 format
-
-    // Rumors SAR (PC field bit 140 — PcRumorIdx): 8-byte elements × variable eCnt, bcCnt=39.
-    // eCnt grows as the player learns new rumors (0 at start, ~60+ at end-game).
-    // Absent in early saves; first appears around level 10 when the player enters populated areas.
-    // Session-independent structural fingerprint: eSize=8, bcCnt=39.
-    // Confirmed across sessions and slot range 0033–0120.
-    private const int RumorsSarElementSize = 8;
-    private const int RumorsSarBitsetWords = 39;
+    private QueryCache CachedQueries => s_queryCache.GetOrCreateValue(this);
 
     // ── Public state ──────────────────────────────────────────────────────────
 
@@ -364,20 +279,7 @@ public sealed partial record CharacterMdyRecord
     /// quest-slot N has a live entry in the log.  The Nth set bit corresponds to the Nth
     /// 16-byte entry in <see cref="QuestDataRaw"/>.
     /// </summary>
-    public int[]? QuestBitsetRaw
-    {
-        get
-        {
-            if (QuestDataOffset < 0)
-                return null;
-            // Quest SAR layout: ...data[eCnt*16] + bsCnt(4B) + bitset[bsCnt*4B]
-            // +4 skips the bsCnt field to reach the first bitset word.
-            var bitsetOff = QuestDataOffset + QuestCount * QuestSarElementSize + 4;
-            if (bitsetOff + QuestSarBitsetWords * 4 > RawBytes.Length)
-                return null;
-            return ReadInts(RawBytes, bitsetOff, QuestSarBitsetWords);
-        }
-    }
+    public int[]? QuestBitsetRaw => GetQuestBitsetRawCore();
 
     /// <summary>
     /// Decodes the quest bitset into the list of quest proto IDs (slot indices) for which
@@ -385,23 +287,35 @@ public sealed partial record CharacterMdyRecord
     /// SAR is present.  Each returned ID is a bit index in <see cref="QuestBitsetRaw"/>.
     /// In Arcanum, quest proto IDs start at 1000 (quests.mes).
     /// </summary>
-    public int[]? QuestActiveIds
+    public int[]? QuestActiveIds => GetQuestActiveIdsCore();
+
+    private int[]? GetQuestActiveIdsCore()
     {
-        get
+        if (!CachedQueries.QuestActiveIdsInitialized)
         {
-            var bits = QuestBitsetRaw;
+            var bits = GetQuestBitsetRawCore();
             if (bits is null)
-                return null;
-            var ids = new List<int>(QuestCount);
-            for (int wi = 0; wi < bits.Length; wi++)
             {
-                uint word = (uint)bits[wi];
-                for (int bi = 0; bi < 32; bi++)
-                    if ((word & (1u << bi)) != 0)
-                        ids.Add(wi * 32 + bi);
+                CachedQueries.QuestActiveIds = null;
             }
-            return ids.ToArray();
+            else
+            {
+                var ids = new List<int>(QuestCount);
+                for (int wi = 0; wi < bits.Length; wi++)
+                {
+                    uint word = (uint)bits[wi];
+                    for (int bi = 0; bi < 32; bi++)
+                        if ((word & (1u << bi)) != 0)
+                            ids.Add(wi * 32 + bi);
+                }
+
+                CachedQueries.QuestActiveIds = ids.ToArray();
+            }
+
+            CachedQueries.QuestActiveIdsInitialized = true;
         }
+
+        return CachedQueries.QuestActiveIds;
     }
 
     /// <summary>
@@ -411,25 +325,36 @@ public sealed partial record CharacterMdyRecord
     /// INT32[3] = 0 (reserved).  Observed low bits: 0x01=active/triggered,
     /// 0x02=primary-complete, 0x04=secondary-complete. Late-game saves also use 0x100.
     /// </summary>
-    public IReadOnlyList<(int ProtoId, int Context, int Timestamp, int State)>? QuestEntries
+    public IReadOnlyList<(int ProtoId, int Context, int Timestamp, int State)>? QuestEntries => GetQuestEntriesCore();
+
+    private IReadOnlyList<(int ProtoId, int Context, int Timestamp, int State)>? GetQuestEntriesCore()
     {
-        get
+        if (!CachedQueries.QuestEntriesInitialized)
         {
-            var ids = QuestActiveIds;
-            var data = QuestDataRaw;
-            if (ids is null || data is null || ids.Length != QuestCount)
-                return null;
-            var result = new (int, int, int, int)[QuestCount];
-            for (int i = 0; i < QuestCount; i++)
+            var ids = GetQuestActiveIdsCore();
+            if (ids is null || QuestDataOffset < 0 || ids.Length != QuestCount)
             {
-                int off = i * QuestSarElementSize;
-                int context = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off, 4));
-                int timestamp = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off + 4, 4));
-                int state = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(off + 8, 4));
-                result[i] = (ids[i], context, timestamp, state);
+                CachedQueries.QuestEntries = null;
             }
-            return result;
+            else
+            {
+                var result = new (int ProtoId, int Context, int Timestamp, int State)[QuestCount];
+                for (int i = 0; i < QuestCount; i++)
+                {
+                    int off = QuestDataOffset + i * QuestSarElementSize;
+                    int context = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(off, 4));
+                    int timestamp = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(off + 4, 4));
+                    int state = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(off + 8, 4));
+                    result[i] = (ids[i], context, timestamp, state);
+                }
+
+                CachedQueries.QuestEntries = result;
+            }
+
+            CachedQueries.QuestEntriesInitialized = true;
         }
+
+        return CachedQueries.QuestEntries;
     }
 
     /// <summary>
@@ -455,32 +380,46 @@ public sealed partial record CharacterMdyRecord
     /// slots 64–69 = 6 additional factions (total 19).
     /// Returns <see langword="null"/> when no reputation SAR is present.
     /// </summary>
-    public int[]? ReputationFactionSlots
+    public int[]? ReputationFactionSlots => GetReputationFactionSlotsCore();
+
+    private int[]? GetReputationFactionSlotsCore()
     {
-        get
+        if (!CachedQueries.ReputationFactionSlotsInitialized)
         {
             if (ReputationDataOffset < 0)
-                return null;
-            // SAR layout from header offset (ReputationDataOffset - 13):
-            // 1B presence + 4B eSize + 4B eCnt + 4B bsId + eCnt*4B data + 4B bsCnt + bsCnt*4B bitset
-            // bsCnt = 3 for reputation SAR.
-            int dataEnd = ReputationDataOffset + ReputationSarElementCount * 4;
-            int bsCntOff = dataEnd; // bsCnt field
-            if (bsCntOff + 4 > RawBytes.Length)
-                return null;
-            int bsCnt = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(bsCntOff, 4));
-            if (bsCnt <= 0 || bsCntOff + 4 + bsCnt * 4 > RawBytes.Length)
-                return null;
-            var slots = new List<int>(ReputationSarElementCount);
-            for (int wi = 0; wi < bsCnt; wi++)
             {
-                uint word = BinaryPrimitives.ReadUInt32LittleEndian(RawBytes.AsSpan(bsCntOff + 4 + wi * 4, 4));
-                for (int bi = 0; bi < 32; bi++)
-                    if ((word & (1u << bi)) != 0)
-                        slots.Add(wi * 32 + bi);
+                CachedQueries.ReputationFactionSlots = null;
             }
-            return slots.Count == ReputationSarElementCount ? slots.ToArray() : null;
+            else
+            {
+                int dataEnd = ReputationDataOffset + ReputationSarElementCount * 4;
+                int bsCntOff = dataEnd;
+                if (bsCntOff + 4 <= RawBytes.Length)
+                {
+                    int bsCnt = BinaryPrimitives.ReadInt32LittleEndian(RawBytes.AsSpan(bsCntOff, 4));
+                    if (bsCnt > 0 && bsCntOff + 4 + bsCnt * 4 <= RawBytes.Length)
+                    {
+                        var slots = new List<int>(ReputationSarElementCount);
+                        for (int wi = 0; wi < bsCnt; wi++)
+                        {
+                            uint word = BinaryPrimitives.ReadUInt32LittleEndian(
+                                RawBytes.AsSpan(bsCntOff + 4 + wi * 4, 4)
+                            );
+                            for (int bi = 0; bi < 32; bi++)
+                                if ((word & (1u << bi)) != 0)
+                                    slots.Add(wi * 32 + bi);
+                        }
+
+                        if (slots.Count == ReputationSarElementCount)
+                            CachedQueries.ReputationFactionSlots = slots.ToArray();
+                    }
+                }
+            }
+
+            CachedQueries.ReputationFactionSlotsInitialized = true;
         }
+
+        return CachedQueries.ReputationFactionSlots;
     }
 
     // ── Blessing / Curse / Schematics offsets (session 12 findings) ──────────
@@ -578,6 +517,35 @@ public sealed partial record CharacterMdyRecord
     public int[]? FatigueDamageRaw =>
         FatigueDamageDataOffset >= 0 ? ReadInts(RawBytes, FatigueDamageDataOffset, 4) : null;
 
+    private static int[] ReadInts(ReadOnlySpan<byte> data, int off, int count) =>
+        CharacterMdyRecordBinary.ReadInts(data, off, count);
+
+    private static byte[] PatchInts(byte[] source, int off, ReadOnlySpan<int> values) =>
+        CharacterMdyRecordBinary.PatchInts(source, off, values);
+
+    private int[]? GetQuestBitsetRawCore()
+    {
+        if (!CachedQueries.QuestBitsetRawInitialized)
+        {
+            if (QuestDataOffset < 0)
+            {
+                CachedQueries.QuestBitsetRaw = null;
+            }
+            else
+            {
+                var bitsetOff = QuestDataOffset + QuestCount * QuestSarElementSize + 4;
+                CachedQueries.QuestBitsetRaw =
+                    bitsetOff + QuestSarBitsetWords * 4 > RawBytes.Length
+                        ? null
+                        : ReadInts(RawBytes, bitsetOff, QuestSarBitsetWords);
+            }
+
+            CachedQueries.QuestBitsetRawInitialized = true;
+        }
+
+        return CachedQueries.QuestBitsetRaw;
+    }
+
     /// <summary>Fatigue damage taken from bsId=0x423E element [2].  0 when at full fatigue or SAR absent.</summary>
     public int FatigueDamage => FatigueDamageRaw is { } r ? r[2] : 0;
 
@@ -615,19 +583,22 @@ public sealed partial record CharacterMdyRecord
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static int[] ReadInts(ReadOnlySpan<byte> data, int off, int count)
+    private sealed class QueryCache
     {
-        var arr = new int[count];
-        for (var i = 0; i < count && off + i * 4 + 4 <= data.Length; i++)
-            arr[i] = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(off + i * 4, 4));
-        return arr;
-    }
+        public bool QuestBitsetRawInitialized { get; set; }
 
-    private static byte[] PatchInts(byte[] source, int off, ReadOnlySpan<int> values)
-    {
-        var raw = (byte[])source.Clone();
-        for (var i = 0; i < values.Length && off + i * 4 + 4 <= raw.Length; i++)
-            BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(off + i * 4, 4), values[i]);
-        return raw;
+        public int[]? QuestBitsetRaw { get; set; }
+
+        public bool QuestActiveIdsInitialized { get; set; }
+
+        public int[]? QuestActiveIds { get; set; }
+
+        public bool QuestEntriesInitialized { get; set; }
+
+        public IReadOnlyList<(int ProtoId, int Context, int Timestamp, int State)>? QuestEntries { get; set; }
+
+        public bool ReputationFactionSlotsInitialized { get; set; }
+
+        public int[]? ReputationFactionSlots { get; set; }
     }
 }
