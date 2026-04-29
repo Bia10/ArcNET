@@ -21,33 +21,9 @@ public sealed class FixCommands
         {
             var patchSets = DiscoverPatches();
 
-            var preview = new Table()
-                .RoundedBorder()
-                .Title("[bold]Patches to apply[/]")
-                .AddColumn("Patch set")
-                .AddColumn("Patch ID")
-                .AddColumn("File")
-                .AddColumn("Change");
+            AnsiConsole.Write(PatchConsoleTables.CreateApplyPreviewTable(gameDir, patchSets));
 
-            foreach (var patchSet in patchSets)
-            foreach (var patch in patchSet.Patches)
-                preview.AddRow(
-                    Markup.Escape(patchSet.Name),
-                    Markup.Escape(patch.Id),
-                    Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath)),
-                    Markup.Escape(patch.PatchSummary)
-                );
-
-            AnsiConsole.Write(preview);
-
-            var results = new Table()
-                .RoundedBorder()
-                .Title("[bold]Apply results[/]")
-                .AddColumn("Patch ID")
-                .AddColumn("File")
-                .AddColumn("Change")
-                .AddColumn("Status")
-                .AddColumn("Detail");
+            var results = PatchConsoleTables.CreateApplyResultsTable();
 
             foreach (var patchSet in patchSets)
             {
@@ -60,30 +36,7 @@ public sealed class FixCommands
                 }
 
                 var patchResults = BinaryPatcher.Apply(patchSet, gameDir);
-                var patchById = patchSet.Patches.ToDictionary(p => p.Id);
-
-                foreach (var r in patchResults)
-                {
-                    var (statusColor, statusText) = r.Status switch
-                    {
-                        PatchStatus.Applied => ("green", "Applied"),
-                        PatchStatus.AlreadyApplied => ("yellow", "Already applied"),
-                        PatchStatus.Skipped => ("grey", "Skipped"),
-                        PatchStatus.Failed => ("red", "Failed"),
-                        _ => ("white", r.Status.ToString()),
-                    };
-
-                    patchById.TryGetValue(r.PatchId, out var patch);
-                    results.AddRow(
-                        Markup.Escape(r.PatchId),
-                        patch is not null
-                            ? Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath))
-                            : "-",
-                        patch is not null ? Markup.Escape(patch.PatchSummary) : "-",
-                        $"[{statusColor}]{statusText}[/]",
-                        Markup.Escape(r.Reason ?? "")
-                    );
-                }
+                PatchConsoleTables.AddApplyRows(results, gameDir, patchSet, patchResults);
 
                 if (patchResults.Any(r => r.Status == PatchStatus.Applied))
                     PatchStateStore.RecordApply(gameDir, patchSet);
@@ -104,14 +57,7 @@ public sealed class FixCommands
         {
             var patchSets = DiscoverPatches();
 
-            var table = new Table()
-                .RoundedBorder()
-                .Title("[bold]Revert results[/]")
-                .AddColumn("Patch ID")
-                .AddColumn("File")
-                .AddColumn("Change")
-                .AddColumn("Status")
-                .AddColumn("Detail");
+            var table = PatchConsoleTables.CreateRevertResultsTable();
 
             foreach (var patchSet in patchSets)
             {
@@ -124,29 +70,7 @@ public sealed class FixCommands
                 }
 
                 var patchResults = BinaryPatcher.Revert(patchSet, gameDir);
-                var patchById = patchSet.Patches.ToDictionary(p => p.Id);
-
-                foreach (var r in patchResults)
-                {
-                    var (statusColor, statusText) = r.Status switch
-                    {
-                        PatchStatus.Applied => ("green", "Reverted"),
-                        PatchStatus.Skipped => ("yellow", "Skipped (no backup)"),
-                        PatchStatus.Failed => ("red", "Failed"),
-                        _ => ("white", r.Status.ToString()),
-                    };
-
-                    patchById.TryGetValue(r.PatchId, out var patch);
-                    table.AddRow(
-                        Markup.Escape(r.PatchId),
-                        patch is not null
-                            ? Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath))
-                            : "-",
-                        patch is not null ? Markup.Escape(patch.PatchSummary) : "-",
-                        $"[{statusColor}]{statusText}[/]",
-                        Markup.Escape(r.Reason ?? "")
-                    );
-                }
+                PatchConsoleTables.AddRevertRows(table, gameDir, patchSet, patchResults);
 
                 PatchStateStore.RecordRevert(gameDir, patchSet);
             }
@@ -171,72 +95,20 @@ public sealed class FixCommands
                 ps => BinaryPatcher.Verify(ps, gameDir).ToDictionary(v => v.PatchId)
             );
 
-            var detail = new Table()
-                .RoundedBorder()
-                .Title("[bold]Patch Details[/]")
-                .AddColumn("Patch ID")
-                .AddColumn("File")
-                .AddColumn("Change")
-                .AddColumn("File state");
+            var detail = PatchConsoleTables.CreatePatchDetailsTable();
 
             foreach (var patchSet in patchSets)
-            {
-                var verifyMap = verifyBySet[patchSet];
-                foreach (var patch in patchSet.Patches)
-                {
-                    verifyMap.TryGetValue(patch.Id, out var vr);
-                    var fileState = vr switch
-                    {
-                        { FileExists: false } => "[red]File missing[/]",
-                        { NeedsApply: true } => "[grey]Not applied[/]",
-                        _ => "[green]Applied[/]",
-                    };
-
-                    detail.AddRow(
-                        Markup.Escape(patch.Id),
-                        Markup.Escape(BinaryPatcher.ResolvePath(gameDir, patch.Target.RelativePath)),
-                        Markup.Escape(patch.PatchSummary),
-                        fileState
-                    );
-                }
-            }
+                PatchConsoleTables.AddDetailRows(detail, gameDir, patchSet, verifyBySet[patchSet]);
 
             AnsiConsole.Write(detail);
 
-            var summary = new Table()
-                .RoundedBorder()
-                .Title("[bold]Patch Set Summary[/]")
-                .AddColumn("Patch set")
-                .AddColumn("Version")
-                .AddColumn("Recorded")
-                .AddColumn("Applied at")
-                .AddColumn("Overall");
+            var summary = PatchConsoleTables.CreatePatchSetSummaryTable();
 
             foreach (var patchSet in patchSets)
             {
                 var entry = state.Applied.Find(e => e.PatchSetName == patchSet.Name);
-                var recorded = entry is not null;
-                var appliedAt = entry is not null ? entry.AppliedAt.ToString("u") : "-";
                 var verifyMap = verifyBySet[patchSet];
-                var needsApply = verifyMap.Values.Any(v => v.NeedsApply);
-                var missingFiles = verifyMap.Values.Any(v => !v.FileExists);
-
-                var overall = (recorded, needsApply, missingFiles) switch
-                {
-                    (_, _, true) => "[red]Missing files[/]",
-                    (true, false, _) => "[green]Clean[/]",
-                    (true, true, _) => "[yellow]Drift[/]",
-                    (false, true, _) => "[grey]Not applied[/]",
-                    (false, false, _) => "[grey]Not applied (or already clean)[/]",
-                };
-
-                summary.AddRow(
-                    Markup.Escape(patchSet.Name),
-                    Markup.Escape(patchSet.Version),
-                    recorded ? "[green]Yes[/]" : "[grey]No[/]",
-                    appliedAt,
-                    overall
-                );
+                PatchConsoleTables.AddSummaryRow(summary, patchSet, entry, verifyMap.Values);
             }
 
             AnsiConsole.Write(summary);

@@ -17,6 +17,7 @@
     <ProjectReference Include="../../Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
     <ProjectReference Include="../../BinaryPatch/ArcNET.BinaryPatch/ArcNET.BinaryPatch.csproj" />
     <ProjectReference Include="../../Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
+    <ProjectReference Include="../../Editor/ArcNET.Editor/ArcNET.Editor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

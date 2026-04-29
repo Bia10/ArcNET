@@ -56,117 +56,7 @@ public sealed class DataCommands
         await Task.Run(() =>
         {
             using var archive = DatArchive.Open(datPath);
-
-            if (string.IsNullOrWhiteSpace(mapPath))
-            {
-                AnsiConsole.MarkupLine("[red]Map path prefix is required (e.g. maps\\\\SomeMap\\\\).[/]");
-                return;
-            }
-
-            var datEntries = archive
-                .Entries.Select(e => e.Path)
-                .Where(p =>
-                    p.StartsWith(mapPath, StringComparison.OrdinalIgnoreCase)
-                    && p.EndsWith(".mob", StringComparison.OrdinalIgnoreCase)
-                )
-                .ToList();
-
-            var looseDir = Path.Combine(gameDir, "modules", "Arcanum", mapPath);
-            var looseEntries = Directory.Exists(looseDir)
-                ? Directory
-                    .EnumerateFiles(looseDir, "*.mob", SearchOption.TopDirectoryOnly)
-                    .Select(f => mapPath + Path.GetFileName(f))
-                    .Where(p => !datEntries.Contains(p, StringComparer.OrdinalIgnoreCase))
-                    .ToList()
-                : [];
-
-            var allEntries = datEntries.Concat(looseEntries).OrderBy(p => p).ToList();
-            AnsiConsole.MarkupLine($"[bold]Found {allEntries.Count} mob files in cave.[/]");
-
-            foreach (var entryPath in allEntries)
-            {
-                var loosePath = Path.Combine(gameDir, "modules", "Arcanum", entryPath);
-                byte[] data;
-                string source;
-
-                if (File.Exists(loosePath))
-                {
-                    data = File.ReadAllBytes(loosePath);
-                    source = $"loose: {Path.GetFileName(entryPath)}";
-                }
-                else
-                {
-                    try
-                    {
-                        data = archive.GetEntryData(entryPath).ToArray();
-                        source = $"DAT: {Path.GetFileName(entryPath)}";
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                        continue;
-                    }
-                }
-
-                MobData mob;
-                try
-                {
-                    mob = MobFormat.ParseMemory(data);
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.MarkupLine(
-                        $"[yellow]SKIP {Markup.Escape(Path.GetFileName(entryPath))}: parse error — {Markup.Escape(ex.Message)}[/]"
-                    );
-                    continue;
-                }
-
-                var isContainer = mob.Header.GameObjectType == ObjectType.Container;
-                if (!isContainer)
-                    continue;
-
-                var invProp = mob.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventoryListIdx);
-                var srcProp = mob.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventorySource);
-                var numProp = mob.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventoryNum);
-
-                AnsiConsole.MarkupLine($"\n[bold cyan]{Markup.Escape(source)}[/]  ({data.Length}B)");
-                var invNum = numProp?.RawBytes.Length == 4 ? numProp.GetInt32() : -1;
-                var invSrc = srcProp?.RawBytes.Length == 4 ? srcProp.GetInt32() : -1;
-                AnsiConsole.MarkupLine($"  Type={mob.Header.GameObjectType}  InvNum={invNum}  InvSrc={invSrc}");
-
-                if (invProp is null)
-                {
-                    AnsiConsole.MarkupLine("  [grey]No inventory list field present.[/]");
-                    continue;
-                }
-
-                try
-                {
-                    var items = invProp.GetObjectIdArrayFull();
-                    AnsiConsole.MarkupLine($"  [green]Inventory items ({items.Length}):[/]");
-                    for (var idx = 0; idx < items.Length; idx++)
-                    {
-                        var (oidType, protoOrData1, guid) = items[idx];
-                        var typeLabel = oidType switch
-                        {
-                            GameObjectGuid.OidTypeA => "A",
-                            GameObjectGuid.OidTypeGuid => "GUID",
-                            GameObjectGuid.OidTypeHandle => "HANDLE",
-                            _ => oidType.ToString(),
-                        };
-                        var idInfo =
-                            oidType == GameObjectGuid.OidTypeA
-                                ? $"proto={protoOrData1, 6}"
-                                : $"d.a=0x{protoOrData1:X8}";
-                        Console.WriteLine($"  [{idx, 3}] type={typeLabel, -6} {idInfo}  guid={guid}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.MarkupLine($"  [red]Failed to decode inventory list: {Markup.Escape(ex.Message)}[/]");
-                }
-            }
-
-            AnsiConsole.MarkupLine("\n[green]Done.[/]");
+            ContainerMobDumpWorkflow.Dump(archive, gameDir, mapPath);
         });
     }
 
@@ -251,9 +141,7 @@ public sealed class DataCommands
 
     private static int? ExtractProtoNum(MobData mob)
     {
-        if (mob.Header.ProtoId.OidType != GameObjectGuid.OidTypeA)
-            return null;
-        var num = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(mob.Header.ProtoId.Id.ToByteArray());
+        var num = mob.Header.ProtoId.GetProtoNumber();
         return num > 0 ? num : null;
     }
 
