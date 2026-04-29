@@ -81,55 +81,41 @@ public static class SaveGameValidator
     /// Validates the entire <see cref="LoadedSave"/>, including all parsed inner files.
     /// Returns all findings; an empty list means the save is structurally clean.
     /// </summary>
-    public static IReadOnlyList<SaveValidationIssue> Validate(LoadedSave save)
-    {
-        var issues = new List<SaveValidationIssue>();
-        ValidateInfo(save.Info, issues);
+    public static IReadOnlyList<SaveValidationIssue> Validate(LoadedSave save) =>
+        CollectIssues(issues =>
+        {
+            ValidateInfo(save.Info, issues);
 
-        foreach (var (path, md) in save.MobileMds)
-            ValidateMobileMd(path, md, issues);
+            foreach (var (path, md) in save.MobileMds)
+                ValidateMobileMd(path, md, issues);
 
-        foreach (var (path, mdy) in save.MobileMdys)
-            ValidateMobileMdy(path, mdy, issues);
+            foreach (var (path, mdy) in save.MobileMdys)
+                ValidateMobileMdy(path, mdy, issues);
 
-        foreach (var (path, mob) in save.Mobiles)
-            ValidateMob(path, mob, issues);
-
-        return issues;
-    }
+            foreach (var (path, mob) in save.Mobiles)
+                ValidateMob(path, mob, issues);
+        });
 
     /// <summary>
     /// Validates a single <see cref="MobileMdFile"/> that is about to replace the
     /// embedded file at <paramref name="virtualPath"/>.
     /// </summary>
-    public static IReadOnlyList<SaveValidationIssue> ValidateMobileMd(string virtualPath, MobileMdFile md)
-    {
-        var issues = new List<SaveValidationIssue>();
-        ValidateMobileMd(virtualPath, md, issues);
-        return issues;
-    }
+    public static IReadOnlyList<SaveValidationIssue> ValidateMobileMd(string virtualPath, MobileMdFile md) =>
+        CollectIssues(issues => ValidateMobileMd(virtualPath, md, issues));
 
     /// <summary>
     /// Validates a single <see cref="MobileMdyFile"/> that is about to replace the
     /// embedded file at <paramref name="virtualPath"/>.
     /// </summary>
-    public static IReadOnlyList<SaveValidationIssue> ValidateMobileMdy(string virtualPath, MobileMdyFile mdy)
-    {
-        var issues = new List<SaveValidationIssue>();
-        ValidateMobileMdy(virtualPath, mdy, issues);
-        return issues;
-    }
+    public static IReadOnlyList<SaveValidationIssue> ValidateMobileMdy(string virtualPath, MobileMdyFile mdy) =>
+        CollectIssues(issues => ValidateMobileMdy(virtualPath, mdy, issues));
 
     /// <summary>
     /// Validates a single <see cref="MobData"/> that is about to replace the
     /// embedded file at <paramref name="virtualPath"/>.
     /// </summary>
-    public static IReadOnlyList<SaveValidationIssue> ValidateMob(string virtualPath, MobData mob)
-    {
-        var issues = new List<SaveValidationIssue>();
-        ValidateMob(virtualPath, mob, issues);
-        return issues;
-    }
+    public static IReadOnlyList<SaveValidationIssue> ValidateMob(string virtualPath, MobData mob) =>
+        CollectIssues(issues => ValidateMob(virtualPath, mob, issues));
 
     // ── Internal validators ───────────────────────────────────────────────────
 
@@ -145,64 +131,109 @@ public static class SaveGameValidator
             issues.Add(Error(null, $"SaveInfo.MapId={info.MapId} is negative — invalid map reference."));
     }
 
-    private static void ValidateMobileMd(string path, MobileMdFile md, List<SaveValidationIssue> issues)
-    {
-        var seenOids = new HashSet<string>();
-        for (var i = 0; i < md.Records.Count; i++)
-        {
-            var rec = md.Records[i];
-            var oidLabel = rec.MapObjectId.ToString();
+    private static void ValidateMobileMd(string path, MobileMdFile md, List<SaveValidationIssue> issues) =>
+        ValidateMobRecords(
+            path,
+            md.Records,
+            issues,
+            _ => false,
+            record => record.MapObjectId.ToString(),
+            record => record.Data,
+            ordinal => $"record {ordinal}",
+            (ordinal, oidLabel) =>
+                Warning(
+                    path,
+                    $"Record {ordinal}: duplicate MapObjectId {oidLabel} — engine may use last occurrence only."
+                ),
+            (ordinal, oidLabel) =>
+                Info(
+                    path,
+                    $"Record {ordinal} ({oidLabel}): mob body could not be fully decoded; raw bytes will be written back verbatim."
+                )
+        );
 
-            if (!seenOids.Add(oidLabel))
-                issues.Add(
-                    Warning(
-                        path,
-                        $"Record {i + 1}: duplicate MapObjectId {oidLabel} — engine may use last occurrence only."
-                    )
-                );
-
-            if (rec.Data is null)
-                issues.Add(
-                    Info(
-                        path,
-                        $"Record {i + 1} ({oidLabel}): mob body could not be fully decoded; raw bytes will be written back verbatim."
-                    )
-                );
-            else
-                ValidateMobData(path, $"record {i + 1}", rec.Data, issues);
-        }
-    }
-
-    private static void ValidateMobileMdy(string path, MobileMdyFile mdy, List<SaveValidationIssue> issues)
-    {
-        var seenOids = new HashSet<string>();
-        for (var i = 0; i < mdy.Records.Count; i++)
-        {
-            var record = mdy.Records[i];
-
-            if (record.IsCharacter)
-            {
-                // V2 character records are opaque SAR blobs; structure is preserved by
-                // the codec and there is nothing further to validate here.
-                continue;
-            }
-
-            var mob = record.Mob!;
-            ValidateMobData(path, $"object {i + 1}", mob, issues);
-
-            var oidLabel = mob.Header.ObjectId.ToString();
-            if (!seenOids.Add(oidLabel))
-                issues.Add(
-                    Warning(
-                        path,
-                        $"Object {i + 1}: duplicate ObjectId {oidLabel} — engine may load both copies, causing corruption."
-                    )
-                );
-        }
-    }
+    private static void ValidateMobileMdy(string path, MobileMdyFile mdy, List<SaveValidationIssue> issues) =>
+        ValidateMobRecords(
+            path,
+            mdy.Records,
+            issues,
+            record => record.IsCharacter,
+            record => record.Mob!.Header.ObjectId.ToString(),
+            record => record.Mob,
+            ordinal => $"object {ordinal}",
+            (ordinal, oidLabel) =>
+                Warning(
+                    path,
+                    $"Object {ordinal}: duplicate ObjectId {oidLabel} — engine may load both copies, causing corruption."
+                ),
+            validateBeforeDuplicateCheck: true
+        );
 
     private static void ValidateMob(string path, MobData mob, List<SaveValidationIssue> issues) =>
         ValidateMobData(path, "root", mob, issues);
+
+    private static IReadOnlyList<SaveValidationIssue> CollectIssues(Action<List<SaveValidationIssue>> validate)
+    {
+        var issues = new List<SaveValidationIssue>();
+        validate(issues);
+        return issues;
+    }
+
+    private static void ValidateMobRecords<TRecord>(
+        string path,
+        IReadOnlyList<TRecord> records,
+        List<SaveValidationIssue> issues,
+        Func<TRecord, bool> shouldSkip,
+        Func<TRecord, string> getIdLabel,
+        Func<TRecord, MobData?> getMob,
+        Func<int, string> getLabel,
+        Func<int, string, SaveValidationIssue> createDuplicateIssue,
+        Func<int, string, SaveValidationIssue>? createOpaqueRecordIssue = null,
+        bool validateBeforeDuplicateCheck = false
+    )
+    {
+        var seenIds = new HashSet<string>();
+        for (var i = 0; i < records.Count; i++)
+        {
+            var record = records[i];
+            if (shouldSkip(record))
+                continue;
+
+            var ordinal = i + 1;
+            var idLabel = getIdLabel(record);
+            var mob = getMob(record);
+
+            if (validateBeforeDuplicateCheck)
+                ValidateMobRecord(path, ordinal, idLabel, mob, issues, getLabel, createOpaqueRecordIssue);
+
+            if (!seenIds.Add(idLabel))
+                issues.Add(createDuplicateIssue(ordinal, idLabel));
+
+            if (!validateBeforeDuplicateCheck)
+                ValidateMobRecord(path, ordinal, idLabel, mob, issues, getLabel, createOpaqueRecordIssue);
+        }
+    }
+
+    private static void ValidateMobRecord(
+        string path,
+        int ordinal,
+        string idLabel,
+        MobData? mob,
+        List<SaveValidationIssue> issues,
+        Func<int, string> getLabel,
+        Func<int, string, SaveValidationIssue>? createOpaqueRecordIssue
+    )
+    {
+        if (mob is null)
+        {
+            if (createOpaqueRecordIssue is not null)
+                issues.Add(createOpaqueRecordIssue(ordinal, idLabel));
+
+            return;
+        }
+
+        ValidateMobData(path, getLabel(ordinal), mob, issues);
+    }
 
     private static void ValidateMobData(string path, string label, MobData mob, List<SaveValidationIssue> issues)
     {

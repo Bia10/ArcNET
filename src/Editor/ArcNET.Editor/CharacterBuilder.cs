@@ -129,11 +129,10 @@ public sealed class CharacterBuilder
     }
 
     /// <summary>
-    /// Sets the character's carried gold link (<c>ObjFCritterGold</c>).
-    /// In the compact mob format gold is stored as a handle (OID) pointing to a gold-object;
-    /// this setter writes the raw handle field for use with v1 records.
-    /// For PC records in the v2 mobile.mdy format the gold handle is separate;
-    /// edit the linked gold object's quantity directly via the raw bytes.
+    /// Sets the character's carried gold counter (<c>ObjFCritterGold</c>).
+    /// This writes the raw critter scalar field used by the compact mob property layer.
+    /// For PC records in the v2 <c>mobile.mdy</c> format, use <see cref="SaveGameEditor"/>
+    /// or <see cref="CharacterRecord"/> for the player-character save-global gold surface.
     /// </summary>
     public CharacterBuilder WithGold(int amount)
     {

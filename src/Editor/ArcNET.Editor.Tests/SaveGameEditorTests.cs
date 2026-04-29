@@ -1363,6 +1363,44 @@ public class SaveGameEditorTests
     }
 
     [Test]
+    public async Task Save_UsesInjectedWriter_AndPassesPendingBundle()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var writer = new RecordingSaveGameWriter();
+        var editor = new SaveGameEditor(save, writer);
+        var updated = new MesFile { Entries = [new MessageEntry(10, "Alpha+"), new MessageEntry(40, "Delta")] };
+
+        editor.WithMessageFile(messagePath, updated).Save("c:/tmp/save", "slot1");
+
+        await Assert.That(writer.SyncFolderSaveCalls).IsEqualTo(1);
+        await Assert.That(writer.LastSaveFolder).IsEqualTo("c:/tmp/save");
+        await Assert.That(writer.LastSlotName).IsEqualTo("slot1");
+        await Assert.That(writer.LastUpdates).IsNotNull();
+        await Assert.That(writer.LastUpdates!.UpdatedMessages).IsNotNull();
+        await Assert.That(writer.LastUpdates!.UpdatedMessages![messagePath].Entries[0].Text).IsEqualTo("Alpha+");
+    }
+
+    [Test]
+    public async Task SaveAsync_UsesInjectedWriter_ForExplicitPaths()
+    {
+        var (save, _, rawPath) = MakeSaveWithPcAndRawFile([0x19, 0x00, 0x00, 0x00]);
+        var writer = new RecordingSaveGameWriter();
+        var editor = new SaveGameEditor(save, writer);
+        byte[] updated = [0xDE, 0xAD, 0xBE, 0xEF];
+
+        editor.WithRawFile(rawPath, updated);
+        await editor.SaveAsync("c:/tmp/save.gsi", "c:/tmp/save.tfai", "c:/tmp/save.tfaf");
+
+        await Assert.That(writer.AsyncExplicitSaveCalls).IsEqualTo(1);
+        await Assert.That(writer.LastGsiPath).IsEqualTo("c:/tmp/save.gsi");
+        await Assert.That(writer.LastTfaiPath).IsEqualTo("c:/tmp/save.tfai");
+        await Assert.That(writer.LastTfafPath).IsEqualTo("c:/tmp/save.tfaf");
+        await Assert.That(writer.LastUpdates).IsNotNull();
+        await Assert.That(writer.LastUpdates!.RawFileUpdates).IsNotNull();
+        await Assert.That(writer.LastUpdates!.RawFileUpdates![rawPath].SequenceEqual(updated)).IsTrue();
+    }
+
+    [Test]
     public async Task Save_WithData2SavUpdate_RoundTrips()
     {
         var (save, _, data2Path) = MakeSaveWithPcAndData2SavFile();
@@ -2394,5 +2432,75 @@ public class SaveGameEditorTests
 
         await Assert.That(roundTripped.ReputationRaw).IsNotNull();
         await Assert.That(roundTripped.ReputationRaw![0]).IsEqualTo(9999);
+    }
+}
+
+file sealed class RecordingSaveGameWriter : ISaveGameWriter
+{
+    public int SyncFolderSaveCalls { get; private set; }
+
+    public int AsyncExplicitSaveCalls { get; private set; }
+
+    public string? LastSaveFolder { get; private set; }
+
+    public string? LastSlotName { get; private set; }
+
+    public string? LastGsiPath { get; private set; }
+
+    public string? LastTfaiPath { get; private set; }
+
+    public string? LastTfafPath { get; private set; }
+
+    public SaveGameUpdates? LastUpdates { get; private set; }
+
+    public void Save(LoadedSave original, string saveFolder, string slotName, SaveGameUpdates? updates = null)
+    {
+        SyncFolderSaveCalls++;
+        LastSaveFolder = saveFolder;
+        LastSlotName = slotName;
+        LastUpdates = updates;
+    }
+
+    public void Save(
+        LoadedSave original,
+        string gsiPath,
+        string tfaiPath,
+        string tfafPath,
+        SaveGameUpdates? updates = null
+    )
+    {
+        LastGsiPath = gsiPath;
+        LastTfaiPath = tfaiPath;
+        LastTfafPath = tfafPath;
+        LastUpdates = updates;
+    }
+
+    public Task SaveAsync(
+        LoadedSave original,
+        string saveFolder,
+        string slotName,
+        SaveGameUpdates? updates = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        Save(original, saveFolder, slotName, updates);
+        return Task.CompletedTask;
+    }
+
+    public Task SaveAsync(
+        LoadedSave original,
+        string gsiPath,
+        string tfaiPath,
+        string tfafPath,
+        SaveGameUpdates? updates = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        AsyncExplicitSaveCalls++;
+        LastGsiPath = gsiPath;
+        LastTfaiPath = tfaiPath;
+        LastTfafPath = tfafPath;
+        LastUpdates = updates;
+        return Task.CompletedTask;
     }
 }

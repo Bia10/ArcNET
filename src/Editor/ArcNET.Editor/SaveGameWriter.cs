@@ -30,28 +30,7 @@ public static class SaveGameWriter
     {
         var (gsiBytes, tfaiBytes, tfafBytes) = Serialize(original, updates);
 
-        // Write each file to a temp path first, then atomically rename into place.
-        // This prevents a crash or I/O error between writes from leaving the three
-        // save-slot files in an inconsistent state.
-        var gsiTemp = gsiPath + ".tmp";
-        var tfaiTemp = tfaiPath + ".tmp";
-        var tfafTemp = tfafPath + ".tmp";
-        try
-        {
-            File.WriteAllBytes(gsiTemp, gsiBytes);
-            File.WriteAllBytes(tfaiTemp, tfaiBytes);
-            File.WriteAllBytes(tfafTemp, tfafBytes);
-            File.Move(gsiTemp, gsiPath, overwrite: true);
-            File.Move(tfaiTemp, tfaiPath, overwrite: true);
-            File.Move(tfafTemp, tfafPath, overwrite: true);
-        }
-        catch
-        {
-            TryDeleteSilently(gsiTemp);
-            TryDeleteSilently(tfaiTemp);
-            TryDeleteSilently(tfafTemp);
-            throw;
-        }
+        AtomicSaveSlotFileWriter.Write(gsiPath, gsiBytes, tfaiPath, tfaiBytes, tfafPath, tfafBytes);
     }
 
     /// <summary>
@@ -106,26 +85,9 @@ public static class SaveGameWriter
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Write each file to a temp path first, then atomically rename into place.
-        var gsiTemp = gsiPath + ".tmp";
-        var tfaiTemp = tfaiPath + ".tmp";
-        var tfafTemp = tfafPath + ".tmp";
-        try
-        {
-            await File.WriteAllBytesAsync(gsiTemp, gsiBytes, cancellationToken).ConfigureAwait(false);
-            await File.WriteAllBytesAsync(tfaiTemp, tfaiBytes, cancellationToken).ConfigureAwait(false);
-            await File.WriteAllBytesAsync(tfafTemp, tfafBytes, cancellationToken).ConfigureAwait(false);
-            File.Move(gsiTemp, gsiPath, overwrite: true);
-            File.Move(tfaiTemp, tfaiPath, overwrite: true);
-            File.Move(tfafTemp, tfafPath, overwrite: true);
-        }
-        catch
-        {
-            TryDeleteSilently(gsiTemp);
-            TryDeleteSilently(tfaiTemp);
-            TryDeleteSilently(tfafTemp);
-            throw;
-        }
+        await AtomicSaveSlotFileWriter
+            .WriteAsync(gsiPath, gsiBytes, tfaiPath, tfaiBytes, tfafPath, tfafBytes, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -158,41 +120,13 @@ public static class SaveGameWriter
 
     // ── Shared serialization ──────────────────────────────────────────────────
 
-    private static void TryDeleteSilently(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch
-        { /* best effort */
-        }
-    }
-
     /// <summary>
     /// Builds the three byte payloads from the save game and all pending updates.
     /// Pure CPU work — no I/O. Used by both <c>Save</c> and <c>SaveAsync</c>.
     /// </summary>
     private static (byte[] gsi, byte[] tfai, byte[] tfaf) Serialize(LoadedSave original, SaveGameUpdates? updates)
     {
-        var files = new Dictionary<string, byte[]>(original.Files, StringComparer.OrdinalIgnoreCase);
-
-        // Explicit lambdas are required because WriteToArray methods use `in` parameters,
-        // which are incompatible with the Func<T, byte[]> delegate (by-value parameter).
-        ApplyUpdates(files, updates?.UpdatedMobiles, static m => MobFormat.WriteToArray(m));
-        ApplyUpdates(files, updates?.UpdatedSectors, static s => SectorFormat.WriteToArray(s));
-        ApplyUpdates(files, updates?.UpdatedJumpFiles, static j => JmpFormat.WriteToArray(j));
-        ApplyUpdates(files, updates?.UpdatedMapProperties, static p => MapPropertiesFormat.WriteToArray(p));
-        ApplyUpdates(files, updates?.UpdatedMessages, static m => MessageFormat.WriteToArray(m));
-        ApplyUpdates(files, updates?.UpdatedTownMapFogs, static f => TownMapFogFormat.WriteToArray(f));
-        ApplyUpdates(files, updates?.UpdatedDataSavFiles, static f => DataSavFormat.WriteToArray(f));
-        ApplyUpdates(files, updates?.UpdatedData2SavFiles, static f => Data2SavFormat.WriteToArray(f));
-        ApplyUpdates(files, updates?.UpdatedScripts, static s => ScriptFormat.WriteToArray(s));
-        ApplyUpdates(files, updates?.UpdatedDialogs, static d => DialogFormat.WriteToArray(d));
-        ApplyUpdates(files, updates?.UpdatedMobileMds, static f => MobileMdFormat.WriteToArray(f));
-        ApplyUpdates(files, updates?.UpdatedMobileMdys, static f => MobileMdyFormat.WriteToArray(f));
-        ApplyUpdates(files, updates?.RawFileUpdates, static bytes => bytes);
-
+        var files = SaveGamePayloadComposer.Compose(original, updates);
         var index = RebuildIndex(original.Index, files);
 
         return (
@@ -202,23 +136,6 @@ public static class SaveGameWriter
         );
     }
 
-    /// <summary>
-    /// Serializes every entry in <paramref name="updates"/> via <paramref name="serialize"/>
-    /// and merges the results into <paramref name="files"/>, overwriting existing entries.
-    /// No-op when <paramref name="updates"/> is <see langword="null"/>.
-    /// </summary>
-    private static void ApplyUpdates<T>(
-        Dictionary<string, byte[]> files,
-        IReadOnlyDictionary<string, T>? updates,
-        Func<T, byte[]> serialize
-    )
-    {
-        if (updates is null)
-            return;
-        foreach (var (path, item) in updates)
-            files[path] = serialize(item);
-    }
-
     // ── Index rebuild ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -226,45 +143,6 @@ public static class SaveGameWriter
     /// every <see cref="TfaiFileEntry.Size"/> reflects the current payload length from
     /// <paramref name="files"/>.  Directory structure and entry order are preserved.
     /// </summary>
-    internal static SaveIndex RebuildIndex(SaveIndex original, IReadOnlyDictionary<string, byte[]> files)
-    {
-        return new SaveIndex { Root = RebuildEntries(original.Root, string.Empty, files) };
-    }
-
-    private static IReadOnlyList<TfaiEntry> RebuildEntries(
-        IReadOnlyList<TfaiEntry> entries,
-        string pathPrefix,
-        IReadOnlyDictionary<string, byte[]> files
-    )
-    {
-        var result = new List<TfaiEntry>(entries.Count);
-        foreach (var entry in entries)
-        {
-            switch (entry)
-            {
-                case TfaiFileEntry file:
-                {
-                    var key = pathPrefix.Length == 0 ? file.Name : $"{pathPrefix}/{file.Name}";
-                    var newSize = files.TryGetValue(key, out var payload) ? payload.Length : file.Size;
-                    result.Add(new TfaiFileEntry { Name = file.Name, Size = newSize });
-                    break;
-                }
-
-                case TfaiDirectoryEntry dir:
-                {
-                    var childPrefix = pathPrefix.Length == 0 ? dir.Name : $"{pathPrefix}/{dir.Name}";
-                    result.Add(
-                        new TfaiDirectoryEntry
-                        {
-                            Name = dir.Name,
-                            Children = RebuildEntries(dir.Children, childPrefix, files),
-                        }
-                    );
-                    break;
-                }
-            }
-        }
-
-        return result.AsReadOnly();
-    }
+    internal static SaveIndex RebuildIndex(SaveIndex original, IReadOnlyDictionary<string, byte[]> files) =>
+        SaveGameIndexRebuilder.Rebuild(original, files);
 }
