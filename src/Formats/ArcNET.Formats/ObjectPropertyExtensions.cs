@@ -237,6 +237,9 @@ public static class ObjectPropertyExtensions
     /// </summary>
     public static ObjectPropertyScript[] GetScriptArray(this ObjectProperty property)
     {
+        if (property.RawBytes.Length == 1 && property.RawBytes[0] == 0)
+            return [];
+
         var (elementSize, elementCount, dataOffset) = ParseSarHeader(property.RawBytes);
         if (elementSize != 12)
             throw new InvalidOperationException(

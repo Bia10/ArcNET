@@ -1,5 +1,4 @@
-﻿using System.Collections.Frozen;
-using System.Numerics;
+﻿using System.Numerics;
 using ArcNET.Core;
 using ArcNET.GameObjects;
 
@@ -37,463 +36,10 @@ public sealed class ObjectProperty
 /// </summary>
 internal static class ObjectPropertyIo
 {
-    // ── Common fields (bit indices 0–63, same for all ObjectTypes) ────────
-    // Fields not present in this table throw NotSupportedException at read time.
-    private static readonly FrozenDictionary<int, ObjectWireType> s_commonWireType = new Dictionary<int, ObjectWireType>
-    {
-        [0] = ObjectWireType.Int32, // ObjFCurrentAid
-        [1] = ObjectWireType.Int64, // ObjFLocation — LOCATION_MAKE(x,y)
-        [2] = ObjectWireType.Float, // ObjFOffsetX
-        [3] = ObjectWireType.Float, // ObjFOffsetY
-        [4] = ObjectWireType.Int32, // ObjFShadow
-        [5] = ObjectWireType.Int32, // ObjFOverlayFore
-        [6] = ObjectWireType.Int32, // ObjFOverlayBack
-        [7] = ObjectWireType.Int32, // ObjFUnderlay
-        [8] = ObjectWireType.Int32, // ObjFBlitFlags
-        [9] = ObjectWireType.Int32, // ObjFBlitColor
-        [10] = ObjectWireType.Int32, // ObjFBlitAlpha
-        [11] = ObjectWireType.Int32, // ObjFBlitScale
-        [12] = ObjectWireType.Int32, // ObjFLightFlags
-        [13] = ObjectWireType.Int32, // ObjFLightAid
-        [14] = ObjectWireType.Int32, // ObjFLightColor
-        [15] = ObjectWireType.Int32, // ObjFOverlayLightFlags
-        [16] = ObjectWireType.Int32, // ObjFOverlayLightAid
-        [17] = ObjectWireType.Int32, // ObjFOverlayLightColor
-        [18] = ObjectWireType.Int32, // ObjFFlags
-        [19] = ObjectWireType.Int32, // ObjFSpellFlags
-        [20] = ObjectWireType.Int32, // ObjFBlockingMask
-        [21] = ObjectWireType.Int32, // ObjFName (MES string ID)
-        [22] = ObjectWireType.Int32, // ObjFDescription (MES string ID)
-        [23] = ObjectWireType.Int32, // ObjFAid
-        [24] = ObjectWireType.Int32, // ObjFDestroyedAid
-        [25] = ObjectWireType.Int32, // ObjFAc
-        [26] = ObjectWireType.Int32, // ObjFHpPts
-        [27] = ObjectWireType.Int32, // ObjFHpAdj
-        [28] = ObjectWireType.Int32, // ObjFHpDamage
-        [29] = ObjectWireType.Int32, // ObjFMaterial
-        [30] = ObjectWireType.Int32, // ObjFResistanceIdx
-        [31] = ObjectWireType.ScriptArray, // ObjFScriptsIdx
-        [32] = ObjectWireType.Int32, // ObjFSoundEffect
-        [33] = ObjectWireType.Int32, // ObjFCategory
-        // Bits 34–40 from implementation guide §3.2.2 and object_fields[]:
-        [34] = ObjectWireType.Float, // ObjFPadIas1 / ObjFRotation (radians)
-        [35] = ObjectWireType.Int64, // ObjFPadI64As1
-        [36] = ObjectWireType.Float, // ObjFSpeedRun
-        [37] = ObjectWireType.Float, // ObjFSpeedWalk
-        [38] = ObjectWireType.Float, // ObjFPadFloat1
-        [39] = ObjectWireType.Float, // ObjFRadius
-        [40] = ObjectWireType.Float, // ObjFHeight
-        // ── Bits 41–63: arcanum-CE / ToEE common extension fields ─────────────
-        // These are NOT present in original Arcanum (0x08) saves — bits 41–63
-        // are reserved/gap there.  arcanum-CE (0x77) inherits the ToEE engine's
-        // common field layout which fills these slots.
-        // Source: GrognardsFromHell/TemplePlus temple_enums.h obj_f enum.
-        [41] = ObjectWireType.Int32Array, // ObjFConditions        (SAR of condition handles)
-        [42] = ObjectWireType.Int32Array, // ObjFConditionArg0     (SAR of condition arguments)
-        [43] = ObjectWireType.Int32Array, // ObjFPermanentMods     (SAR of permanent condition handles)
-        [44] = ObjectWireType.Int32, // ObjFInitiative
-        [45] = ObjectWireType.Int32, // ObjFDispatcher        (runtime handle — 0 in saves)
-        [46] = ObjectWireType.Int32, // ObjFSubinitiative
-        [47] = ObjectWireType.Int32, // ObjFSecretdoorFlags
-        [48] = ObjectWireType.String, // ObjFSecretdoorEffectName
-        [49] = ObjectWireType.Int32, // ObjFSecretdoorDc
-        [50] = ObjectWireType.Int32, // ObjFPadI7
-        [51] = ObjectWireType.Int32, // ObjFPadI8
-        [52] = ObjectWireType.Int32, // ObjFPadI9
-        [53] = ObjectWireType.Int32, // ObjFPadI0
-        [54] = ObjectWireType.Float, // ObjFOffsetZ
-        [55] = ObjectWireType.Float, // ObjFRotationPitch
-        [56] = ObjectWireType.Float, // ObjFPadF3
-        [57] = ObjectWireType.Float, // ObjFPadF4
-        [58] = ObjectWireType.Float, // ObjFPadF5
-        [59] = ObjectWireType.Float, // ObjFPadF6
-        [60] = ObjectWireType.Float, // ObjFPadF7
-        [61] = ObjectWireType.Float, // ObjFPadF8
-        [62] = ObjectWireType.Float, // ObjFPadF9
-        [63] = ObjectWireType.Float, // ObjFPadF0
-    }.ToFrozenDictionary();
-
-    // ── Type-specific fields (bit indices 64+, keyed on ObjectType) ───────
-    // Naming convention in ObjectField enum:
-    //   I = int32, I64 = int64, Ias = int32 SAR, I64as = int64 SAR
-    private static ObjectWireType? TypeSpecificWireType(ObjectType objectType, int bit) =>
-        objectType switch
-        {
-            ObjectType.Wall => bit switch
-            {
-                64 => ObjectWireType.Int32, // WallFlags
-                65 => ObjectWireType.Int32, // WallPadI1
-                66 => ObjectWireType.Int32, // WallPadI2
-                67 => ObjectWireType.Int32Array, // WallPadIas1
-                68 => ObjectWireType.Int64Array, // WallPadI64As1
-                // Original Arcanum (0x08) saves contain additional Wall type-specific
-                // fields at bits 69-95 that arcanum-CE (0x77) removed.  Map as Int32
-                // (the dominant Arcanum field type); the trailing two positions follow
-                // the Arcanum section-ending pad convention (IAS then I64AS).
-                >= 69 and <= 93 => ObjectWireType.Int32,
-                94 => ObjectWireType.Int32Array, // WallPadIasX (original)
-                95 => ObjectWireType.Int64Array, // WallPadI64AsX (original)
-                _ => null,
-            },
-
-            ObjectType.Portal => bit switch
-            {
-                64 => ObjectWireType.Int32, // PortalFlags
-                65 => ObjectWireType.Int32, // PortalLockDifficulty
-                66 => ObjectWireType.Int32, // PortalKeyId
-                67 => ObjectWireType.Int32, // PortalNotifyNpc
-                68 => ObjectWireType.Int32, // PortalPadI1
-                69 => ObjectWireType.Int32, // PortalPadI2
-                70 => ObjectWireType.Int32Array, // PortalPadIas1
-                71 => ObjectWireType.Int64Array, // PortalPadI64As1
-                // Original Arcanum (0x08) saves contain additional Portal type-specific
-                // fields at bits 72-95 that arcanum-CE (0x77) removed.
-                >= 72 and <= 93 => ObjectWireType.Int32,
-                94 => ObjectWireType.Int32Array, // PortalPadIasX (original)
-                95 => ObjectWireType.Int64Array, // PortalPadI64AsX (original)
-                _ => null,
-            },
-
-            ObjectType.Container => bit switch
-            {
-                64 => ObjectWireType.Int32, // ContainerFlags
-                65 => ObjectWireType.Int32, // ContainerLockDifficulty
-                66 => ObjectWireType.Int32, // ContainerKeyId
-                67 => ObjectWireType.Int32, // ContainerInventoryNum           (OD_TYPE_INT32)
-                68 => ObjectWireType.HandleArray, // ContainerInventoryListIdx (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
-                69 => ObjectWireType.Int32, // ContainerInventorySource
-                70 => ObjectWireType.Int32, // ContainerNotifyNpc
-                71 => ObjectWireType.Int32, // ContainerPadI1
-                72 => ObjectWireType.Int32, // ContainerPadI2
-                73 => ObjectWireType.Int32Array, // ContainerPadIas1
-                74 => ObjectWireType.Int64Array, // ContainerPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Scenery => bit switch
-            {
-                64 => ObjectWireType.Int32, // SceneryFlags
-                65 => ObjectWireType.Int32, // SceneryWhosInMe
-                66 => ObjectWireType.Int32, // SceneryRespawnDelay
-                67 => ObjectWireType.Int32, // SceneryPadI2
-                68 => ObjectWireType.Int32Array, // SceneryPadIas1
-                69 => ObjectWireType.Int64Array, // SceneryPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Trap => bit switch
-            {
-                64 => ObjectWireType.Int32, // TrapFlags
-                65 => ObjectWireType.Int32, // TrapDifficulty
-                66 => ObjectWireType.Int32, // TrapPadI2
-                67 => ObjectWireType.Int32Array, // TrapPadIas1
-                68 => ObjectWireType.Int64Array, // TrapPadI64As1
-                _ => null,
-            },
-
-            // Item subtype fields (bits 64–86).
-            // All item subtypes (Weapon, Ammo, Armor, Gold, Food, Scroll, Key, KeyRing, Written, Generic)
-            // share the item base block at 64–86, then add further type-specific fields at 96+.
-            ObjectType.Weapon => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // WeaponFlags
-                97 => ObjectWireType.Int32, // WeaponPaperDollAid
-                98 => ObjectWireType.Int32, // WeaponBonusToHit
-                99 => ObjectWireType.Int32, // WeaponMagicHitAdj
-                100 => ObjectWireType.Int32, // WeaponDamageLowerIdx
-                101 => ObjectWireType.Int32, // WeaponDamageUpperIdx
-                102 => ObjectWireType.Int32, // WeaponMagicDamageAdjIdx
-                103 => ObjectWireType.Int32, // WeaponSpeedFactor
-                104 => ObjectWireType.Int32, // WeaponMagicSpeedAdj
-                105 => ObjectWireType.Int32, // WeaponRange
-                106 => ObjectWireType.Int32, // WeaponMagicRangeAdj
-                107 => ObjectWireType.Int32, // WeaponMinStrength
-                108 => ObjectWireType.Int32, // WeaponMagicMinStrengthAdj
-                109 => ObjectWireType.Int32, // WeaponAmmoType
-                110 => ObjectWireType.Int32, // WeaponAmmoConsumption
-                111 => ObjectWireType.Int32, // WeaponMissileAid
-                112 => ObjectWireType.Int32, // WeaponVisualEffectAid
-                113 => ObjectWireType.Int32, // WeaponCritHitChart
-                114 => ObjectWireType.Int32, // WeaponMagicCritHitChance
-                115 => ObjectWireType.Int32, // WeaponMagicCritHitEffect
-                116 => ObjectWireType.Int32, // WeaponCritMissChart
-                117 => ObjectWireType.Int32, // WeaponMagicCritMissChance
-                118 => ObjectWireType.Int32, // WeaponMagicCritMissEffect
-                119 => ObjectWireType.Int32, // WeaponPadI1
-                120 => ObjectWireType.Int32, // WeaponPadI2
-                121 => ObjectWireType.Int32Array, // WeaponPadIas1
-                122 => ObjectWireType.Int64Array, // WeaponPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Ammo => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // AmmoFlags
-                97 => ObjectWireType.Int32, // AmmoQuantity
-                98 => ObjectWireType.Int32, // AmmoType
-                99 => ObjectWireType.Int32, // AmmoPadI1
-                100 => ObjectWireType.Int32, // AmmoPadI2
-                101 => ObjectWireType.Int32Array, // AmmoPadIas1
-                102 => ObjectWireType.Int64Array, // AmmoPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Armor => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // ArmorFlags
-                97 => ObjectWireType.Int32, // ArmorPaperDollAid
-                98 => ObjectWireType.Int32, // ArmorAcAdj
-                99 => ObjectWireType.Int32, // ArmorMagicAcAdj
-                100 => ObjectWireType.Int32, // ArmorResistanceAdjIdx
-                101 => ObjectWireType.Int32, // ArmorMagicResistanceAdjIdx
-                102 => ObjectWireType.Int32, // ArmorSilentMoveAdj
-                103 => ObjectWireType.Int32, // ArmorMagicSilentMoveAdj
-                104 => ObjectWireType.Int32, // ArmorUnarmedBonusDamage
-                105 => ObjectWireType.Int32, // ArmorPadI2
-                106 => ObjectWireType.Int32Array, // ArmorPadIas1
-                107 => ObjectWireType.Int64Array, // ArmorPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Gold => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // GoldFlags
-                97 => ObjectWireType.Int32, // GoldQuantity
-                98 => ObjectWireType.Int32, // GoldPadI1
-                99 => ObjectWireType.Int32, // GoldPadI2
-                100 => ObjectWireType.Int32Array, // GoldPadIas1
-                101 => ObjectWireType.Int64Array, // GoldPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Food => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // FoodFlags
-                97 => ObjectWireType.Int32, // FoodPadI1
-                98 => ObjectWireType.Int32, // FoodPadI2
-                99 => ObjectWireType.Int32Array, // FoodPadIas1
-                100 => ObjectWireType.Int64Array, // FoodPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Scroll => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // ScrollFlags
-                97 => ObjectWireType.Int32, // ScrollPadI1
-                98 => ObjectWireType.Int32, // ScrollPadI2
-                99 => ObjectWireType.Int32Array, // ScrollPadIas1
-                100 => ObjectWireType.Int64Array, // ScrollPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Key => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // KeyKeyId
-                97 => ObjectWireType.Int32, // KeyPadI1
-                98 => ObjectWireType.Int32, // KeyPadI2
-                99 => ObjectWireType.Int32Array, // KeyPadIas1
-                100 => ObjectWireType.Int64Array, // KeyPadI64As1
-                _ => null,
-            },
-
-            ObjectType.KeyRing => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // KeyRingFlags
-                97 => ObjectWireType.Int32, // KeyRingListIdx
-                98 => ObjectWireType.Int32, // KeyRingPadI1
-                99 => ObjectWireType.Int32, // KeyRingPadI2
-                100 => ObjectWireType.Int32Array, // KeyRingPadIas1
-                101 => ObjectWireType.Int64Array, // KeyRingPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Written => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // WrittenFlags
-                97 => ObjectWireType.Int32, // WrittenSubtype
-                98 => ObjectWireType.Int32, // WrittenTextStartLine
-                99 => ObjectWireType.Int32, // WrittenTextEndLine
-                100 => ObjectWireType.Int32, // WrittenPadI1
-                101 => ObjectWireType.Int32, // WrittenPadI2
-                102 => ObjectWireType.Int32Array, // WrittenPadIas1
-                103 => ObjectWireType.Int64Array, // WrittenPadI64As1
-                _ => null,
-            },
-
-            ObjectType.Generic => bit switch
-            {
-                >= 64 and <= 86 => ItemBit(bit),
-                96 => ObjectWireType.Int32, // GenericFlags
-                97 => ObjectWireType.Int32, // GenericUsageBonus
-                98 => ObjectWireType.Int32, // GenericUsageCountRemaining
-                99 => ObjectWireType.Int32Array, // GenericPadIas1
-                100 => ObjectWireType.Int64Array, // GenericPadI64As1
-                _ => null,
-            },
-
-            // Critter base block (bits 64–96) shared by NPC and PC; type-specific at 128–152.
-            ObjectType.Pc => CritterBit(bit) ?? PcBit(bit),
-
-            ObjectType.Npc => CritterBit(bit) ?? NpcBit(bit),
-
-            // Projectile fields at bits 64–71 (same as other type-specific blocks).
-            ObjectType.Projectile => bit switch
-            {
-                64 => ObjectWireType.Int32, // ObjFProjectileFlagsCombat
-                65 => ObjectWireType.Int32, // ObjFProjectileFlagsCombatDamage
-                66 => ObjectWireType.Int32, // ObjFProjectileHitLoc
-                67 => ObjectWireType.Int64, // ObjFProjectileParentWeapon (handle)
-                68 => ObjectWireType.Int32, // ObjFProjectilePadI1
-                69 => ObjectWireType.Int32, // ObjFProjectilePadI2
-                70 => ObjectWireType.Int32Array, // ObjFProjectilePadIas1
-                71 => ObjectWireType.Int64Array, // ObjFProjectilePadI64As1
-                _ => null,
-            },
-
-            _ => null,
-        };
-
-    // Critter base block (bits 64–96) — shared by both NPC and PC objects.
-    private static ObjectWireType? CritterBit(int bit) =>
-        bit switch
-        {
-            64 => ObjectWireType.Int32, // CritterFlags
-            65 => ObjectWireType.Int32, // CritterFlags2
-            66 => ObjectWireType.Int32Array, // CritterStatBaseIdx
-            67 => ObjectWireType.Int32Array, // CritterBasicSkillIdx
-            68 => ObjectWireType.Int32Array, // CritterTechSkillIdx
-            69 => ObjectWireType.Int32Array, // CritterSpellTechIdx
-            70 => ObjectWireType.Int32, // CritterFatiguePts
-            71 => ObjectWireType.Int32, // CritterFatigueAdj
-            72 => ObjectWireType.Int32, // CritterFatigueDamage
-            73 => ObjectWireType.Int32, // CritterCritHitChart
-            74 => ObjectWireType.Int32Array, // CritterEffectsIdx
-            75 => ObjectWireType.Int32Array, // CritterEffectCauseIdx
-            76 => ObjectWireType.HandleArray, // CritterFleeingFrom (handle)
-            77 => ObjectWireType.Int32, // CritterPortrait
-            78 => ObjectWireType.Int32, // CritterGold
-            79 => ObjectWireType.Int32, // CritterArrows
-            80 => ObjectWireType.Int32, // CritterBullets
-            81 => ObjectWireType.Int32, // CritterPowerCells
-            82 => ObjectWireType.Int32, // CritterFuel
-            83 => ObjectWireType.Int32, // CritterInventoryNum                   (OD_TYPE_INT32)
-            84 => ObjectWireType.HandleArray, // CritterInventoryListIdx           (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
-            85 => ObjectWireType.Int32, // CritterInventorySource
-            86 => ObjectWireType.Int32, // CritterDescriptionUnknown
-            87 => ObjectWireType.HandleArray, // CritterFollowerIdx               (OD_TYPE_HANDLE_ARRAY — SAR of 24-byte ObjectIDs)
-            88 => ObjectWireType.Int64, // CritterTeleportDest (location int64)
-            89 => ObjectWireType.Int32, // CritterTeleportMap
-            90 => ObjectWireType.Int64, // CritterDeathTime
-            91 => ObjectWireType.Int32, // CritterAutoLevelScheme
-            92 => ObjectWireType.Int32, // CritterPadI1
-            93 => ObjectWireType.Int32, // CritterPadI2
-            94 => ObjectWireType.Int32, // CritterPadI3
-            95 => ObjectWireType.Int32Array, // CritterPadIas1
-            96 => ObjectWireType.Int64Array, // CritterPadI64As1
-            _ => null,
-        };
-
-    // PC-specific fields (bits 128–152).
-    private static ObjectWireType? PcBit(int bit) =>
-        bit switch
-        {
-            128 => ObjectWireType.Int32, // PcFlags
-            129 => ObjectWireType.Int32, // PcFlagsFate
-            130 => ObjectWireType.Int32Array, // PcReputationIdx
-            131 => ObjectWireType.Int32Array, // PcReputationTsIdx
-            132 => ObjectWireType.Int32, // PcBackground
-            133 => ObjectWireType.String, // PcBackgroundText
-            134 => ObjectWireType.Int32Array, // PcQuestIdx
-            135 => ObjectWireType.Int32Array, // PcBlessingIdx
-            136 => ObjectWireType.Int32Array, // PcBlessingTsIdx
-            137 => ObjectWireType.Int32Array, // PcCurseIdx
-            138 => ObjectWireType.Int32Array, // PcCurseTsIdx
-            139 => ObjectWireType.Int32, // PcPartyId
-            140 => ObjectWireType.Int32Array, // PcRumorIdx
-            141 => ObjectWireType.Int32Array, // PcPadIas2
-            142 => ObjectWireType.Int32Array, // PcSchematicsFoundIdx
-            143 => ObjectWireType.Int32Array, // PcLogbookEgoIdx
-            144 => ObjectWireType.Int32, // PcFogMask
-            145 => ObjectWireType.String, // PcPlayerName
-            146 => ObjectWireType.Int32, // PcBankMoney
-            147 => ObjectWireType.Int32Array, // PcGlobalFlags
-            148 => ObjectWireType.Int32Array, // PcGlobalVariables
-            149 => ObjectWireType.Int32, // PcPadI1
-            150 => ObjectWireType.Int32, // PcPadI2
-            151 => ObjectWireType.Int32Array, // PcPadIas1
-            152 => ObjectWireType.Int64Array, // PcPadI64As1
-            _ => null,
-        };
-
-    // NPC-specific fields (bits 128–152).
-    private static ObjectWireType? NpcBit(int bit) =>
-        bit switch
-        {
-            128 => ObjectWireType.Int32, // NpcFlags
-            129 => ObjectWireType.HandleArray, // NpcLeader (handle)
-            130 => ObjectWireType.Int32Array, // NpcAiData
-            131 => ObjectWireType.HandleArray, // NpcCombatFocus (handle)
-            132 => ObjectWireType.HandleArray, // NpcWhoHitMeLast (handle)
-            133 => ObjectWireType.Int32, // NpcExperienceWorth
-            134 => ObjectWireType.Int32, // NpcExperiencePool
-            135 => ObjectWireType.Int64Array, // NpcWaypointsIdx (locations as int64)
-            136 => ObjectWireType.Int32, // NpcWaypointCurrent
-            137 => ObjectWireType.Int64, // NpcStandpointDay (location int64)
-            138 => ObjectWireType.Int64, // NpcStandpointNight (location int64)
-            139 => ObjectWireType.Int32, // NpcOrigin
-            140 => ObjectWireType.Int32, // NpcFaction
-            141 => ObjectWireType.Int32, // NpcRetailPriceMultiplier
-            142 => ObjectWireType.Int32, // NpcSubstituteInventory
-            143 => ObjectWireType.Int32, // NpcReactionBase
-            144 => ObjectWireType.Int32, // NpcSocialClass
-            145 => ObjectWireType.Int32Array, // NpcReactionPcIdx
-            146 => ObjectWireType.Int32Array, // NpcReactionLevelIdx
-            147 => ObjectWireType.Int32Array, // NpcReactionTimeIdx
-            148 => ObjectWireType.Int32, // NpcWait
-            149 => ObjectWireType.Int32Array, // NpcGeneratorData
-            150 => ObjectWireType.Int32, // NpcPadI1
-            151 => ObjectWireType.Int32Array, // NpcDamageIdx
-            152 => ObjectWireType.Int32Array, // NpcShitListIdx
-            _ => null,
-        };
-
-    private static ObjectWireType? ItemBit(int bit) =>
-        bit switch
-        {
-            64 => ObjectWireType.Int32, // ItemFlags
-            65 => ObjectWireType.Int64, // ItemParent (handle)
-            66 => ObjectWireType.Int32, // ItemWeight
-            67 => ObjectWireType.Int32, // ItemMagicWeightAdj
-            68 => ObjectWireType.Int32, // ItemWorth
-            69 => ObjectWireType.Int32, // ItemManaStore
-            70 => ObjectWireType.Int32, // ItemInvAid
-            71 => ObjectWireType.Int32, // ItemInvLocation
-            72 => ObjectWireType.Int32, // ItemUseAidFragment
-            73 => ObjectWireType.Int32, // ItemMagicTechComplexity
-            74 => ObjectWireType.Int32, // ItemDiscipline
-            75 => ObjectWireType.Int32, // ItemDescriptionUnknown
-            76 => ObjectWireType.Int32, // ItemDescriptionEffects
-            77 => ObjectWireType.Int32, // ItemSpell1
-            78 => ObjectWireType.Int32, // ItemSpell2
-            79 => ObjectWireType.Int32, // ItemSpell3
-            80 => ObjectWireType.Int32, // ItemSpell4
-            81 => ObjectWireType.Int32, // ItemSpell5
-            82 => ObjectWireType.Int32, // ItemSpellManaStore
-            83 => ObjectWireType.Int32, // ItemAiAction
-            84 => ObjectWireType.Int32, // ItemPadI1
-            85 => ObjectWireType.Int32Array, // ItemPadIas1
-            86 => ObjectWireType.Int64Array, // ItemPadI64As1
-            _ => null,
-        };
+    private static readonly IObjectPropertySchemaProvider s_schemaProvider = ObjectPropertySchemaProvider.Default;
+    private const int ByteWireSize = 1;
+    private const int Int32WireSize = 4;
+    private const int Int64WireSize = 8;
 
     // ── Public API ────────────────────────────────────────────────────────
 
@@ -501,8 +47,17 @@ internal static class ObjectPropertyIo
     /// Reads all object properties present in the bitmap and returns them as an ordered list.
     /// Fields are read in bitmap bit-order (bit 0 first, then bit 1, …).
     /// </summary>
-    internal static IReadOnlyList<ObjectProperty> ReadProperties(ref SpanReader reader, GameObjectHeader header)
+    internal static IReadOnlyList<ObjectProperty> ReadProperties(ref SpanReader reader, GameObjectHeader header) =>
+        ReadProperties(ref reader, header, s_schemaProvider);
+
+    internal static IReadOnlyList<ObjectProperty> ReadProperties(
+        ref SpanReader reader,
+        GameObjectHeader header,
+        IObjectPropertySchemaProvider schemaProvider
+    )
     {
+        ArgumentNullException.ThrowIfNull(schemaProvider);
+
         var bitmap = header.Bitmap;
         var objectType = header.GameObjectType;
 
@@ -529,7 +84,7 @@ internal static class ObjectPropertyIo
                 ObjectWireType wireType;
                 try
                 {
-                    wireType = ResolveWireType(objectType, bit);
+                    wireType = schemaProvider.ResolveWireType(objectType, bit);
                 }
                 catch (NotSupportedException ex)
                 {
@@ -583,31 +138,13 @@ internal static class ObjectPropertyIo
             writer.WriteBytes(prop.RawBytes);
     }
 
-    // ── Wire-type resolution ──────────────────────────────────────────────
-
-    private static ObjectWireType ResolveWireType(ObjectType objectType, int bit)
-    {
-        if (s_commonWireType.TryGetValue(bit, out var common))
-            return common;
-
-        var specific = TypeSpecificWireType(objectType, bit);
-        if (specific.HasValue)
-            return specific.Value;
-
-        throw new NotSupportedException(
-            $"Unknown wire type for ObjectType={objectType}, bit={bit}. "
-                + "Cross-reference object_fields[] to determine the type "
-                + "and add it to ObjectPropertyIo.s_commonWireType or TypeSpecificWireType."
-        );
-    }
-
     // ── Field readers ─────────────────────────────────────────────────────
 
     private static byte[] ReadField(ref SpanReader reader, ObjectWireType wireType) =>
         wireType switch
         {
-            ObjectWireType.Int32 or ObjectWireType.Float => reader.ReadBytes(4).ToArray(),
-            ObjectWireType.Int64 => ReadPresencePrefixedField(ref reader, 8),
+            ObjectWireType.Int32 or ObjectWireType.Float => reader.ReadBytes(Int32WireSize).ToArray(),
+            ObjectWireType.Int64 => ReadPresencePrefixedField(ref reader, Int64WireSize),
             ObjectWireType.String => ReadStringField(ref reader),
             ObjectWireType.Int32Array
             or ObjectWireType.UInt32Array
@@ -628,9 +165,9 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
-        var raw = new byte[1 + dataSize];
+        var raw = new byte[ByteWireSize + dataSize];
         raw[0] = presence;
-        reader.ReadBytes(dataSize).CopyTo(raw.AsSpan(1));
+        reader.ReadBytes(dataSize).CopyTo(raw.AsSpan(ByteWireSize));
         return raw;
     }
 
@@ -645,17 +182,17 @@ internal static class ObjectPropertyIo
             return [0];
 
         // Read length directly off the span — no intermediate ToArray().
-        var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(reader.ReadBytes(4));
+        var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(reader.ReadBytes(Int32WireSize));
 
         // The game writes strlen() as the length, then writes strlen()+1 bytes (including NUL).
         var strDataSize = length + 1;
 
         // Allocate the single final buffer and fill in one pass.
-        var total = 1 + 4 + strDataSize;
+        var total = ByteWireSize + Int32WireSize + strDataSize;
         var raw = new byte[total];
         raw[0] = presence;
-        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(1), length);
-        reader.ReadBytes(strDataSize).CopyTo(raw.AsSpan(5));
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(ByteWireSize), length);
+        reader.ReadBytes(strDataSize).CopyTo(raw.AsSpan(ByteWireSize + Int32WireSize));
         return raw;
     }
 

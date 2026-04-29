@@ -96,6 +96,14 @@ public class ObjectPropertyFactoryTests
         await Assert.That(prop.GetInt64Array().SequenceEqual(values)).IsTrue();
     }
 
+    [Test]
+    public async Task GetScriptArray_AbsentSar_ReturnsEmptyArray()
+    {
+        var prop = new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] };
+
+        await Assert.That(prop.GetScriptArray().Length).IsEqualTo(0);
+    }
+
     // ── ForObjectIdArray ──────────────────────────────────────────────────────
 
     [Test]
