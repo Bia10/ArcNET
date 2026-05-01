@@ -2598,6 +2598,7 @@ namespace ArcNET.GameObjects.Types
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
 [assembly: System.Resources.NeutralResourcesLanguage("en")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.App")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Editor")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.GameData.Tests")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace ArcNET.GameData
@@ -2636,6 +2637,8 @@ namespace ArcNET.GameData
     public sealed class GameDataStore
     {
         public GameDataStore() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ArtFile> Arts { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ArtFile>> ArtsBySource { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.DlgFile> Dialogs { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.DlgFile>> DialogsBySource { get; }
         public System.Collections.Generic.IReadOnlySet<ArcNET.Core.Primitives.GameObjectGuid> DirtyObjects { get; }
@@ -2651,6 +2654,7 @@ namespace ArcNET.GameData
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Sector> Sectors { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Formats.Sector>> SectorsBySource { get; }
         public event System.EventHandler<ArcNET.Core.Primitives.GameObjectGuid>? ObjectChanged;
+        public void AddArt(ArcNET.Formats.ArtFile art) { }
         public void AddDialog(ArcNET.Formats.DlgFile dialog) { }
         public void AddMessage(ArcNET.Formats.MessageEntry entry) { }
         public void AddMob(ArcNET.Formats.MobData mob) { }
@@ -2946,10 +2950,98 @@ namespace ArcNET.Editor
     {
         public DialogBuilder() { }
         public DialogBuilder(ArcNET.Formats.DlgFile existing) { }
+        public ArcNET.Editor.DialogBuilder AddControlEntry(int num, string text, int responseTargetNumber = 0, string conditions = "", string actions = "") { }
         public ArcNET.Editor.DialogBuilder AddEntry(ArcNET.Formats.DialogEntry entry) { }
+        public ArcNET.Editor.DialogBuilder AddNpcReply(int num, string text, int responseTargetNumber = 0, string conditions = "", string actions = "", string genderField = "") { }
+        public ArcNET.Editor.DialogBuilder AddPcOption(int num, string text, int intelligenceRequirement, int responseTargetNumber = 0, string conditions = "", string actions = "", string genderField = "") { }
         public ArcNET.Formats.DlgFile Build() { }
         public ArcNET.Editor.DialogBuilder RemoveEntry(int num) { }
+        public ArcNET.Editor.DialogBuilder SetResponseTarget(int num, int responseTargetNumber) { }
         public ArcNET.Editor.DialogBuilder UpdateEntry(int num, System.Func<ArcNET.Formats.DialogEntry, ArcNET.Formats.DialogEntry> update) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.DialogValidationIssue> Validate() { }
+    }
+    public sealed class DialogEditor
+    {
+        public DialogEditor(ArcNET.Formats.DlgFile dialog) { }
+        public bool HasPendingChanges { get; }
+        public ArcNET.Editor.DialogEditor AddControlEntry(int num, string text, int responseTargetNumber = 0, string conditions = "", string actions = "") { }
+        public ArcNET.Editor.DialogEditor AddEntry(ArcNET.Formats.DialogEntry entry) { }
+        public ArcNET.Editor.DialogEditor AddNpcReply(int num, string text, int responseTargetNumber = 0, string conditions = "", string actions = "", string genderField = "") { }
+        public ArcNET.Editor.DialogEditor AddPcOption(int num, string text, int intelligenceRequirement, int responseTargetNumber = 0, string conditions = "", string actions = "", string genderField = "") { }
+        public ArcNET.Formats.DlgFile CommitPendingChanges() { }
+        public ArcNET.Editor.DialogEditor DiscardPendingChanges() { }
+        public ArcNET.Editor.DialogEditor Edit(System.Action<ArcNET.Editor.DialogBuilder> update) { }
+        public ArcNET.Formats.DlgFile GetCurrentDialog() { }
+        public ArcNET.Formats.DlgFile? GetPendingDialog() { }
+        public ArcNET.Editor.DialogEditor InsertControlEntryAfter(int sourceEntryNumber, int num, string text, string conditions = "", string actions = "") { }
+        public ArcNET.Editor.DialogEditor InsertEntryAfter(int sourceEntryNumber, ArcNET.Formats.DialogEntry entry) { }
+        public ArcNET.Editor.DialogEditor InsertNpcReplyAfter(int sourceEntryNumber, int num, string text, string conditions = "", string actions = "", string genderField = "") { }
+        public ArcNET.Editor.DialogEditor InsertPcOptionAfter(int sourceEntryNumber, int num, string text, int intelligenceRequirement, string conditions = "", string actions = "", string genderField = "") { }
+        public ArcNET.Editor.DialogEditor RemoveEntry(int num) { }
+        public ArcNET.Editor.DialogEditor SetResponseTarget(int num, int responseTargetNumber) { }
+        public ArcNET.Editor.DialogEditor UpdateEntry(int num, System.Func<ArcNET.Formats.DialogEntry, ArcNET.Formats.DialogEntry> update) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.DialogValidationIssue> Validate() { }
+        public ArcNET.Editor.DialogEditor WithDialog(ArcNET.Formats.DlgFile dialog) { }
+        public ArcNET.Editor.DialogEditor WithDialog(System.Func<ArcNET.Formats.DlgFile, ArcNET.Formats.DlgFile> update) { }
+    }
+    public sealed class DialogValidationIssue : System.IEquatable<ArcNET.Editor.DialogValidationIssue>
+    {
+        public DialogValidationIssue() { }
+        public int? EntryNumber { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.Editor.DialogValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public enum DialogValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+    public static class DialogValidator
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.DialogValidationIssue> Validate(ArcNET.Formats.DlgFile dialog) { }
+    }
+    public sealed class EditorArtPreview
+    {
+        public EditorArtPreview() { }
+        public required uint ActionFrame { get; init; }
+        public required ArcNET.Formats.ArtFlags Flags { get; init; }
+        public System.TimeSpan FrameDuration { get; }
+        public required uint FrameRate { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtPreviewFrame> Frames { get; init; }
+        public required int FramesPerRotation { get; init; }
+        public required int PaletteSlot { get; init; }
+        public required ArcNET.Editor.EditorArtPreviewPixelFormat PixelFormat { get; init; }
+        public required int RotationCount { get; init; }
+    }
+    public static class EditorArtPreviewBuilder
+    {
+        public static ArcNET.Editor.EditorArtPreview Build(ArcNET.Formats.ArtFile art, ArcNET.Editor.EditorArtPreviewOptions? options = null) { }
+        public static ArcNET.Editor.EditorArtPreviewFrame BuildFrame(ArcNET.Formats.ArtFile art, int rotationIndex, int frameIndex, ArcNET.Editor.EditorArtPreviewOptions? options = null) { }
+    }
+    public sealed class EditorArtPreviewFrame
+    {
+        public EditorArtPreviewFrame() { }
+        public required int FrameIndex { get; init; }
+        public required ArcNET.Formats.ArtFrameHeader Header { get; init; }
+        public int Height { get; }
+        public required byte[] PixelData { get; init; }
+        public required int RotationIndex { get; init; }
+        public int Stride { get; }
+        public int Width { get; }
+    }
+    public sealed class EditorArtPreviewOptions
+    {
+        public EditorArtPreviewOptions() { }
+        public bool FlipVertically { get; init; }
+        public int PaletteSlot { get; init; }
+        public ArcNET.Editor.EditorArtPreviewPixelFormat PixelFormat { get; init; }
+    }
+    public enum EditorArtPreviewPixelFormat
+    {
+        Rgba32 = 0,
+        Bgra32 = 1,
     }
     public sealed class EditorArtReference
     {
@@ -2966,6 +3058,20 @@ namespace ArcNET.Editor
         public static ArcNET.Editor.EditorAssetCatalog Empty { get; }
         public ArcNET.Editor.EditorAssetEntry? Find(string assetPath) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindByFormat(ArcNET.Formats.FileFormat format) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> Search(string text, ArcNET.Formats.FileFormat? format = default) { }
+    }
+    public sealed class EditorAssetDependencySummary
+    {
+        public EditorAssetDependencySummary() { }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtReference> ArtReferences { get; init; }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public int? DefinedDialogId { get; init; }
+        public int? DefinedProtoNumber { get; init; }
+        public int? DefinedScriptId { get; init; }
+        public bool HasDependencies { get; }
+        public string? MapName { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProtoReference> ProtoReferences { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptReference> ScriptReferences { get; init; }
     }
     public sealed class EditorAssetEntry
     {
@@ -2977,28 +3083,78 @@ namespace ArcNET.Editor
         public required ArcNET.Editor.EditorAssetSourceKind SourceKind { get; init; }
         public required string SourcePath { get; init; }
     }
-    public sealed class EditorAssetIndex
+    public sealed class EditorAssetIndex : ArcNET.Editor.IArtIndex, ArcNET.Editor.IAssetDependencyIndex, ArcNET.Editor.IDialogIndex, ArcNET.Editor.IMapIndex, ArcNET.Editor.IMessageIndex, ArcNET.Editor.IProtoIndex, ArcNET.Editor.ISchemeIndex, ArcNET.Editor.IScriptIndex
     {
         public System.Collections.Generic.IReadOnlyList<string> MapNames { get; }
         public static ArcNET.Editor.EditorAssetIndex Empty { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindAmbientSchemeSectors(int ambientSchemeIndex) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtReference> FindArtReferences(uint artId) { }
+        public ArcNET.Editor.EditorAssetDependencySummary? FindAssetDependencySummary(string assetPath) { }
         public string? FindAssetMap(string assetPath) { }
         public ArcNET.Editor.EditorAssetEntry? FindDialogDefinition(int dialogId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindDialogDefinitions(int dialogId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> FindDialogDetails(int dialogId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindLightSchemeSectors(int lightSchemeIndex) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMapAssets(string mapName) { }
+        public ArcNET.Editor.EditorMapProjection? FindMapProjection(string mapName) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindMapSectors(string mapName) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMessageAssets(int messageIndex) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindMusicSchemeSectors(int musicSchemeIndex) { }
         public ArcNET.Editor.EditorAssetEntry? FindProtoDefinition(int protoNumber) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProtoReference> FindProtoReferences(int protoNumber) { }
         public ArcNET.Editor.EditorAssetEntry? FindScriptDefinition(int scriptId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindScriptDefinitions(int scriptId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptDefinition> FindScriptDetails(int scriptId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptReference> FindScriptReferences(int scriptId) { }
+        public ArcNET.Editor.EditorSectorSummary? FindSectorSummary(string assetPath) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> SearchDialogDetails(string text) { }
+        public System.Collections.Generic.IReadOnlyList<string> SearchMapNames(string text) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptDefinition> SearchScriptDetails(string text) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> SearchSectors(string text) { }
     }
     public enum EditorAssetSourceKind
     {
         LooseFile = 0,
         DatArchive = 1,
+    }
+    public sealed class EditorAudioAssetCatalog
+    {
+        public int Count { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAudioAssetEntry> Entries { get; }
+        public static ArcNET.Editor.EditorAudioAssetCatalog Empty { get; }
+        public ArcNET.Editor.EditorAudioAssetEntry? Find(string assetPath) { }
+    }
+    public sealed class EditorAudioAssetEntry
+    {
+        public EditorAudioAssetEntry() { }
+        public required string AssetPath { get; init; }
+        public required int ByteLength { get; init; }
+        public string? SourceEntryPath { get; init; }
+        public required ArcNET.Editor.EditorAssetSourceKind SourceKind { get; init; }
+        public required string SourcePath { get; init; }
+    }
+    public sealed class EditorAudioPreview
+    {
+        public EditorAudioPreview() { }
+        public string? AssetPath { get; init; }
+        public required int BitsPerSample { get; init; }
+        public required int BlockAlign { get; init; }
+        public required int ByteRate { get; init; }
+        public required int ChannelCount { get; init; }
+        public System.TimeSpan Duration { get; }
+        public required ArcNET.Editor.EditorAudioSampleEncoding Encoding { get; init; }
+        public required byte[] SampleData { get; init; }
+        public required long SampleFrameCount { get; init; }
+        public required int SampleRate { get; init; }
+    }
+    public static class EditorAudioPreviewBuilder
+    {
+        public static ArcNET.Editor.EditorAudioPreview BuildWave(System.ReadOnlyMemory<byte> waveData, string? assetPath = null) { }
+    }
+    public enum EditorAudioSampleEncoding
+    {
+        Pcm = 0,
+        IeeeFloat = 1,
     }
     public sealed class EditorDialogDefinition
     {
@@ -3010,11 +3166,250 @@ namespace ArcNET.Editor
         public ArcNET.Formats.FileFormat Format { get; }
         public bool HasMissingResponseTargets { get; }
         public required System.Collections.Generic.IReadOnlyList<int> MissingResponseTargetNumbers { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogNode> Nodes { get; init; }
         public required int NpcEntryCount { get; init; }
         public required int PcOptionCount { get; init; }
         public required System.Collections.Generic.IReadOnlyList<int> RootEntryNumbers { get; init; }
         public required int TerminalEntryCount { get; init; }
         public required int TransitionCount { get; init; }
+    }
+    public sealed class EditorDialogNode
+    {
+        public EditorDialogNode() { }
+        public required string Actions { get; init; }
+        public required string Conditions { get; init; }
+        public required int EntryNumber { get; init; }
+        public required string GenderField { get; init; }
+        public required bool HasMissingResponseTarget { get; init; }
+        public bool HasTransition { get; }
+        public required int IntelligenceRequirement { get; init; }
+        public required bool IsRoot { get; init; }
+        public bool IsTerminal { get; }
+        public required ArcNET.Editor.EditorDialogNodeKind Kind { get; init; }
+        public required int ResponseTargetNumber { get; init; }
+        public required string Text { get; init; }
+    }
+    public enum EditorDialogNodeKind
+    {
+        NpcReply = 0,
+        PcOption = 1,
+        Control = 2,
+    }
+    public sealed class EditorMapLightPreview
+    {
+        public EditorMapLightPreview() { }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public required byte Blue { get; init; }
+        public required ArcNET.Formats.SectorLightFlags Flags { get; init; }
+        public required byte Green { get; init; }
+        public required int OffsetX { get; init; }
+        public required int OffsetY { get; init; }
+        public required int Palette { get; init; }
+        public required byte Red { get; init; }
+        public required int TileX { get; init; }
+        public required int TileY { get; init; }
+        public required uint TintColor { get; init; }
+    }
+    public sealed class EditorMapObjectPreview
+    {
+        public EditorMapObjectPreview() { }
+        public required ArcNET.Core.Primitives.ArtId CurrentArtId { get; init; }
+        public ArcNET.Core.Primitives.Location? Location { get; init; }
+        public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
+        public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
+        public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
+    }
+    public sealed class EditorMapPreview
+    {
+        public EditorMapPreview() { }
+        public required int Height { get; init; }
+        public required string Legend { get; init; }
+        public required string MapName { get; init; }
+        public required ArcNET.Editor.EditorMapPreviewMode Mode { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> Rows { get; init; }
+        public required int Width { get; init; }
+    }
+    public static class EditorMapPreviewBuilder
+    {
+        public static ArcNET.Editor.EditorMapPreview Build(ArcNET.Editor.EditorMapProjection projection, ArcNET.Editor.EditorMapPreviewMode mode) { }
+    }
+    public enum EditorMapPreviewMode
+    {
+        Occupancy = 0,
+        Objects = 1,
+        Combined = 2,
+        Roofs = 3,
+        Lights = 4,
+        Blocked = 5,
+        Scripts = 6,
+    }
+    public sealed class EditorMapProjection
+    {
+        public EditorMapProjection() { }
+        public required int Height { get; init; }
+        public required string MapName { get; init; }
+        public required int MaxSectorX { get; init; }
+        public required int MaxSectorY { get; init; }
+        public required int MinSectorX { get; init; }
+        public required int MinSectorY { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSectorProjection> Sectors { get; init; }
+        public required int UnpositionedSectorCount { get; init; }
+        public required int Width { get; init; }
+    }
+    public sealed class EditorMapScenePreview
+    {
+        public EditorMapScenePreview() { }
+        public required int Height { get; init; }
+        public required string MapName { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSectorScenePreview> Sectors { get; init; }
+        public required int UnpositionedSectorCount { get; init; }
+        public required int Width { get; init; }
+    }
+    public static class EditorMapScenePreviewBuilder
+    {
+        public static ArcNET.Editor.EditorMapScenePreview Build(ArcNET.Editor.EditorMapProjection projection, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> sectorsByAssetPath) { }
+        public static ArcNET.Editor.EditorMapSectorScenePreview BuildSector(ArcNET.Editor.EditorMapSectorProjection sectorProjection, ArcNET.Formats.Sector sector) { }
+    }
+    public enum EditorMapSectorDensityBand
+    {
+        None = 0,
+        Low = 1,
+        Medium = 2,
+        High = 3,
+        Peak = 4,
+    }
+    [System.Flags]
+    public enum EditorMapSectorPreviewFlags
+    {
+        None = 0,
+        Occupied = 1,
+        HasRoofs = 2,
+        HasLights = 4,
+        HasBlockedTiles = 8,
+        HasScripts = 16,
+    }
+    public sealed class EditorMapSectorProjection
+    {
+        public EditorMapSectorProjection() { }
+        public ArcNET.Editor.EditorAssetEntry Asset { get; }
+        public required ArcNET.Editor.EditorMapSectorDensityBand BlockedTileDensityBand { get; init; }
+        public required int LocalX { get; init; }
+        public required int LocalY { get; init; }
+        public required ArcNET.Editor.EditorMapSectorDensityBand ObjectDensityBand { get; init; }
+        public ArcNET.Editor.EditorMapSectorPreviewFlags PreviewFlags { get; }
+        public required ArcNET.Editor.EditorSectorSummary Sector { get; init; }
+        public required int SectorX { get; init; }
+        public required int SectorY { get; init; }
+    }
+    public sealed class EditorMapSectorScenePreview
+    {
+        public EditorMapSectorScenePreview() { }
+        public required string AssetPath { get; init; }
+        public required uint[] BlockMask { get; init; }
+        public required ArcNET.Editor.EditorMapSectorDensityBand BlockedTileDensityBand { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightPreview> Lights { get; init; }
+        public required int LocalX { get; init; }
+        public required int LocalY { get; init; }
+        public required ArcNET.Editor.EditorMapSectorDensityBand ObjectDensityBand { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectPreview> Objects { get; init; }
+        public required ArcNET.Editor.EditorMapSectorPreviewFlags PreviewFlags { get; init; }
+        public uint[]? RoofArtIds { get; init; }
+        public int RoofHeight { get; }
+        public int RoofWidth { get; }
+        public required int SectorX { get; init; }
+        public required int SectorY { get; init; }
+        public required uint[] TileArtIds { get; init; }
+        public int TileHeight { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapTileScriptPreview> TileScripts { get; init; }
+        public int TileWidth { get; }
+        public uint? GetRoofArtId(int roofX, int roofY) { }
+        public uint GetTileArtId(int tileX, int tileY) { }
+        public bool IsTileBlocked(int tileX, int tileY) { }
+    }
+    public sealed class EditorMapTileScriptPreview
+    {
+        public EditorMapTileScriptPreview() { }
+        public required uint NodeFlags { get; init; }
+        public required uint ScriptCounters { get; init; }
+        public required uint ScriptFlags { get; init; }
+        public required int ScriptId { get; init; }
+        public required int TileIndex { get; init; }
+        public required int TileX { get; init; }
+        public required int TileY { get; init; }
+    }
+    public sealed class EditorProject
+    {
+        public const int CurrentFormatVersion = 1;
+        public EditorProject() { }
+        public string? ActiveAssetPath { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectBookmark> Bookmarks { get; init; }
+        public int FormatVersion { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectOpenAsset> OpenAssets { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState> ToolStates { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectViewState> ViewStates { get; init; }
+        public required ArcNET.Editor.EditorProjectWorkspaceReference Workspace { get; init; }
+        public static ArcNET.Editor.EditorProject Create(ArcNET.Editor.EditorProjectWorkspaceReference workspace) { }
+        public static ArcNET.Editor.EditorProject FromWorkspace(ArcNET.Editor.EditorWorkspace workspace) { }
+    }
+    public sealed class EditorProjectBookmark
+    {
+        public EditorProjectBookmark() { }
+        public required string AssetPath { get; init; }
+        public required string Id { get; init; }
+        public string? LocationKey { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Properties { get; init; }
+        public string? Title { get; init; }
+        public string? ViewId { get; init; }
+    }
+    public sealed class EditorProjectOpenAsset
+    {
+        public EditorProjectOpenAsset() { }
+        public required string AssetPath { get; init; }
+        public bool IsPinned { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Properties { get; init; }
+        public string? ViewId { get; init; }
+    }
+    public static class EditorProjectStore
+    {
+        public static ArcNET.Editor.EditorProject Deserialize(string json) { }
+        public static ArcNET.Editor.EditorProject Load(string path) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorProject> LoadAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public static void Save(string path, ArcNET.Editor.EditorProject project) { }
+        public static System.Threading.Tasks.Task SaveAsync(string path, ArcNET.Editor.EditorProject project, System.Threading.CancellationToken cancellationToken = default) { }
+        public static string Serialize(ArcNET.Editor.EditorProject project) { }
+    }
+    public sealed class EditorProjectToolState
+    {
+        public EditorProjectToolState() { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Properties { get; init; }
+        public string? ScopeId { get; init; }
+        public required string ToolId { get; init; }
+    }
+    public sealed class EditorProjectViewState
+    {
+        public EditorProjectViewState() { }
+        public string? AssetPath { get; init; }
+        public required string Id { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Properties { get; init; }
+        public string? ViewId { get; init; }
+    }
+    public enum EditorProjectWorkspaceKind
+    {
+        ContentDirectory = 0,
+        GameInstall = 1,
+    }
+    public sealed class EditorProjectWorkspaceReference
+    {
+        public EditorProjectWorkspaceReference() { }
+        public required ArcNET.Editor.EditorProjectWorkspaceKind Kind { get; init; }
+        public required string RootPath { get; init; }
+        public string? SaveFolder { get; init; }
+        public string? SaveSlotName { get; init; }
+        public ArcNET.Editor.EditorWorkspaceLoadOptions CreateLoadOptions() { }
+        public ArcNET.Editor.EditorWorkspace Load() { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadAsync(System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static ArcNET.Editor.EditorProjectWorkspaceReference ForContentDirectory(string contentDirectory, string? saveFolder = null, string? saveSlotName = null) { }
+        public static ArcNET.Editor.EditorProjectWorkspaceReference ForGameInstall(string gameDirectory, string? saveFolder = null, string? saveSlotName = null) { }
     }
     public sealed class EditorProtoReference
     {
@@ -3046,6 +3441,35 @@ namespace ArcNET.Editor
         public ArcNET.Formats.FileFormat Format { get; }
         public required int ScriptId { get; init; }
     }
+    public sealed class EditorSectorSummary
+    {
+        public EditorSectorSummary() { }
+        public required int AmbientSchemeIndex { get; init; }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required int BlockedTileCount { get; init; }
+        public required int DistinctTileArtCount { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public required bool HasRoofs { get; init; }
+        public required int LightCount { get; init; }
+        public required int LightSchemeIndex { get; init; }
+        public required string MapName { get; init; }
+        public required int MusicSchemeIndex { get; init; }
+        public required int ObjectCount { get; init; }
+        public int? SectorScriptId { get; init; }
+        public required int TileScriptCount { get; init; }
+    }
+    public sealed class EditorSessionChange
+    {
+        public EditorSessionChange() { }
+        public required ArcNET.Editor.EditorSessionChangeKind Kind { get; init; }
+        public required string Target { get; init; }
+    }
+    public enum EditorSessionChangeKind
+    {
+        Dialog = 0,
+        Script = 1,
+        Save = 2,
+    }
     public sealed class EditorSkippedArchiveCandidate
     {
         public EditorSkippedArchiveCandidate() { }
@@ -3066,6 +3490,7 @@ namespace ArcNET.Editor
     {
         public EditorWorkspace() { }
         public ArcNET.Editor.EditorAssetCatalog Assets { get; init; }
+        public ArcNET.Editor.EditorAudioAssetCatalog AudioAssets { get; init; }
         public required string ContentDirectory { get; init; }
         public required ArcNET.GameData.GameDataStore GameData { get; init; }
         public string? GameDirectory { get; init; }
@@ -3077,7 +3502,19 @@ namespace ArcNET.Editor
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
         public ArcNET.Editor.EditorWorkspaceValidationReport Validation { get; init; }
+        public ArcNET.Editor.EditorArtPreview CreateArtPreview(string assetPath, ArcNET.Editor.EditorArtPreviewOptions? options = null) { }
+        public ArcNET.Editor.EditorAudioPreview CreateAudioPreview(string assetPath) { }
+        public ArcNET.Editor.DialogEditor CreateDialogEditor(string assetPath) { }
+        public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName) { }
+        public ArcNET.Editor.EditorProject CreateProject() { }
         public ArcNET.Editor.SaveGameEditor CreateSaveEditor() { }
+        public ArcNET.Editor.ScriptEditor CreateScriptEditor(string assetPath) { }
+        public ArcNET.Editor.EditorWorkspaceSession CreateSession() { }
+        public ArcNET.Formats.ArtFile? FindArt(string assetPath) { }
+        public ArcNET.Editor.EditorAudioAssetEntry? FindAudioAsset(string assetPath) { }
+        public ArcNET.Formats.DlgFile? FindDialog(string assetPath) { }
+        public ArcNET.Formats.ScrFile? FindScript(string assetPath) { }
+        public ArcNET.Formats.Sector? FindSector(string assetPath) { }
     }
     public sealed class EditorWorkspaceLoadOptions
     {
@@ -3101,6 +3538,19 @@ namespace ArcNET.Editor
         public static ArcNET.Editor.EditorWorkspace LoadFromGameInstall(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
         public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromGameInstallAsync(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class EditorWorkspaceSession
+    {
+        public EditorWorkspaceSession(ArcNET.Editor.EditorWorkspace workspace) { }
+        public bool HasPendingChanges { get; }
+        public ArcNET.Editor.EditorWorkspace Workspace { get; }
+        public ArcNET.Editor.EditorWorkspace ApplyPendingChanges() { }
+        public ArcNET.Editor.EditorWorkspaceSession DiscardPendingChanges() { }
+        public ArcNET.Editor.DialogEditor GetDialogEditor(string assetPath) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> GetPendingChanges() { }
+        public ArcNET.Editor.SaveGameEditor GetSaveEditor() { }
+        public ArcNET.Editor.ScriptEditor GetScriptEditor(string assetPath) { }
+        public ArcNET.Editor.EditorWorkspace SavePendingChanges() { }
+    }
     public sealed class EditorWorkspaceValidationIssue : System.IEquatable<ArcNET.Editor.EditorWorkspaceValidationIssue>
     {
         public EditorWorkspaceValidationIssue() { }
@@ -3122,6 +3572,55 @@ namespace ArcNET.Editor
         Info = 0,
         Warning = 1,
         Error = 2,
+    }
+    public interface IArtIndex
+    {
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtReference> FindArtReferences(uint artId);
+    }
+    public interface IAssetDependencyIndex
+    {
+        ArcNET.Editor.EditorAssetDependencySummary? FindAssetDependencySummary(string assetPath);
+    }
+    public interface IDialogIndex
+    {
+        ArcNET.Editor.EditorAssetEntry? FindDialogDefinition(int dialogId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindDialogDefinitions(int dialogId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> FindDialogDetails(int dialogId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> SearchDialogDetails(string text);
+    }
+    public interface IMapIndex
+    {
+        System.Collections.Generic.IReadOnlyList<string> MapNames { get; }
+        string? FindAssetMap(string assetPath);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMapAssets(string mapName);
+        ArcNET.Editor.EditorMapProjection? FindMapProjection(string mapName);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindMapSectors(string mapName);
+        ArcNET.Editor.EditorSectorSummary? FindSectorSummary(string assetPath);
+        System.Collections.Generic.IReadOnlyList<string> SearchMapNames(string text);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> SearchSectors(string text);
+    }
+    public interface IMessageIndex
+    {
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindMessageAssets(int messageIndex);
+    }
+    public interface IProtoIndex
+    {
+        ArcNET.Editor.EditorAssetEntry? FindProtoDefinition(int protoNumber);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProtoReference> FindProtoReferences(int protoNumber);
+    }
+    public interface ISchemeIndex
+    {
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindAmbientSchemeSectors(int ambientSchemeIndex);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindLightSchemeSectors(int lightSchemeIndex);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSectorSummary> FindMusicSchemeSectors(int musicSchemeIndex);
+    }
+    public interface IScriptIndex
+    {
+        ArcNET.Editor.EditorAssetEntry? FindScriptDefinition(int scriptId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAssetEntry> FindScriptDefinitions(int scriptId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptDefinition> FindScriptDetails(int scriptId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptReference> FindScriptReferences(int scriptId);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptDefinition> SearchScriptDetails(string text);
     }
     public sealed class LoadedSave
     {
@@ -3156,6 +3655,9 @@ namespace ArcNET.Editor
     public sealed class SaveGameEditor
     {
         public SaveGameEditor(ArcNET.Editor.LoadedSave save) { }
+        public bool HasPendingChanges { get; }
+        public ArcNET.Editor.LoadedSave CommitPendingChanges() { }
+        public ArcNET.Editor.SaveGameEditor DiscardPendingChanges() { }
         public ArcNET.Formats.Data2SavFile? GetCurrentData2Sav(string path) { }
         public ArcNET.Formats.DataSavFile? GetCurrentDataSav(string path) { }
         public ArcNET.Formats.MesFile? GetCurrentMessageFile(string path) { }
@@ -3253,13 +3755,71 @@ namespace ArcNET.Editor
         public ScriptBuilder() { }
         public ScriptBuilder(ArcNET.Formats.ScrFile existing) { }
         public ArcNET.Editor.ScriptBuilder AddCondition(ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Editor.ScriptBuilder AddCondition(ArcNET.Formats.ScriptConditionType conditionType, ArcNET.Formats.ScriptActionType actionType = 0, ArcNET.Formats.ScriptActionType elseActionType = 0) { }
         public ArcNET.Formats.ScrFile Build() { }
         public ArcNET.Editor.ScriptBuilder RemoveCondition(int index) { }
         public ArcNET.Editor.ScriptBuilder ReplaceCondition(int index, ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Editor.ScriptBuilder ReplaceCondition(int index, ArcNET.Formats.ScriptConditionType conditionType, ArcNET.Formats.ScriptActionType actionType = 0, ArcNET.Formats.ScriptActionType elseActionType = 0) { }
+        public ArcNET.Editor.ScriptBuilder SetActionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public ArcNET.Editor.ScriptBuilder SetConditionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public ArcNET.Editor.ScriptBuilder SetElseActionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.ScriptValidationIssue> Validate() { }
         public ArcNET.Editor.ScriptBuilder WithDescription(string description) { }
         public ArcNET.Editor.ScriptBuilder WithFlags(ArcNET.Formats.ScriptFlags flags) { }
         public ArcNET.Editor.ScriptBuilder WithHeaderCounters(uint counters) { }
         public ArcNET.Editor.ScriptBuilder WithHeaderFlags(uint flags) { }
+    }
+    public sealed class ScriptEditor
+    {
+        public ScriptEditor(ArcNET.Formats.ScrFile script) { }
+        public bool HasPendingChanges { get; }
+        public ArcNET.Editor.ScriptEditor AddCondition(ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Editor.ScriptEditor AddCondition(ArcNET.Formats.ScriptConditionType conditionType, ArcNET.Formats.ScriptActionType actionType = 0, ArcNET.Formats.ScriptActionType elseActionType = 0) { }
+        public ArcNET.Formats.ScrFile CommitPendingChanges() { }
+        public ArcNET.Editor.ScriptEditor DiscardPendingChanges() { }
+        public ArcNET.Editor.ScriptEditor Edit(System.Action<ArcNET.Editor.ScriptBuilder> update) { }
+        public ArcNET.Formats.ScrFile GetCurrentScript() { }
+        public ArcNET.Formats.ScrFile? GetPendingScript() { }
+        public ArcNET.Editor.ScriptEditor RemoveCondition(int index) { }
+        public ArcNET.Editor.ScriptEditor ReplaceCondition(int index, ArcNET.Formats.ScriptConditionData condition) { }
+        public ArcNET.Editor.ScriptEditor ReplaceCondition(int index, ArcNET.Formats.ScriptConditionType conditionType, ArcNET.Formats.ScriptActionType actionType = 0, ArcNET.Formats.ScriptActionType elseActionType = 0) { }
+        public ArcNET.Editor.ScriptEditor SetActionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public ArcNET.Editor.ScriptEditor SetConditionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public ArcNET.Editor.ScriptEditor SetElseActionOperands(int index, System.ReadOnlySpan<ArcNET.Editor.ScriptOperand> operands) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.ScriptValidationIssue> Validate() { }
+        public ArcNET.Editor.ScriptEditor WithDescription(string description) { }
+        public ArcNET.Editor.ScriptEditor WithFlags(ArcNET.Formats.ScriptFlags flags) { }
+        public ArcNET.Editor.ScriptEditor WithHeaderCounters(uint counters) { }
+        public ArcNET.Editor.ScriptEditor WithHeaderFlags(uint flags) { }
+        public ArcNET.Editor.ScriptEditor WithScript(ArcNET.Formats.ScrFile script) { }
+        public ArcNET.Editor.ScriptEditor WithScript(System.Func<ArcNET.Formats.ScrFile, ArcNET.Formats.ScrFile> update) { }
+    }
+    public readonly struct ScriptOperand : System.IEquatable<ArcNET.Editor.ScriptOperand>
+    {
+        public ScriptOperand(byte Type, int Value) { }
+        public byte Type { get; init; }
+        public int Value { get; init; }
+        public static ArcNET.Editor.ScriptOperand FromFocusObject(ArcNET.Formats.ScriptFocusObject focusObject, int value = 0) { }
+        public static ArcNET.Editor.ScriptOperand FromRaw(byte type, int value) { }
+        public static ArcNET.Editor.ScriptOperand FromValueType(ArcNET.Formats.ScriptValueType type, int value) { }
+    }
+    public sealed class ScriptValidationIssue : System.IEquatable<ArcNET.Editor.ScriptValidationIssue>
+    {
+        public ScriptValidationIssue() { }
+        public int? AttachmentSlotIndex { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.Editor.ScriptValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public enum ScriptValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+    public static class ScriptValidator
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.ScriptValidationIssue> Validate(ArcNET.Formats.ScrFile script) { }
     }
     public sealed class SectorBuilder
     {

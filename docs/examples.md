@@ -151,6 +151,30 @@ Console.WriteLine($"Frame size: {frame.Header.Width}×{frame.Header.Height}");
 byte[] pixels = frame.Pixels; // RLE-decoded, palette-indexed
 ```
 
+### Project an ART sprite into preview pixels
+
+```csharp
+using ArcNET.Editor;
+using ArcNET.Formats;
+
+ArtFile art = ArtFormat.ParseFile("art/critters/barbarian.ART");
+
+EditorArtPreview preview = EditorArtPreviewBuilder.Build(
+    art,
+    new EditorArtPreviewOptions
+    {
+        PaletteSlot = 0,
+        PixelFormat = EditorArtPreviewPixelFormat.Rgba32,
+    }
+);
+
+EditorArtPreviewFrame frame = preview.Frames[0];
+
+Console.WriteLine($"Frame duration: {preview.FrameDuration.TotalMilliseconds} ms");
+Console.WriteLine($"Frame size: {frame.Width}x{frame.Height}");
+Console.WriteLine($"Packed bytes: {frame.PixelData.Length}");
+```
+
 ### Parse a prototype file (`.pro`)
 
 ```csharp
@@ -881,8 +905,9 @@ Console.WriteLine(
     $"Validation warnings: {workspace.Validation.Issues.Count(issue => issue.Severity == EditorWorkspaceValidationSeverity.Warning)}");
 
 // Validation currently covers missing proto/script definitions, install-aware
-// proto display-name entries, broken dialog response targets, and unknown
-// script attachment slots.
+// proto display-name entries, dialog-local authoring problems such as missing
+// positive response targets or negative IQ values, and unknown script
+// attachment slots.
 
 for (var i = 0; i < Math.Min(5, workspace.Validation.Issues.Count); i++)
     Console.WriteLine(workspace.Validation.Issues[i]);
@@ -894,12 +919,35 @@ if (gameMes is not null)
     Console.WriteLine($"game.mes source path : {gameMes.SourcePath}");
 }
 
+var artMatches = workspace.Assets.Search("barbarian", FileFormat.Art);
+Console.WriteLine($"Art search matches: {artMatches.Count}");
+
+var mapMatches = workspace.Index.SearchMapNames("arcanum");
+Console.WriteLine($"Map search matches: {mapMatches.Count}");
+
+var scriptMatches = workspace.Index.SearchScriptDetails("shopkeeper");
+Console.WriteLine($"Script search matches: {scriptMatches.Count}");
+
+var dialogMatches = workspace.Index.SearchDialogDetails("good day");
+Console.WriteLine($"Dialog search matches: {dialogMatches.Count}");
+
 var proto6051 = workspace.Index.FindProtoDefinition(6051);
 if (proto6051 is not null)
     Console.WriteLine($"Proto 6051: {proto6051.AssetPath}");
 
 var proto6051Refs = workspace.Index.FindProtoReferences(6051);
 Console.WriteLine($"Proto 6051 reference assets: {proto6051Refs.Count}");
+
+if (proto6051 is not null)
+{
+    var proto6051Dependencies = workspace.Index.FindAssetDependencySummary(proto6051.AssetPath);
+    if (proto6051Dependencies is not null)
+    {
+        Console.WriteLine($"Proto 6051 asset defines proto: {proto6051Dependencies.DefinedProtoNumber}");
+        Console.WriteLine($"Proto 6051 outgoing script IDs: {proto6051Dependencies.ScriptReferences.Count}");
+        Console.WriteLine($"Proto 6051 outgoing art IDs: {proto6051Dependencies.ArtReferences.Count}");
+    }
+}
 
 var msg10Assets = workspace.Index.FindMessageAssets(10);
 Console.WriteLine($"Message 10 appears in {msg10Assets.Count} asset(s)");
@@ -909,7 +957,65 @@ if (workspace.Index.MapNames.Count > 0)
     var firstMap = workspace.Index.MapNames[0];
     Console.WriteLine($"First map: {firstMap}");
     Console.WriteLine($"First map asset count: {workspace.Index.FindMapAssets(firstMap).Count}");
+
+    var mapSectors = workspace.Index.FindMapSectors(firstMap);
+    Console.WriteLine($"First map sector count: {mapSectors.Count}");
+
+    var mapProjection = workspace.Index.FindMapProjection(firstMap);
+    if (mapProjection is not null)
+    {
+        Console.WriteLine(
+            $"First map projection: {mapProjection.Width} x {mapProjection.Height} cells, {mapProjection.Sectors.Count} positioned sector(s), {mapProjection.UnpositionedSectorCount} unpositioned sector(s)"
+        );
+
+        if (mapProjection.Sectors.Count > 0)
+            Console.WriteLine(
+                $"First projected sector preview flags: {mapProjection.Sectors[0].PreviewFlags}; object density: {mapProjection.Sectors[0].ObjectDensityBand}; blocked density: {mapProjection.Sectors[0].BlockedTileDensityBand}"
+            );
+
+        var combinedPreview = EditorMapPreviewBuilder.Build(mapProjection, EditorMapPreviewMode.Combined);
+        Console.WriteLine($"Map preview legend: {combinedPreview.Legend}");
+
+        if (combinedPreview.Rows.Count > 0)
+            Console.WriteLine($"Top preview row: {combinedPreview.Rows[0]}");
+
+        var mapScenePreview = workspace.CreateMapScenePreview(firstMap);
+        Console.WriteLine($"Map scene sectors: {mapScenePreview.Sectors.Count}");
+
+        if (mapScenePreview.Sectors.Count > 0)
+            Console.WriteLine(
+                $"First scene sector: {mapScenePreview.Sectors[0].AssetPath}; blocked(0,0)={mapScenePreview.Sectors[0].IsTileBlocked(0, 0)}"
+            );
+    }
+
+    if (mapSectors.Count > 0)
+    {
+        var sector = mapSectors[0];
+        Console.WriteLine(
+            $"Sector {sector.Asset.AssetPath}: {sector.ObjectCount} object(s), {sector.LightCount} light(s), {sector.TileScriptCount} tile script(s), sector script {sector.SectorScriptId?.ToString() ?? "-"}"
+        );
+
+        var sectorMatches = workspace.Index.SearchSectors(sector.MapName);
+        Console.WriteLine($"Sector search matches for {sector.MapName}: {sectorMatches.Count}");
+
+        var sectorDependencies = workspace.Index.FindAssetDependencySummary(sector.Asset.AssetPath);
+        if (sectorDependencies is not null)
+        {
+            Console.WriteLine(
+                $"Sector dependencies: proto IDs={sectorDependencies.ProtoReferences.Count}, script IDs={sectorDependencies.ScriptReferences.Count}, art IDs={sectorDependencies.ArtReferences.Count}"
+            );
+        }
+    }
 }
+
+var lightScheme3Sectors = workspace.Index.FindLightSchemeSectors(3);
+Console.WriteLine($"Light scheme 3 sector count: {lightScheme3Sectors.Count}");
+
+var musicScheme11Sectors = workspace.Index.FindMusicSchemeSectors(11);
+Console.WriteLine($"Music scheme 11 sector count: {musicScheme11Sectors.Count}");
+
+var ambientScheme22Sectors = workspace.Index.FindAmbientSchemeSectors(22);
+Console.WriteLine($"Ambient scheme 22 sector count: {ambientScheme22Sectors.Count}");
 
 var script1Defs = workspace.Index.FindScriptDefinitions(1);
 Console.WriteLine($"Script 1 definition assets: {script1Defs.Count}");
@@ -931,6 +1037,12 @@ foreach (var dialog in dialog1Details)
     Console.WriteLine(
         $"Dialog {dialog.DialogId}: {dialog.Asset.AssetPath} => {dialog.EntryCount} entries, {dialog.ControlEntryCount} control entries, {dialog.MissingResponseTargetNumbers.Count} missing positive target(s)"
     );
+
+    var rootNodes = dialog.Nodes.Where(node => node.IsRoot).Select(node => node.EntryNumber).ToArray();
+    Console.WriteLine($"Dialog roots: [{string.Join(", ", rootNodes)}]");
+
+    var brokenNodes = dialog.Nodes.Where(node => node.HasMissingResponseTarget).Select(node => node.EntryNumber).ToArray();
+    Console.WriteLine($"Dialog nodes with missing positive targets: [{string.Join(", ", brokenNodes)}]");
 }
 
 var script1Refs = workspace.Index.FindScriptReferences(1);
@@ -939,11 +1051,83 @@ Console.WriteLine($"Script 1 reference assets: {script1Refs.Count}");
 var artRefSample = workspace.Index.FindArtReferences(0x00112233);
 Console.WriteLine($"Art 0x00112233 reference assets: {artRefSample.Count}");
 
+var barbarianArt = workspace.FindArt("art/critters/barbarian.art");
+if (barbarianArt is not null)
+{
+    var barbarianPreview = workspace.CreateArtPreview("art/critters/barbarian.art");
+    Console.WriteLine($"Barbarian preview frames: {barbarianPreview.Frames.Count}");
+}
+
+var soundEffect = workspace.FindAudioAsset("sound/effect.wav");
+if (soundEffect is not null)
+{
+    var soundPreview = workspace.CreateAudioPreview("sound/effect.wav");
+    Console.WriteLine(
+        $"Sound preview: {soundPreview.ChannelCount} channel(s) @ {soundPreview.SampleRate} Hz for {soundPreview.Duration.TotalMilliseconds} ms"
+    );
+}
+
 if (workspace.HasSaveLoaded)
 {
     var editor = workspace.CreateSaveEditor();
     Console.WriteLine($"Leader: {editor.GetCurrentSaveInfo().LeaderName}");
 }
+
+var newDialog = new DialogBuilder()
+    .AddNpcReply(10, "Hello, traveler.", responseTargetNumber: 20)
+    .AddPcOption(20, "Who are you?", intelligenceRequirement: 8, responseTargetNumber: 30)
+    .AddNpcReply(30, "I keep the bridge.", responseTargetNumber: 40)
+    .AddControlEntry(40, "E:")
+    .Build();
+
+var dialogEditor = new DialogEditor(newDialog)
+    .InsertNpcReplyAfter(20, 25, "I keep the bridge.");
+
+Console.WriteLine($"Dialog edits pending: {dialogEditor.HasPendingChanges}");
+
+var shortenedDialog = dialogEditor.CommitPendingChanges();
+
+Console.WriteLine($"Dialog node count: {shortenedDialog.Entries.Count}");
+
+var dialogIssues = dialogEditor.Validate();
+Console.WriteLine($"Dialog validation findings: {dialogIssues.Count}");
+
+var scriptIssues = new ScriptBuilder()
+    .WithDescription("Resume - caf\u00E9 with a label that is too long to survive .scr round-trips cleanly")
+    .AddCondition(ScriptConditionType.HasGold, ScriptActionType.FloatLine)
+    .SetConditionOperands(0, [ScriptOperand.FromValueType(ScriptValueType.Number, 500)])
+    .SetActionOperands(0, [ScriptOperand.FromFocusObject(ScriptFocusObject.Attachee)])
+    .Validate();
+
+Console.WriteLine($"Script validation findings: {scriptIssues.Count}");
+
+var scriptEditor = new ScriptEditor(new ScriptBuilder().AddCondition(ScriptConditionType.True).Build())
+    .WithDescription("Bridge guard")
+    .SetConditionOperands(0, [ScriptOperand.FromValueType(ScriptValueType.Number, 10)]);
+
+Console.WriteLine($"Script edits pending: {scriptEditor.HasPendingChanges}");
+
+var session = workspace.CreateSession();
+
+if (dialog1Details.Count > 0)
+{
+    var firstDialog = dialog1Details[0];
+    var nextEntryNumber = firstDialog.Nodes.Count == 0 ? 10 : firstDialog.Nodes.Max(node => node.EntryNumber) + 10;
+    session.GetDialogEditor(firstDialog.Asset.AssetPath).AddControlEntry(nextEntryNumber, "E:");
+}
+
+if (script1Details.Count > 0)
+    session.GetScriptEditor(script1Details[0].Asset.AssetPath).WithDescription("Session staged script");
+
+if (workspace.HasSaveLoaded)
+    session.GetSaveEditor().WithSaveInfo(info => info.With(displayName: "Session edited save"));
+
+foreach (var change in session.GetPendingChanges())
+    Console.WriteLine($"Pending {change.Kind}: {change.Target}");
+
+var savedWorkspace = session.SavePendingChanges();
+Console.WriteLine($"Session pending after save: {session.HasPendingChanges}");
+Console.WriteLine($"Workspace save loaded after save: {savedWorkspace.HasSaveLoaded}");
 
 // Loose or extracted content still works when you want to bypass install DATs.
 EditorWorkspace looseWorkspace = await EditorWorkspaceLoader.LoadAsync(
@@ -955,6 +1139,13 @@ The same workspace report is available from the repo CLI:
 
 ```shell
 dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor validate "C:\Games\Arcanum" --severity warning --top 20
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor sector "C:\Games\Arcanum" "maps/arcanum1/arcanum1_0000.sec"
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor scheme "C:\Games\Arcanum" light 3 --top 20
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed"
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode objects
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode combined
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode roofs
+dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode scripts
 ```
 
 ### Load a save slot
