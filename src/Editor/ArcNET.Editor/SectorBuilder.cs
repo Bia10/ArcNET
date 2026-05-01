@@ -81,6 +81,13 @@ public sealed class SectorBuilder
         return this;
     }
 
+    /// <summary>Replaces the light at <paramref name="index"/> while preserving light order.</summary>
+    public SectorBuilder ReplaceLight(int index, SectorLight light)
+    {
+        _lights[index] = light;
+        return this;
+    }
+
     /// <summary>Removes all lights from the sector.</summary>
     public SectorBuilder ClearLights()
     {
@@ -144,6 +151,13 @@ public sealed class SectorBuilder
         return this;
     }
 
+    /// <summary>Replaces the object at <paramref name="index"/> while preserving object order.</summary>
+    public SectorBuilder ReplaceObject(int index, MobData obj)
+    {
+        _objects[index] = obj;
+        return this;
+    }
+
     /// <summary>Removes all objects from the sector.</summary>
     public SectorBuilder ClearObjects()
     {
@@ -164,6 +178,13 @@ public sealed class SectorBuilder
     public SectorBuilder RemoveTileScript(int index)
     {
         _tileScripts.RemoveAt(index);
+        return this;
+    }
+
+    /// <summary>Replaces the tile script at <paramref name="index"/> while preserving script order.</summary>
+    public SectorBuilder ReplaceTileScript(int index, TileScript script)
+    {
+        _tileScripts[index] = script;
         return this;
     }
 

@@ -47,6 +47,46 @@ public sealed class ScriptBuilder
         return this;
     }
 
+    /// <summary>
+    /// Appends a condition/action node using typed opcodes and empty operand buffers.
+    /// Use the raw <see cref="AddCondition(ScriptConditionData)"/> overload when custom operands are required.
+    /// </summary>
+    public ScriptBuilder AddCondition(
+        ScriptConditionType conditionType,
+        ScriptActionType actionType = ScriptActionType.DoNothing,
+        ScriptActionType elseActionType = ScriptActionType.DoNothing
+    ) => AddCondition(CreateCondition(conditionType, actionType, elseActionType));
+
+    /// <summary>
+    /// Replaces the condition-operand buffer for one entry using typed operand descriptors.
+    /// Use this after the typed add/replace overloads when the condition needs non-empty operands.
+    /// </summary>
+    public ScriptBuilder SetConditionOperands(int index, ReadOnlySpan<ScriptOperand> operands)
+    {
+        _entries[index] = WithConditionOperands(_entries[index], operands);
+        return this;
+    }
+
+    /// <summary>
+    /// Replaces the action-operand buffer for one entry using typed operand descriptors.
+    /// </summary>
+    public ScriptBuilder SetActionOperands(int index, ReadOnlySpan<ScriptOperand> operands)
+    {
+        var entry = _entries[index];
+        _entries[index] = entry with { Action = WithOperands(entry.Action, operands) };
+        return this;
+    }
+
+    /// <summary>
+    /// Replaces the else-action operand buffer for one entry using typed operand descriptors.
+    /// </summary>
+    public ScriptBuilder SetElseActionOperands(int index, ReadOnlySpan<ScriptOperand> operands)
+    {
+        var entry = _entries[index];
+        _entries[index] = entry with { Else = WithOperands(entry.Else, operands) };
+        return this;
+    }
+
     /// <summary>Removes the condition at <paramref name="index"/>.</summary>
     public ScriptBuilder RemoveCondition(int index)
     {
@@ -60,6 +100,17 @@ public sealed class ScriptBuilder
         _entries[index] = condition;
         return this;
     }
+
+    /// <summary>
+    /// Replaces the condition at <paramref name="index"/> using typed opcodes and empty operand buffers.
+    /// Use the raw <see cref="ReplaceCondition(int, ScriptConditionData)"/> overload when custom operands are required.
+    /// </summary>
+    public ScriptBuilder ReplaceCondition(
+        int index,
+        ScriptConditionType conditionType,
+        ScriptActionType actionType = ScriptActionType.DoNothing,
+        ScriptActionType elseActionType = ScriptActionType.DoNothing
+    ) => ReplaceCondition(index, CreateCondition(conditionType, actionType, elseActionType));
 
     // ── Metadata ──────────────────────────────────────────────────────────────
 
@@ -94,6 +145,11 @@ public sealed class ScriptBuilder
     // ── Build ─────────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Validates the current builder state using <see cref="ScriptValidator"/>.
+    /// </summary>
+    public IReadOnlyList<ScriptValidationIssue> Validate() => ScriptValidator.Validate(Build());
+
+    /// <summary>
     /// Produces an immutable <see cref="ScrFile"/> from the current builder state.
     /// </summary>
     public ScrFile Build() =>
@@ -105,4 +161,52 @@ public sealed class ScriptBuilder
             Flags = _flags,
             Entries = _entries.AsReadOnly(),
         };
+
+    private static ScriptConditionData CreateCondition(
+        ScriptConditionType conditionType,
+        ScriptActionType actionType,
+        ScriptActionType elseActionType
+    ) => new((int)conditionType, default, default, CreateAction((int)actionType), CreateAction((int)elseActionType));
+
+    private static ScriptConditionData WithConditionOperands(
+        ScriptConditionData condition,
+        ReadOnlySpan<ScriptOperand> operands
+    )
+    {
+        var (opTypes, opValues) = CreateOperandBuffers(operands, nameof(operands));
+        return condition with { OpTypes = opTypes, OpValues = opValues };
+    }
+
+    private static ScriptActionData WithOperands(ScriptActionData action, ReadOnlySpan<ScriptOperand> operands)
+    {
+        var (opTypes, opValues) = CreateOperandBuffers(operands, nameof(operands));
+        return action with { OpTypes = opTypes, OpValues = opValues };
+    }
+
+    private static (OpTypeBuffer OpTypes, OpValueBuffer OpValues) CreateOperandBuffers(
+        ReadOnlySpan<ScriptOperand> operands,
+        string paramName
+    )
+    {
+        if (operands.Length > 8)
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                operands.Length,
+                "Script conditions and actions support at most 8 operands."
+            );
+        }
+
+        OpTypeBuffer opTypes = default;
+        OpValueBuffer opValues = default;
+        for (var i = 0; i < operands.Length; i++)
+        {
+            opTypes[i] = operands[i].Type;
+            opValues[i] = operands[i].Value;
+        }
+
+        return (opTypes, opValues);
+    }
+
+    private static ScriptActionData CreateAction(int actionType) => new(actionType, default, default);
 }

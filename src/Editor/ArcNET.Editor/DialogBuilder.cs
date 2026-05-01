@@ -29,6 +29,59 @@ public sealed class DialogBuilder
     // ── Mutations ─────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Appends or replaces one NPC reply node.
+    /// </summary>
+    public DialogBuilder AddNpcReply(
+        int num,
+        string text,
+        int responseTargetNumber = 0,
+        string conditions = "",
+        string actions = "",
+        string genderField = ""
+    ) => AddEntry(CreateEntry(num, text, genderField, 0, conditions, responseTargetNumber, actions));
+
+    /// <summary>
+    /// Appends or replaces one PC dialogue option node.
+    /// </summary>
+    public DialogBuilder AddPcOption(
+        int num,
+        string text,
+        int intelligenceRequirement,
+        int responseTargetNumber = 0,
+        string conditions = "",
+        string actions = "",
+        string genderField = ""
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(intelligenceRequirement);
+        return AddEntry(
+            CreateEntry(num, text, genderField, intelligenceRequirement, conditions, responseTargetNumber, actions)
+        );
+    }
+
+    /// <summary>
+    /// Appends or replaces one engine control entry such as <c>E:</c>, <c>R:</c>, or <c>T:</c>.
+    /// </summary>
+    public DialogBuilder AddControlEntry(
+        int num,
+        string text,
+        int responseTargetNumber = 0,
+        string conditions = "",
+        string actions = ""
+    )
+    {
+        if (!IsControlEntryText(text))
+        {
+            throw new ArgumentException(
+                "Control entry text must be 'E:', 'F:', or start with 'R:', 'C:', or 'T:'.",
+                nameof(text)
+            );
+        }
+
+        return AddEntry(CreateEntry(num, text, string.Empty, 0, conditions, responseTargetNumber, actions));
+    }
+
+    /// <summary>
     /// Appends <paramref name="entry"/> to the builder.
     /// If an entry with the same <see cref="DialogEntry.Num"/> already exists it is replaced.
     /// </summary>
@@ -65,7 +118,33 @@ public sealed class DialogBuilder
         return this;
     }
 
+    /// <summary>
+    /// Rewires the response target for one entry while preserving the rest of the entry payload.
+    /// No-op when no entry with that number exists.
+    /// </summary>
+    public DialogBuilder SetResponseTarget(int num, int responseTargetNumber)
+    {
+        return UpdateEntry(
+            num,
+            entry =>
+                CreateEntry(
+                    entry.Num,
+                    entry.Text,
+                    entry.GenderField,
+                    entry.Iq,
+                    entry.Conditions,
+                    responseTargetNumber,
+                    entry.Actions
+                )
+        );
+    }
+
     // ── Build ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Validates the current builder state using <see cref="DialogValidator"/>.
+    /// </summary>
+    public IReadOnlyList<DialogValidationIssue> Validate() => DialogValidator.Validate(Build());
 
     /// <summary>
     /// Produces an immutable <see cref="DlgFile"/> from the current builder state.
@@ -76,5 +155,38 @@ public sealed class DialogBuilder
         var sorted = new List<DialogEntry>(_entries);
         sorted.Sort(static (a, b) => a.Num.CompareTo(b.Num));
         return new DlgFile { Entries = sorted.AsReadOnly() };
+    }
+
+    private static DialogEntry CreateEntry(
+        int num,
+        string text,
+        string genderField,
+        int iq,
+        string conditions,
+        int responseVal,
+        string actions
+    ) =>
+        new()
+        {
+            Num = num,
+            Text = text,
+            GenderField = genderField,
+            Iq = iq,
+            Conditions = conditions,
+            ResponseVal = responseVal,
+            Actions = actions,
+        };
+
+    private static bool IsControlEntryText(string text)
+    {
+        return text switch
+        {
+            "E:" => true,
+            "F:" => true,
+            _ when text.StartsWith("R:", StringComparison.Ordinal) => true,
+            _ when text.StartsWith("C:", StringComparison.Ordinal) => true,
+            _ when text.StartsWith("T:", StringComparison.Ordinal) => true,
+            _ => false,
+        };
     }
 }

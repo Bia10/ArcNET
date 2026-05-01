@@ -62,6 +62,24 @@ public sealed class MobDataBuilder
         _originalPropCollItems = null;
     }
 
+    /// <summary>
+    /// Starts a builder for a brand-new object instantiated from an existing proto definition.
+    /// Properties and unknown bitmap bits are copied from the proto payload, but the new object
+    /// uses the supplied instance and proto-reference identifiers and recomputes the property count on build.
+    /// </summary>
+    internal MobDataBuilder(ProtoData proto, GameObjectGuid objectId, GameObjectGuid protoId)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+
+        _type = proto.Header.GameObjectType;
+        _objectId = objectId;
+        _protoId = protoId;
+        _properties = new List<ObjectProperty>(proto.Properties);
+        _originalBitmap = (byte[])proto.Header.Bitmap.Clone();
+        _originalVersion = proto.Header.Version;
+        _originalPropCollItems = null;
+    }
+
     // ── Property mutations ────────────────────────────────────────────────────
 
     /// <summary>
@@ -101,6 +119,12 @@ public sealed class MobDataBuilder
         BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(1), packed);
         return WithProperty(new ObjectProperty { Field = ObjectField.ObjFLocation, RawBytes = bytes });
     }
+
+    /// <summary>
+    /// Sets the pitch rotation of the object (<see cref="ObjectField.ObjFRotationPitch"/>).
+    /// </summary>
+    public MobDataBuilder WithRotationPitch(float rotationPitch) =>
+        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFRotationPitch, rotationPitch));
 
     // ── Build ─────────────────────────────────────────────────────────────────
 
