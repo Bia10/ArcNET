@@ -43,6 +43,31 @@ public class GameDataLoaderTests
             ],
         };
 
+    private static ArtFile MakeArt(byte paletteIndex = 1, uint frameRate = 8) =>
+        new()
+        {
+            Flags = ArtFlags.Static,
+            FrameRate = frameRate,
+            ActionFrame = 0,
+            FrameCount = 1,
+            DataSizes = new uint[8],
+            PaletteData1 = new uint[8],
+            PaletteData2 = new uint[8],
+            PaletteIds = [1, 0, 0, 0],
+            Palettes = [CreatePalette(), null, null, null],
+            Frames =
+            [
+                [new ArtFrame { Header = new ArtFrameHeader(1u, 1u, 1u, 0, 0, 0, 0), Pixels = [paletteIndex] }],
+            ],
+        };
+
+    private static ArtPaletteEntry[] CreatePalette()
+    {
+        var palette = new ArtPaletteEntry[256];
+        palette[1] = new ArtPaletteEntry(1, 2, 3);
+        return palette;
+    }
+
     [Test]
     public void DiscoverFiles_NonExistentDir_Throws()
     {
@@ -150,6 +175,7 @@ public class GameDataLoaderTests
 
         await Assert.That(store.Messages.Count).IsEqualTo(0);
         await Assert.That(store.Objects.Count).IsEqualTo(0);
+        await Assert.That(store.Arts.Count).IsEqualTo(0);
         await Assert.That(store.Scripts.Count).IsEqualTo(0);
         await Assert.That(store.Dialogs.Count).IsEqualTo(0);
     }
@@ -322,5 +348,20 @@ public class GameDataLoaderTests
         await Assert.That(store.Dialogs[0].Entries[0].Text).IsEqualTo("Hello dialog");
         await Assert.That(store.ScriptsBySource.ContainsKey("scr/00777.scr")).IsTrue();
         await Assert.That(store.DialogsBySource.ContainsKey("dlg/00123.dlg")).IsTrue();
+    }
+
+    [Test]
+    public async Task LoadFromMemoryAsync_ArtBytes_PopulateArtsAndSourcePaths()
+    {
+        var blobs = new Dictionary<string, ReadOnlyMemory<byte>>
+        {
+            ["art\\critters\\barbarian.art"] = ArtFormat.WriteToArray(MakeArt(frameRate: 12)),
+        };
+
+        var store = await GameDataLoader.LoadFromMemoryAsync(blobs);
+
+        await Assert.That(store.Arts.Count).IsEqualTo(1);
+        await Assert.That(store.Arts[0].FrameRate).IsEqualTo(12u);
+        await Assert.That(store.ArtsBySource.ContainsKey("art/critters/barbarian.art")).IsTrue();
     }
 }

@@ -40,6 +40,21 @@ public static class GameDataLoader
             store.AddMob(mob, NormalizeSourcePath(sourcePath));
             store.AddObject(mob.Header);
         },
+        [FileFormat.Art] = static (store, memory, sourcePath) =>
+        {
+            var art = ArtFormat.ParseMemory(memory);
+            store.AddArt(art, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.Jmp] = static (store, memory, sourcePath) =>
+        {
+            var jumpFile = JmpFormat.ParseMemory(memory);
+            store.AddJumpFile(jumpFile, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.MapProperties] = static (store, memory, sourcePath) =>
+        {
+            var properties = MapPropertiesFormat.ParseMemory(memory);
+            store.AddMapProperties(properties, NormalizeSourcePath(sourcePath));
+        },
         [FileFormat.Script] = static (store, memory, sourcePath) =>
         {
             var script = ScriptFormat.ParseMemory(memory);
@@ -49,6 +64,16 @@ public static class GameDataLoader
         {
             var dialog = DialogFormat.ParseMemory(memory);
             store.AddDialog(dialog, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.Terrain] = static (store, memory, sourcePath) =>
+        {
+            var terrain = TerrainFormat.ParseMemory(memory);
+            store.AddTerrain(terrain, NormalizeSourcePath(sourcePath));
+        },
+        [FileFormat.FacadeWalk] = static (store, memory, sourcePath) =>
+        {
+            var facadeWalk = FacWalkFormat.ParseMemory(memory);
+            store.AddFacadeWalk(facadeWalk, NormalizeSourcePath(sourcePath));
         },
     };
 

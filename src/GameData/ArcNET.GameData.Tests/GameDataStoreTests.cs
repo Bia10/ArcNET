@@ -45,6 +45,24 @@ public class GameDataStoreTests
             ],
         };
 
+    private static ArtFile MakeArt(uint frameRate = 8) =>
+        new()
+        {
+            Flags = ArtFlags.Static,
+            FrameRate = frameRate,
+            ActionFrame = 0,
+            FrameCount = 1,
+            DataSizes = new uint[8],
+            PaletteData1 = new uint[8],
+            PaletteData2 = new uint[8],
+            PaletteIds = [1, 0, 0, 0],
+            Palettes = [new ArtPaletteEntry[256], null, null, null],
+            Frames =
+            [
+                [new ArtFrame { Header = new ArtFrameHeader(1u, 1u, 1u, 0, 0, 0, 0), Pixels = [1] }],
+            ],
+        };
+
     [Test]
     public async Task AddObject_IncreasesCount()
     {
@@ -137,12 +155,14 @@ public class GameDataStoreTests
         var store = new GameDataStore();
         store.AddObject(MakeHeader(1));
         store.AddMessage(new MessageEntry(1, "x"));
+        store.AddArt(MakeArt());
         store.AddScript(MakeScript());
         store.AddDialog(MakeDialog());
         store.Clear();
 
         await Assert.That(store.Objects.Count).IsEqualTo(0);
         await Assert.That(store.Messages.Count).IsEqualTo(0);
+        await Assert.That(store.Arts.Count).IsEqualTo(0);
         await Assert.That(store.Scripts.Count).IsEqualTo(0);
         await Assert.That(store.Dialogs.Count).IsEqualTo(0);
         await Assert.That(store.DirtyObjects.Count).IsEqualTo(0);
@@ -158,6 +178,17 @@ public class GameDataStoreTests
         await Assert.That(store.Scripts.Count).IsEqualTo(1);
         await Assert.That(store.Dialogs.Count).IsEqualTo(1);
         await Assert.That(store.Dialogs[0].Entries[0].Text).IsEqualTo("Hello");
+    }
+
+    [Test]
+    public async Task AddArt_WithSourcePath_PopulatesArtsBySource()
+    {
+        var store = new GameDataStore();
+        store.AddArt(MakeArt(frameRate: 12), "art/critters/test.art");
+
+        await Assert.That(store.Arts.Count).IsEqualTo(1);
+        await Assert.That(store.ArtsBySource.ContainsKey("art/critters/test.art")).IsTrue();
+        await Assert.That(store.ArtsBySource["art/critters/test.art"][0].FrameRate).IsEqualTo(12u);
     }
 
     // ── G4: MessagesBySource origin tracking ────────────────────────────

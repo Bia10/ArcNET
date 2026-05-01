@@ -16,8 +16,13 @@ public sealed class GameDataStore
     private readonly List<Sector> _sectors = [];
     private readonly List<ProtoData> _protos = [];
     private readonly List<MobData> _mobs = [];
+    private readonly List<ArtFile> _arts = [];
+    private readonly List<JmpFile> _jumpFiles = [];
+    private readonly List<MapProperties> _mapProperties = [];
     private readonly List<ScrFile> _scripts = [];
     private readonly List<DlgFile> _dialogs = [];
+    private readonly List<TerrainData> _terrains = [];
+    private readonly List<FacadeWalk> _facadeWalks = [];
     private readonly HashSet<GameObjectGuid> _dirty = [];
     private FrozenDictionary<GameObjectGuid, GameObjectHeader>? _indexByGuid;
 
@@ -26,16 +31,28 @@ public sealed class GameDataStore
     private readonly Dictionary<string, List<Sector>> _sectorsBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ProtoData>> _protosBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<MobData>> _mobsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ArtFile>> _artsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<JmpFile>> _jumpFilesBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<MapProperties>> _mapPropertiesBySource = new(
+        StringComparer.OrdinalIgnoreCase
+    );
     private readonly Dictionary<string, List<ScrFile>> _scriptsBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<DlgFile>> _dialogsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<TerrainData>> _terrainsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<FacadeWalk>> _facadeWalksBySource = new(StringComparer.OrdinalIgnoreCase);
 
     // Lazy read-only views — rebuilt only when a new source entry is added or the store is cleared.
     private IReadOnlyDictionary<string, IReadOnlyList<MessageEntry>>? _messagesBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<Sector>>? _sectorsBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<ProtoData>>? _protosBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<MobData>>? _mobsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<ArtFile>>? _artsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<JmpFile>>? _jumpFilesBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<MapProperties>>? _mapPropertiesBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<ScrFile>>? _scriptsBySourceView;
     private IReadOnlyDictionary<string, IReadOnlyList<DlgFile>>? _dialogsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<TerrainData>>? _terrainsBySourceView;
+    private IReadOnlyDictionary<string, IReadOnlyList<FacadeWalk>>? _facadeWalksBySourceView;
 
     /// <summary>Gets all loaded object headers.</summary>
     public IReadOnlyList<GameObjectHeader> Objects => _objects;
@@ -52,11 +69,26 @@ public sealed class GameDataStore
     /// <summary>Gets all loaded mobile (MOB) data.</summary>
     public IReadOnlyList<MobData> Mobs => _mobs;
 
+    /// <summary>Gets all loaded ART sprite files.</summary>
+    public IReadOnlyList<ArtFile> Arts => _arts;
+
+    /// <summary>Gets all loaded map jump files.</summary>
+    public IReadOnlyList<JmpFile> JumpFiles => _jumpFiles;
+
+    /// <summary>Gets all loaded map-properties files.</summary>
+    public IReadOnlyList<MapProperties> MapPropertiesList => _mapProperties;
+
     /// <summary>Gets all loaded compiled script (.scr) files.</summary>
     public IReadOnlyList<ScrFile> Scripts => _scripts;
 
     /// <summary>Gets all loaded dialog (.dlg) files.</summary>
     public IReadOnlyList<DlgFile> Dialogs => _dialogs;
+
+    /// <summary>Gets all loaded terrain-definition files.</summary>
+    public IReadOnlyList<TerrainData> Terrains => _terrains;
+
+    /// <summary>Gets all loaded facade-walkability files.</summary>
+    public IReadOnlyList<FacadeWalk> FacadeWalks => _facadeWalks;
 
     /// <summary>
     /// Gets message entries grouped by their source path.
@@ -88,6 +120,27 @@ public sealed class GameDataStore
         _mobsBySourceView ??= BuildView(_mobsBySource);
 
     /// <summary>
+    /// Gets ART sprite files grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ArtFile>> ArtsBySource =>
+        _artsBySourceView ??= BuildView(_artsBySource);
+
+    /// <summary>
+    /// Gets jump files grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<JmpFile>> JumpFilesBySource =>
+        _jumpFilesBySourceView ??= BuildView(_jumpFilesBySource);
+
+    /// <summary>
+    /// Gets map-properties files grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<MapProperties>> MapPropertiesBySource =>
+        _mapPropertiesBySourceView ??= BuildView(_mapPropertiesBySource);
+
+    /// <summary>
     /// Gets compiled scripts grouped by their source path.
     /// Empty when entries were added programmatically without origin information.
     /// </summary>
@@ -100,6 +153,20 @@ public sealed class GameDataStore
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<DlgFile>> DialogsBySource =>
         _dialogsBySourceView ??= BuildView(_dialogsBySource);
+
+    /// <summary>
+    /// Gets terrain-definition files grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<TerrainData>> TerrainsBySource =>
+        _terrainsBySourceView ??= BuildView(_terrainsBySource);
+
+    /// <summary>
+    /// Gets facade-walkability files grouped by their source path.
+    /// Empty when entries were added programmatically without origin information.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<FacadeWalk>> FacadeWalksBySource =>
+        _facadeWalksBySourceView ??= BuildView(_facadeWalksBySource);
 
     /// <summary>Gets the set of GUIDs that have been marked dirty since the last <see cref="ClearDirty"/>.</summary>
     public IReadOnlySet<GameObjectGuid> DirtyObjects => _dirty;
@@ -163,6 +230,48 @@ public sealed class GameDataStore
         _mobsBySourceView = null;
     }
 
+    /// <summary>Appends a parsed ART sprite file.</summary>
+    public void AddArt(ArtFile art) => AddArt(art, null);
+
+    internal void AddArt(ArtFile art, string? sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(art);
+
+        _arts.Add(art);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_artsBySource, sourcePath).Add(art);
+        _artsBySourceView = null;
+    }
+
+    /// <summary>Appends a parsed jump file.</summary>
+    public void AddJumpFile(JmpFile jumpFile) => AddJumpFile(jumpFile, null);
+
+    internal void AddJumpFile(JmpFile jumpFile, string? sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(jumpFile);
+
+        _jumpFiles.Add(jumpFile);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_jumpFilesBySource, sourcePath).Add(jumpFile);
+        _jumpFilesBySourceView = null;
+    }
+
+    /// <summary>Appends a parsed map-properties file.</summary>
+    public void AddMapProperties(MapProperties properties) => AddMapProperties(properties, null);
+
+    internal void AddMapProperties(MapProperties properties, string? sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+
+        _mapProperties.Add(properties);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_mapPropertiesBySource, sourcePath).Add(properties);
+        _mapPropertiesBySourceView = null;
+    }
+
     /// <summary>Appends a parsed compiled script.</summary>
     public void AddScript(ScrFile script) => AddScript(script, null);
 
@@ -185,6 +294,34 @@ public sealed class GameDataStore
             return;
         GetOrCreate(_dialogsBySource, sourcePath).Add(dialog);
         _dialogsBySourceView = null;
+    }
+
+    /// <summary>Appends a parsed terrain-definition file.</summary>
+    public void AddTerrain(TerrainData terrain) => AddTerrain(terrain, null);
+
+    internal void AddTerrain(TerrainData terrain, string? sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+
+        _terrains.Add(terrain);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_terrainsBySource, sourcePath).Add(terrain);
+        _terrainsBySourceView = null;
+    }
+
+    /// <summary>Appends a parsed facade-walkability file.</summary>
+    public void AddFacadeWalk(FacadeWalk facadeWalk) => AddFacadeWalk(facadeWalk, null);
+
+    internal void AddFacadeWalk(FacadeWalk facadeWalk, string? sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(facadeWalk);
+
+        _facadeWalks.Add(facadeWalk);
+        if (sourcePath is null)
+            return;
+        GetOrCreate(_facadeWalksBySource, sourcePath).Add(facadeWalk);
+        _facadeWalksBySourceView = null;
     }
 
     /// <summary>
@@ -241,22 +378,37 @@ public sealed class GameDataStore
         _sectors.Clear();
         _protos.Clear();
         _mobs.Clear();
+        _arts.Clear();
+        _jumpFiles.Clear();
+        _mapProperties.Clear();
         _scripts.Clear();
         _dialogs.Clear();
+        _terrains.Clear();
+        _facadeWalks.Clear();
         _messagesBySource.Clear();
         _sectorsBySource.Clear();
         _protosBySource.Clear();
         _mobsBySource.Clear();
+        _artsBySource.Clear();
+        _jumpFilesBySource.Clear();
+        _mapPropertiesBySource.Clear();
         _scriptsBySource.Clear();
         _dialogsBySource.Clear();
+        _terrainsBySource.Clear();
+        _facadeWalksBySource.Clear();
         _dirty.Clear();
         _indexByGuid = null;
         _messagesBySourceView = null;
         _sectorsBySourceView = null;
         _protosBySourceView = null;
         _mobsBySourceView = null;
+        _artsBySourceView = null;
+        _jumpFilesBySourceView = null;
+        _mapPropertiesBySourceView = null;
         _scriptsBySourceView = null;
         _dialogsBySourceView = null;
+        _terrainsBySourceView = null;
+        _facadeWalksBySourceView = null;
     }
 
     private FrozenDictionary<GameObjectGuid, GameObjectHeader> BuildGuidIndex() =>
