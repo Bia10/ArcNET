@@ -1,0 +1,27 @@
+﻿using System.Text.Json.Serialization;
+using ArcNET.Core.Primitives;
+
+namespace ArcNET.Editor;
+
+[JsonSerializable(typeof(Dictionary<string, string?>))]
+[JsonSerializable(typeof(List<EditorProjectOpenAsset>))]
+[JsonSerializable(typeof(List<EditorProjectBookmark>))]
+[JsonSerializable(typeof(List<EditorProjectMapViewState>))]
+[JsonSerializable(typeof(List<EditorProjectViewState>))]
+[JsonSerializable(typeof(List<EditorProjectToolState>))]
+[JsonSerializable(typeof(EditorProject))]
+[JsonSerializable(typeof(EditorProjectWorkspaceReference))]
+[JsonSerializable(typeof(EditorProjectOpenAsset))]
+[JsonSerializable(typeof(EditorProjectBookmark))]
+[JsonSerializable(typeof(EditorProjectMapViewState))]
+[JsonSerializable(typeof(EditorProjectMapCameraState))]
+[JsonSerializable(typeof(EditorProjectMapAreaSelectionState))]
+[JsonSerializable(typeof(EditorProjectMapSelectionState))]
+[JsonSerializable(typeof(EditorProjectMapPreviewState))]
+[JsonSerializable(typeof(EditorProjectViewState))]
+[JsonSerializable(typeof(EditorProjectToolState))]
+[JsonSerializable(typeof(GameObjectGuid[]))]
+[JsonSerializable(typeof(GameObjectGuid))]
+[JsonSerializable(typeof(Location))]
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+internal sealed partial class EditorProjectJsonContext : JsonSerializerContext { }
