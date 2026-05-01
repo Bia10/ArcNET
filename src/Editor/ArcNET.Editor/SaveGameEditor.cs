@@ -32,26 +32,49 @@ namespace ArcNET.Editor;
 /// </remarks>
 public sealed class SaveGameEditor
 {
-    private readonly LoadedSave _save;
+    private LoadedSave _save;
     private readonly ISaveGameWriter _saveGameWriter;
-    private readonly PendingGameUpdates _pendingUpdates;
-    private readonly CharacterLocator _characterLocator;
-    private readonly SaveInfoEditor _saveInfoEditor;
+    private readonly Action<EditorSessionStagedHistoryMutationKind>? _historyMutationObserver;
+    private PendingGameUpdates _pendingUpdates;
+    private CharacterLocator _characterLocator;
+    private SaveInfoEditor _saveInfoEditor;
+    private readonly Stack<SaveGameEditorState> _undoSnapshots = new();
+    private readonly Stack<SaveGameEditorState> _redoSnapshots = new();
 
     public SaveGameEditor(LoadedSave save)
         : this(save, DefaultSaveGameWriter.Instance) { }
 
-    internal SaveGameEditor(LoadedSave save, ISaveGameWriter saveGameWriter)
+    internal SaveGameEditor(
+        LoadedSave save,
+        ISaveGameWriter saveGameWriter,
+        Action<EditorSessionStagedHistoryMutationKind>? historyMutationObserver = null
+    )
     {
         ArgumentNullException.ThrowIfNull(save);
         ArgumentNullException.ThrowIfNull(saveGameWriter);
 
-        _save = save;
         _saveGameWriter = saveGameWriter;
+        _historyMutationObserver = historyMutationObserver;
+        _save = save;
         _pendingUpdates = new PendingGameUpdates(_save);
         _characterLocator = new CharacterLocator(_save, _pendingUpdates);
         _saveInfoEditor = new SaveInfoEditor(_save, _characterLocator);
     }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when one or more save edits are currently staged.
+    /// </summary>
+    public bool HasPendingChanges => _pendingUpdates.HasPending || _saveInfoEditor.GetPendingSaveInfo() is not null;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when one or more staged save edits can be undone.
+    /// </summary>
+    public bool CanUndo => _undoSnapshots.Count > 0;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when one or more undone save edits can be redone.
+    /// </summary>
+    public bool CanRedo => _redoSnapshots.Count > 0;
 
     private SaveGameEditor WithCharacterAt(string mdyPath, int recordIndex, CharacterRecord updated)
     {
@@ -76,20 +99,21 @@ public sealed class SaveGameEditor
 
         var newRecords = source.Records.ToList();
         newRecords[recordIndex] = MobileMdyRecord.FromCharacter(updated.ApplyTo(record.Character));
-        if (
-            !_pendingUpdates.MobileMdys.StageIfOriginalExists(
-                mdyPath,
-                new MobileMdyFile { Records = newRecords.AsReadOnly() }
-            )
-        )
+        var updatedFile = new MobileMdyFile { Records = newRecords.AsReadOnly() };
+
+        return TrackEdit(() =>
         {
-            throw new InvalidOperationException($"Unable to stage updated mobile.mdy '{mdyPath}'.");
-        }
+            if (MobileMdyFilesEqual(source, updatedFile))
+                return false;
 
-        if (_characterLocator.IsOriginalPlayerLocation(mdyPath, recordIndex))
-            _saveInfoEditor.MarkPendingPlayerUpdate();
+            if (!_pendingUpdates.MobileMdys.StageIfOriginalExists(mdyPath, CloneMobileMdyFile(updatedFile)))
+                throw new InvalidOperationException($"Unable to stage updated mobile.mdy '{mdyPath}'.");
 
-        return this;
+            if (_characterLocator.IsOriginalPlayerLocation(mdyPath, recordIndex))
+                _saveInfoEditor.MarkPendingPlayerUpdate();
+
+            return true;
+        });
     }
 
     private SaveGameUpdates? CreateUpdateBundle()
@@ -211,7 +235,67 @@ public sealed class SaveGameEditor
     {
         ArgumentNullException.ThrowIfNull(updated);
 
-        _saveInfoEditor.SetPendingSaveInfo(updated);
+        return TrackEdit(() =>
+        {
+            if (SaveInfoEditor.AreEqual(updated, _saveInfoEditor.GetCurrentSaveInfo()))
+                return false;
+
+            _saveInfoEditor.SetPendingSaveInfo(SaveInfoEditor.Clone(updated));
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Restores the previous staged save snapshot.
+    /// </summary>
+    public SaveGameEditor Undo()
+    {
+        if (!CanUndo)
+            throw new InvalidOperationException("This save editor has no staged edit to undo.");
+
+        _redoSnapshots.Push(CaptureState());
+        RestoreState(_undoSnapshots.Pop());
+        NotifyHistoryMutation(EditorSessionStagedHistoryMutationKind.Undo);
+        return this;
+    }
+
+    /// <summary>
+    /// Reapplies the most recently undone staged save snapshot.
+    /// </summary>
+    public SaveGameEditor Redo()
+    {
+        if (!CanRedo)
+            throw new InvalidOperationException("This save editor has no staged edit to redo.");
+
+        _undoSnapshots.Push(CaptureState());
+        RestoreState(_redoSnapshots.Pop());
+        NotifyHistoryMutation(EditorSessionStagedHistoryMutationKind.Redo);
+        return this;
+    }
+
+    /// <summary>
+    /// Promotes the staged save snapshot to the new committed baseline and clears the pending state.
+    /// Returns the committed loaded-save view.
+    /// </summary>
+    public LoadedSave CommitPendingChanges()
+    {
+        if (!HasPendingChanges)
+        {
+            ClearHistory();
+            return _save;
+        }
+
+        var committedSave = CreateCommittedSnapshot();
+        ResetCommittedState(committedSave);
+        return _save;
+    }
+
+    /// <summary>
+    /// Clears staged edits and restores the current committed save view.
+    /// </summary>
+    public SaveGameEditor DiscardPendingChanges()
+    {
+        ResetCommittedState(_save);
         return this;
     }
 
@@ -269,8 +353,11 @@ public sealed class SaveGameEditor
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(updated);
 
-        _pendingUpdates.Messages.StageIfOriginalExists(path, updated);
-        return this;
+        var current = GetCurrentMessageFile(path);
+        if (current is null || MessageFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.Messages.StageIfOriginalExists(path, CloneMessageFile(updated)));
     }
 
     /// <summary>
@@ -289,6 +376,118 @@ public sealed class SaveGameEditor
 
         var updated = update(current);
         return WithMessageFile(path, updated);
+    }
+
+    /// <summary>
+    /// Returns the current typed jump-file view for <paramref name="path"/> after queued edits
+    /// have been applied, or <see langword="null"/> if the save does not contain that <c>.jmp</c> file.
+    /// </summary>
+    public JmpFile? GetCurrentJumpFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return _pendingUpdates.JumpFiles.GetCurrent(path);
+    }
+
+    /// <summary>
+    /// Returns the queued typed jump-file replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no jump-file update has been staged for that file.
+    /// </summary>
+    public JmpFile? GetPendingJumpFile(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return _pendingUpdates.JumpFiles.GetPending(path);
+    }
+
+    /// <summary>
+    /// Queues a typed jump-file replacement for <paramref name="path"/>.
+    /// Only existing <c>.jmp</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithJumpFile(string path, JmpFile updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        var current = GetCurrentJumpFile(path);
+        if (current is null || JumpFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.JumpFiles.StageIfOriginalExists(path, CloneJumpFile(updated)));
+    }
+
+    /// <summary>
+    /// Queues a typed jump-file replacement by transforming the current jump-file view.
+    /// The callback sees the current editor view, so chained jump-file edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithJumpFile(string path, Func<JmpFile, JmpFile> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentJumpFile(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        return WithJumpFile(path, updated);
+    }
+
+    /// <summary>
+    /// Returns the current typed map-properties view for <paramref name="path"/> after queued edits
+    /// have been applied, or <see langword="null"/> if the save does not contain that <c>.prp</c> file.
+    /// </summary>
+    public MapProperties? GetCurrentMapProperties(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return _pendingUpdates.MapProperties.GetCurrent(path);
+    }
+
+    /// <summary>
+    /// Returns the queued typed map-properties replacement for <paramref name="path"/>, or
+    /// <see langword="null"/> if no map-properties update has been staged for that file.
+    /// </summary>
+    public MapProperties? GetPendingMapProperties(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return _pendingUpdates.MapProperties.GetPending(path);
+    }
+
+    /// <summary>
+    /// Queues a typed map-properties replacement for <paramref name="path"/>.
+    /// Only existing <c>.prp</c> files can be updated through this API.
+    /// </summary>
+    public SaveGameEditor WithMapProperties(string path, MapProperties updated)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(updated);
+
+        var current = GetCurrentMapProperties(path);
+        if (current is null || MapPropertiesFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.MapProperties.StageIfOriginalExists(path, CloneMapProperties(updated)));
+    }
+
+    /// <summary>
+    /// Queues a typed map-properties replacement by transforming the current map-properties view.
+    /// The callback sees the current editor view, so chained map-properties edits compose.
+    /// Returns <see langword="this"/> unchanged when the file path does not exist.
+    /// </summary>
+    public SaveGameEditor WithMapProperties(string path, Func<MapProperties, MapProperties> update)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = GetCurrentMapProperties(path);
+        if (current is null)
+            return this;
+
+        var updated = update(current);
+        return WithMapProperties(path, updated);
     }
 
     /// <summary>
@@ -322,8 +521,11 @@ public sealed class SaveGameEditor
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(updated);
 
-        _pendingUpdates.TownMapFogs.StageIfOriginalExists(path, updated);
-        return this;
+        var current = GetCurrentTownMapFog(path);
+        if (current is null || TownMapFogFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.TownMapFogs.StageIfOriginalExists(path, CloneTownMapFog(updated)));
     }
 
     /// <summary>
@@ -376,8 +578,11 @@ public sealed class SaveGameEditor
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(updated);
 
-        _pendingUpdates.DataSavFiles.StageIfOriginalExists(path, updated);
-        return this;
+        var current = GetCurrentDataSav(path);
+        if (current is null || DataSavFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.DataSavFiles.StageIfOriginalExists(path, CloneDataSavFile(updated)));
     }
 
     /// <summary>
@@ -450,8 +655,11 @@ public sealed class SaveGameEditor
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(updated);
 
-        _pendingUpdates.Data2SavFiles.StageIfOriginalExists(path, updated);
-        return this;
+        var current = GetCurrentData2Sav(path);
+        if (current is null || Data2SavFilesEqual(current, updated))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.Data2SavFiles.StageIfOriginalExists(path, CloneData2SavFile(updated)));
     }
 
     /// <summary>
@@ -536,8 +744,11 @@ public sealed class SaveGameEditor
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(updatedBytes);
 
-        _pendingUpdates.RawFiles.StageIfOriginalExists(path, updatedBytes);
-        return this;
+        var current = GetCurrentRawFile(path);
+        if (current is null || current.Value.Span.SequenceEqual(updatedBytes))
+            return this;
+
+        return TrackEdit(() => _pendingUpdates.RawFiles.StageIfOriginalExists(path, [.. updatedBytes]));
     }
 
     /// <summary>
@@ -587,4 +798,210 @@ public sealed class SaveGameEditor
         string tfafPath,
         CancellationToken cancellationToken = default
     ) => _saveGameWriter.SaveAsync(_save, gsiPath, tfaiPath, tfafPath, CreateUpdateBundle(), cancellationToken);
+
+    internal LoadedSave CreateCommittedSnapshot()
+    {
+        var files = SaveGamePayloadComposer.Compose(_save, CreateUpdateBundle());
+        var index = SaveGameIndexRebuilder.Rebuild(_save.Index, files);
+        return SaveGameLoader.LoadFromFiles(GetCurrentSaveInfo(), index, files);
+    }
+
+    internal void ResetCommittedState(LoadedSave save)
+    {
+        _save = save;
+        _pendingUpdates = new PendingGameUpdates(_save);
+        _characterLocator = new CharacterLocator(_save, _pendingUpdates);
+        _saveInfoEditor = new SaveInfoEditor(_save, _characterLocator);
+        ClearHistory(EditorSessionStagedHistoryMutationKind.Clear);
+    }
+
+    private SaveGameEditor TrackEdit(Func<bool> applyEdit)
+    {
+        ArgumentNullException.ThrowIfNull(applyEdit);
+
+        var before = CaptureState();
+        if (!applyEdit())
+            return this;
+
+        _undoSnapshots.Push(before);
+        _redoSnapshots.Clear();
+        NotifyHistoryMutation(EditorSessionStagedHistoryMutationKind.Edit);
+        return this;
+    }
+
+    private SaveGameEditorState CaptureState() =>
+        new(
+            CapturePendingAssets(
+                _pendingUpdates.MobileMdys.PendingOrNull,
+                static value => MobileMdyFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.Messages.PendingOrNull,
+                static value => MessageFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.JumpFiles.PendingOrNull,
+                static value => JmpFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.MapProperties.PendingOrNull,
+                static value => MapPropertiesFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.TownMapFogs.PendingOrNull,
+                static value => TownMapFogFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.DataSavFiles.PendingOrNull,
+                static value => DataSavFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(
+                _pendingUpdates.Data2SavFiles.PendingOrNull,
+                static value => Data2SavFormat.WriteToArray(in value)
+            ),
+            CapturePendingAssets(_pendingUpdates.RawFiles.PendingOrNull, static value => [.. value]),
+            _saveInfoEditor.CaptureState()
+        );
+
+    private void RestoreState(SaveGameEditorState state)
+    {
+        _pendingUpdates = new PendingGameUpdates(_save);
+        RestorePendingAssets(
+            _pendingUpdates.MobileMdys,
+            state.PendingMobileMdys,
+            static bytes => MobileMdyFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.Messages,
+            state.PendingMessages,
+            static bytes => MessageFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.JumpFiles,
+            state.PendingJumpFiles,
+            static bytes => JmpFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.MapProperties,
+            state.PendingMapProperties,
+            static bytes => MapPropertiesFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.TownMapFogs,
+            state.PendingTownMapFogs,
+            static bytes => TownMapFogFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.DataSavFiles,
+            state.PendingDataSavFiles,
+            static bytes => DataSavFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(
+            _pendingUpdates.Data2SavFiles,
+            state.PendingData2SavFiles,
+            static bytes => Data2SavFormat.ParseMemory(bytes)
+        );
+        RestorePendingAssets(_pendingUpdates.RawFiles, state.PendingRawFiles, static bytes => bytes.ToArray());
+        _characterLocator = new CharacterLocator(_save, _pendingUpdates);
+        _saveInfoEditor = new SaveInfoEditor(_save, _characterLocator);
+        _saveInfoEditor.RestoreState(state.SaveInfoState);
+    }
+
+    private void ClearHistory(EditorSessionStagedHistoryMutationKind? mutationKind = null)
+    {
+        _undoSnapshots.Clear();
+        _redoSnapshots.Clear();
+
+        if (mutationKind is not null)
+            NotifyHistoryMutation(mutationKind.Value);
+    }
+
+    private void NotifyHistoryMutation(EditorSessionStagedHistoryMutationKind mutationKind) =>
+        _historyMutationObserver?.Invoke(mutationKind);
+
+    private static Dictionary<string, byte[]> CapturePendingAssets<T>(
+        IReadOnlyDictionary<string, T>? pending,
+        Func<T, byte[]> serialize
+    )
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(serialize);
+
+        var snapshot = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        if (pending is null)
+            return snapshot;
+
+        foreach (var (path, value) in pending)
+            snapshot[path] = serialize(value);
+
+        return snapshot;
+    }
+
+    private static void RestorePendingAssets<T>(
+        PendingAssetUpdates<T> pending,
+        IReadOnlyDictionary<string, byte[]> snapshot,
+        Func<ReadOnlyMemory<byte>, T> parse
+    )
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(parse);
+
+        foreach (var (path, bytes) in snapshot)
+            _ = pending.StageIfOriginalExists(path, parse(bytes));
+    }
+
+    private static MobileMdyFile CloneMobileMdyFile(MobileMdyFile file) =>
+        MobileMdyFormat.ParseMemory(MobileMdyFormat.WriteToArray(in file));
+
+    private static MesFile CloneMessageFile(MesFile file) =>
+        MessageFormat.ParseMemory(MessageFormat.WriteToArray(in file));
+
+    private static JmpFile CloneJumpFile(JmpFile file) => JmpFormat.ParseMemory(JmpFormat.WriteToArray(in file));
+
+    private static MapProperties CloneMapProperties(MapProperties value) =>
+        MapPropertiesFormat.ParseMemory(MapPropertiesFormat.WriteToArray(in value));
+
+    private static TownMapFog CloneTownMapFog(TownMapFog fog) =>
+        TownMapFogFormat.ParseMemory(TownMapFogFormat.WriteToArray(in fog));
+
+    private static DataSavFile CloneDataSavFile(DataSavFile file) =>
+        DataSavFormat.ParseMemory(DataSavFormat.WriteToArray(in file));
+
+    private static Data2SavFile CloneData2SavFile(Data2SavFile file) =>
+        Data2SavFormat.ParseMemory(Data2SavFormat.WriteToArray(in file));
+
+    private static bool MobileMdyFilesEqual(MobileMdyFile left, MobileMdyFile right) =>
+        MobileMdyFormat.WriteToArray(in left).AsSpan().SequenceEqual(MobileMdyFormat.WriteToArray(in right));
+
+    private static bool MessageFilesEqual(MesFile left, MesFile right) =>
+        MessageFormat.WriteToArray(in left).AsSpan().SequenceEqual(MessageFormat.WriteToArray(in right));
+
+    private static bool JumpFilesEqual(JmpFile left, JmpFile right) =>
+        JmpFormat.WriteToArray(in left).AsSpan().SequenceEqual(JmpFormat.WriteToArray(in right));
+
+    private static bool MapPropertiesFilesEqual(MapProperties left, MapProperties right) =>
+        MapPropertiesFormat.WriteToArray(in left).AsSpan().SequenceEqual(MapPropertiesFormat.WriteToArray(in right));
+
+    private static bool TownMapFogFilesEqual(TownMapFog left, TownMapFog right) =>
+        TownMapFogFormat.WriteToArray(in left).AsSpan().SequenceEqual(TownMapFogFormat.WriteToArray(in right));
+
+    private static bool DataSavFilesEqual(DataSavFile left, DataSavFile right) =>
+        DataSavFormat.WriteToArray(in left).AsSpan().SequenceEqual(DataSavFormat.WriteToArray(in right));
+
+    private static bool Data2SavFilesEqual(Data2SavFile left, Data2SavFile right) =>
+        Data2SavFormat.WriteToArray(in left).AsSpan().SequenceEqual(Data2SavFormat.WriteToArray(in right));
+
+    private readonly record struct SaveGameEditorState(
+        IReadOnlyDictionary<string, byte[]> PendingMobileMdys,
+        IReadOnlyDictionary<string, byte[]> PendingMessages,
+        IReadOnlyDictionary<string, byte[]> PendingJumpFiles,
+        IReadOnlyDictionary<string, byte[]> PendingMapProperties,
+        IReadOnlyDictionary<string, byte[]> PendingTownMapFogs,
+        IReadOnlyDictionary<string, byte[]> PendingDataSavFiles,
+        IReadOnlyDictionary<string, byte[]> PendingData2SavFiles,
+        IReadOnlyDictionary<string, byte[]> PendingRawFiles,
+        SaveInfoEditor.StateSnapshot SaveInfoState
+    );
 }

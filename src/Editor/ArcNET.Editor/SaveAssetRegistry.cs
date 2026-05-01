@@ -59,14 +59,18 @@ internal static class SaveAssetRegistry
             static (builder, path, value) => builder.JumpFiles[path] = value,
             static memory => JmpFormat.ParseMemory(memory),
             static updates => updates?.UpdatedJumpFiles,
-            static value => JmpFormat.WriteToArray(value)
+            static value => JmpFormat.WriteToArray(value),
+            static pending => pending.JumpFiles.PendingOrNull,
+            static (builder, values) => builder.UpdatedJumpFiles = values
         ),
         SaveAssetRegistration<MapProperties>.ForFormat(
             FileFormat.MapProperties,
             static (builder, path, value) => builder.MapPropertiesList[path] = value,
             static memory => MapPropertiesFormat.ParseMemory(memory),
             static updates => updates?.UpdatedMapProperties,
-            static value => MapPropertiesFormat.WriteToArray(value)
+            static value => MapPropertiesFormat.WriteToArray(value),
+            static pending => pending.MapProperties.PendingOrNull,
+            static (builder, values) => builder.UpdatedMapProperties = values
         ),
         SaveAssetRegistration<MesFile>.ForFormat(
             FileFormat.Message,

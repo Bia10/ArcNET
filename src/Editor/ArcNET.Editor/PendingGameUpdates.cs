@@ -14,6 +14,14 @@ internal sealed class PendingGameUpdates
             save.Messages,
             new Dictionary<string, MesFile>(StringComparer.OrdinalIgnoreCase)
         );
+        JumpFiles = new PendingAssetUpdates<JmpFile>(
+            save.JumpFiles,
+            new Dictionary<string, JmpFile>(StringComparer.OrdinalIgnoreCase)
+        );
+        MapProperties = new PendingAssetUpdates<MapProperties>(
+            save.MapPropertiesList,
+            new Dictionary<string, MapProperties>(StringComparer.OrdinalIgnoreCase)
+        );
         TownMapFogs = new PendingAssetUpdates<TownMapFog>(
             save.TownMapFogs,
             new Dictionary<string, TownMapFog>(StringComparer.OrdinalIgnoreCase)
@@ -35,6 +43,10 @@ internal sealed class PendingGameUpdates
     public PendingAssetUpdates<MobileMdyFile> MobileMdys { get; }
 
     public PendingAssetUpdates<MesFile> Messages { get; }
+
+    public PendingAssetUpdates<JmpFile> JumpFiles { get; }
+
+    public PendingAssetUpdates<MapProperties> MapProperties { get; }
 
     public PendingAssetUpdates<TownMapFog> TownMapFogs { get; }
 

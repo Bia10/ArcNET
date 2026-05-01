@@ -314,6 +314,148 @@ public class SaveGameEditorTests
         return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, tmfPath);
     }
 
+    private static (LoadedSave save, string mdyPath, string jmpPath) MakeSaveWithPcAndJumpFile(
+        int destinationMapId = 1,
+        string jmpPath = "maps/map01/map01.jmp",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var jumpFile = new JmpFile
+        {
+            Jumps =
+            [
+                new JumpEntry
+                {
+                    Flags = 0,
+                    SourceLoc = 0,
+                    DestinationMapId = destinationMapId,
+                    DestinationLoc = 0,
+                },
+            ],
+        };
+        var jmpBytes = JmpFormat.WriteToArray(jumpFile);
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [jmpPath] = jmpBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children = [new TfaiFileEntry { Name = "map01.jmp", Size = jmpBytes.Length }],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, jmpPath);
+    }
+
+    private static (LoadedSave save, string mdyPath, string prpPath) MakeSaveWithPcAndMapProperties(
+        int artId = 1,
+        string prpPath = "maps/map01/map01.prp",
+        int level = 5,
+        int alignment = 100,
+        int gold = 0
+    )
+    {
+        var v2Bytes = BuildV2Record(level, alignment, gold);
+        var mapProperties = new MapProperties
+        {
+            ArtId = artId,
+            Unused = 0,
+            LimitX = 960,
+            LimitY = 960,
+        };
+        var prpBytes = MapPropertiesFormat.WriteToArray(in mapProperties);
+        const string mdyPath = "maps/Arcanum1-024/mobile.mdy";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [mdyPath] = v2Bytes,
+            [prpPath] = prpBytes,
+        };
+
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "Arcanum1-024",
+                            Children = [new TfaiFileEntry { Name = "mobile.mdy", Size = v2Bytes.Length }],
+                        },
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children = [new TfaiFileEntry { Name = "map01.prp", Size = prpBytes.Length }],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var info = new SaveInfo
+        {
+            ModuleName = "arcanum",
+            LeaderName = "TestPC",
+            DisplayName = "Editor Test Save",
+            MapId = 24,
+            GameTimeDays = 0,
+            GameTimeMs = 0,
+            LeaderPortraitId = 1,
+            LeaderLevel = Math.Max(1, level),
+            LeaderTileX = 0,
+            LeaderTileY = 0,
+            StoryState = 0,
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return (SaveGameLoader.LoadFromParsed(info, index, tfafBytes), mdyPath, prpPath);
+    }
+
     private static (LoadedSave save, string mdyPath, string dataSavPath) MakeSaveWithPcAndDataSavFile(
         byte[]? rawBytes = null,
         string dataSavPath = "data.sav",
@@ -805,6 +947,110 @@ public class SaveGameEditorTests
     }
 
     [Test]
+    public async Task UndoAndRedo_RewindPendingSaveHistory_AndClearRedoOnNewEdit()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save)
+            .WithSaveInfo(info => info.With(displayName: "Updated"))
+            .WithMessageFile(
+                messagePath,
+                message => new MesFile { Entries = [.. message.Entries, new MessageEntry(30, "Gamma")] }
+            );
+
+        await Assert.That(editor.CanUndo).IsTrue();
+        await Assert.That(editor.CanRedo).IsFalse();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Updated");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(3);
+
+        editor.Undo();
+
+        await Assert.That(editor.HasPendingChanges).IsTrue();
+        await Assert.That(editor.CanUndo).IsTrue();
+        await Assert.That(editor.CanRedo).IsTrue();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Updated");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(2);
+
+        editor.Undo();
+
+        await Assert.That(editor.HasPendingChanges).IsFalse();
+        await Assert.That(editor.CanUndo).IsFalse();
+        await Assert.That(editor.CanRedo).IsTrue();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Editor Test Save");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(2);
+
+        editor.Redo();
+
+        await Assert.That(editor.HasPendingChanges).IsTrue();
+        await Assert.That(editor.CanUndo).IsTrue();
+        await Assert.That(editor.CanRedo).IsTrue();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Updated");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(2);
+
+        editor.WithSaveInfo(info => info.With(displayName: "Branch"));
+
+        await Assert.That(editor.CanRedo).IsFalse();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Branch");
+        await Assert.That(() => editor.Redo()).Throws<InvalidOperationException>();
+
+        editor.DiscardPendingChanges();
+
+        await Assert.That(editor.HasPendingChanges).IsFalse();
+        await Assert.That(editor.CanUndo).IsFalse();
+        await Assert.That(editor.CanRedo).IsFalse();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Editor Test Save");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task CommitPendingChanges_PromotesPendingSave_AndClearsHistory()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save)
+            .WithSaveInfo(info => info.With(displayName: "Updated"))
+            .WithMessageFile(
+                messagePath,
+                message => new MesFile { Entries = [.. message.Entries, new MessageEntry(30, "Gamma")] }
+            );
+
+        var committed = editor.CommitPendingChanges();
+
+        await Assert.That(editor.HasPendingChanges).IsFalse();
+        await Assert.That(editor.CanUndo).IsFalse();
+        await Assert.That(editor.CanRedo).IsFalse();
+        await Assert.That(editor.GetPendingSaveInfo()).IsNull();
+        await Assert.That(committed.Info.DisplayName).IsEqualTo("Updated");
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Updated");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(3);
+
+        editor.WithSaveInfo(info => info.With(displayName: "Second"));
+
+        await Assert.That(editor.HasPendingChanges).IsTrue();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Second");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task DiscardPendingChanges_RestoresCommittedSave_AndClearsHistory()
+    {
+        var (save, _, messagePath) = MakeSaveWithPcAndMessageFile();
+        var editor = new SaveGameEditor(save)
+            .WithSaveInfo(info => info.With(displayName: "Updated"))
+            .WithMessageFile(
+                messagePath,
+                message => new MesFile { Entries = [.. message.Entries, new MessageEntry(30, "Gamma")] }
+            );
+
+        editor.DiscardPendingChanges();
+
+        await Assert.That(editor.HasPendingChanges).IsFalse();
+        await Assert.That(editor.CanUndo).IsFalse();
+        await Assert.That(editor.CanRedo).IsFalse();
+        await Assert.That(editor.GetPendingSaveInfo()).IsNull();
+        await Assert.That(editor.GetCurrentSaveInfo().DisplayName).IsEqualTo("Editor Test Save");
+        await Assert.That(editor.GetCurrentMessageFile(messagePath)!.Entries.Count).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task GetPendingMobileMdy_ReturnsNull_BeforeAnyWithCharacterCall()
     {
         var (save, mdyPath) = MakeSaveWithPc();
@@ -913,6 +1159,143 @@ public class SaveGameEditorTests
 
         await Assert.That(editor.GetPendingTownMapFog("missing.tmf")).IsNull();
         await Assert.That(editor.GetCurrentTownMapFog("missing.tmf")).IsNull();
+    }
+
+    [Test]
+    public async Task WithJumpFile_QueuesUpdate_CurrentAndPendingViewsReflectEntries()
+    {
+        var (save, _, jmpPath) = MakeSaveWithPcAndJumpFile(destinationMapId: 5);
+        var editor = new SaveGameEditor(save);
+        var updated = new JmpFile
+        {
+            Jumps =
+            [
+                new JumpEntry
+                {
+                    Flags = 0,
+                    SourceLoc = 0,
+                    DestinationMapId = 42,
+                    DestinationLoc = 0,
+                },
+            ],
+        };
+
+        editor.WithJumpFile(jmpPath, updated);
+
+        var current = editor.GetCurrentJumpFile(jmpPath);
+        var pending = editor.GetPendingJumpFile(jmpPath);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.Jumps[0].DestinationMapId).IsEqualTo(42);
+        await Assert.That(pending!.Jumps[0].DestinationMapId).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task WithJumpFile_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, jmpPath) = MakeSaveWithPcAndJumpFile(destinationMapId: 5);
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithJumpFile(
+                jmpPath,
+                jumpFile => new JmpFile
+                {
+                    Jumps =
+                    [
+                        .. jumpFile.Jumps,
+                        new JumpEntry
+                        {
+                            Flags = 0,
+                            SourceLoc = 0,
+                            DestinationMapId = 9,
+                            DestinationLoc = 0,
+                        },
+                    ],
+                }
+            )
+            .WithJumpFile(
+                jmpPath,
+                jumpFile => new JmpFile
+                {
+                    Jumps =
+                    [
+                        .. jumpFile.Jumps.Take(1),
+                        new JumpEntry
+                        {
+                            Flags = 0,
+                            SourceLoc = 0,
+                            DestinationMapId = 11,
+                            DestinationLoc = 0,
+                        },
+                    ],
+                }
+            );
+
+        var pending = editor.GetPendingJumpFile(jmpPath);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.Jumps.Count).IsEqualTo(2);
+        await Assert.That(pending.Jumps[1].DestinationMapId).IsEqualTo(11);
+    }
+
+    [Test]
+    public async Task WithMapProperties_QueuesUpdate_CurrentAndPendingViewsReflectValues()
+    {
+        var (save, _, prpPath) = MakeSaveWithPcAndMapProperties(artId: 1);
+        var editor = new SaveGameEditor(save);
+        var updated = new MapProperties
+        {
+            ArtId = 77,
+            Unused = 0,
+            LimitX = 960,
+            LimitY = 960,
+        };
+
+        editor.WithMapProperties(prpPath, updated);
+
+        var current = editor.GetCurrentMapProperties(prpPath);
+        var pending = editor.GetPendingMapProperties(prpPath);
+
+        await Assert.That(current).IsNotNull();
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(current!.ArtId).IsEqualTo(77);
+        await Assert.That(pending!.ArtId).IsEqualTo(77);
+    }
+
+    [Test]
+    public async Task WithMapProperties_UsesPendingStateAcrossChainedCalls()
+    {
+        var (save, _, prpPath) = MakeSaveWithPcAndMapProperties(artId: 1);
+        var editor = new SaveGameEditor(save);
+
+        editor
+            .WithMapProperties(
+                prpPath,
+                props => new MapProperties
+                {
+                    ArtId = props.ArtId + 10,
+                    Unused = props.Unused,
+                    LimitX = props.LimitX,
+                    LimitY = props.LimitY,
+                }
+            )
+            .WithMapProperties(
+                prpPath,
+                props => new MapProperties
+                {
+                    ArtId = props.ArtId + 5,
+                    Unused = props.Unused,
+                    LimitX = props.LimitX,
+                    LimitY = props.LimitY,
+                }
+            );
+
+        var pending = editor.GetPendingMapProperties(prpPath);
+
+        await Assert.That(pending).IsNotNull();
+        await Assert.That(pending!.ArtId).IsEqualTo(16);
     }
 
     [Test]

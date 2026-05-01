@@ -35,12 +35,11 @@ public static class SaveGameLoader
     /// </summary>
     /// <param name="saveFolder">Directory containing the three save slot files.</param>
     /// <param name="slotName">Base file name without extension (e.g. <c>"slot1"</c>).</param>
-    public static LoadedSave Load(string saveFolder, string slotName) =>
-        Load(
-            Path.Combine(saveFolder, slotName + ".gsi"),
-            Path.Combine(saveFolder, slotName + ".tfai"),
-            Path.Combine(saveFolder, slotName + ".tfaf")
-        );
+    public static LoadedSave Load(string saveFolder, string slotName)
+    {
+        var paths = SaveSlotPathResolver.ResolveFromFolder(saveFolder, slotName);
+        return Load(paths.GsiPath, paths.TfaiPath, paths.TfafPath);
+    }
 
     // ── Asynchronous load ─────────────────────────────────────────────────────
 
@@ -91,14 +90,11 @@ public static class SaveGameLoader
         string slotName,
         IProgress<float>? progress = null,
         CancellationToken cancellationToken = default
-    ) =>
-        LoadAsync(
-            Path.Combine(saveFolder, slotName + ".gsi"),
-            Path.Combine(saveFolder, slotName + ".tfai"),
-            Path.Combine(saveFolder, slotName + ".tfaf"),
-            progress,
-            cancellationToken
-        );
+    )
+    {
+        var paths = SaveSlotPathResolver.ResolveFromFolder(saveFolder, slotName);
+        return LoadAsync(paths.GsiPath, paths.TfaiPath, paths.TfafPath, progress, cancellationToken);
+    }
 
     // ── Core parsing ──────────────────────────────────────────────────────────
 
@@ -111,6 +107,17 @@ public static class SaveGameLoader
     )
     {
         var files = TfafFormat.ExtractAll(index, tfafData);
+        return LoadFromFiles(info, index, files, progress, cancellationToken);
+    }
+
+    internal static LoadedSave LoadFromFiles(
+        SaveInfo info,
+        SaveIndex index,
+        IReadOnlyDictionary<string, byte[]> files,
+        IProgress<float>? progress = null,
+        CancellationToken cancellationToken = default
+    )
+    {
         var builder = new LoadedSaveBuilder();
 
         var entries = files.ToList();

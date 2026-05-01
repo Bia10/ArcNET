@@ -44,14 +44,11 @@ public static class SaveGameWriter
     /// Optional bundle of per-type replacements. Pass <see langword="null"/> (or omit) to
     /// write the save back unmodified.
     /// </param>
-    public static void Save(LoadedSave original, string saveFolder, string slotName, SaveGameUpdates? updates = null) =>
-        Save(
-            original,
-            Path.Combine(saveFolder, slotName + ".gsi"),
-            Path.Combine(saveFolder, slotName + ".tfai"),
-            Path.Combine(saveFolder, slotName + ".tfaf"),
-            updates
-        );
+    public static void Save(LoadedSave original, string saveFolder, string slotName, SaveGameUpdates? updates = null)
+    {
+        var paths = SaveSlotPathResolver.ResolveFromFolder(saveFolder, slotName);
+        Save(original, paths.GsiPath, paths.TfaiPath, paths.TfafPath, updates);
+    }
 
     // ── Asynchronous save ─────────────────────────────────────────────────────
 
@@ -108,15 +105,11 @@ public static class SaveGameWriter
         string slotName,
         SaveGameUpdates? updates = null,
         CancellationToken cancellationToken = default
-    ) =>
-        SaveAsync(
-            original,
-            Path.Combine(saveFolder, slotName + ".gsi"),
-            Path.Combine(saveFolder, slotName + ".tfai"),
-            Path.Combine(saveFolder, slotName + ".tfaf"),
-            updates,
-            cancellationToken
-        );
+    )
+    {
+        var paths = SaveSlotPathResolver.ResolveFromFolder(saveFolder, slotName);
+        return SaveAsync(original, paths.GsiPath, paths.TfaiPath, paths.TfafPath, updates, cancellationToken);
+    }
 
     // ── Shared serialization ──────────────────────────────────────────────────
 
