@@ -51,8 +51,13 @@ internal static class EditorAssetCatalogBuilder
         AddEntries(entries, gameData.SectorsBySource, FileFormat.Sector, resolveSource);
         AddEntries(entries, gameData.ProtosBySource, FileFormat.Proto, resolveSource);
         AddEntries(entries, gameData.MobsBySource, FileFormat.Mob, resolveSource);
+        AddEntries(entries, gameData.ArtsBySource, FileFormat.Art, resolveSource);
+        AddEntries(entries, gameData.JumpFilesBySource, FileFormat.Jmp, resolveSource);
+        AddEntries(entries, gameData.MapPropertiesBySource, FileFormat.MapProperties, resolveSource);
         AddEntries(entries, gameData.ScriptsBySource, FileFormat.Script, resolveSource);
         AddEntries(entries, gameData.DialogsBySource, FileFormat.Dialog, resolveSource);
+        AddEntries(entries, gameData.TerrainsBySource, FileFormat.Terrain, resolveSource);
+        AddEntries(entries, gameData.FacadeWalksBySource, FileFormat.FacadeWalk, resolveSource);
 
         return EditorAssetCatalog.Create(entries);
     }

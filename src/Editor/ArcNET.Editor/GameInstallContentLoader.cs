@@ -13,8 +13,13 @@ internal static class GameInstallContentLoader
         FileFormat.Sector,
         FileFormat.Proto,
         FileFormat.Mob,
+        FileFormat.Art,
+        FileFormat.Jmp,
+        FileFormat.MapProperties,
         FileFormat.Script,
         FileFormat.Dialog,
+        FileFormat.Terrain,
+        FileFormat.FacadeWalk,
     ];
 
     public static async Task<(
@@ -191,7 +196,7 @@ internal static class GameInstallContentLoader
 
     private static bool IsSupportedFormat(string path)
     {
-        var format = FileFormatExtensions.FromPath(path);
+        var format = ResolveSupportedFormat(path);
         foreach (var supportedFormat in s_supportedFormats)
         {
             if (format == supportedFormat)
@@ -199,6 +204,18 @@ internal static class GameInstallContentLoader
         }
 
         return false;
+    }
+
+    private static FileFormat ResolveSupportedFormat(string path)
+    {
+        var format = FileFormatExtensions.FromPath(path);
+        if (format != FileFormat.Unknown)
+            return format;
+
+        var fileName = Path.GetFileName(path);
+        return fileName.StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase)
+            ? FileFormat.FacadeWalk
+            : FileFormat.Unknown;
     }
 
     private static void RemoveUnparseableAssets(InstallFileSet installFiles)
@@ -225,7 +242,7 @@ internal static class GameInstallContentLoader
                     new EditorSkippedAsset
                     {
                         AssetPath = assetPath,
-                        Format = FileFormatExtensions.FromPath(assetPath),
+                        Format = ResolveSupportedFormat(assetPath),
                         SourceKind = source.SourceKind,
                         SourcePath = source.SourcePath,
                         SourceEntryPath = source.SourceEntryPath,
@@ -243,7 +260,7 @@ internal static class GameInstallContentLoader
     {
         try
         {
-            switch (FileFormatExtensions.FromPath(assetPath))
+            switch (ResolveSupportedFormat(assetPath))
             {
                 case FileFormat.Message:
                     MessageFormat.ParseMemory(data);
@@ -261,12 +278,32 @@ internal static class GameInstallContentLoader
                     MobFormat.ParseMemory(data);
                     failureReason = null;
                     return true;
+                case FileFormat.Art:
+                    ArtFormat.ParseMemory(data);
+                    failureReason = null;
+                    return true;
+                case FileFormat.Jmp:
+                    JmpFormat.ParseMemory(data);
+                    failureReason = null;
+                    return true;
+                case FileFormat.MapProperties:
+                    MapPropertiesFormat.ParseMemory(data);
+                    failureReason = null;
+                    return true;
                 case FileFormat.Script:
                     ScriptFormat.ParseMemory(data);
                     failureReason = null;
                     return true;
                 case FileFormat.Dialog:
                     DialogFormat.ParseMemory(data);
+                    failureReason = null;
+                    return true;
+                case FileFormat.Terrain:
+                    TerrainFormat.ParseMemory(data);
+                    failureReason = null;
+                    return true;
+                case FileFormat.FacadeWalk:
+                    FacWalkFormat.ParseMemory(data);
                     failureReason = null;
                     return true;
                 default:

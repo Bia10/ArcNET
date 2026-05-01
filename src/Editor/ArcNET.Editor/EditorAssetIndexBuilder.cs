@@ -2,15 +2,12 @@
 using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameData;
-using ArcNET.GameObjects;
 using static ArcNET.Editor.EditorWorkspaceValidationIssue;
 
 namespace ArcNET.Editor;
 
 internal static partial class EditorAssetIndexBuilder
 {
-    private const string DescriptionMesAssetPath = "mes/description.mes";
-    private const string ProtoNameOverrideAssetPath = "oemes/oname.mes";
     private static readonly Regex s_protoAssetPathPattern = ProtoAssetPathPattern();
     private static readonly Regex s_scriptAssetPathPattern = ScriptAssetPathPattern();
     private static readonly Regex s_dialogAssetPathPattern = DialogAssetPathPattern();
@@ -26,6 +23,15 @@ internal static partial class EditorAssetIndexBuilder
 
         var assetsByPath = assets.Entries.ToDictionary(entry => entry.AssetPath, StringComparer.OrdinalIgnoreCase);
         var (mapNames, mapAssetsByName, mapNameByAssetPath) = BuildMapAssets(assets.Entries);
+        var (mapSectorsByName, sectorSummariesByAssetPath) = BuildSectorSummaries(
+            gameData,
+            assetsByPath,
+            mapNameByAssetPath
+        );
+        var sectorSummaries = sectorSummariesByAssetPath.Values.ToArray();
+        var (lightSchemeSectorsByIndex, musicSchemeSectorsByIndex, ambientSchemeSectorsByIndex) =
+            BuildSectorSchemeLookups(sectorSummaries);
+        var mapProjectionsByName = EditorSectorProjectionBuilder.Build(mapSectorsByName);
         var messageAssetsByIndex = BuildMessageAssetsByIndex(gameData, assetsByPath);
         var protoDisplayNameMessageIndices = BuildProtoDisplayNameMessageIndices(gameData);
         var protoDefinitionsByNumber = BuildProtoDefinitionsByNumber(assets.Entries);
@@ -33,25 +39,52 @@ internal static partial class EditorAssetIndexBuilder
         var dialogDefinitionsById = BuildDialogDefinitionsById(assets.Entries);
         var scriptDetailsById = BuildScriptDetailsById(gameData, assetsByPath);
         var dialogDetailsById = BuildDialogDetailsById(gameData, assetsByPath);
-        var protoReferencesByNumber = BuildProtoReferencesByNumber(gameData, assetsByPath);
-        var scriptReferencesById = BuildScriptReferencesById(gameData, assetsByPath);
-        var artReferencesById = BuildArtReferencesById(gameData, assetsByPath);
-
-        var index = EditorAssetIndex.Create(
-            mapNames,
-            mapAssetsByName,
+        var artDetailsByAssetPath = BuildArtDetailsByAssetPath(gameData, assetsByPath);
+        var jumpDetailsByAssetPath = BuildJumpDetailsByAssetPath(gameData, assetsByPath);
+        var mapPropertiesDetailsByAssetPath = BuildMapPropertiesDetailsByAssetPath(gameData, assetsByPath);
+        var terrainDetailsByAssetPath = BuildTerrainDetailsByAssetPath(gameData, assetsByPath);
+        var facadeWalkDetailsByAssetPath = BuildFacadeWalkDetailsByAssetPath(gameData, assetsByPath);
+        var protoReferencesByNumber = EditorAssetReferenceCounter.CountProtoReferences(gameData, assetsByPath);
+        var scriptReferencesById = EditorAssetReferenceCounter.CountScriptReferences(gameData, assetsByPath);
+        var artReferencesById = EditorAssetReferenceCounter.CountArtReferences(gameData, assetsByPath);
+        var assetDependencySummariesByAssetPath = BuildAssetDependencySummaries(
+            assets.Entries,
             mapNameByAssetPath,
-            messageAssetsByIndex,
-            protoDefinitionsByNumber,
-            scriptDefinitionsById,
-            dialogDefinitionsById,
-            scriptDetailsById,
-            dialogDetailsById,
             protoReferencesByNumber,
             scriptReferencesById,
             artReferencesById
         );
-        var validation = BuildValidationReport(
+
+        var index = EditorAssetIndex.Create(
+            new EditorAssetIndexData
+            {
+                MapNames = mapNames,
+                MapAssetsByName = mapAssetsByName,
+                MapNameByAssetPath = mapNameByAssetPath,
+                AssetDependencySummariesByAssetPath = assetDependencySummariesByAssetPath,
+                MapSectorsByName = mapSectorsByName,
+                SectorSummariesByAssetPath = sectorSummariesByAssetPath,
+                LightSchemeSectorsByIndex = lightSchemeSectorsByIndex,
+                MusicSchemeSectorsByIndex = musicSchemeSectorsByIndex,
+                AmbientSchemeSectorsByIndex = ambientSchemeSectorsByIndex,
+                MapProjectionsByName = mapProjectionsByName,
+                MessageAssetsByIndex = messageAssetsByIndex,
+                ProtoDefinitionsByNumber = protoDefinitionsByNumber,
+                ScriptDefinitionsById = scriptDefinitionsById,
+                DialogDefinitionsById = dialogDefinitionsById,
+                ScriptDetailsById = scriptDetailsById,
+                DialogDetailsById = dialogDetailsById,
+                ArtDetailsByAssetPath = artDetailsByAssetPath,
+                JumpDetailsByAssetPath = jumpDetailsByAssetPath,
+                MapPropertiesDetailsByAssetPath = mapPropertiesDetailsByAssetPath,
+                TerrainDetailsByAssetPath = terrainDetailsByAssetPath,
+                FacadeWalkDetailsByAssetPath = facadeWalkDetailsByAssetPath,
+                ProtoReferencesByNumber = protoReferencesByNumber,
+                ScriptReferencesById = scriptReferencesById,
+                ArtReferencesById = artReferencesById,
+            }
+        );
+        var validation = new EditorWorkspaceValidator().Build(
             protoDefinitionsByNumber,
             scriptDefinitionsById,
             scriptDetailsById,
@@ -102,6 +135,197 @@ internal static partial class EditorAssetIndexBuilder
         return (orderedMapNames, orderedAssetsByMap, mapByAssetPath);
     }
 
+    private static (
+        IReadOnlyDictionary<string, IReadOnlyList<EditorSectorSummary>> MapSectorsByName,
+        IReadOnlyDictionary<string, EditorSectorSummary> SectorSummariesByAssetPath
+    ) BuildSectorSummaries(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath,
+        IReadOnlyDictionary<string, string> mapNameByAssetPath
+    )
+    {
+        var mapSectorsByName = new Dictionary<string, List<EditorSectorSummary>>(StringComparer.OrdinalIgnoreCase);
+        var sectorSummariesByAssetPath = new Dictionary<string, EditorSectorSummary>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (assetPath, sectors) in gameData.SectorsBySource)
+        {
+            if (
+                !assetsByPath.TryGetValue(assetPath, out var asset)
+                || !mapNameByAssetPath.TryGetValue(assetPath, out var mapName)
+            )
+                continue;
+
+            foreach (var sector in sectors)
+            {
+                int? sectorScriptId =
+                    sector.SectorScript is { } sectorScript && !sectorScript.IsEmpty ? sectorScript.ScriptId : null;
+                var summary = new EditorSectorSummary
+                {
+                    Asset = asset,
+                    MapName = mapName,
+                    ObjectCount = sector.Objects.Count,
+                    LightCount = sector.Lights.Count,
+                    TileScriptCount = sector.TileScripts.Count,
+                    SectorScriptId = sectorScriptId,
+                    HasRoofs = sector.HasRoofs,
+                    DistinctTileArtCount = sector.Tiles.Distinct().Count(),
+                    BlockedTileCount = CountBlockedTiles(sector.BlockMask),
+                    LightSchemeIndex = sector.LightSchemeIdx,
+                    MusicSchemeIndex = sector.SoundList.MusicSchemeIdx,
+                    AmbientSchemeIndex = sector.SoundList.AmbientSchemeIdx,
+                };
+
+                sectorSummariesByAssetPath[assetPath] = summary;
+
+                if (!mapSectorsByName.TryGetValue(mapName, out var mapSectors))
+                {
+                    mapSectors = [];
+                    mapSectorsByName[mapName] = mapSectors;
+                }
+
+                mapSectors.Add(summary);
+            }
+        }
+
+        return (
+            mapSectorsByName.ToDictionary(
+                pair => pair.Key,
+                pair =>
+                    (IReadOnlyList<EditorSectorSummary>)
+                        pair
+                            .Value.OrderBy(static summary => summary.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+                            .ToArray(),
+                StringComparer.OrdinalIgnoreCase
+            ),
+            sectorSummariesByAssetPath
+        );
+    }
+
+    private static IReadOnlyDictionary<string, EditorAssetDependencySummary> BuildAssetDependencySummaries(
+        IReadOnlyList<EditorAssetEntry> assets,
+        IReadOnlyDictionary<string, string> mapNameByAssetPath,
+        IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>> protoReferencesByNumber,
+        IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> scriptReferencesById,
+        IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> artReferencesById
+    )
+    {
+        var protoReferencesByAssetPath = protoReferencesByNumber
+            .Values.SelectMany(static references => references)
+            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                    (IReadOnlyList<EditorProtoReference>)
+                        group.OrderBy(static reference => reference.ProtoNumber).ToArray(),
+                StringComparer.OrdinalIgnoreCase
+            );
+        var scriptReferencesByAssetPath = scriptReferencesById
+            .Values.SelectMany(static references => references)
+            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                    (IReadOnlyList<EditorScriptReference>)
+                        group.OrderBy(static reference => reference.ScriptId).ToArray(),
+                StringComparer.OrdinalIgnoreCase
+            );
+        var artReferencesByAssetPath = artReferencesById
+            .Values.SelectMany(static references => references)
+            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                    (IReadOnlyList<EditorArtReference>)group.OrderBy(static reference => reference.ArtId).ToArray(),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+        return assets.ToDictionary(
+            asset => asset.AssetPath,
+            asset =>
+            {
+                int? definedProtoNumber = TryGetProtoNumberFromAssetPath(asset.AssetPath, out var protoNumber)
+                    ? protoNumber
+                    : null;
+                int? definedScriptId = TryGetScriptIdFromAssetPath(asset.AssetPath, out var scriptId) ? scriptId : null;
+                int? definedDialogId = TryGetDialogIdFromAssetPath(asset.AssetPath, out var dialogId) ? dialogId : null;
+
+                return new EditorAssetDependencySummary
+                {
+                    Asset = asset,
+                    MapName = mapNameByAssetPath.TryGetValue(asset.AssetPath, out var mapName) ? mapName : null,
+                    DefinedProtoNumber = definedProtoNumber,
+                    DefinedScriptId = definedScriptId,
+                    DefinedDialogId = definedDialogId,
+                    ProtoReferences = protoReferencesByAssetPath.TryGetValue(asset.AssetPath, out var protoReferences)
+                        ? protoReferences
+                        : [],
+                    ScriptReferences = scriptReferencesByAssetPath.TryGetValue(
+                        asset.AssetPath,
+                        out var scriptReferences
+                    )
+                        ? scriptReferences
+                        : [],
+                    ArtReferences = artReferencesByAssetPath.TryGetValue(asset.AssetPath, out var artReferences)
+                        ? artReferences
+                        : [],
+                    IncomingProtoReferences =
+                        definedProtoNumber is { } incomingProtoNumber
+                        && protoReferencesByNumber.TryGetValue(incomingProtoNumber, out var incomingProtoReferences)
+                            ? incomingProtoReferences
+                            : [],
+                    IncomingScriptReferences =
+                        definedScriptId is { } incomingScriptKey
+                        && scriptReferencesById.TryGetValue(incomingScriptKey, out var incomingScriptReferences)
+                            ? incomingScriptReferences
+                            : [],
+                };
+            },
+            StringComparer.OrdinalIgnoreCase
+        );
+    }
+
+    private static (
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>> LightSchemeSectorsByIndex,
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>> MusicSchemeSectorsByIndex,
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>> AmbientSchemeSectorsByIndex
+    ) BuildSectorSchemeLookups(IReadOnlyList<EditorSectorSummary> sectorSummaries)
+    {
+        return (
+            GroupSectorSummariesByIndex(sectorSummaries, static sector => sector.LightSchemeIndex),
+            GroupSectorSummariesByIndex(sectorSummaries, static sector => sector.MusicSchemeIndex),
+            GroupSectorSummariesByIndex(sectorSummaries, static sector => sector.AmbientSchemeIndex)
+        );
+    }
+
+    private static IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>> GroupSectorSummariesByIndex(
+        IReadOnlyList<EditorSectorSummary> sectorSummaries,
+        Func<EditorSectorSummary, int> getIndex
+    )
+    {
+        var sectorsByIndex = new Dictionary<int, List<EditorSectorSummary>>();
+
+        foreach (var sector in sectorSummaries)
+        {
+            var index = getIndex(sector);
+            if (!sectorsByIndex.TryGetValue(index, out var sectors))
+            {
+                sectors = [];
+                sectorsByIndex[index] = sectors;
+            }
+
+            sectors.Add(sector);
+        }
+
+        return sectorsByIndex.ToDictionary(
+            pair => pair.Key,
+            pair =>
+                (IReadOnlyList<EditorSectorSummary>)
+                    pair
+                        .Value.OrderBy(static sector => sector.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
+        );
+    }
+
     private static IReadOnlyDictionary<int, IReadOnlyList<EditorAssetEntry>> BuildMessageAssetsByIndex(
         GameDataStore gameData,
         IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
@@ -141,7 +365,7 @@ internal static partial class EditorAssetIndexBuilder
 
         foreach (var (assetPath, entries) in gameData.MessagesBySource)
         {
-            if (!IsProtoDisplayNameAssetPath(assetPath))
+            if (!EditorWorkspaceValidator.IsProtoDisplayNameAssetPath(assetPath))
                 continue;
 
             foreach (var entry in entries)
@@ -222,9 +446,9 @@ internal static partial class EditorAssetIndexBuilder
 
             foreach (var script in scripts)
             {
-                var activeAttachmentSlots = GetActiveAttachmentSlots(script).ToArray();
+                var activeAttachmentSlots = ScriptValidator.GetActiveAttachmentSlots(script).ToArray();
                 var activeAttachmentPoints = activeAttachmentSlots
-                    .Where(static slot => Enum.IsDefined((ScriptAttachmentPoint)slot))
+                    .Where(static slot => ScriptValidator.IsKnownAttachmentSlot(slot))
                     .Select(static slot => (ScriptAttachmentPoint)slot)
                     .ToArray();
 
@@ -283,6 +507,21 @@ internal static partial class EditorAssetIndexBuilder
                     .Distinct()
                     .OrderBy(static value => value)
                     .ToArray();
+                var nodes = dialog
+                    .Entries.Select(entry => new EditorDialogNode
+                    {
+                        EntryNumber = entry.Num,
+                        Text = entry.Text,
+                        GenderField = entry.GenderField,
+                        IntelligenceRequirement = entry.Iq,
+                        Conditions = entry.Conditions,
+                        Actions = entry.Actions,
+                        ResponseTargetNumber = entry.ResponseVal,
+                        Kind = GetDialogNodeKind(entry),
+                        IsRoot = !inboundTargets.Contains(entry.Num),
+                        HasMissingResponseTarget = entry.ResponseVal > 0 && !entryNumbers.Contains(entry.ResponseVal),
+                    })
+                    .ToArray();
 
                 AddDefinition(
                     definitionsById,
@@ -297,6 +536,7 @@ internal static partial class EditorAssetIndexBuilder
                         ControlEntryCount = dialog.Entries.Count(IsControlEntry),
                         TransitionCount = dialog.Entries.Count(static entry => entry.ResponseVal > 0),
                         TerminalEntryCount = dialog.Entries.Count(static entry => entry.ResponseVal == 0),
+                        Nodes = nodes,
                         RootEntryNumbers = roots,
                         MissingResponseTargetNumbers = missingTargets,
                     }
@@ -305,6 +545,164 @@ internal static partial class EditorAssetIndexBuilder
         }
 
         return OrderDefinitions(definitionsById);
+    }
+
+    private static IReadOnlyDictionary<string, EditorArtDefinition> BuildArtDetailsByAssetPath(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
+    {
+        var detailsByAssetPath = new Dictionary<string, EditorArtDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (assetPath, arts) in gameData.ArtsBySource)
+        {
+            if (!assetsByPath.TryGetValue(assetPath, out var asset) || arts.Count == 0)
+                continue;
+
+            var art = arts[0];
+            var maxFrameWidth = 0;
+            var maxFrameHeight = 0;
+
+            for (var rotationIndex = 0; rotationIndex < art.Frames.Length; rotationIndex++)
+            {
+                var frames = art.Frames[rotationIndex];
+                for (var frameIndex = 0; frameIndex < frames.Length; frameIndex++)
+                {
+                    var header = frames[frameIndex].Header;
+                    maxFrameWidth = Math.Max(maxFrameWidth, checked((int)header.Width));
+                    maxFrameHeight = Math.Max(maxFrameHeight, checked((int)header.Height));
+                }
+            }
+
+            detailsByAssetPath[assetPath] = new EditorArtDefinition
+            {
+                Asset = asset,
+                Flags = art.Flags,
+                FrameRate = art.FrameRate,
+                ActionFrame = art.ActionFrame,
+                RotationCount = art.EffectiveRotationCount,
+                FramesPerRotation = checked((int)art.FrameCount),
+                PaletteCount = art.Palettes.Count(static palette => palette is not null),
+                MaxFrameWidth = maxFrameWidth,
+                MaxFrameHeight = maxFrameHeight,
+            };
+        }
+
+        return detailsByAssetPath;
+    }
+
+    private static IReadOnlyDictionary<string, EditorJumpDefinition> BuildJumpDetailsByAssetPath(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
+    {
+        var detailsByAssetPath = new Dictionary<string, EditorJumpDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (assetPath, jumpFiles) in gameData.JumpFilesBySource)
+        {
+            if (!assetsByPath.TryGetValue(assetPath, out var asset) || jumpFiles.Count == 0)
+                continue;
+
+            var jumpFile = jumpFiles[0];
+            detailsByAssetPath[assetPath] = new EditorJumpDefinition
+            {
+                Asset = asset,
+                JumpCount = jumpFile.Jumps.Count,
+                DestinationMapIds =
+                [
+                    .. jumpFile
+                        .Jumps.Select(static jump => jump.DestinationMapId)
+                        .Distinct()
+                        .OrderBy(static mapId => mapId),
+                ],
+            };
+        }
+
+        return detailsByAssetPath;
+    }
+
+    private static IReadOnlyDictionary<string, EditorMapPropertiesDefinition> BuildMapPropertiesDetailsByAssetPath(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
+    {
+        var detailsByAssetPath = new Dictionary<string, EditorMapPropertiesDefinition>(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        foreach (var (assetPath, propertiesList) in gameData.MapPropertiesBySource)
+        {
+            if (!assetsByPath.TryGetValue(assetPath, out var asset) || propertiesList.Count == 0)
+                continue;
+
+            var properties = propertiesList[0];
+            detailsByAssetPath[assetPath] = new EditorMapPropertiesDefinition
+            {
+                Asset = asset,
+                ArtId = properties.ArtId,
+                LimitX = properties.LimitX,
+                LimitY = properties.LimitY,
+            };
+        }
+
+        return detailsByAssetPath;
+    }
+
+    private static IReadOnlyDictionary<string, EditorTerrainDefinition> BuildTerrainDetailsByAssetPath(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
+    {
+        var detailsByAssetPath = new Dictionary<string, EditorTerrainDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (assetPath, terrains) in gameData.TerrainsBySource)
+        {
+            if (!assetsByPath.TryGetValue(assetPath, out var asset) || terrains.Count == 0)
+                continue;
+
+            var terrain = terrains[0];
+            detailsByAssetPath[assetPath] = new EditorTerrainDefinition
+            {
+                Asset = asset,
+                Version = terrain.Version,
+                BaseTerrainType = terrain.BaseTerrainType,
+                Width = terrain.Width,
+                Height = terrain.Height,
+                Compressed = terrain.Compressed,
+                DistinctTileCount = terrain.Tiles.Distinct().Count(),
+            };
+        }
+
+        return detailsByAssetPath;
+    }
+
+    private static IReadOnlyDictionary<string, EditorFacadeWalkDefinition> BuildFacadeWalkDetailsByAssetPath(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
+    {
+        var detailsByAssetPath = new Dictionary<string, EditorFacadeWalkDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (assetPath, facadeWalks) in gameData.FacadeWalksBySource)
+        {
+            if (!assetsByPath.TryGetValue(assetPath, out var asset) || facadeWalks.Count == 0)
+                continue;
+
+            var facadeWalk = facadeWalks[0];
+            detailsByAssetPath[assetPath] = new EditorFacadeWalkDefinition
+            {
+                Asset = asset,
+                Terrain = facadeWalk.Header.Terrain,
+                Outdoor = facadeWalk.Header.Outdoor != 0,
+                Flippable = facadeWalk.Header.Flippable != 0,
+                Width = facadeWalk.Header.Width,
+                Height = facadeWalk.Header.Height,
+                EntryCount = facadeWalk.Entries.Length,
+                WalkableEntryCount = facadeWalk.Entries.Count(static entry => entry.Walkable),
+            };
+        }
+
+        return detailsByAssetPath;
     }
 
     private static void AddDefinition<T>(Dictionary<int, List<T>> definitionsById, int id, T definition)
@@ -342,536 +740,7 @@ internal static partial class EditorAssetIndexBuilder
         );
     }
 
-    private static IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>> BuildProtoReferencesByNumber(
-        GameDataStore gameData,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
-    )
-    {
-        var protoReferencesByNumber = new Dictionary<int, List<EditorProtoReference>>();
-
-        foreach (var (assetPath, mobs) in gameData.MobsBySource)
-            AddProtoReferences(protoReferencesByNumber, assetsByPath, assetPath, CountMobProtoReferences(mobs));
-
-        foreach (var (assetPath, sectors) in gameData.SectorsBySource)
-            AddProtoReferences(protoReferencesByNumber, assetsByPath, assetPath, CountSectorProtoReferences(sectors));
-
-        return protoReferencesByNumber.ToDictionary(
-            pair => pair.Key,
-            pair =>
-                (IReadOnlyList<EditorProtoReference>)
-                    pair
-                        .Value.OrderBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-                        .ToArray()
-        );
-    }
-
-    private static IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> BuildScriptReferencesById(
-        GameDataStore gameData,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
-    )
-    {
-        var scriptReferencesById = new Dictionary<int, List<EditorScriptReference>>();
-
-        foreach (var (assetPath, mobs) in gameData.MobsBySource)
-            AddScriptReferences(scriptReferencesById, assetsByPath, assetPath, CountMobScriptReferences(mobs));
-
-        foreach (var (assetPath, protos) in gameData.ProtosBySource)
-            AddScriptReferences(scriptReferencesById, assetsByPath, assetPath, CountProtoScriptReferences(protos));
-
-        foreach (var (assetPath, sectors) in gameData.SectorsBySource)
-            AddScriptReferences(scriptReferencesById, assetsByPath, assetPath, CountSectorScriptReferences(sectors));
-
-        return scriptReferencesById.ToDictionary(
-            pair => pair.Key,
-            pair =>
-                (IReadOnlyList<EditorScriptReference>)
-                    pair
-                        .Value.OrderBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-                        .ToArray()
-        );
-    }
-
-    private static IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> BuildArtReferencesById(
-        GameDataStore gameData,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
-    )
-    {
-        var artReferencesById = new Dictionary<uint, List<EditorArtReference>>();
-
-        foreach (var (assetPath, mobs) in gameData.MobsBySource)
-            AddArtReferences(artReferencesById, assetsByPath, assetPath, CountMobArtReferences(mobs));
-
-        foreach (var (assetPath, protos) in gameData.ProtosBySource)
-            AddArtReferences(artReferencesById, assetsByPath, assetPath, CountProtoArtReferences(protos));
-
-        foreach (var (assetPath, sectors) in gameData.SectorsBySource)
-            AddArtReferences(artReferencesById, assetsByPath, assetPath, CountSectorArtReferences(sectors));
-
-        return artReferencesById.ToDictionary(
-            pair => pair.Key,
-            pair =>
-                (IReadOnlyList<EditorArtReference>)
-                    pair
-                        .Value.OrderBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-                        .ToArray()
-        );
-    }
-
-    private static EditorWorkspaceValidationReport BuildValidationReport(
-        IReadOnlyDictionary<int, EditorAssetEntry> protoDefinitionsByNumber,
-        IReadOnlyDictionary<int, IReadOnlyList<EditorAssetEntry>> scriptDefinitionsById,
-        IReadOnlyDictionary<int, IReadOnlyList<EditorScriptDefinition>> scriptDetailsById,
-        IReadOnlyDictionary<int, IReadOnlyList<EditorDialogDefinition>> dialogDetailsById,
-        IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>> protoReferencesByNumber,
-        IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> scriptReferencesById,
-        IReadOnlySet<int> protoDisplayNameMessageIndices,
-        ArcanumInstallationType? installationType
-    )
-    {
-        var issues = new List<EditorWorkspaceValidationIssue>();
-
-        foreach (var (protoNumber, references) in protoReferencesByNumber.OrderBy(static pair => pair.Key))
-        {
-            if (protoDefinitionsByNumber.ContainsKey(protoNumber))
-                continue;
-
-            foreach (var reference in references)
-            {
-                issues.Add(
-                    Error(
-                        reference.Asset.AssetPath,
-                        $"References proto {protoNumber} {reference.Count} time(s), but no matching proto asset was indexed."
-                    )
-                );
-            }
-        }
-
-        if (installationType.HasValue && protoDisplayNameMessageIndices.Count > 0)
-        {
-            foreach (var pair in protoDefinitionsByNumber.OrderBy(static pair => pair.Key))
-            {
-                if (HasProtoDisplayName(pair.Key, protoDisplayNameMessageIndices, installationType.Value))
-                    continue;
-
-                issues.Add(
-                    Warning(
-                        pair.Value.AssetPath,
-                        $"Proto {pair.Key} has no display-name entry in {DescriptionMesAssetPath} or {ProtoNameOverrideAssetPath} for {FormatProtoDisplayNameLookup(pair.Key, installationType.Value)}."
-                    )
-                );
-            }
-        }
-
-        foreach (var (scriptId, references) in scriptReferencesById.OrderBy(static pair => pair.Key))
-        {
-            if (scriptDefinitionsById.ContainsKey(scriptId))
-                continue;
-
-            foreach (var reference in references)
-            {
-                issues.Add(
-                    Warning(
-                        reference.Asset.AssetPath,
-                        $"References script {scriptId} {reference.Count} time(s), but no matching script asset was indexed."
-                    )
-                );
-            }
-        }
-
-        foreach (var (_, definitions) in scriptDetailsById.OrderBy(static pair => pair.Key))
-        {
-            foreach (var definition in definitions)
-            {
-                if (!definition.HasUnknownAttachmentSlots)
-                    continue;
-
-                var unknownSlots = definition
-                    .ActiveAttachmentSlots.Where(static slot => !Enum.IsDefined((ScriptAttachmentPoint)slot))
-                    .OrderBy(static slot => slot)
-                    .ToArray();
-
-                issues.Add(
-                    Info(
-                        definition.Asset.AssetPath,
-                        $"Script {definition.ScriptId} uses non-empty attachment slot(s) that ArcNET does not name yet: {string.Join(", ", unknownSlots)}."
-                    )
-                );
-            }
-        }
-
-        foreach (var (_, definitions) in dialogDetailsById.OrderBy(static pair => pair.Key))
-        {
-            foreach (var definition in definitions)
-            {
-                if (!definition.HasMissingResponseTargets)
-                    continue;
-
-                issues.Add(
-                    Warning(
-                        definition.Asset.AssetPath,
-                        $"Dialog {definition.DialogId} references missing response target(s): {string.Join(", ", definition.MissingResponseTargetNumbers)}."
-                    )
-                );
-            }
-        }
-
-        return issues.Count == 0 ? EditorWorkspaceValidationReport.Empty : new() { Issues = [.. issues] };
-    }
-
-    private static Dictionary<int, int> CountMobProtoReferences(IReadOnlyList<MobData> mobs)
-    {
-        var counts = new Dictionary<int, int>();
-
-        foreach (var mob in mobs)
-        {
-            var protoNumber = mob.Header.ProtoId.GetProtoNumber();
-            if (!protoNumber.HasValue)
-                continue;
-
-            counts[protoNumber.Value] = counts.GetValueOrDefault(protoNumber.Value) + 1;
-        }
-
-        return counts;
-    }
-
-    private static Dictionary<int, int> CountMobScriptReferences(IReadOnlyList<MobData> mobs)
-    {
-        var counts = new Dictionary<int, int>();
-
-        foreach (var mob in mobs)
-            AddObjectScriptReferences(counts, mob.Properties);
-
-        return counts;
-    }
-
-    private static Dictionary<uint, int> CountMobArtReferences(IReadOnlyList<MobData> mobs)
-    {
-        var counts = new Dictionary<uint, int>();
-
-        foreach (var mob in mobs)
-            AddObjectArtReferences(counts, mob.Properties);
-
-        return counts;
-    }
-
-    private static Dictionary<int, int> CountProtoScriptReferences(IReadOnlyList<ProtoData> protos)
-    {
-        var counts = new Dictionary<int, int>();
-
-        foreach (var proto in protos)
-            AddObjectScriptReferences(counts, proto.Properties);
-
-        return counts;
-    }
-
-    private static Dictionary<uint, int> CountProtoArtReferences(IReadOnlyList<ProtoData> protos)
-    {
-        var counts = new Dictionary<uint, int>();
-
-        foreach (var proto in protos)
-            AddObjectArtReferences(counts, proto.Properties);
-
-        return counts;
-    }
-
-    private static Dictionary<int, int> CountSectorProtoReferences(IReadOnlyList<Sector> sectors)
-    {
-        var counts = new Dictionary<int, int>();
-
-        foreach (var sector in sectors)
-        foreach (var mob in sector.Objects)
-        {
-            var protoNumber = mob.Header.ProtoId.GetProtoNumber();
-            if (!protoNumber.HasValue)
-                continue;
-
-            counts[protoNumber.Value] = counts.GetValueOrDefault(protoNumber.Value) + 1;
-        }
-
-        return counts;
-    }
-
-    private static Dictionary<int, int> CountSectorScriptReferences(IReadOnlyList<Sector> sectors)
-    {
-        var counts = new Dictionary<int, int>();
-
-        foreach (var sector in sectors)
-        {
-            if (sector.SectorScript is { } sectorScript && !sectorScript.IsEmpty)
-                AddCount(counts, sectorScript.ScriptId);
-
-            foreach (var tileScript in sector.TileScripts)
-            {
-                if (tileScript.ScriptNum == 0)
-                    continue;
-
-                AddCount(counts, tileScript.ScriptNum);
-            }
-
-            foreach (var mob in sector.Objects)
-                AddObjectScriptReferences(counts, mob.Properties);
-        }
-
-        return counts;
-    }
-
-    private static Dictionary<uint, int> CountSectorArtReferences(IReadOnlyList<Sector> sectors)
-    {
-        var counts = new Dictionary<uint, int>();
-
-        foreach (var sector in sectors)
-        {
-            foreach (var light in sector.Lights)
-                AddNonZeroCount(counts, light.ArtId);
-
-            foreach (var tileArtId in sector.Tiles)
-                AddNonZeroCount(counts, tileArtId);
-
-            if (sector.Roofs is not null)
-            {
-                foreach (var roofArtId in sector.Roofs)
-                    AddNonZeroCount(counts, roofArtId);
-            }
-
-            foreach (var mob in sector.Objects)
-                AddObjectArtReferences(counts, mob.Properties);
-        }
-
-        return counts;
-    }
-
-    private static void AddProtoReferences(
-        Dictionary<int, List<EditorProtoReference>> protoReferencesByNumber,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath,
-        string assetPath,
-        IReadOnlyDictionary<int, int> countsByProtoNumber
-    )
-    {
-        if (!assetsByPath.TryGetValue(assetPath, out var asset))
-            return;
-
-        foreach (var (protoNumber, count) in countsByProtoNumber)
-        {
-            if (!protoReferencesByNumber.TryGetValue(protoNumber, out var references))
-            {
-                references = [];
-                protoReferencesByNumber[protoNumber] = references;
-            }
-
-            references.Add(
-                new EditorProtoReference
-                {
-                    Asset = asset,
-                    ProtoNumber = protoNumber,
-                    Count = count,
-                }
-            );
-        }
-    }
-
-    private static void AddScriptReferences(
-        Dictionary<int, List<EditorScriptReference>> scriptReferencesById,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath,
-        string assetPath,
-        IReadOnlyDictionary<int, int> countsByScriptId
-    )
-    {
-        if (!assetsByPath.TryGetValue(assetPath, out var asset))
-            return;
-
-        foreach (var (scriptId, count) in countsByScriptId)
-        {
-            if (!scriptReferencesById.TryGetValue(scriptId, out var references))
-            {
-                references = [];
-                scriptReferencesById[scriptId] = references;
-            }
-
-            references.Add(
-                new EditorScriptReference
-                {
-                    Asset = asset,
-                    ScriptId = scriptId,
-                    Count = count,
-                }
-            );
-        }
-    }
-
-    private static void AddArtReferences(
-        Dictionary<uint, List<EditorArtReference>> artReferencesById,
-        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath,
-        string assetPath,
-        IReadOnlyDictionary<uint, int> countsByArtId
-    )
-    {
-        if (!assetsByPath.TryGetValue(assetPath, out var asset))
-            return;
-
-        foreach (var (artId, count) in countsByArtId)
-        {
-            if (!artReferencesById.TryGetValue(artId, out var references))
-            {
-                references = [];
-                artReferencesById[artId] = references;
-            }
-
-            references.Add(
-                new EditorArtReference
-                {
-                    Asset = asset,
-                    ArtId = artId,
-                    Count = count,
-                }
-            );
-        }
-    }
-
-    private static void AddObjectScriptReferences(Dictionary<int, int> counts, IReadOnlyList<ObjectProperty> properties)
-    {
-        foreach (var property in properties)
-        {
-            if (property.Field != ObjectField.ObjFScriptsIdx)
-                continue;
-
-            if (!TryGetScriptArray(property, out var scripts))
-                continue;
-
-            foreach (var script in scripts)
-            {
-                if (script.ScriptId == 0)
-                    continue;
-
-                AddCount(counts, script.ScriptId);
-            }
-        }
-    }
-
-    private static void AddObjectArtReferences(Dictionary<uint, int> counts, IReadOnlyList<ObjectProperty> properties)
-    {
-        foreach (var property in properties)
-        {
-            switch (property.Field)
-            {
-                case ObjectField.ObjFCurrentAid:
-                case ObjectField.ObjFShadow:
-                case ObjectField.ObjFLightAid:
-                case ObjectField.ObjFAid:
-                case ObjectField.ObjFDestroyedAid:
-                    if (TryGetArtId(property, out var artId))
-                        AddNonZeroCount(counts, artId);
-                    break;
-            }
-        }
-    }
-
-    private static bool TryGetScriptArray(ObjectProperty property, out ObjectPropertyScript[] scripts)
-    {
-        try
-        {
-            scripts = property.GetScriptArray();
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentOutOfRangeException)
-        {
-            scripts = [];
-            return false;
-        }
-    }
-
-    private static bool TryGetArtId(ObjectProperty property, out uint artId)
-    {
-        try
-        {
-            artId = unchecked((uint)property.GetInt32());
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
-            artId = 0;
-            return false;
-        }
-    }
-
-    private static bool HasProtoDisplayName(
-        int protoNumber,
-        IReadOnlySet<int> protoDisplayNameMessageIndices,
-        ArcanumInstallationType installationType
-    )
-    {
-        var translatedKey = ArcanumInstallation.ToVanillaProtoId(protoNumber, installationType);
-        if (translatedKey > 0 && protoDisplayNameMessageIndices.Contains(translatedKey))
-            return true;
-
-        return translatedKey != protoNumber && protoDisplayNameMessageIndices.Contains(protoNumber);
-    }
-
-    private static string FormatProtoDisplayNameLookup(int protoNumber, ArcanumInstallationType installationType)
-    {
-        var translatedKey = ArcanumInstallation.ToVanillaProtoId(protoNumber, installationType);
-        return translatedKey > 0 && translatedKey != protoNumber
-            ? $"lookup key {translatedKey} or raw fallback {protoNumber}"
-            : $"lookup key {protoNumber}";
-    }
-
-    private static bool IsProtoDisplayNameAssetPath(string assetPath) =>
-        assetPath.Equals(DescriptionMesAssetPath, StringComparison.OrdinalIgnoreCase)
-        || assetPath.Equals(ProtoNameOverrideAssetPath, StringComparison.OrdinalIgnoreCase);
-
-    private static void AddCount(Dictionary<int, int> counts, int key) =>
-        counts[key] = counts.GetValueOrDefault(key) + 1;
-
-    private static void AddNonZeroCount(Dictionary<uint, int> counts, uint key)
-    {
-        if (key == 0)
-            return;
-
-        counts[key] = counts.GetValueOrDefault(key) + 1;
-    }
-
-    private static IEnumerable<int> GetActiveAttachmentSlots(ScrFile script)
-    {
-        for (var i = 0; i < script.Entries.Count; i++)
-        {
-            var entry = script.Entries[i];
-            if (IsEmptyCondition(entry) && IsEmptyAction(entry.Action) && IsEmptyAction(entry.Else))
-                continue;
-
-            yield return i;
-        }
-    }
-
-    private static bool IsEmptyCondition(ScriptConditionData condition)
-    {
-        if (condition.Type != (int)ScriptConditionType.True)
-            return false;
-
-        var opTypes = condition.OpTypes;
-        var opValues = condition.OpValues;
-        for (var i = 0; i < 8; i++)
-        {
-            if (opTypes[i] != 0 || opValues[i] != 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsEmptyAction(ScriptActionData action)
-    {
-        if (action.Type != (int)ScriptActionType.DoNothing)
-            return false;
-
-        var opTypes = action.OpTypes;
-        var opValues = action.OpValues;
-        for (var i = 0; i < 8; i++)
-        {
-            if (opTypes[i] != 0 || opValues[i] != 0)
-                return false;
-        }
-
-        return true;
-    }
+    private static int CountBlockedTiles(uint[] blockMask) => blockMask.Sum(mask => int.PopCount((int)mask));
 
     private static bool IsControlEntry(DialogEntry entry)
     {
@@ -884,6 +753,14 @@ internal static partial class EditorAssetIndexBuilder
             _ when entry.Text.StartsWith("T:", StringComparison.Ordinal) => true,
             _ => false,
         };
+    }
+
+    private static EditorDialogNodeKind GetDialogNodeKind(DialogEntry entry)
+    {
+        if (IsControlEntry(entry))
+            return EditorDialogNodeKind.Control;
+
+        return entry.Iq == 0 ? EditorDialogNodeKind.NpcReply : EditorDialogNodeKind.PcOption;
     }
 
     private static bool TryGetProtoNumberFromAssetPath(string assetPath, out int protoNumber)

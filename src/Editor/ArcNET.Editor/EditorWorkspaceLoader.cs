@@ -28,8 +28,20 @@ public static class EditorWorkspaceLoader
 
         var gameData = GameDataLoader.LoadFromDirectoryAsync(contentDirectory).GetAwaiter().GetResult();
         var assets = EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, gameData);
+        var audioAssets = EditorAudioAssetLoader
+            .LoadFromContentDirectoryAsync(contentDirectory)
+            .GetAwaiter()
+            .GetResult();
         var save = HasSaveSelection(options) ? SaveGameLoader.Load(options.SaveFolder!, options.SaveSlotName!) : null;
-        return BuildWorkspace(contentDirectory, options, gameData, assets, EditorWorkspaceLoadReport.Empty, save);
+        return BuildWorkspace(
+            contentDirectory,
+            options,
+            gameData,
+            assets,
+            audioAssets,
+            EditorWorkspaceLoadReport.Empty,
+            save
+        );
     }
 
     /// <summary>
@@ -47,6 +59,10 @@ public static class EditorWorkspaceLoader
             .LoadAsync(effectiveOptions.GameDirectory!)
             .GetAwaiter()
             .GetResult();
+        var audioAssets = EditorAudioAssetLoader
+            .LoadFromGameInstallAsync(effectiveOptions.GameDirectory!)
+            .GetAwaiter()
+            .GetResult();
         var save = HasSaveSelection(effectiveOptions)
             ? SaveGameLoader.Load(effectiveOptions.SaveFolder!, effectiveOptions.SaveSlotName!)
             : null;
@@ -56,6 +72,7 @@ public static class EditorWorkspaceLoader
             effectiveOptions,
             gameData,
             assets,
+            audioAssets,
             loadReport,
             save
         );
@@ -95,6 +112,9 @@ public static class EditorWorkspaceLoader
             )
             .ConfigureAwait(false);
         var assets = EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, gameData);
+        var audioAssets = await EditorAudioAssetLoader
+            .LoadFromContentDirectoryAsync(contentDirectory, cancellationToken)
+            .ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -112,7 +132,15 @@ public static class EditorWorkspaceLoader
         }
 
         progress?.Report(1f);
-        return BuildWorkspace(contentDirectory, options, gameData, assets, EditorWorkspaceLoadReport.Empty, save);
+        return BuildWorkspace(
+            contentDirectory,
+            options,
+            gameData,
+            assets,
+            audioAssets,
+            EditorWorkspaceLoadReport.Empty,
+            save
+        );
     }
 
     /// <summary>
@@ -144,6 +172,9 @@ public static class EditorWorkspaceLoader
                 cancellationToken
             )
             .ConfigureAwait(false);
+        var audioAssets = await EditorAudioAssetLoader
+            .LoadFromGameInstallAsync(effectiveOptions.GameDirectory!, cancellationToken)
+            .ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -166,6 +197,7 @@ public static class EditorWorkspaceLoader
             effectiveOptions,
             gameData,
             assets,
+            audioAssets,
             loadReport,
             save
         );
@@ -176,6 +208,7 @@ public static class EditorWorkspaceLoader
         EditorWorkspaceLoadOptions options,
         GameDataStore gameData,
         EditorAssetCatalog assets,
+        EditorAudioAssetLoader.EditorAudioAssetLoadResult audioAssets,
         EditorWorkspaceLoadReport loadReport,
         LoadedSave? save
     )
@@ -192,9 +225,11 @@ public static class EditorWorkspaceLoader
             InstallationType = installationType,
             GameData = gameData,
             Assets = assets,
+            AudioAssets = audioAssets.Catalog,
             Index = index,
             LoadReport = loadReport,
             Validation = validation,
+            AudioAssetData = audioAssets.DataByPath,
             Save = save,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
@@ -217,7 +252,12 @@ public static class EditorWorkspaceLoader
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDir);
         options ??= new EditorWorkspaceLoadOptions();
 
-        if (options.GameDirectory is not null && !PathsEqual(gameDir, options.GameDirectory))
+        var resolvedGameDirectory = ResolveGameInstallDirectory(gameDir);
+
+        if (
+            options.GameDirectory is not null
+            && !PathsEqual(resolvedGameDirectory, ResolveGameInstallDirectory(options.GameDirectory))
+        )
         {
             throw new ArgumentException(
                 "options.GameDirectory must match the explicit gameDir argument when both are supplied.",
@@ -227,10 +267,39 @@ public static class EditorWorkspaceLoader
 
         return new EditorWorkspaceLoadOptions
         {
-            GameDirectory = gameDir,
+            GameDirectory = resolvedGameDirectory,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
         };
+    }
+
+    private static string ResolveGameInstallDirectory(string gameDir)
+    {
+        var fullPath = Path.GetFullPath(gameDir);
+        if (!Directory.Exists(fullPath) || LooksLikeGameInstallDirectory(fullPath))
+            return fullPath;
+
+        var preferredNestedPath = Path.Combine(fullPath, "Arcanum");
+        if (LooksLikeGameInstallDirectory(preferredNestedPath))
+            return preferredNestedPath;
+
+        var matchingChildDirectories = Directory
+            .EnumerateDirectories(fullPath)
+            .Where(LooksLikeGameInstallDirectory)
+            .Take(2)
+            .ToArray();
+
+        return matchingChildDirectories.Length == 1 ? matchingChildDirectories[0] : fullPath;
+    }
+
+    private static bool LooksLikeGameInstallDirectory(string path)
+    {
+        if (!Directory.Exists(path))
+            return false;
+
+        return Directory.Exists(Path.Combine(path, LooseDataDirectoryName))
+            || Directory.Exists(Path.Combine(path, "modules"))
+            || Directory.EnumerateFiles(path, "*.dat", SearchOption.TopDirectoryOnly).Any();
     }
 
     private static void ValidateContentWorkspaceArguments(string contentDirectory, EditorWorkspaceLoadOptions options)

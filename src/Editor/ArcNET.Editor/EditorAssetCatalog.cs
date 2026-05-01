@@ -52,6 +52,19 @@ public sealed class EditorAssetCatalog
     public IReadOnlyList<EditorAssetEntry> FindByFormat(FileFormat format) =>
         _entriesByFormat.TryGetValue(format, out var entries) ? entries : [];
 
+    /// <summary>
+    /// Searches asset paths for the supplied text, optionally constrained to one parsed format.
+    /// </summary>
+    public IReadOnlyList<EditorAssetEntry> Search(string text, FileFormat? format = null)
+    {
+        var searchText = ValidateSearchText(text);
+        var entries = format is { } filteredFormat ? FindByFormat(filteredFormat) : Entries;
+        if (entries.Count == 0)
+            return [];
+
+        return entries.Where(entry => ContainsSearchText(entry.AssetPath, searchText)).ToArray();
+    }
+
     internal static EditorAssetCatalog Create(IEnumerable<EditorAssetEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -63,4 +76,13 @@ public sealed class EditorAssetCatalog
 
     private static string NormalizeAssetPath(string assetPath) =>
         assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+
+    private static string ValidateSearchText(string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        return text.Trim();
+    }
+
+    private static bool ContainsSearchText(string value, string searchText) =>
+        value.Contains(searchText, StringComparison.OrdinalIgnoreCase);
 }
