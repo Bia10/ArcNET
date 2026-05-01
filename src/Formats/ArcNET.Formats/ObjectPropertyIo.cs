@@ -106,7 +106,7 @@ internal static class ObjectPropertyIo
                 {
                     raw = ReadField(ref reader, wireType);
                 }
-                catch (NotSupportedException ex)
+                catch (Exception ex) when (ex is NotSupportedException or ArgumentOutOfRangeException)
                 {
                     // Field data is malformed or truncated — we cannot safely advance the
                     // reader, so stop here and surface a note.
@@ -165,6 +165,8 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
+        EnsureRemainingBytes(reader.Remaining, dataSize, $"fixed-size field data ({dataSize}B)");
+
         var raw = new byte[ByteWireSize + dataSize];
         raw[0] = presence;
         reader.ReadBytes(dataSize).CopyTo(raw.AsSpan(ByteWireSize));
@@ -181,18 +183,23 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
+        EnsureRemainingBytes(reader.Remaining, Int32WireSize, "string length prefix (4B)");
+
         // Read length directly off the span — no intermediate ToArray().
         var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(reader.ReadBytes(Int32WireSize));
+        if (length < 0)
+            throw new NotSupportedException($"String field length was negative ({length}).");
 
         // The game writes strlen() as the length, then writes strlen()+1 bytes (including NUL).
-        var strDataSize = length + 1;
+        var strDataSize = (long)length + 1;
+        EnsureRemainingBytes(reader.Remaining, strDataSize, $"string payload ({strDataSize}B)");
 
         // Allocate the single final buffer and fill in one pass.
-        var total = ByteWireSize + Int32WireSize + strDataSize;
+        var total = ByteWireSize + Int32WireSize + (int)strDataSize;
         var raw = new byte[total];
         raw[0] = presence;
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(ByteWireSize), length);
-        reader.ReadBytes(strDataSize).CopyTo(raw.AsSpan(ByteWireSize + Int32WireSize));
+        reader.ReadBytes((int)strDataSize).CopyTo(raw.AsSpan(ByteWireSize + Int32WireSize));
         return raw;
     }
 
@@ -213,6 +220,8 @@ internal static class ObjectPropertyIo
         if (presence == 0)
             return [0];
 
+        EnsureRemainingBytes(reader.Remaining, 12, "SAR header (12B)");
+
         // SizeableArray header: { int32 size, int32 count, int32 bitset_id } = 12 bytes
         var elementSize = reader.ReadUInt32();
         var elementCount = reader.ReadUInt32();
@@ -220,14 +229,16 @@ internal static class ObjectPropertyIo
 
         // Use long arithmetic to avoid uint overflow when multiplying large values.
         var dataLen = (long)elementSize * elementCount;
-        if (dataLen > reader.Remaining)
+        var bytesRequiredBeforeBitset = dataLen + Int32WireSize;
+        if (bytesRequiredBeforeBitset > reader.Remaining)
             throw new NotSupportedException(
-                $"SAR element data ({dataLen}B) exceeds available bytes ({reader.Remaining}B). "
+                $"SAR element data plus bitset count ({bytesRequiredBeforeBitset}B) exceeds available bytes ({reader.Remaining}B). "
                     + $"elementSize={elementSize}, elementCount={elementCount}"
             );
 
         // Read both variable-length regions as zero-copy spans before allocating the output buffer.
         var dataSpan = reader.ReadBytes((int)dataLen);
+        EnsureRemainingBytes(reader.Remaining, Int32WireSize, "SAR bitset count (4B)");
         var bitsetCnt = reader.ReadUInt32();
         var bitsetLen = (long)bitsetCnt * 4;
         if (bitsetLen > reader.Remaining)
@@ -260,5 +271,15 @@ internal static class ObjectPropertyIo
         bitsetSpan.CopyTo(raw.AsSpan(p));
 
         return raw;
+    }
+
+    private static void EnsureRemainingBytes(int remaining, long requiredBytes, string payloadLabel)
+    {
+        if (requiredBytes > remaining)
+        {
+            throw new NotSupportedException(
+                $"{payloadLabel} exceeds available bytes ({remaining}B remaining, needed {requiredBytes}B)."
+            );
+        }
     }
 }

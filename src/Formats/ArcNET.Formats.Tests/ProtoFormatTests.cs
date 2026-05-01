@@ -88,6 +88,36 @@ public sealed class ProtoFormatTests
     }
 
     [Test]
+    public async Task Parse_TruncatedSarField_SetsParseNoteInsteadOfThrowing()
+    {
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidBlocked(w);
+            WriteOidGuid(w, 3);
+            w.WriteUInt32((uint)ObjectType.Scenery);
+
+            var bitmap = new byte[12];
+            bitmap[31 / 8] |= (byte)(1 << (31 % 8));
+            w.WriteBytes(bitmap);
+
+            w.WriteByte(1);
+            w.WriteUInt32(4);
+            w.WriteUInt32(1);
+            w.WriteUInt32(0);
+            w.WriteInt32(99);
+        });
+
+        var proto = ProtoFormat.ParseMemory(bytes);
+
+        await Assert.That(proto.Properties.Count).IsEqualTo(1);
+        await Assert.That(proto.Properties[0].Field).IsEqualTo((ObjectField)31);
+        await Assert.That(proto.Properties[0].RawBytes.Length).IsEqualTo(0);
+        await Assert.That(proto.Properties[0].ParseNote).IsNotNull();
+        await Assert.That(proto.Properties[0].ParseNote!).Contains("SAR element data plus bitset count");
+    }
+
+    [Test]
     public async Task RoundTrip_MinimalProto_Identical()
     {
         var bytes = BuildMinimalSceneryProto();

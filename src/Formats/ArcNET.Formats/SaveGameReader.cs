@@ -10,9 +10,6 @@
 /// </summary>
 public static class SaveGameReader
 {
-    private const string TfafExtension = ".tfaf";
-    private const string GsiExtension = ".gsi";
-
     /// <summary>
     /// Loads the save slot whose TFAI index is at <paramref name="tfaiPath"/>.
     /// The companion <c>.tfaf</c> and <c>.gsi</c> paths are derived automatically.
@@ -21,9 +18,8 @@ public static class SaveGameReader
     /// <returns>A fully-parsed <see cref="SaveGame"/> containing all map states.</returns>
     public static SaveGame Load(string tfaiPath)
     {
-        var tfafPath = Path.ChangeExtension(tfaiPath, TfafExtension);
-        var gsiPath = Path.ChangeExtension(tfaiPath, GsiExtension);
-        return Load(tfaiPath, tfafPath, gsiPath);
+        var paths = SaveSlotPathResolver.ResolveFromTfaiPath(tfaiPath);
+        return Load(paths.TfaiPath, paths.TfafPath, paths.GsiPath);
     }
 
     /// <summary>
@@ -33,8 +29,8 @@ public static class SaveGameReader
     /// </summary>
     public static SaveGame Load(string tfaiPath, string tfafPath)
     {
-        var gsiPath = Path.ChangeExtension(tfaiPath, GsiExtension);
-        return Load(tfaiPath, tfafPath, gsiPath);
+        var paths = SaveSlotPathResolver.ResolveFromTfaiAndTfafPaths(tfaiPath, tfafPath);
+        return Load(paths.TfaiPath, paths.TfafPath, paths.GsiPath);
     }
 
     /// <summary>

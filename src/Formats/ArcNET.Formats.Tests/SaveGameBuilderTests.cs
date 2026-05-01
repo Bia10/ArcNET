@@ -236,6 +236,37 @@ public sealed class SaveGameBuilderTests
     }
 
     [Test]
+    public async Task SaveAndLoad_WithDecoratedGsiCompanion_UsesLogicalSlotStem()
+    {
+        var save = SaveGameBuilder.CreateNew(MakeInfo("Elsbeth"), "modules/Arcanum/maps/Map01", MakePc("Elsbeth"));
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var tfaiPath = Path.Combine(tempDir, "Slot0000.tfai");
+            var exactGsiPath = Path.Combine(tempDir, "Slot0000.gsi");
+            var decoratedGsiPath = Path.Combine(tempDir, "Slot0000Elsbeth.gsi");
+
+            SaveGameWriter.Save(save, tfaiPath);
+            File.Move(exactGsiPath, decoratedGsiPath);
+
+            SaveGameWriter.Save(save, tfaiPath);
+            var reparsed = SaveGameReader.Load(tfaiPath);
+
+            await Assert.That(File.Exists(decoratedGsiPath)).IsTrue();
+            await Assert.That(File.Exists(exactGsiPath)).IsFalse();
+            await Assert.That(reparsed.Info.LeaderName).IsEqualTo("Elsbeth");
+            await Assert.That(reparsed.Maps.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task CreateNew_RoundTrips_TopLevelSaveGlobalFiles()
     {
         var baseSave = SaveGameBuilder.CreateNew(MakeInfo("Elsbeth"), "modules/Arcanum/maps/Map01", MakePc("Elsbeth"));

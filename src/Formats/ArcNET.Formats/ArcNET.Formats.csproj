@@ -45,6 +45,9 @@
       <_Parameter1>ArcNET.Formats.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>ArcNET.Editor</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>ArcNET.GameData</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>

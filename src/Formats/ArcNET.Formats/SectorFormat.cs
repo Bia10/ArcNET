@@ -177,6 +177,8 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
     private const int RoofCount = 256;
     private const int BlockMaskUints = 128;
     private const int LatestVersion = 0xAA0004;
+    private const int OriginalObjectVersion = 0x08;
+    private const int CeObjectVersion = 0x77;
 
     /// <inheritdoc/>
     public static Sector Parse(scoped ref SpanReader reader)
@@ -397,15 +399,24 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
         // Peek at the last 4 bytes to get the count.
         var countOffset = reader.Remaining - 4;
         var count = reader.PeekInt32At(countOffset);
-        var objects = new MobData[count];
-        for (var i = 0; i < count; i++)
-            objects[i] = MobFormat.Parse(ref reader);
+        var objects = new List<MobData>(count);
+        for (var i = 0; i < count && reader.Remaining > 4; i++)
+        {
+            // Some live sectors advertise more object records than the remaining bytes can
+            // actually support. Stop locally when the next record no longer begins with a
+            // recognized object header version so the rest of the sector still loads.
+            var nextVersion = reader.PeekInt32At(0);
+            if (nextVersion != OriginalObjectVersion && nextVersion != CeObjectVersion)
+                break;
+
+            objects.Add(MobFormat.Parse(ref reader));
+        }
 
         // Skip past the trailing count we already peeked.
-        if (reader.Remaining >= 4)
+        if (objects.Count == count && reader.Remaining >= 4)
             reader.ReadInt32();
 
-        return objects;
+        return [.. objects];
     }
 
     // ── Writers ───────────────────────────────────────────────────────────────

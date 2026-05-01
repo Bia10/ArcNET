@@ -100,6 +100,34 @@ public sealed class MobFormatTests
     }
 
     [Test]
+    public async Task Parse_TruncatedPresencePrefixedField_SetsParseNoteInsteadOfThrowing()
+    {
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w, protoIndex: 1);
+            WriteOidGuid(w, Guid.Parse("00000003-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Wall);
+            w.WriteInt16(1);
+
+            var bitmap = new byte[12];
+            bitmap[35 / 8] |= (byte)(1 << (35 % 8));
+            w.WriteBytes(bitmap);
+
+            w.WriteByte(1);
+            w.WriteInt32(1234);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(1);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo((ObjectField)35);
+        await Assert.That(mob.Properties[0].RawBytes.Length).IsEqualTo(0);
+        await Assert.That(mob.Properties[0].ParseNote).IsNotNull();
+        await Assert.That(mob.Properties[0].ParseNote!).Contains("fixed-size field data");
+    }
+
+    [Test]
     public async Task RoundTrip_MinimalWall_Identical()
     {
         var bytes = BuildMinimalWallMob();

@@ -1,4 +1,6 @@
-﻿using ArcNET.Formats;
+﻿using ArcNET.Core;
+using ArcNET.Formats;
+using ArcNET.GameObjects;
 using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
 
 namespace ArcNET.Formats.Tests;
@@ -6,6 +8,40 @@ namespace ArcNET.Formats.Tests;
 /// <summary>Unit tests for <see cref="SectorFormat"/>.</summary>
 public sealed class SectorFormatTests
 {
+    private static void WriteOidGuid(SpanWriter w, Guid g)
+    {
+        w.WriteInt16(2);
+        w.WriteInt16(0);
+        w.WriteInt32(0);
+        w.WriteBytes(g.ToByteArray());
+    }
+
+    private static void WriteOidRef(SpanWriter w, int protoIndex = 1)
+    {
+        w.WriteInt16(1);
+        w.WriteInt16(0);
+        w.WriteInt32(protoIndex);
+        w.WriteBytes(new byte[16]);
+    }
+
+    private static byte[] BuildMinimalWallMob()
+    {
+        return BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w, protoIndex: 1);
+            WriteOidGuid(w, Guid.Parse("00000001-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Wall);
+            w.WriteInt16(1);
+
+            var bitmap = new byte[12];
+            bitmap[2] = 0x20;
+            w.WriteBytes(bitmap);
+
+            w.WriteInt32(42);
+        });
+    }
+
     /// Writes a minimal valid sector (no lights, all-zero tiles, no roofs,
     /// version 0xAA0004, no tile-scripts, empty sector-script, default sound/block, no objects).
     private static byte[] BuildMinimalSector()
@@ -262,6 +298,29 @@ public sealed class SectorFormatTests
         });
 
         Assert.Throws<InvalidDataException>(() => SectorFormat.ParseMemory(bytes));
+    }
+
+    [Test]
+    public async Task Parse_UnknownTrailingObjectHeader_PreservesEarlierObjects()
+    {
+        var validObject = BuildMinimalWallMob();
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0);
+            for (var i = 0; i < 4096; i++)
+                w.WriteUInt32(0);
+            w.WriteInt32(1);
+            w.WriteInt32(0xAA0000);
+            w.WriteBytes(validObject);
+            w.WriteInt32(0x0300);
+            w.WriteInt32(2);
+        });
+
+        var sector = SectorFormat.ParseMemory(bytes);
+
+        await Assert.That(sector.Objects.Count).IsEqualTo(1);
+        await Assert.That(sector.Objects[0].Header.GameObjectType).IsEqualTo(ObjectType.Wall);
+        await Assert.That(sector.Objects[0].Properties.Count).IsEqualTo(1);
     }
 
     [Test]

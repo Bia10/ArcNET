@@ -23,9 +23,8 @@ public static class SaveGameWriter
     /// </summary>
     public static void Save(SaveGame save, string tfaiPath)
     {
-        var tfafPath = Path.ChangeExtension(tfaiPath, ".tfaf");
-        var gsiPath = Path.ChangeExtension(tfaiPath, ".gsi");
-        Save(save, tfaiPath, tfafPath, gsiPath);
+        var paths = SaveSlotPathResolver.ResolveFromTfaiPath(tfaiPath);
+        Save(save, paths.TfaiPath, paths.TfafPath, paths.GsiPath);
     }
 
     /// <summary>
@@ -34,8 +33,8 @@ public static class SaveGameWriter
     /// </summary>
     public static void Save(SaveGame save, string tfaiPath, string tfafPath)
     {
-        var gsiPath = Path.ChangeExtension(tfaiPath, ".gsi");
-        Save(save, tfaiPath, tfafPath, gsiPath);
+        var paths = SaveSlotPathResolver.ResolveFromTfaiAndTfafPaths(tfaiPath, tfafPath);
+        Save(save, paths.TfaiPath, paths.TfafPath, paths.GsiPath);
     }
 
     /// <summary>
