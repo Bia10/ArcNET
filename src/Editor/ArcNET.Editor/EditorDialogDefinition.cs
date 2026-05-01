@@ -53,6 +53,11 @@ public sealed class EditorDialogDefinition
     public required int TerminalEntryCount { get; init; }
 
     /// <summary>
+    /// Ordered dialog nodes with preserved entry content plus derived graph flags.
+    /// </summary>
+    public required IReadOnlyList<EditorDialogNode> Nodes { get; init; }
+
+    /// <summary>
     /// Entry numbers with no inbound positive responses from other entries in the same dialog.
     /// </summary>
     public required IReadOnlyList<int> RootEntryNumbers { get; init; }
