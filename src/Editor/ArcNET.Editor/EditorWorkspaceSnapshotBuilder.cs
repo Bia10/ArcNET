@@ -1,4 +1,4 @@
-﻿using ArcNET.GameData;
+using ArcNET.GameData;
 
 namespace ArcNET.Editor;
 
@@ -22,6 +22,7 @@ internal static class EditorWorkspaceSnapshotBuilder
         {
             ContentDirectory = baseline.ContentDirectory,
             GameDirectory = baseline.GameDirectory,
+            Module = baseline.Module,
             InstallationType = baseline.InstallationType,
             GameData = effectiveGameData,
             Assets = baseline.Assets,

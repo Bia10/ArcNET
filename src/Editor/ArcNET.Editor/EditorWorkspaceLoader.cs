@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.GameData;
 
 namespace ArcNET.Editor;
@@ -55,6 +55,12 @@ public static class EditorWorkspaceLoader
         var effectiveOptions = CreateInstallOptions(gameDir, options);
         ValidateInstallWorkspaceArguments(effectiveOptions);
 
+        if (!string.IsNullOrWhiteSpace(effectiveOptions.ModuleName))
+            return LoadFromModuleDirectory(
+                ResolveModuleDirectory(effectiveOptions.GameDirectory!, effectiveOptions.ModuleName!),
+                effectiveOptions
+            );
+
         var (gameData, assets, loadReport) = GameInstallContentLoader
             .LoadAsync(effectiveOptions.GameDirectory!)
             .GetAwaiter()
@@ -75,6 +81,39 @@ public static class EditorWorkspaceLoader
             audioAssets,
             loadReport,
             save
+        );
+    }
+
+    /// <summary>
+    /// Loads one workspace from one module directory, overlaying sibling module DAT/PATCH archives and loose module files.
+    /// </summary>
+    public static EditorWorkspace LoadFromModuleDirectory(
+        string moduleDirectory,
+        EditorWorkspaceLoadOptions? options = null
+    )
+    {
+        options ??= new EditorWorkspaceLoadOptions();
+        var effectiveOptions = CreateModuleOptions(moduleDirectory, options);
+        ValidateInstallWorkspaceArguments(effectiveOptions);
+
+        var (gameData, assets, loadReport, archivePaths) = ModuleInstallContentLoader
+            .LoadAsync(moduleDirectory)
+            .GetAwaiter()
+            .GetResult();
+        var audioAssets = EditorAudioAssetLoader.LoadFromModuleDirectoryAsync(moduleDirectory).GetAwaiter().GetResult();
+        var save = HasSaveSelection(effectiveOptions)
+            ? SaveGameLoader.Load(effectiveOptions.SaveFolder!, effectiveOptions.SaveSlotName!)
+            : null;
+
+        return BuildWorkspace(
+            moduleDirectory,
+            effectiveOptions,
+            gameData,
+            assets,
+            audioAssets,
+            loadReport,
+            save,
+            CreateModuleContext(moduleDirectory, archivePaths)
         );
     }
 
@@ -164,6 +203,17 @@ public static class EditorWorkspaceLoader
         var effectiveOptions = CreateInstallOptions(gameDir, options);
         ValidateInstallWorkspaceArguments(effectiveOptions);
 
+        if (!string.IsNullOrWhiteSpace(effectiveOptions.ModuleName))
+        {
+            return await LoadFromModuleDirectoryAsync(
+                    ResolveModuleDirectory(effectiveOptions.GameDirectory!, effectiveOptions.ModuleName!),
+                    effectiveOptions,
+                    progress,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+
         var hasSave = HasSaveSelection(effectiveOptions);
         var (gameData, assets, loadReport) = await GameInstallContentLoader
             .LoadAsync(
@@ -203,6 +253,60 @@ public static class EditorWorkspaceLoader
         );
     }
 
+    /// <summary>
+    /// Loads one workspace from one module directory, overlaying sibling module DAT/PATCH archives and loose module files.
+    /// </summary>
+    public static async Task<EditorWorkspace> LoadFromModuleDirectoryAsync(
+        string moduleDirectory,
+        EditorWorkspaceLoadOptions? options = null,
+        IProgress<float>? progress = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        options ??= new EditorWorkspaceLoadOptions();
+        var effectiveOptions = CreateModuleOptions(moduleDirectory, options);
+        ValidateInstallWorkspaceArguments(effectiveOptions);
+
+        var hasSave = HasSaveSelection(effectiveOptions);
+        var (gameData, assets, loadReport, archivePaths) = await ModuleInstallContentLoader
+            .LoadAsync(
+                moduleDirectory,
+                hasSave ? CreateWeightedProgress(progress, 0f, GameDataProgressWeight) : progress,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        var audioAssets = await EditorAudioAssetLoader
+            .LoadFromModuleDirectoryAsync(moduleDirectory, cancellationToken)
+            .ConfigureAwait(false);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        LoadedSave? save = null;
+        if (hasSave)
+        {
+            save = await SaveGameLoader
+                .LoadAsync(
+                    effectiveOptions.SaveFolder!,
+                    effectiveOptions.SaveSlotName!,
+                    CreateWeightedProgress(progress, GameDataProgressWeight, 1f - GameDataProgressWeight),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+
+        progress?.Report(1f);
+        return BuildWorkspace(
+            moduleDirectory,
+            effectiveOptions,
+            gameData,
+            assets,
+            audioAssets,
+            loadReport,
+            save,
+            CreateModuleContext(moduleDirectory, archivePaths)
+        );
+    }
+
     private static EditorWorkspace BuildWorkspace(
         string contentDirectory,
         EditorWorkspaceLoadOptions options,
@@ -210,7 +314,8 @@ public static class EditorWorkspaceLoader
         EditorAssetCatalog assets,
         EditorAudioAssetLoader.EditorAudioAssetLoadResult audioAssets,
         EditorWorkspaceLoadReport loadReport,
-        LoadedSave? save
+        LoadedSave? save,
+        EditorWorkspaceModuleContext? module = null
     )
     {
         ArcanumInstallationType? installationType = options.GameDirectory is null
@@ -222,6 +327,7 @@ public static class EditorWorkspaceLoader
         {
             ContentDirectory = contentDirectory,
             GameDirectory = options.GameDirectory,
+            Module = module,
             InstallationType = installationType,
             GameData = gameData,
             Assets = assets,
@@ -268,6 +374,65 @@ public static class EditorWorkspaceLoader
         return new EditorWorkspaceLoadOptions
         {
             GameDirectory = resolvedGameDirectory,
+            ModuleName = options.ModuleName,
+            SaveFolder = options.SaveFolder,
+            SaveSlotName = options.SaveSlotName,
+        };
+    }
+
+    private static EditorWorkspaceLoadOptions CreateModuleOptions(
+        string moduleDirectory,
+        EditorWorkspaceLoadOptions options
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
+
+        var resolvedModuleDirectory = Path.GetFullPath(moduleDirectory);
+        if (!Directory.Exists(resolvedModuleDirectory))
+            throw new DirectoryNotFoundException($"Module directory not found: {resolvedModuleDirectory}");
+
+        var moduleName = Path.GetFileName(
+            resolvedModuleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        );
+        var modulesDirectory =
+            Directory.GetParent(resolvedModuleDirectory)?.FullName
+            ?? throw new ArgumentException(
+                "Module directory must have one parent modules directory.",
+                nameof(moduleDirectory)
+            );
+        var gameDirectory =
+            Directory.GetParent(modulesDirectory)?.FullName
+            ?? throw new ArgumentException(
+                "Module directory must live under one game install modules directory.",
+                nameof(moduleDirectory)
+            );
+
+        if (
+            options.GameDirectory is not null
+            && !PathsEqual(gameDirectory, ResolveGameInstallDirectory(options.GameDirectory))
+        )
+        {
+            throw new ArgumentException(
+                "options.GameDirectory must match the module directory's owning game install when both are supplied.",
+                nameof(options)
+            );
+        }
+
+        if (
+            options.ModuleName is not null
+            && !string.Equals(options.ModuleName, moduleName, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            throw new ArgumentException(
+                "options.ModuleName must match the supplied module directory name when both are supplied.",
+                nameof(options)
+            );
+        }
+
+        return new EditorWorkspaceLoadOptions
+        {
+            GameDirectory = gameDirectory,
+            ModuleName = moduleName,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
         };
@@ -323,6 +488,16 @@ public static class EditorWorkspaceLoader
         if (!Directory.Exists(options.GameDirectory))
             throw new DirectoryNotFoundException($"Game directory not found: {options.GameDirectory}");
 
+        if (
+            !string.IsNullOrWhiteSpace(options.ModuleName)
+            && !Directory.Exists(Path.Combine(options.GameDirectory, "modules", options.ModuleName))
+        )
+        {
+            throw new DirectoryNotFoundException(
+                $"Module directory not found: {Path.Combine(options.GameDirectory, "modules", options.ModuleName)}"
+            );
+        }
+
         ValidateSharedOptions(options);
     }
 
@@ -346,6 +521,28 @@ public static class EditorWorkspaceLoader
     }
 
     private static string GetLooseDataDirectory(string gameDir) => Path.Combine(gameDir, LooseDataDirectoryName);
+
+    private static string ResolveModuleDirectory(string gameDir, string moduleName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
+        return Path.Combine(gameDir, "modules", moduleName);
+    }
+
+    private static EditorWorkspaceModuleContext CreateModuleContext(
+        string moduleDirectory,
+        IReadOnlyList<string> archivePaths
+    ) =>
+        new()
+        {
+            ModuleName = Path.GetFileName(
+                moduleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            ),
+            ModuleDirectory = moduleDirectory,
+            SaveDirectory = Directory.Exists(Path.Combine(moduleDirectory, "Save"))
+                ? Path.Combine(moduleDirectory, "Save")
+                : null,
+            ArchivePaths = archivePaths,
+        };
 
     private static bool PathsEqual(string left, string right) =>
         string.Equals(

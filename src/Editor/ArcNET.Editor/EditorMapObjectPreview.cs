@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -59,7 +59,18 @@ public sealed class EditorMapObjectPreview
     public EditorMapObjectSpriteBounds? SpriteBounds { get; init; }
 
     /// <summary>
+    /// Primary rotation taken from the legacy <see cref="ObjectField.ObjFPadIas1"/> field that stores
+    /// <c>ObjFRotation</c>.
+    /// </summary>
+    public float Rotation { get; init; }
+
+    /// <summary>
     /// Pitch rotation taken from <see cref="ObjectField.ObjFRotationPitch"/>.
     /// </summary>
     public required float RotationPitch { get; init; }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the object is anchored directly on its tile without screen-space offsets.
+    /// </summary>
+    public bool IsTileGridSnapped => OffsetX == 0 && OffsetY == 0;
 }

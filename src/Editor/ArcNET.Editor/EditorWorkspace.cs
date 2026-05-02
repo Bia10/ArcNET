@@ -1,7 +1,9 @@
-﻿using ArcNET.Core;
+﻿using System.Globalization;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
 
@@ -30,6 +32,12 @@ public sealed class EditorWorkspace
     /// future install-root services.
     /// </summary>
     public string? GameDirectory { get; init; }
+
+    /// <summary>
+    /// Optional module-backed context used when the workspace was loaded for one specific module instead of one
+    /// whole-install aggregate.
+    /// </summary>
+    public EditorWorkspaceModuleContext? Module { get; init; }
 
     /// <summary>
     /// Installation type detected from <see cref="GameDirectory"/>, or <see langword="null"/>
@@ -93,6 +101,12 @@ public sealed class EditorWorkspace
     public EditorProject CreateProject() => EditorProject.FromWorkspace(this);
 
     /// <summary>
+    /// Returns a stable capability-discovery snapshot for the current SDK build and loaded workspace.
+    /// Hosts can use this to light up editor features without guessing which backend slices are present.
+    /// </summary>
+    public EditorCapabilitySummary GetCapabilities() => EditorCapabilitySummary.Create(this);
+
+    /// <summary>
     /// Creates a live mutable editor session on top of this loaded workspace snapshot.
     /// Hosts can reuse the returned session to keep transactional dialog, script, and save editors alive
     /// while tracking dirty state across the current workspace.
@@ -103,6 +117,75 @@ public sealed class EditorWorkspace
     /// Creates a workspace-owned ART resolver that can bind known <see cref="ArtId"/> values to loaded ART asset paths.
     /// </summary>
     public EditorArtResolver CreateArtResolver() => new(this);
+
+    /// <summary>
+    /// Creates a workspace-owned ART resolver and optionally seeds it from conservative workspace evidence.
+    /// </summary>
+    public EditorArtResolver CreateArtResolver(EditorArtResolverBindingStrategy bindingStrategy)
+    {
+        var resolver = new EditorArtResolver(this);
+        SeedArtResolver(resolver, bindingStrategy);
+        return resolver;
+    }
+
+    /// <summary>
+    /// Creates one workspace-backed sprite source that resolves bound <see cref="ArtId"/> values into cached paintable frames.
+    /// </summary>
+    public EditorWorkspaceMapRenderSpriteSource CreateMapRenderSpriteSource(
+        EditorArtResolver artResolver,
+        EditorArtPreviewOptions? previewOptions = null
+    ) => new(this, artResolver, previewOptions);
+
+    /// <summary>
+    /// Creates one workspace-backed sprite source using one workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public EditorWorkspaceMapRenderSpriteSource CreateMapRenderSpriteSource(
+        EditorArtResolverBindingStrategy bindingStrategy,
+        EditorArtPreviewOptions? previewOptions = null
+    ) => new(this, CreateArtResolver(bindingStrategy), previewOptions);
+
+    /// <summary>
+    /// Resolves one host-facing default map for this workspace or loaded module.
+    /// Returns <see langword="null"/> when the workspace has no indexed maps.
+    /// </summary>
+    public EditorWorkspaceDefaultMap? ResolveDefaultMap()
+    {
+        if (Index.MapNames.Count == 0)
+            return null;
+
+        if (TryResolveSaveLinkedDefaultMap(out var saveLinkedMap))
+            return saveLinkedMap;
+
+        var conventionalMap = Index.MapNames.FirstOrDefault(mapName =>
+            string.Equals(mapName, "map01", StringComparison.OrdinalIgnoreCase)
+        );
+        if (conventionalMap is not null)
+        {
+            return new EditorWorkspaceDefaultMap
+            {
+                MapName = conventionalMap,
+                Source = EditorWorkspaceDefaultMapSource.ConventionalMap01,
+                SaveMapId = Save?.Info.MapId,
+            };
+        }
+
+        if (Index.MapNames.Count == 1)
+        {
+            return new EditorWorkspaceDefaultMap
+            {
+                MapName = Index.MapNames[0],
+                Source = EditorWorkspaceDefaultMapSource.SingleIndexedMap,
+                SaveMapId = Save?.Info.MapId,
+            };
+        }
+
+        return new EditorWorkspaceDefaultMap
+        {
+            MapName = Index.MapNames[0],
+            Source = EditorWorkspaceDefaultMapSource.FirstIndexedMap,
+            SaveMapId = Save?.Info.MapId,
+        };
+    }
 
     internal IReadOnlyDictionary<string, ReadOnlyMemory<byte>> AudioAssetData { get; init; } =
         new Dictionary<string, ReadOnlyMemory<byte>>(StringComparer.OrdinalIgnoreCase);
@@ -164,6 +247,41 @@ public sealed class EditorWorkspace
     }
 
     /// <summary>
+    /// Looks up browser-friendly detail for one loaded message asset by asset path.
+    /// Returns <see langword="null"/> when the workspace did not load that asset.
+    /// </summary>
+    public EditorMessageDefinition? FindMessageDetail(string assetPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return
+            Assets.Find(normalizedPath) is { Format: FileFormat.Message } asset
+            && GameData.MessagesBySource.TryGetValue(normalizedPath, out var entries)
+            ? CreateMessageDetail(asset, entries)
+            : null;
+    }
+
+    /// <summary>
+    /// Returns message details whose asset path, entry indexes, or entry text contain the supplied text.
+    /// </summary>
+    public IReadOnlyList<EditorMessageDefinition> SearchMessageDetails(string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var searchText = text.Trim();
+        return Assets
+            .FindByFormat(FileFormat.Message)
+            .Where(asset =>
+                GameData.MessagesBySource.TryGetValue(asset.AssetPath, out var entries)
+                && MessageMatches(asset, entries, searchText)
+            )
+            .Select(asset => CreateMessageDetail(asset, GameData.MessagesBySource[asset.AssetPath]))
+            .OrderBy(detail => detail.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Looks up one loaded prototype file by asset path.
     /// Returns <see langword="null"/> when the workspace did not load that asset.
     /// </summary>
@@ -174,6 +292,181 @@ public sealed class EditorWorkspace
         var normalizedPath = NormalizeAssetPath(assetPath);
         return GameData.ProtosBySource.TryGetValue(normalizedPath, out var protos) ? protos.FirstOrDefault() : null;
     }
+
+    /// <summary>
+    /// Looks up one proto-backed object palette entry by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectPaletteEntry? FindObjectPaletteEntry(int protoNumber)
+    {
+        var asset = Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return null;
+
+        var proto = FindProto(asset.AssetPath);
+        return proto is null ? null : CreateObjectPaletteEntry(asset, proto, protoNumber);
+    }
+
+    /// <summary>
+    /// Looks up one proto-backed object palette entry by proto number and resolves optional ART bindings.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectPaletteEntry? FindObjectPaletteEntry(int protoNumber, EditorArtResolver artResolver)
+    {
+        ArgumentNullException.ThrowIfNull(artResolver);
+
+        var asset = Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return null;
+
+        var proto = FindProto(asset.AssetPath);
+        return proto is null ? null : CreateObjectPaletteEntry(asset, proto, protoNumber, artResolver);
+    }
+
+    /// <summary>
+    /// Looks up one proto-backed object palette entry by proto number and resolves optional ART bindings
+    /// using one workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public EditorObjectPaletteEntry? FindObjectPaletteEntry(
+        int protoNumber,
+        EditorArtResolverBindingStrategy artBindingStrategy
+    ) => FindObjectPaletteEntry(protoNumber, CreateArtResolver(artBindingStrategy));
+
+    /// <summary>
+    /// Looks up one proto-backed object palette entry by proto number and resolves ART binding,
+    /// browser-friendly detail, and preview payload for the bound art when available.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectPaletteEntry? FindObjectPaletteEntry(
+        int protoNumber,
+        EditorArtResolver artResolver,
+        EditorArtPreviewOptions artPreviewOptions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artResolver);
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+
+        var asset = Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return null;
+
+        var proto = FindProto(asset.AssetPath);
+        return proto is null
+            ? null
+            : CreateObjectPaletteEntry(asset, proto, protoNumber, artResolver, artPreviewOptions);
+    }
+
+    /// <summary>
+    /// Looks up one proto-backed object palette entry by proto number and resolves ART bindings,
+    /// browser-friendly detail, and preview payload using one workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public EditorObjectPaletteEntry? FindObjectPaletteEntry(
+        int protoNumber,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions
+    ) => FindObjectPaletteEntry(protoNumber, CreateArtResolver(artBindingStrategy), artPreviewOptions);
+
+    /// <summary>
+    /// Returns proto-backed object palette entries whose proto number, asset path, display name,
+    /// description, or object type contain the supplied text.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var searchText = text.Trim();
+        return Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber);
+            })
+            .Where(entry => ObjectPaletteEntryMatches(entry, searchText))
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns proto-backed object palette entries whose proto number, asset path, display name,
+    /// description, grouping, bound art path, or object type contain the supplied text.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(string text, EditorArtResolver artResolver)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ArgumentNullException.ThrowIfNull(artResolver);
+
+        var searchText = text.Trim();
+        return Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber, artResolver);
+            })
+            .Where(entry => ObjectPaletteEntryMatches(entry, searchText))
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns proto-backed object palette entries whose proto number, asset path, display name,
+    /// description, grouping, bound art path, or object type contain the supplied text using one
+    /// workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(
+        string text,
+        EditorArtResolverBindingStrategy artBindingStrategy
+    ) => SearchObjectPalette(text, CreateArtResolver(artBindingStrategy));
+
+    /// <summary>
+    /// Returns proto-backed object palette entries whose proto number, asset path, display name,
+    /// description, grouping, bound art path, or object type contain the supplied text, and enriches
+    /// bound entries with browser-friendly ART detail plus preview payload.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(
+        string text,
+        EditorArtResolver artResolver,
+        EditorArtPreviewOptions artPreviewOptions
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ArgumentNullException.ThrowIfNull(artResolver);
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+
+        var searchText = text.Trim();
+        return Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber, artResolver, artPreviewOptions);
+            })
+            .Where(entry => ObjectPaletteEntryMatches(entry, searchText))
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns proto-backed object palette entries whose proto number, asset path, display name,
+    /// description, grouping, bound art path, or object type contain the supplied text, and enriches
+    /// bound entries with browser-friendly ART detail plus preview payload using one workspace-created
+    /// resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(
+        string text,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions
+    ) => SearchObjectPalette(text, CreateArtResolver(artBindingStrategy), artPreviewOptions);
 
     /// <summary>
     /// Creates a transactional dialog editor from one loaded dialog asset path.
@@ -256,6 +549,33 @@ public sealed class EditorWorkspace
     }
 
     /// <summary>
+    /// Looks up browser-friendly detail for one loaded audio asset by asset path.
+    /// Returns <see langword="null"/> when the workspace did not load that asset.
+    /// </summary>
+    public EditorAudioDefinition? FindAudioDetail(string assetPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return AudioAssets.Find(normalizedPath) is { } asset ? CreateAudioDetail(asset) : null;
+    }
+
+    /// <summary>
+    /// Returns audio details whose asset path contains the supplied text.
+    /// </summary>
+    public IReadOnlyList<EditorAudioDefinition> SearchAudioDetails(string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var searchText = text.Trim();
+        return AudioAssets
+            .Entries.Where(asset => asset.AssetPath.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            .Select(CreateAudioDetail)
+            .OrderBy(detail => detail.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Looks up one loaded ART sprite file by asset path.
     /// Returns <see langword="null"/> when the workspace did not load that asset.
     /// </summary>
@@ -279,6 +599,226 @@ public sealed class EditorWorkspace
         return GameData.TerrainsBySource.TryGetValue(normalizedPath, out var terrains)
             ? terrains.FirstOrDefault()
             : null;
+    }
+
+    /// <summary>
+    /// Returns all terrain palette entries derived from one loaded map-properties asset.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> GetTerrainPalette(string mapPropertiesAssetPath) =>
+        GetTerrainPalette(mapPropertiesAssetPath, artResolver: null, artPreviewOptions: null);
+
+    /// <summary>
+    /// Returns all terrain palette entries derived from one loaded map-properties asset
+    /// using one workspace-created ART resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> GetTerrainPalette(
+        string mapPropertiesAssetPath,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    ) => GetTerrainPalette(mapPropertiesAssetPath, CreateArtResolver(artBindingStrategy), artPreviewOptions);
+
+    /// <summary>
+    /// Returns all terrain palette entries derived from one loaded map-properties asset and enriches
+    /// entries with optional ART binding and preview data.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> GetTerrainPalette(
+        string mapPropertiesAssetPath,
+        EditorArtResolver? artResolver,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapPropertiesAssetPath);
+
+        var normalizedPath = NormalizeAssetPath(mapPropertiesAssetPath);
+        var asset = Assets.Find(normalizedPath);
+        var properties = FindMapProperties(normalizedPath);
+        if (asset is null || properties is null)
+            return [];
+
+        var entryCount = checked(properties.LimitX * properties.LimitY);
+        if (entryCount == 0)
+            return [];
+
+        var entries = new EditorTerrainPaletteEntry[checked((int)entryCount)];
+        var index = 0;
+        for (ulong paletteY = 0; paletteY < properties.LimitY; paletteY++)
+        {
+            for (ulong paletteX = 0; paletteX < properties.LimitX; paletteX++)
+            {
+                entries[index] = CreateTerrainPaletteEntry(
+                    asset,
+                    properties,
+                    paletteX,
+                    paletteY,
+                    artResolver,
+                    artPreviewOptions
+                );
+                index++;
+            }
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Returns all terrain palette entries for one map's conventional <c>map.prp</c> asset.
+    /// Returns an empty result when no matching map-properties asset was loaded.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> GetTerrainPaletteForMap(string mapName) =>
+        GetTerrainPalette(ResolveMapPropertiesAssetPath(mapName));
+
+    /// <summary>
+    /// Returns all terrain palette entries for one map's conventional <c>map.prp</c> asset
+    /// using one workspace-created ART resolver seeded with the supplied strategy.
+    /// Returns an empty result when no matching map-properties asset was loaded.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> GetTerrainPaletteForMap(
+        string mapName,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    ) => GetTerrainPalette(ResolveMapPropertiesAssetPath(mapName), artBindingStrategy, artPreviewOptions);
+
+    /// <summary>
+    /// Returns all terrain palette entries whose asset path, palette coordinates, or derived ART identifier
+    /// contain the supplied text.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> SearchTerrainPalette(string text) =>
+        SearchTerrainPalette(text, artResolver: null, artPreviewOptions: null);
+
+    /// <summary>
+    /// Returns all terrain palette entries whose asset path, palette coordinates, or derived ART identifier
+    /// contain the supplied text, using one workspace-created ART resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> SearchTerrainPalette(
+        string text,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    ) => SearchTerrainPalette(text, CreateArtResolver(artBindingStrategy), artPreviewOptions);
+
+    /// <summary>
+    /// Returns all terrain palette entries whose asset path, palette coordinates, or derived ART identifier
+    /// contain the supplied text and enriches entries with optional ART binding and preview data.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPaletteEntry> SearchTerrainPalette(
+        string text,
+        EditorArtResolver? artResolver,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var searchText = text.Trim();
+        return Assets
+            .FindByFormat(FileFormat.MapProperties)
+            .SelectMany(asset => GetTerrainPalette(asset.AssetPath, artResolver, artPreviewOptions))
+            .Where(entry =>
+                entry.Asset.AssetPath.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || entry
+                    .ArtId.Value.ToString(CultureInfo.InvariantCulture)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || entry
+                    .PaletteX.ToString(CultureInfo.InvariantCulture)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || entry
+                    .PaletteY.ToString(CultureInfo.InvariantCulture)
+                    .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            )
+            .OrderBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.PaletteY)
+            .ThenBy(entry => entry.PaletteX)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Looks up one terrain palette entry by source map-properties asset path and palette coordinates.
+    /// Returns <see langword="null"/> when the asset was not loaded or the coordinates are outside the palette bounds.
+    /// </summary>
+    public EditorTerrainPaletteEntry? FindTerrainPaletteEntry(
+        string mapPropertiesAssetPath,
+        ulong paletteX,
+        ulong paletteY
+    ) =>
+        FindTerrainPaletteEntry(mapPropertiesAssetPath, paletteX, paletteY, artResolver: null, artPreviewOptions: null);
+
+    /// <summary>
+    /// Looks up one terrain palette entry by source map-properties asset path and palette coordinates
+    /// using one workspace-created ART resolver seeded with the supplied strategy.
+    /// Returns <see langword="null"/> when the asset was not loaded or the coordinates are outside the palette bounds.
+    /// </summary>
+    public EditorTerrainPaletteEntry? FindTerrainPaletteEntry(
+        string mapPropertiesAssetPath,
+        ulong paletteX,
+        ulong paletteY,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    ) =>
+        FindTerrainPaletteEntry(
+            mapPropertiesAssetPath,
+            paletteX,
+            paletteY,
+            CreateArtResolver(artBindingStrategy),
+            artPreviewOptions
+        );
+
+    /// <summary>
+    /// Looks up one terrain palette entry by source map-properties asset path and palette coordinates and enriches
+    /// the entry with optional ART binding and preview data.
+    /// Returns <see langword="null"/> when the asset was not loaded or the coordinates are outside the palette bounds.
+    /// </summary>
+    public EditorTerrainPaletteEntry? FindTerrainPaletteEntry(
+        string mapPropertiesAssetPath,
+        ulong paletteX,
+        ulong paletteY,
+        EditorArtResolver? artResolver,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapPropertiesAssetPath);
+
+        var normalizedPath = NormalizeAssetPath(mapPropertiesAssetPath);
+        var asset = Assets.Find(normalizedPath);
+        var properties = FindMapProperties(normalizedPath);
+        if (asset is null || properties is null || paletteX >= properties.LimitX || paletteY >= properties.LimitY)
+            return null;
+
+        return CreateTerrainPaletteEntry(asset, properties, paletteX, paletteY, artResolver, artPreviewOptions);
+    }
+
+    /// <summary>
+    /// Looks up one terrain palette entry using persisted terrain-tool state.
+    /// Returns <see langword="null"/> when the persisted state does not currently resolve to one loaded palette entry.
+    /// </summary>
+    public EditorTerrainPaletteEntry? FindTerrainPaletteEntry(EditorProjectMapTerrainToolState toolState)
+    {
+        ArgumentNullException.ThrowIfNull(toolState);
+
+        return string.IsNullOrWhiteSpace(toolState.MapPropertiesAssetPath)
+            ? null
+            : FindTerrainPaletteEntry(toolState.MapPropertiesAssetPath, toolState.PaletteX, toolState.PaletteY);
+    }
+
+    /// <summary>
+    /// Looks up one terrain palette entry using persisted terrain-tool state and enriches the entry with
+    /// optional ART binding and preview data.
+    /// Returns <see langword="null"/> when the persisted state does not currently resolve to one loaded palette entry.
+    /// </summary>
+    public EditorTerrainPaletteEntry? FindTerrainPaletteEntry(
+        EditorProjectMapTerrainToolState toolState,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(toolState);
+
+        return string.IsNullOrWhiteSpace(toolState.MapPropertiesAssetPath)
+            ? null
+            : FindTerrainPaletteEntry(
+                toolState.MapPropertiesAssetPath,
+                toolState.PaletteX,
+                toolState.PaletteY,
+                artBindingStrategy,
+                artPreviewOptions
+            );
     }
 
     /// <summary>
@@ -334,6 +874,15 @@ public sealed class EditorWorkspace
     }
 
     /// <summary>
+    /// Builds a richer scene preview for one indexed map using one workspace-created ART resolver
+    /// seeded with the supplied strategy.
+    /// </summary>
+    public EditorMapScenePreview CreateMapScenePreview(
+        string mapName,
+        EditorArtResolverBindingStrategy artBindingStrategy
+    ) => CreateMapScenePreview(mapName, CreateArtResolver(artBindingStrategy));
+
+    /// <summary>
     /// Builds a richer scene preview for one indexed map using the loaded sectors that back its asset paths.
     /// When <paramref name="artResolver"/> is provided, placed objects also receive conservative sprite-bounds metadata
     /// derived from the resolved ART frames.
@@ -383,6 +932,384 @@ public sealed class EditorWorkspace
 
         return EditorAudioPreviewBuilder.BuildWave(audioData, normalizedPath);
     }
+
+    private EditorAudioDefinition CreateAudioDetail(EditorAudioAssetEntry asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var preview = CreateAudioPreview(asset.AssetPath);
+        return new EditorAudioDefinition
+        {
+            Asset = asset,
+            Encoding = preview.Encoding,
+            ChannelCount = preview.ChannelCount,
+            SampleRate = preview.SampleRate,
+            BitsPerSample = preview.BitsPerSample,
+            BlockAlign = preview.BlockAlign,
+            ByteRate = preview.ByteRate,
+            SampleFrameCount = preview.SampleFrameCount,
+            SampleByteLength = preview.SampleData.Length,
+            Duration = preview.Duration,
+        };
+    }
+
+    private bool TryResolveSaveLinkedDefaultMap(out EditorWorkspaceDefaultMap? resolution)
+    {
+        resolution = null;
+
+        var saveMapId = Save?.Info.MapId;
+        if (!saveMapId.HasValue || saveMapId.Value < 0)
+            return false;
+
+        foreach (var candidate in EnumerateSaveMapNameCandidates(saveMapId.Value))
+        {
+            var matchedMap = Index.MapNames.FirstOrDefault(mapName =>
+                string.Equals(mapName, candidate, StringComparison.OrdinalIgnoreCase)
+            );
+            if (matchedMap is null)
+                continue;
+
+            resolution = new EditorWorkspaceDefaultMap
+            {
+                MapName = matchedMap,
+                Source = EditorWorkspaceDefaultMapSource.SaveInfoMapId,
+                SaveMapId = saveMapId.Value,
+            };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateSaveMapNameCandidates(int mapId)
+    {
+        yield return mapId.ToString(CultureInfo.InvariantCulture);
+        yield return $"map{mapId:00}";
+        yield return $"map{mapId:000}";
+        yield return $"map{mapId:0000}";
+    }
+
+    private static string ResolveMapPropertiesAssetPath(string mapName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        return $"maps/{mapName.Trim()}/map.prp";
+    }
+
+    private void SeedArtResolver(EditorArtResolver resolver, EditorArtResolverBindingStrategy bindingStrategy)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+
+        switch (bindingStrategy)
+        {
+            case EditorArtResolverBindingStrategy.None:
+                return;
+            case EditorArtResolverBindingStrategy.Conservative:
+                ApplyConservativeArtBindings(resolver);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(bindingStrategy),
+                    bindingStrategy,
+                    "Unknown art binding strategy."
+                );
+        }
+    }
+
+    private void ApplyConservativeArtBindings(EditorArtResolver resolver)
+    {
+        var assetPathsByArtId = new Dictionary<uint, string?>();
+        foreach (var artAsset in Assets.FindByFormat(FileFormat.Art))
+        {
+            var candidateIds = EnumerateConservativeArtBindingIds(artAsset.AssetPath).Distinct().ToArray();
+            for (var candidateIndex = 0; candidateIndex < candidateIds.Length; candidateIndex++)
+            {
+                var candidateId = candidateIds[candidateIndex];
+                if (
+                    !assetPathsByArtId.TryAdd(candidateId, artAsset.AssetPath)
+                    && !string.Equals(
+                        assetPathsByArtId[candidateId],
+                        artAsset.AssetPath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    assetPathsByArtId[candidateId] = null;
+                }
+            }
+        }
+
+        foreach (var (artId, assetPath) in assetPathsByArtId.OrderBy(static pair => pair.Key))
+        {
+            if (artId != 0u && !string.IsNullOrWhiteSpace(assetPath))
+                resolver.Bind(new ArtId(artId), assetPath);
+        }
+    }
+
+    private static IEnumerable<uint> EnumerateConservativeArtBindingIds(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        var fileName = Path.GetFileNameWithoutExtension(normalizedPath);
+        if (TryParseConservativeArtBindingToken(fileName, out var fileNameId))
+            yield return fileNameId;
+
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
+        {
+            var segment =
+                segmentIndex == segments.Length - 1
+                    ? Path.GetFileNameWithoutExtension(segments[segmentIndex])
+                    : segments[segmentIndex];
+            if (TryParseConservativeArtBindingToken(segment, out var segmentId))
+                yield return segmentId;
+        }
+    }
+
+    private static bool TryParseConservativeArtBindingToken(string? token, out uint artId)
+    {
+        artId = 0u;
+        if (string.IsNullOrWhiteSpace(token))
+            return false;
+
+        var trimmedToken = token.Trim();
+        if (trimmedToken.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            return uint.TryParse(
+                trimmedToken[2..],
+                NumberStyles.AllowHexSpecifier,
+                CultureInfo.InvariantCulture,
+                out artId
+            );
+        }
+
+        return uint.TryParse(trimmedToken, NumberStyles.None, CultureInfo.InvariantCulture, out artId);
+    }
+
+    private EditorTerrainPaletteEntry CreateTerrainPaletteEntry(
+        EditorAssetEntry asset,
+        MapProperties properties,
+        ulong paletteX,
+        ulong paletteY,
+        EditorArtResolver? artResolver,
+        EditorArtPreviewOptions? artPreviewOptions
+    )
+    {
+        var paletteIndex = checked((paletteY * properties.LimitX) + paletteX);
+        var artIdValue = checked((uint)(properties.ArtId + (long)paletteIndex));
+        var artId = new ArtId(artIdValue);
+        var artAssetPath = artResolver?.FindAssetPath(artId);
+        var artDetail = !string.IsNullOrWhiteSpace(artAssetPath) ? Index.FindArtDetail(artAssetPath) : null;
+        var artPreview =
+            !string.IsNullOrWhiteSpace(artAssetPath) && artPreviewOptions is not null
+                ? CreateArtPreview(artAssetPath, artPreviewOptions)
+                : null;
+
+        return new EditorTerrainPaletteEntry
+        {
+            Asset = asset,
+            BaseArtId = properties.ArtId,
+            LimitX = properties.LimitX,
+            LimitY = properties.LimitY,
+            PaletteX = paletteX,
+            PaletteY = paletteY,
+            PaletteIndex = paletteIndex,
+            ArtId = artId,
+            ArtAssetPath = artAssetPath,
+            ArtDetail = artDetail,
+            ArtPreview = artPreview,
+        };
+    }
+
+    private EditorObjectPaletteEntry CreateObjectPaletteEntry(
+        EditorAssetEntry asset,
+        ProtoData proto,
+        int protoNumber,
+        EditorArtResolver? artResolver = null,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(proto);
+
+        var currentArtId = TryGetArtId(proto, ObjectField.ObjFCurrentAid);
+        var artAssetPath =
+            currentArtId.HasValue && artResolver is not null ? artResolver.FindAssetPath(currentArtId.Value) : null;
+        var artDetail = !string.IsNullOrWhiteSpace(artAssetPath) ? Index.FindArtDetail(artAssetPath) : null;
+        var artPreview =
+            !string.IsNullOrWhiteSpace(artAssetPath) && artPreviewOptions is not null
+                ? CreateArtPreview(artAssetPath, artPreviewOptions)
+                : null;
+
+        return new EditorObjectPaletteEntry
+        {
+            Asset = asset,
+            ProtoNumber = protoNumber,
+            ObjectType = proto.Header.GameObjectType,
+            PaletteGroup = GetObjectPaletteGroup(asset.AssetPath),
+            DisplayName = ResolveProtoDisplayName(protoNumber),
+            NameMessageIndex = TryGetInt32Property(proto, ObjectField.ObjFName),
+            DescriptionMessageIndex = TryGetInt32Property(proto, ObjectField.ObjFDescription),
+            Description = ResolveMessageText(TryGetInt32Property(proto, ObjectField.ObjFDescription)),
+            CurrentArtId = currentArtId,
+            ArtAssetPath = artAssetPath,
+            ArtDetail = artDetail,
+            ArtPreview = artPreview,
+        };
+    }
+
+    private string? ResolveProtoDisplayName(int protoNumber)
+    {
+        foreach (var messageIndex in EnumerateProtoDisplayNameKeys(protoNumber))
+        {
+            var overrideText = TryGetMessageText("oemes/oname.mes", messageIndex);
+            if (!string.IsNullOrWhiteSpace(overrideText))
+                return overrideText;
+
+            var descriptionText = TryGetMessageText("mes/description.mes", messageIndex);
+            if (!string.IsNullOrWhiteSpace(descriptionText))
+                return descriptionText;
+        }
+
+        return null;
+    }
+
+    private string? ResolveMessageText(int? messageIndex)
+    {
+        if (!messageIndex.HasValue)
+            return null;
+
+        var assets = Index.FindMessageAssets(messageIndex.Value);
+        for (var assetIndex = 0; assetIndex < assets.Count; assetIndex++)
+        {
+            var text = TryGetMessageText(assets[assetIndex].AssetPath, messageIndex.Value);
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
+
+        return null;
+    }
+
+    private string? TryGetMessageText(string assetPath, int messageIndex)
+    {
+        var messageFile = FindMessageFile(assetPath);
+        if (messageFile is null)
+            return null;
+
+        for (var entryIndex = 0; entryIndex < messageFile.Entries.Count; entryIndex++)
+        {
+            var entry = messageFile.Entries[entryIndex];
+            if (entry.Index == messageIndex)
+                return entry.Text;
+        }
+
+        return null;
+    }
+
+    private IEnumerable<int> EnumerateProtoDisplayNameKeys(int protoNumber)
+    {
+        if (InstallationType.HasValue)
+        {
+            var translatedKey = ArcanumInstallation.ToVanillaProtoId(protoNumber, InstallationType.Value);
+            if (translatedKey > 0 && translatedKey != protoNumber)
+                yield return translatedKey;
+        }
+
+        yield return protoNumber;
+    }
+
+    private static int? TryGetInt32Property(ProtoData proto, ObjectField field)
+    {
+        var property = proto.GetProperty(field);
+        return property is null ? null : property.GetInt32();
+    }
+
+    private static ArtId? TryGetArtId(ProtoData proto, ObjectField field)
+    {
+        var value = TryGetInt32Property(proto, field);
+        return value.HasValue ? new ArtId(unchecked((uint)value.Value)) : null;
+    }
+
+    private static string? GetObjectPaletteGroup(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        if (!normalizedPath.StartsWith("proto/", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var groupPath = Path.GetDirectoryName(normalizedPath[("proto/".Length)..]);
+        if (string.IsNullOrWhiteSpace(groupPath))
+            return null;
+
+        return groupPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
+    private static bool ObjectPaletteEntryMatches(EditorObjectPaletteEntry entry, string searchText) =>
+        entry
+            .ProtoNumber.ToString(CultureInfo.InvariantCulture)
+            .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        || entry.Asset.AssetPath.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        || entry.ObjectType.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        || (
+            !string.IsNullOrWhiteSpace(entry.PaletteGroup)
+            && entry.PaletteGroup.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        )
+        || (
+            !string.IsNullOrWhiteSpace(entry.ArtAssetPath)
+            && entry.ArtAssetPath.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        )
+        || (
+            !string.IsNullOrWhiteSpace(entry.DisplayName)
+            && entry.DisplayName.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        )
+        || (
+            !string.IsNullOrWhiteSpace(entry.Description)
+            && entry.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        );
+
+    private static bool TryGetProtoNumberFromAssetPath(string assetPath, out int protoNumber)
+    {
+        protoNumber = 0;
+        if (string.IsNullOrWhiteSpace(assetPath))
+            return false;
+
+        var fileName = Path.GetFileNameWithoutExtension(assetPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return false;
+
+        var separatorIndex = fileName.IndexOf(' ');
+        var numericPrefix = separatorIndex >= 0 ? fileName[..separatorIndex] : fileName;
+        return int.TryParse(numericPrefix, NumberStyles.Integer, CultureInfo.InvariantCulture, out protoNumber);
+    }
+
+    private static EditorMessageDefinition CreateMessageDetail(
+        EditorAssetEntry asset,
+        IReadOnlyList<MessageEntry> entries
+    )
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(entries);
+
+        var orderedEntries = entries.OrderBy(entry => entry.Index).ToArray();
+        return new EditorMessageDefinition
+        {
+            Asset = asset,
+            EntryCount = entries.Count,
+            MinEntryIndex = orderedEntries.Length == 0 ? null : orderedEntries[0].Index,
+            MaxEntryIndex = orderedEntries.Length == 0 ? null : orderedEntries[^1].Index,
+            Entries = [.. entries],
+        };
+    }
+
+    private static bool MessageMatches(
+        EditorAssetEntry asset,
+        IReadOnlyList<MessageEntry> entries,
+        string searchText
+    ) =>
+        asset.AssetPath.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        || entries.Any(entry =>
+            entry.Text.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || entry
+                .Index.ToString(CultureInfo.InvariantCulture)
+                .Contains(searchText, StringComparison.OrdinalIgnoreCase)
+        );
 
     private static string NormalizeAssetPath(string assetPath) =>
         assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');

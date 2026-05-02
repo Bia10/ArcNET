@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Typed map-view state persisted with an editor project.
@@ -34,4 +34,9 @@ public sealed class EditorProjectMapViewState
     /// Typed preview configuration for the map view.
     /// </summary>
     public EditorProjectMapPreviewState Preview { get; init; } = new();
+
+    /// <summary>
+    /// Typed world-edit workflow state for the map view.
+    /// </summary>
+    public EditorProjectMapWorldEditState WorldEdit { get; init; } = new();
 }

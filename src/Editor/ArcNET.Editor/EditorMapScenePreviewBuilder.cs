@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -63,6 +63,17 @@ public static class EditorMapScenePreviewBuilder
     /// </summary>
     public static EditorMapSectorScenePreview BuildSector(EditorMapSectorProjection sectorProjection, Sector sector) =>
         BuildSector(sectorProjection, sector, artResolver: null);
+
+    /// <summary>
+    /// Builds one preview-ready object snapshot from a loaded or synthesized mob payload.
+    /// </summary>
+    public static EditorMapObjectPreview BuildObjectPreview(MobData mob, Func<ArtId, ArtFile?>? artResolver = null)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+
+        Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache = artResolver is null ? null : new();
+        return BuildObject(mob, artResolver, spriteBoundsCache);
+    }
 
     /// <summary>
     /// Builds one sector scene preview from the projected sector metadata and the parsed sector payload.
@@ -153,6 +164,7 @@ public static class EditorMapScenePreviewBuilder
         var offsetY = gameObject.Common.OffsetY;
         var offsetZ = 0f;
         var collisionHeight = 0f;
+        var rotation = 0f;
         var rotationPitch = 0f;
 
         if (mob.GetProperty(ObjectField.ObjFLocation) is { } locationProperty)
@@ -173,6 +185,9 @@ public static class EditorMapScenePreviewBuilder
         if (mob.GetProperty(ObjectField.ObjFHeight) is { } collisionHeightProperty)
             collisionHeight = collisionHeightProperty.GetFloat();
 
+        if (mob.GetProperty(ObjectField.ObjFPadIas1) is { } rotationProperty)
+            rotation = rotationProperty.GetFloat();
+
         if (mob.GetProperty(ObjectField.ObjFRotationPitch) is { } rotationPitchProperty)
             rotationPitch = rotationPitchProperty.GetFloat();
 
@@ -188,6 +203,7 @@ public static class EditorMapScenePreviewBuilder
             OffsetZ = offsetZ,
             CollisionHeight = collisionHeight,
             SpriteBounds = ResolveSpriteBounds(currentArtId, artResolver, spriteBoundsCache),
+            Rotation = rotation,
             RotationPitch = rotationPitch,
         };
     }

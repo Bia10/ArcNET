@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -19,6 +19,11 @@ public sealed class EditorMapObjectBrushResult
     public IReadOnlyList<GameObjectGuid> RemovedObjectIds { get; init; } = [];
 
     /// <summary>
+    /// Object IDs updated by a rotate request, in stable grouped-hit order.
+    /// </summary>
+    public IReadOnlyList<GameObjectGuid> UpdatedObjectIds { get; init; } = [];
+
+    /// <summary>
     /// Number of created objects in <see cref="CreatedObjects"/>.
     /// </summary>
     public int CreatedObjectCount => CreatedObjects.Count;
@@ -29,7 +34,12 @@ public sealed class EditorMapObjectBrushResult
     public int RemovedObjectCount => RemovedObjectIds.Count;
 
     /// <summary>
+    /// Number of updated objects in <see cref="UpdatedObjectIds"/>.
+    /// </summary>
+    public int UpdatedObjectCount => UpdatedObjectIds.Count;
+
+    /// <summary>
     /// Returns <see langword="true"/> when the request staged one or more object changes.
     /// </summary>
-    public bool HasChanges => CreatedObjectCount > 0 || RemovedObjectCount > 0;
+    public bool HasChanges => CreatedObjectCount > 0 || RemovedObjectCount > 0 || UpdatedObjectCount > 0;
 }

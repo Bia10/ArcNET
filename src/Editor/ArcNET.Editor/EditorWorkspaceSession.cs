@@ -94,6 +94,18 @@ public sealed class EditorWorkspaceSession
         || _saveEditor?.HasPendingChanges == true;
 
     /// <summary>
+    /// Returns <see langword="true"/> when the current staged session head can be applied through the
+    /// existing whole-session apply/save pathway.
+    /// </summary>
+    public bool CanApplyPendingChanges => HasPendingChanges && !GetPendingValidation().HasErrors;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the current staged session head can be discarded through the
+    /// existing whole-session discard pathway.
+    /// </summary>
+    public bool CanDiscardPendingChanges => HasPendingChanges;
+
+    /// <summary>
     /// Creates one explicit, optionally labeled session change group.
     /// Apply or save the staged changes through the returned group to record the label in history.
     /// </summary>
@@ -112,6 +124,59 @@ public sealed class EditorWorkspaceSession
         [.. _redoSnapshots.Select(static frame => frame.Entry)];
 
     /// <summary>
+    /// Returns the session's current normalized project/session state summary.
+    /// </summary>
+    public EditorSessionProjectStateSummary GetProjectStateSummary() => CreateProjectStateSummary();
+
+    /// <summary>
+    /// Returns a unified host-facing bootstrap snapshot of the current session shell state.
+    /// </summary>
+    public EditorSessionBootstrapSummary GetBootstrapSummary() => CreateBootstrapSummary(restore: null);
+
+    /// <summary>
+    /// Returns a unified host-facing bootstrap snapshot of the current session shell state together
+    /// with the supplied restore summary.
+    /// </summary>
+    public EditorSessionBootstrapSummary GetBootstrapSummary(EditorProjectRestoreResult restore)
+    {
+        ArgumentNullException.ThrowIfNull(restore);
+        return CreateBootstrapSummary(restore);
+    }
+
+    /// <summary>
+    /// Returns the default applied undo command that a host can bind directly.
+    /// Returns <see langword="null"/> when no applied undo is currently available.
+    /// </summary>
+    public EditorSessionHistoryCommandSummary? GetDefaultUndoHistoryCommandSummary() =>
+        CreateDefaultHistoryCommandSummary(EditorSessionHistoryCommandKind.Undo);
+
+    /// <summary>
+    /// Returns the default applied redo command that a host can bind directly.
+    /// Returns <see langword="null"/> when no applied redo is currently available.
+    /// </summary>
+    public EditorSessionHistoryCommandSummary? GetDefaultRedoHistoryCommandSummary() =>
+        CreateDefaultHistoryCommandSummary(EditorSessionHistoryCommandKind.Redo);
+
+    /// <summary>
+    /// Returns the currently executable applied history commands in stable order.
+    /// Undo is listed before redo when both are available.
+    /// </summary>
+    public IReadOnlyList<EditorSessionHistoryCommandSummary> GetHistoryCommandSummaries()
+    {
+        var commands = new List<EditorSessionHistoryCommandSummary>(capacity: 2);
+
+        var undo = GetDefaultUndoHistoryCommandSummary();
+        if (undo is not null)
+            commands.Add(undo);
+
+        var redo = GetDefaultRedoHistoryCommandSummary();
+        if (redo is not null)
+            commands.Add(redo);
+
+        return commands;
+    }
+
+    /// <summary>
     /// Returns the preferred staged-history scope for an undo command based on the active asset,
     /// tracked project state, and the merged local history order.
     /// Returns <see langword="null"/> when no local scope can currently undo.
@@ -128,11 +193,137 @@ public sealed class EditorWorkspaceSession
         GetPreferredStagedHistoryScope(canUndo: false);
 
     /// <summary>
+    /// Returns the preferred staged transaction for an undo command based on the active asset,
+    /// tracked project state, and the merged local history order.
+    /// Returns <see langword="null"/> when no staged transaction can currently undo.
+    /// </summary>
+    public EditorSessionStagedTransactionSummary? GetPreferredUndoStagedTransactionSummary() =>
+        GetPreferredStagedTransactionSummary(canUndo: true);
+
+    /// <summary>
+    /// Returns the preferred staged transaction for a redo command based on the active asset,
+    /// tracked project state, and the merged local history order.
+    /// Returns <see langword="null"/> when no staged transaction can currently redo.
+    /// </summary>
+    public EditorSessionStagedTransactionSummary? GetPreferredRedoStagedTransactionSummary() =>
+        GetPreferredStagedTransactionSummary(canUndo: false);
+
+    /// <summary>
+    /// Returns the default staged undo command that a host can bind directly.
+    /// Returns <see langword="null"/> when no staged undo is currently available.
+    /// </summary>
+    public EditorSessionStagedCommandSummary? GetDefaultUndoStagedCommandSummary() =>
+        CreateDefaultStagedCommandSummary(EditorSessionStagedCommandKind.Undo);
+
+    /// <summary>
+    /// Returns the default staged redo command that a host can bind directly.
+    /// Returns <see langword="null"/> when no staged redo is currently available.
+    /// </summary>
+    public EditorSessionStagedCommandSummary? GetDefaultRedoStagedCommandSummary() =>
+        CreateDefaultStagedCommandSummary(EditorSessionStagedCommandKind.Redo);
+
+    /// <summary>
+    /// Returns the current default staged command inventory in stable order.
+    /// Undo is listed before redo when both are available.
+    /// </summary>
+    public IReadOnlyList<EditorSessionStagedCommandSummary> GetStagedCommandSummaries()
+    {
+        var commands = new List<EditorSessionStagedCommandSummary>(capacity: 2);
+
+        var undo = GetDefaultUndoStagedCommandSummary();
+        if (undo is not null)
+            commands.Add(undo);
+
+        var redo = GetDefaultRedoStagedCommandSummary();
+        if (redo is not null)
+            commands.Add(redo);
+
+        return commands;
+    }
+
+    /// <summary>
+    /// Returns every currently executable staged undo command in stable host-facing order.
+    /// The preferred default undo command, when any, is listed first.
+    /// </summary>
+    public IReadOnlyList<EditorSessionStagedCommandSummary> GetUndoStagedCommandSummaries() =>
+        CreateAvailableStagedCommandSummaries(EditorSessionStagedCommandKind.Undo);
+
+    /// <summary>
+    /// Returns every currently executable staged redo command in stable host-facing order.
+    /// The preferred default redo command, when any, is listed first.
+    /// </summary>
+    public IReadOnlyList<EditorSessionStagedCommandSummary> GetRedoStagedCommandSummaries() =>
+        CreateAvailableStagedCommandSummaries(EditorSessionStagedCommandKind.Redo);
+
+    /// <summary>
+    /// Returns every currently executable staged command in stable host-facing order.
+    /// Undo commands are listed before redo commands, and each group keeps its preferred default first.
+    /// </summary>
+    public IReadOnlyList<EditorSessionStagedCommandSummary> GetAvailableStagedCommandSummaries()
+    {
+        var commands = new List<EditorSessionStagedCommandSummary>();
+        commands.AddRange(GetUndoStagedCommandSummaries());
+        commands.AddRange(GetRedoStagedCommandSummaries());
+        return commands;
+    }
+
+    /// <summary>
     /// Returns the currently tracked local staged-history scopes that hosts can inspect and drive through this session.
     /// Dialog and script scopes are reported per tracked editor, the save scope is reported when the save editor
     /// has been created, and the direct-asset scope is reported when it has pending state or local draft history.
     /// </summary>
-    public IReadOnlyList<EditorSessionStagedHistoryScope> GetStagedHistoryScopes()
+    public IReadOnlyList<EditorSessionStagedHistoryScope> GetStagedHistoryScopes() => CollectStagedHistoryScopes();
+
+    /// <summary>
+    /// Returns the currently tracked staged transactions that hosts can inspect without branching between
+    /// dialog, script, save, and direct-asset editor types before rendering a pending-work view.
+    /// This surface is additive to <see cref="GetStagedHistoryScopes()"/> and preserves the existing
+    /// scope-local routing APIs for incremental host adoption.
+    /// </summary>
+    public IReadOnlyList<EditorSessionStagedTransactionSummary> GetStagedTransactionSummaries()
+    {
+        var scopes = CollectStagedHistoryScopes();
+        if (scopes.Count == 0)
+            return [];
+
+        var canApplyPendingChanges = CanApplyPendingChanges;
+        var canDiscardPendingChanges = CanDiscardPendingChanges;
+        var pendingChanges = CollectPendingChangesSnapshot();
+        var summaries = new List<EditorSessionStagedTransactionSummary>(scopes.Count);
+
+        foreach (var scope in scopes)
+        {
+            var selectedScopeKeys = CreateSelectedScopeKeys(scope.Kind, scope.Target);
+            var scopePendingChanges = GetStagedTransactionPendingChanges(scope, pendingChanges);
+            var blockingValidation = scope.HasPendingChanges
+                ? CreateBlockingValidationReport(GetPendingValidation(selectedScopeKeys))
+                : EditorWorkspaceValidationReport.Empty;
+            var repairCandidates = scope.HasPendingChanges ? GetValidationRepairCandidates(selectedScopeKeys) : [];
+            summaries.Add(
+                new EditorSessionStagedTransactionSummary
+                {
+                    Kind = scope.Kind,
+                    Target = scope.Target,
+                    Label = GetStagedTransactionLabel(scope),
+                    AffectedTargets = GetStagedTransactionAffectedTargets(scope, scopePendingChanges),
+                    PendingChanges = scopePendingChanges,
+                    HasPendingChanges = scope.HasPendingChanges,
+                    CanUndo = scope.CanUndo,
+                    CanRedo = scope.CanRedo,
+                    CanApplyFromSession = canApplyPendingChanges && scope.HasPendingChanges,
+                    CanDiscardFromSession = canDiscardPendingChanges && scope.HasPendingChanges,
+                    CanApplyIndividually = scope.HasPendingChanges && !blockingValidation.HasErrors,
+                    CanSaveIndividually = scope.HasPendingChanges && !blockingValidation.HasErrors,
+                    BlockingValidation = blockingValidation,
+                    RepairCandidates = repairCandidates,
+                }
+            );
+        }
+
+        return summaries;
+    }
+
+    private List<EditorSessionStagedHistoryScope> CollectStagedHistoryScopes()
     {
         var scopes = new List<EditorSessionStagedHistoryScope>();
 
@@ -226,6 +417,75 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Undoes one staged local change in the transaction described by <paramref name="stagedTransaction"/>.
+    /// This does not affect applied session history.
+    /// </summary>
+    public EditorWorkspaceSession UndoStagedChanges(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+
+        if (
+            !TryGetMatchingStagedHistoryScope(
+                GetStagedHistoryScopes(),
+                new EditorSessionStagedHistoryScopeKey(stagedTransaction.Kind, stagedTransaction.Target),
+                canUndo: true,
+                out var scope
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                $"This session has no staged transaction that can currently undo for {stagedTransaction.Label}."
+            );
+        }
+
+        return UndoStagedChanges(scope);
+    }
+
+    /// <summary>
+    /// Executes one staged command routed through the current preferred transaction logic.
+    /// </summary>
+    public EditorWorkspaceSession ExecuteStagedCommand(EditorSessionStagedCommandSummary command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return command.Kind switch
+        {
+            EditorSessionStagedCommandKind.Undo => UndoStagedChanges(command.Transaction),
+            EditorSessionStagedCommandKind.Redo => RedoStagedChanges(command.Transaction),
+            _ => throw new InvalidOperationException($"Unsupported staged command kind {command.Kind}."),
+        };
+    }
+
+    /// <summary>
+    /// Executes one applied-history command routed through the current top undo/redo history entry.
+    /// </summary>
+    public EditorWorkspace ExecuteHistoryCommand(EditorSessionHistoryCommandSummary command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var current = command.Kind switch
+        {
+            EditorSessionHistoryCommandKind.Undo => GetDefaultUndoHistoryCommandSummary(),
+            EditorSessionHistoryCommandKind.Redo => GetDefaultRedoHistoryCommandSummary(),
+            _ => throw new InvalidOperationException($"Unsupported history command kind {command.Kind}."),
+        };
+
+        if (current is null || !ReferenceEquals(current.Entry, command.Entry))
+        {
+            throw new InvalidOperationException(
+                $"This session can no longer execute the requested {command.Kind} history command for {command.Entry.Label}."
+            );
+        }
+
+        return command.Kind switch
+        {
+            EditorSessionHistoryCommandKind.Undo => Undo(),
+            EditorSessionHistoryCommandKind.Redo => Redo(),
+            _ => throw new InvalidOperationException($"Unsupported history command kind {command.Kind}."),
+        };
+    }
+
+    /// <summary>
     /// Undoes the most recent staged local edit across the session's merged dialog, script, save,
     /// and direct-asset history scopes.
     /// This does not affect applied session history.
@@ -265,6 +525,31 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Redoes one staged local change in the transaction described by <paramref name="stagedTransaction"/>.
+    /// This does not affect applied session history.
+    /// </summary>
+    public EditorWorkspaceSession RedoStagedChanges(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+
+        if (
+            !TryGetMatchingStagedHistoryScope(
+                GetStagedHistoryScopes(),
+                new EditorSessionStagedHistoryScopeKey(stagedTransaction.Kind, stagedTransaction.Target),
+                canUndo: false,
+                out var scope
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                $"This session has no staged transaction that can currently redo for {stagedTransaction.Label}."
+            );
+        }
+
+        return RedoStagedChanges(scope);
+    }
+
+    /// <summary>
     /// Redoes the most recently undone staged local edit across the session's merged dialog, script, save,
     /// and direct-asset history scopes.
     /// This does not affect applied session history.
@@ -292,6 +577,233 @@ public sealed class EditorWorkspaceSession
     /// Returns the session's typed map-view project state.
     /// </summary>
     public IReadOnlyList<EditorProjectMapViewState> GetMapViewStates() => [.. _projectMapViewStates];
+
+    /// <summary>
+    /// Returns the persisted world-edit workflow state for one tracked map view.
+    /// </summary>
+    public EditorProjectMapWorldEditState GetMapWorldEditState(string mapViewStateId) =>
+        NormalizeProjectMapWorldEditState(ResolveTrackedMapViewState(mapViewStateId).WorldEdit);
+
+    /// <summary>
+    /// Returns one host-facing snapshot of the tracked terrain-paint tool for one map view.
+    /// </summary>
+    public EditorMapTerrainToolSummary GetTrackedTerrainToolSummary(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        return new EditorMapTerrainToolSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
+        };
+    }
+
+    /// <summary>
+    /// Tracks one terrain palette entry as the active terrain-paint tool state for one map view.
+    /// </summary>
+    public EditorProjectMapTerrainToolState SetTrackedTerrainPaletteEntry(
+        string mapViewStateId,
+        EditorTerrainPaletteEntry entry,
+        bool activateTool = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var normalizedTerrainState = new EditorProjectMapTerrainToolState
+        {
+            MapPropertiesAssetPath = entry.Asset.AssetPath,
+            PaletteX = entry.PaletteX,
+            PaletteY = entry.PaletteY,
+        };
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+        _ = SetMapWorldEditState(
+            mapViewStateId,
+            new EditorProjectMapWorldEditState
+            {
+                ActiveTool = activateTool
+                    ? EditorProjectMapWorldEditActiveTool.TerrainPaint
+                    : worldEditState.ActiveTool,
+                Terrain = normalizedTerrainState,
+                ObjectPlacement = worldEditState.ObjectPlacement,
+            }
+        );
+
+        return normalizedTerrainState;
+    }
+
+    /// <summary>
+    /// Returns one host-facing snapshot of the tracked object-placement tool for one map view.
+    /// </summary>
+    public EditorMapObjectPlacementToolSummary GetTrackedObjectPlacementToolSummary(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        var selectedPreset =
+            toolState.Mode == EditorProjectMapObjectPlacementMode.PlacementPreset
+                ? toolState.FindSelectedPreset()
+                : null;
+        var effectivePlacementSet = toolState.Mode switch
+        {
+            EditorProjectMapObjectPlacementMode.SinglePlacement when toolState.PlacementRequest is { } request =>
+                new EditorObjectPalettePlacementSet { Entries = [request] },
+            EditorProjectMapObjectPlacementMode.PlacementSet => toolState.PlacementSet,
+            EditorProjectMapObjectPlacementMode.PlacementPreset => selectedPreset?.CreatePlacementSet(),
+            _ => null,
+        };
+
+        var resolvedEntries = new List<EditorObjectPaletteEntry>();
+        var missingProtoNumbers = new List<int>();
+        if (effectivePlacementSet is { } placementSet)
+        {
+            for (var i = 0; i < placementSet.Entries.Count; i++)
+            {
+                var request = placementSet.Entries[i];
+                var paletteEntry = Workspace.FindObjectPaletteEntry(request.ProtoNumber);
+                if (paletteEntry is null)
+                    missingProtoNumbers.Add(request.ProtoNumber);
+                else
+                    resolvedEntries.Add(paletteEntry);
+            }
+        }
+
+        return new EditorMapObjectPlacementToolSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            EffectivePlacementSet = effectivePlacementSet,
+            SelectedPreset = selectedPreset,
+            ResolvedPaletteEntries = resolvedEntries,
+            MissingProtoNumbers = [.. missingProtoNumbers.Distinct()],
+        };
+    }
+
+    /// <summary>
+    /// Tracks one single-placement request as the active object-placement tool state for one map view.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementRequest(
+        string mapViewStateId,
+        EditorObjectPalettePlacementRequest request,
+        bool activateTool = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = EditorProjectMapObjectPlacementMode.SinglePlacement,
+                PlacementRequest = NormalizePlacementRequest(request),
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Tracks one proto-backed palette entry as the active single-placement object tool for one map view.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementEntry(
+        string mapViewStateId,
+        EditorObjectPaletteEntry entry,
+        int deltaTileX = 0,
+        int deltaTileY = 0,
+        float? rotation = null,
+        float? rotationPitch = null,
+        bool alignToTileGrid = true,
+        bool activateTool = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return SetTrackedObjectPlacementRequest(
+            mapViewStateId,
+            entry.CreatePlacementRequest(deltaTileX, deltaTileY, rotation, rotationPitch, alignToTileGrid),
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Tracks one placement set as the active object-placement tool state for one map view.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementSet(
+        string mapViewStateId,
+        EditorObjectPalettePlacementSet placementSet,
+        bool activateTool = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = EditorProjectMapObjectPlacementMode.PlacementSet,
+                PlacementSet = NormalizePlacementSet(placementSet),
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Upserts one preset into the tracked preset library and selects it as the active object-placement tool.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementPreset(
+        string mapViewStateId,
+        EditorObjectPalettePlacementPreset preset,
+        bool activateTool = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+        var normalizedPreset = NormalizePlacementPreset(preset);
+        var updatedPresetLibrary = UpsertPlacementPreset(
+            worldEditState.ObjectPlacement.PresetLibrary,
+            normalizedPreset
+        );
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                PresetLibrary = updatedPresetLibrary,
+                SelectedPresetId = normalizedPreset.PresetId,
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Selects one existing tracked placement preset by identifier for the active object-placement tool.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SelectTrackedObjectPlacementPreset(
+        string mapViewStateId,
+        string presetId,
+        bool activateTool = true
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(presetId);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                PresetLibrary = worldEditState.ObjectPlacement.PresetLibrary,
+                SelectedPresetId = presetId.Trim(),
+            },
+            activateTool
+        );
+    }
 
     /// <summary>
     /// Sets the normalized active asset path tracked by the session project state.
@@ -361,6 +873,34 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Adds or replaces the typed world-edit workflow state for one tracked map-view entry.
+    /// </summary>
+    public EditorProjectMapWorldEditState SetMapWorldEditState(
+        string mapViewStateId,
+        EditorProjectMapWorldEditState worldEditState
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapViewStateId);
+        ArgumentNullException.ThrowIfNull(worldEditState);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var normalizedWorldEditState = NormalizeProjectMapWorldEditState(worldEditState);
+        _ = SetMapViewState(
+            new EditorProjectMapViewState
+            {
+                Id = mapViewState.Id,
+                MapName = mapViewState.MapName,
+                ViewId = mapViewState.ViewId,
+                Camera = mapViewState.Camera,
+                Selection = mapViewState.Selection,
+                Preview = mapViewState.Preview,
+                WorldEdit = normalizedWorldEditState,
+            }
+        );
+        return normalizedWorldEditState;
+    }
+
+    /// <summary>
     /// Removes one typed map-view state entry by its stable identifier.
     /// </summary>
     public bool RemoveMapViewState(string id)
@@ -376,6 +916,256 @@ public sealed class EditorWorkspaceSession
         _projectMapViewStates = updatedMapViewStates;
         return true;
     }
+
+    /// <summary>
+    /// Builds one render-ready committed scene preview from a typed map-view state.
+    /// The returned render respects the map-view preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapFloorRenderPreview CreateMapFloorRenderPreview(
+        EditorProjectMapViewState mapViewState,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState.MapName);
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
+        return EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest);
+    }
+
+    /// <summary>
+    /// Builds one render-ready committed scene preview from one tracked typed map-view state identifier.
+    /// The returned render respects the persisted preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapFloorRenderPreview CreateMapFloorRenderPreview(
+        string mapViewStateId,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        return CreateMapFloorRenderPreview(ResolveTrackedMapViewState(mapViewStateId), renderRequest);
+    }
+
+    /// <summary>
+    /// Applies the tracked terrain-paint tool for one map view using its persisted selection state.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplyTrackedTerrainTool(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var terrainEntry =
+            Workspace.FindTerrainPaletteEntry(mapViewState.WorldEdit.Terrain)
+            ?? throw new InvalidOperationException(
+                $"The tracked terrain tool for map view '{mapViewStateId}' does not resolve to one loaded terrain palette entry."
+            );
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        return ApplyTerrainPaletteEntry(scenePreview, mapViewState.Selection, terrainEntry);
+    }
+
+    /// <summary>
+    /// Builds one live placement preview from the tracked object-placement tool for one map view.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(
+        string mapViewStateId,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        return PreviewTrackedObjectPlacementTool(scenePreview, mapViewState, renderRequest);
+    }
+
+    /// <summary>
+    /// Applies the tracked object-placement tool for one map view using its persisted selection state.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        return ApplyTrackedObjectPlacementTool(scenePreview, mapViewState);
+    }
+
+    /// <summary>
+    /// Creates one default typed map-view state seeded from the workspace default-map resolver.
+    /// The returned camera is centered on the effective map bounds in tile space.
+    /// </summary>
+    public EditorProjectMapViewState CreateDefaultMapViewState(string id, string? viewId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+        var defaultMap =
+            Workspace.ResolveDefaultMap()
+            ?? throw new InvalidOperationException("This workspace has no indexed maps to resolve as a default map.");
+        var scenePreview = CreateEffectiveMapScenePreview(defaultMap.MapName);
+        var camera = CreateCenteredTileCamera(scenePreview);
+
+        return NormalizeProjectMapViewState(
+            new EditorProjectMapViewState
+            {
+                Id = id,
+                MapName = defaultMap.MapName,
+                ViewId = viewId,
+                Camera = camera,
+                Selection = new EditorProjectMapSelectionState(),
+                Preview = new EditorProjectMapPreviewState(),
+            }
+        );
+    }
+
+    /// <summary>
+    /// Builds one bundled host-facing world-edit scene from a typed map-view state.
+    /// The returned bundle includes committed render output, render-space viewport metadata, one paintable scene model,
+    /// and one optional live placement ghost.
+    /// </summary>
+    public EditorMapWorldEditScene CreateMapWorldEditScene(
+        EditorProjectMapViewState mapViewState,
+        EditorMapWorldEditSceneRequest? request = null
+    )
+    {
+        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var sceneRender = CreateMapFloorRenderPreview(normalizedMapViewState, request?.RenderRequest);
+        var placementPreview = request?.PlacementRequest is { } placementRequest
+            ? PreviewSectorObjectPalettePlacement(normalizedMapViewState, placementRequest, request.RenderRequest)
+            : null;
+        var viewportState =
+            request?.Viewport
+            ?? EditorMapSceneRenderSpaceMath.CreateViewportState(sceneRender, normalizedMapViewState.Camera);
+        var viewportLayout = EditorMapSceneRenderSpaceMath.CreateViewportLayout(
+            sceneRender,
+            request?.ViewportWidth ?? sceneRender.WidthPixels,
+            request?.ViewportHeight ?? sceneRender.HeightPixels,
+            viewportState
+        );
+        var effectiveArtResolver =
+            request?.ArtResolver ?? Workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+        var spriteSource =
+            request?.SpriteSource
+            ?? (
+                effectiveArtResolver.BindingCount > 0
+                    ? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver)
+                    : null
+            );
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(sceneRender, placementPreview, spriteSource);
+
+        return new EditorMapWorldEditScene
+        {
+            MapViewState = normalizedMapViewState,
+            SceneRender = sceneRender,
+            PlacementPreview = placementPreview,
+            ViewportLayout = viewportLayout,
+            PaintableScene = paintableScene,
+            SpriteCoverage = paintableScene.SpriteCoverage,
+        };
+    }
+
+    /// <summary>
+    /// Builds one bundled host-facing world-edit scene from one tracked typed map-view state identifier.
+    /// </summary>
+    public EditorMapWorldEditScene CreateMapWorldEditScene(
+        string mapViewStateId,
+        EditorMapWorldEditSceneRequest? request = null
+    ) => CreateMapWorldEditScene(ResolveTrackedMapViewState(mapViewStateId), request);
+
+    /// <summary>
+    /// Builds one bundled host-facing world-edit scene for the workspace default map.
+    /// The returned scene can be used by hosts as a first-load bootstrap surface.
+    /// </summary>
+    public EditorMapWorldEditScene CreateDefaultMapWorldEditScene(
+        string id = "default-map",
+        string? viewId = null,
+        EditorMapWorldEditSceneRequest? request = null
+    ) => CreateMapWorldEditScene(CreateDefaultMapViewState(id, viewId), request);
+
+    /// <summary>
+    /// Builds one live placement preview from a typed map-view state and one palette placement request.
+    /// The returned preview respects the map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(
+        EditorProjectMapViewState mapViewState,
+        EditorObjectPalettePlacementRequest request,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState.MapName);
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
+        return PreviewSectorObjectPalettePlacement(
+            scenePreview,
+            normalizedMapViewState.Selection,
+            request,
+            effectiveRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview from one tracked typed map-view state identifier and one palette placement request.
+    /// The returned preview respects the persisted map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(
+        string mapViewStateId,
+        EditorObjectPalettePlacementRequest request,
+        EditorMapFloorRenderRequest? renderRequest = null
+    ) => PreviewSectorObjectPalettePlacement(ResolveTrackedMapViewState(mapViewStateId), request, renderRequest);
+
+    /// <summary>
+    /// Builds one live placement preview from a typed map-view state and one reusable placement set.
+    /// The returned preview respects the map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(
+        EditorProjectMapViewState mapViewState,
+        EditorObjectPalettePlacementSet placementSet,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState.MapName);
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
+        return PreviewSectorObjectPalettePlacementSet(
+            scenePreview,
+            normalizedMapViewState.Selection,
+            placementSet,
+            effectiveRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview from one tracked typed map-view state identifier and one reusable placement set.
+    /// The returned preview respects the persisted map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(
+        string mapViewStateId,
+        EditorObjectPalettePlacementSet placementSet,
+        EditorMapFloorRenderRequest? renderRequest = null
+    ) =>
+        PreviewSectorObjectPalettePlacementSet(ResolveTrackedMapViewState(mapViewStateId), placementSet, renderRequest);
+
+    /// <summary>
+    /// Builds one live placement preview from a typed map-view state and one named placement preset.
+    /// The returned preview respects the map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementPreset(
+        EditorProjectMapViewState mapViewState,
+        EditorObjectPalettePlacementPreset preset,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState.MapName);
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
+        return PreviewSectorObjectPalettePlacementPreset(
+            scenePreview,
+            normalizedMapViewState.Selection,
+            preset,
+            effectiveRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview from one tracked typed map-view state identifier and one named placement preset.
+    /// The returned preview respects the persisted map-view selection and preview visibility flags and includes staged session changes.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementPreset(
+        string mapViewStateId,
+        EditorObjectPalettePlacementPreset preset,
+        EditorMapFloorRenderRequest? renderRequest = null
+    ) => PreviewSectorObjectPalettePlacementPreset(ResolveTrackedMapViewState(mapViewStateId), preset, renderRequest);
 
     /// <summary>
     /// Gets a transactional dialog editor for one loaded dialog asset path.
@@ -558,6 +1348,7 @@ public sealed class EditorWorkspaceSession
             RestoredActiveAssetPath = restoredActiveAssetPath,
             RestoredAssetPaths = [.. restoredAssetPaths],
             SkippedAssetPaths = [.. skippedAssetPaths],
+            RestoredProjectState = CreateProjectStateSummary(),
         };
     }
 
@@ -568,12 +1359,57 @@ public sealed class EditorWorkspaceSession
     public EditorWorkspace ApplyPendingChanges() => ApplyPendingChanges(changeGroupLabel: null);
 
     /// <summary>
+    /// Applies the currently staged work represented by <paramref name="stagedTransaction"/> into a fresh workspace snapshot,
+    /// updates this session to that snapshot, and leaves other staged transactions pending.
+    /// </summary>
+    public EditorWorkspace ApplyPendingChanges(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+        return ApplyPendingChanges([stagedTransaction]);
+    }
+
+    /// <summary>
+    /// Applies the currently staged work represented by <paramref name="stagedTransactions"/> into a fresh workspace snapshot,
+    /// updates this session to that snapshot, and leaves other staged transactions pending.
+    /// </summary>
+    public EditorWorkspace ApplyPendingChanges(IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions)
+    {
+        var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
+        return ApplyPendingChangesCore(changeGroupLabel: null, persistedToDisk: false, selectedScopeKeys);
+    }
+
+    /// <summary>
     /// Returns the workspace-level validation report for the current staged session state without applying or saving it.
     /// This reuses the same snapshot-building path as apply/save so hosts can inspect cross-asset validation findings
     /// before committing the pending change group.
     /// </summary>
     public EditorWorkspaceValidationReport GetPendingValidation() =>
         !HasPendingChanges ? Workspace.Validation : BuildPendingWorkspaceState().Workspace.Validation;
+
+    /// <summary>
+    /// Returns the workspace-level validation report for the staged state represented by
+    /// <paramref name="stagedTransaction"/> without applying or saving it.
+    /// </summary>
+    public EditorWorkspaceValidationReport GetPendingValidation(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+        return GetPendingValidation([stagedTransaction]);
+    }
+
+    /// <summary>
+    /// Returns the workspace-level validation report for the staged state represented by
+    /// <paramref name="stagedTransactions"/> without applying or saving it.
+    /// </summary>
+    public EditorWorkspaceValidationReport GetPendingValidation(
+        IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions
+    )
+    {
+        var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
+        if (selectedScopeKeys.Count == 0)
+            return Workspace.Validation;
+
+        return BuildPendingWorkspaceState(selectedScopeKeys).Workspace.Validation;
+    }
 
     /// <summary>
     /// Returns a grouped summary of the current staged session changes plus the validation state that would apply to them.
@@ -600,20 +1436,29 @@ public sealed class EditorWorkspaceSession
     /// </summary>
     public IReadOnlyList<EditorSessionValidationRepairCandidate> GetValidationRepairCandidates()
     {
-        var candidates = new List<EditorSessionValidationRepairCandidate>();
+        return GetValidationRepairCandidates(selectedScopeKeys: null);
+    }
 
-        foreach (
-            var assetPath in Workspace.GameData.DialogsBySource.Keys.OrderBy(
-                static path => path,
-                StringComparer.OrdinalIgnoreCase
-            )
-        )
-        {
-            foreach (var issue in DialogValidator.Validate(GetCurrentDialogAsset(assetPath)))
-                AddDialogRepairCandidates(candidates, assetPath, issue);
-        }
+    /// <summary>
+    /// Returns staged repair candidates for the transaction represented by <paramref name="stagedTransaction"/>.
+    /// </summary>
+    public IReadOnlyList<EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(
+        EditorSessionStagedTransactionSummary stagedTransaction
+    )
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+        return GetValidationRepairCandidates([stagedTransaction]);
+    }
 
-        return candidates;
+    /// <summary>
+    /// Returns staged repair candidates for the transactions represented by <paramref name="stagedTransactions"/>.
+    /// </summary>
+    public IReadOnlyList<EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(
+        IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions
+    )
+    {
+        var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
+        return GetValidationRepairCandidates(selectedScopeKeys);
     }
 
     /// <summary>
@@ -674,7 +1519,7 @@ public sealed class EditorWorkspaceSession
     }
 
     internal EditorWorkspace ApplyPendingChanges(string? changeGroupLabel) =>
-        ApplyPendingChangesCore(changeGroupLabel, persistedToDisk: false);
+        ApplyPendingChangesCore(changeGroupLabel, persistedToDisk: false, selectedScopeKeys: null);
 
     /// <summary>
     /// Applies all staged editor changes into a fresh workspace snapshot and persists the affected
@@ -682,19 +1527,61 @@ public sealed class EditorWorkspaceSession
     /// </summary>
     public EditorWorkspace SavePendingChanges() => SavePendingChanges(changeGroupLabel: null);
 
+    /// <summary>
+    /// Applies and persists the currently staged work represented by <paramref name="stagedTransaction"/>,
+    /// updates this session to that snapshot, and leaves other staged transactions pending.
+    /// </summary>
+    public EditorWorkspace SavePendingChanges(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+        return SavePendingChanges([stagedTransaction]);
+    }
+
+    /// <summary>
+    /// Applies and persists the currently staged work represented by <paramref name="stagedTransactions"/>,
+    /// updates this session to that snapshot, and leaves other staged transactions pending.
+    /// </summary>
+    public EditorWorkspace SavePendingChanges(IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions)
+    {
+        var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
+        return SavePendingChanges(changeGroupLabel: null, selectedScopeKeys);
+    }
+
     internal EditorWorkspace SavePendingChanges(string? changeGroupLabel)
+    {
+        return SavePendingChanges(changeGroupLabel, selectedScopeKeys: null);
+    }
+
+    private EditorWorkspace SavePendingChanges(
+        string? changeGroupLabel,
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys
+    )
     {
         if (!HasPendingChanges)
             return Workspace;
 
-        var pendingDialogPaths = CollectPendingDialogAssetPaths();
-        var pendingScriptPaths = CollectPendingScriptAssetPaths();
-        var pendingProtos = CollectProtoChanges();
-        var pendingMobs = CollectMobChanges();
-        var pendingSectors = CollectSectorChanges();
-        var persistSave = _saveEditor?.HasPendingChanges == true;
+        var pendingDialogPaths = CollectPendingDialogAssetPaths(selectedScopeKeys);
+        var pendingScriptPaths = CollectPendingScriptAssetPaths(selectedScopeKeys);
+        var pendingProtos = CollectProtoChanges(selectedScopeKeys);
+        var pendingMobs = CollectMobChanges(selectedScopeKeys);
+        var pendingSectors = CollectSectorChanges(selectedScopeKeys);
+        var persistSave =
+            _saveEditor?.HasPendingChanges == true
+            && IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget());
 
-        var updatedWorkspace = ApplyPendingChangesCore(changeGroupLabel, persistedToDisk: false);
+        var updatedWorkspace = ApplyPendingChangesCore(changeGroupLabel, persistedToDisk: false, selectedScopeKeys);
+
+        if (
+            pendingDialogPaths.Length == 0
+            && pendingScriptPaths.Length == 0
+            && pendingProtos.Count == 0
+            && pendingMobs.Count == 0
+            && pendingSectors.Count == 0
+            && !persistSave
+        )
+        {
+            return updatedWorkspace;
+        }
 
         PersistDialogChanges(pendingDialogPaths);
         PersistScriptChanges(pendingScriptPaths);
@@ -726,6 +1613,54 @@ public sealed class EditorWorkspaceSession
         _pendingSectorAssets.Clear();
         ClearDirectAssetDraftHistory();
         _saveEditor?.DiscardPendingChanges();
+        return this;
+    }
+
+    /// <summary>
+    /// Discards the currently staged work represented by <paramref name="stagedTransaction"/> and leaves
+    /// other staged transactions pending.
+    /// </summary>
+    public EditorWorkspaceSession DiscardPendingChanges(EditorSessionStagedTransactionSummary stagedTransaction)
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransaction);
+        return DiscardPendingChanges([stagedTransaction]);
+    }
+
+    /// <summary>
+    /// Discards the currently staged work represented by <paramref name="stagedTransactions"/> and leaves
+    /// other staged transactions pending.
+    /// </summary>
+    public EditorWorkspaceSession DiscardPendingChanges(
+        IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions
+    )
+    {
+        var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
+        if (selectedScopeKeys.Count == 0)
+            return this;
+
+        foreach (var scopeKey in selectedScopeKeys)
+        {
+            switch (scopeKey.Kind)
+            {
+                case EditorSessionStagedHistoryScopeKind.Dialog:
+                    if (_dialogEditors.TryGetValue(scopeKey.Target!, out var dialogEditor))
+                        dialogEditor.DiscardPendingChanges();
+                    break;
+                case EditorSessionStagedHistoryScopeKind.Script:
+                    if (_scriptEditors.TryGetValue(scopeKey.Target!, out var scriptEditor))
+                        scriptEditor.DiscardPendingChanges();
+                    break;
+                case EditorSessionStagedHistoryScopeKind.Save:
+                    _saveEditor?.DiscardPendingChanges();
+                    break;
+                case EditorSessionStagedHistoryScopeKind.DirectAssets:
+                    DiscardDirectAssetChanges();
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported staged transaction scope {scopeKey.Kind}.");
+            }
+        }
+
         return this;
     }
 
@@ -1100,6 +2035,75 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Stages one bulk roof-cell art edit from grouped scene-sector hits.
+    /// Returns one change per sector asset that actually changed.
+    /// </summary>
+    public IReadOnlyList<EditorSessionChange> SetSectorRoofArt(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        uint artId
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+
+        if (sectorHitGroups.Count == 0)
+            return [];
+
+        return TrackDirectAssetEdit(
+            () =>
+            {
+                var changes = new List<EditorSessionChange>(sectorHitGroups.Count);
+
+                for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+                {
+                    var sectorHitGroup = sectorHitGroups[groupIndex];
+                    ArgumentNullException.ThrowIfNull(sectorHitGroup);
+
+                    if (sectorHitGroup.Hits.Count == 0)
+                        continue;
+
+                    var normalizedPath = NormalizeAssetPath(sectorHitGroup.SectorAssetPath);
+                    var currentSector = GetCurrentSectorAsset(normalizedPath);
+                    SectorBuilder? builder = null;
+                    var stagedRoofCells = new HashSet<Location>();
+
+                    for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
+                    {
+                        var hit = sectorHitGroup.Hits[hitIndex];
+                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException(
+                                $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
+                            );
+                        }
+
+                        if (!stagedRoofCells.Add(hit.RoofCell))
+                            continue;
+
+                        ValidateRoofCoordinate(nameof(sectorHitGroup), hit.RoofCell.X);
+                        ValidateRoofCoordinate(nameof(sectorHitGroup), hit.RoofCell.Y);
+
+                        var currentArtId = GetRoofArtId(currentSector, hit.RoofCell.X, hit.RoofCell.Y);
+                        if (currentArtId == artId && (currentSector.HasRoofs || artId == 0))
+                            continue;
+
+                        builder ??= new SectorBuilder(currentSector);
+                        builder.SetRoof(hit.RoofCell.X, hit.RoofCell.Y, artId);
+                    }
+
+                    if (builder is null)
+                        continue;
+
+                    _pendingSectorAssets[normalizedPath] = builder.Build();
+                    changes.Add(CreateDirectAssetChange(normalizedPath, FileFormat.Sector));
+                }
+
+                return changes.ToArray();
+            },
+            static changes => changes.Length > 0
+        );
+    }
+
+    /// <summary>
     /// Stages one blocked-tile edit on a loaded sector asset.
     /// Returns <see langword="null"/> when the target tile already matches <paramref name="blocked"/>.
     /// </summary>
@@ -1119,6 +2123,143 @@ public sealed class EditorWorkspaceSession
                 return new SectorBuilder(sector).SetBlocked(tileX, tileY, blocked).Build();
             }
         );
+    }
+
+    /// <summary>
+    /// Applies one typed layer-brush request to grouped scene-sector hits.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplySectorLayerBrush(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorMapLayerBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request.Mode switch
+        {
+            EditorMapLayerBrushMode.SetTileArt => new EditorMapLayerBrushResult
+            {
+                Changes = SetSectorTileArt(sectorHitGroups, request.ArtId),
+            },
+            EditorMapLayerBrushMode.SetRoofArt => new EditorMapLayerBrushResult
+            {
+                Changes = SetSectorRoofArt(sectorHitGroups, request.ArtId),
+            },
+            EditorMapLayerBrushMode.SetBlocked => new EditorMapLayerBrushResult
+            {
+                Changes = SetSectorBlockedTile(sectorHitGroups, request.Blocked),
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(request), request.Mode, "Unknown layer brush mode."),
+        };
+    }
+
+    /// <summary>
+    /// Applies one typed layer-brush request to a persisted rectangular area selection on a scene preview.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplySectorLayerBrush(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorMapLayerBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+        return ApplySectorLayerBrush(groupedHits, request);
+    }
+
+    /// <summary>
+    /// Applies one typed layer-brush request to the current persisted map selection state.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplySectorLayerBrush(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorMapLayerBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (selection.Area is { } areaSelection)
+            return ApplySectorLayerBrush(scenePreview, areaSelection, request);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return new EditorMapLayerBrushResult();
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return new EditorMapLayerBrushResult();
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+
+        return ApplySectorLayerBrush(
+            [
+                new EditorMapSceneSectorHitGroup
+                {
+                    SectorAssetPath = sector.AssetPath,
+                    LocalX = sector.LocalX,
+                    LocalY = sector.LocalY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = mapTileX,
+                            MapTileY = mapTileY,
+                            SectorAssetPath = sector.AssetPath,
+                            Tile = tile,
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            ],
+            request
+        );
+    }
+
+    /// <summary>
+    /// Applies one terrain palette entry to grouped scene-sector hits as a tile-paint request.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplyTerrainPaletteEntry(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorTerrainPaletteEntry entry
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return ApplySectorLayerBrush(sectorHitGroups, entry.CreateTileArtBrushRequest());
+    }
+
+    /// <summary>
+    /// Applies one terrain palette entry to a persisted rectangular area selection on a scene preview.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplyTerrainPaletteEntry(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorTerrainPaletteEntry entry
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return ApplySectorLayerBrush(scenePreview, areaSelection, entry.CreateTileArtBrushRequest());
+    }
+
+    /// <summary>
+    /// Applies one terrain palette entry to the current persisted map selection state.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplyTerrainPaletteEntry(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorTerrainPaletteEntry entry
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return ApplySectorLayerBrush(scenePreview, selection, entry.CreateTileArtBrushRequest());
     }
 
     /// <summary>
@@ -1248,22 +2389,1193 @@ public sealed class EditorWorkspaceSession
     public IReadOnlyList<MobData> AddSectorObjectsFromProto(
         IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
         int protoNumber
+    ) => AddSectorObjectsFromPalettePlacement(sectorHitGroups, EditorObjectPalettePlacementRequest.Place(protoNumber));
+
+    /// <summary>
+    /// Instantiates one proto-backed palette placement request on grouped scene-sector hits and stages
+    /// those objects on the addressed sector assets.
+    /// Returns the created objects in stable grouped-hit order so hosts can capture generated object IDs.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no loaded proto definition matches <see cref="EditorObjectPalettePlacementRequest.ProtoNumber"/>.
+    /// </exception>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacement(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementRequest request
     )
     {
         ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
 
-        if (protoNumber <= 0)
+        return AddSectorObjectsFromPalettePlacement(sectorHitGroups, request);
+    }
+
+    /// <summary>
+    /// Instantiates one reusable palette placement set on grouped scene-sector hits and stages
+    /// those objects on the addressed sector assets.
+    /// Returns the created objects in stable grouped-hit order and per-set entry order.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementSet(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementSet placementSet
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        return AddSectorObjectsFromPalettePlacementSet(sectorHitGroups, placementSet);
+    }
+
+    /// <summary>
+    /// Instantiates one named placement preset on grouped scene-sector hits and stages
+    /// those objects on the addressed sector assets.
+    /// Returns the created objects in stable grouped-hit order and per-preset entry order.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementPreset(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementPreset preset
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return ApplySectorObjectPalettePlacementSet(sectorHitGroups, preset.CreatePlacementSet());
+    }
+
+    /// <summary>
+    /// Instantiates one proto-backed palette placement request on a persisted rectangular area selection.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacement(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+        return ApplySectorObjectPalettePlacement(groupedHits, request);
+    }
+
+    /// <summary>
+    /// Instantiates one reusable palette placement set on a persisted rectangular area selection.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementSet(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementSet placementSet
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+        return ApplySectorObjectPalettePlacementSet(groupedHits, placementSet);
+    }
+
+    /// <summary>
+    /// Instantiates one named placement preset on a persisted rectangular area selection.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementPreset(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementPreset preset
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return ApplySectorObjectPalettePlacementSet(scenePreview, areaSelection, preset.CreatePlacementSet());
+    }
+
+    /// <summary>
+    /// Instantiates one proto-backed palette placement request on the current persisted map selection state.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacement(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (selection.Area is { } areaSelection)
+            return ApplySectorObjectPalettePlacement(scenePreview, areaSelection, request);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return [];
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return [];
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+
+        return ApplySectorObjectPalettePlacement(
+            [
+                new EditorMapSceneSectorHitGroup
+                {
+                    SectorAssetPath = sector.AssetPath,
+                    LocalX = sector.LocalX,
+                    LocalY = sector.LocalY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = mapTileX,
+                            MapTileY = mapTileY,
+                            SectorAssetPath = sector.AssetPath,
+                            Tile = tile,
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            ],
+            request
+        );
+    }
+
+    /// <summary>
+    /// Instantiates one reusable palette placement set on the current persisted map selection state.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementSet(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementSet placementSet
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        if (selection.Area is { } areaSelection)
+            return ApplySectorObjectPalettePlacementSet(scenePreview, areaSelection, placementSet);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return [];
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return [];
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+
+        return ApplySectorObjectPalettePlacementSet(
+            [
+                new EditorMapSceneSectorHitGroup
+                {
+                    SectorAssetPath = sector.AssetPath,
+                    LocalX = sector.LocalX,
+                    LocalY = sector.LocalY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = mapTileX,
+                            MapTileY = mapTileY,
+                            SectorAssetPath = sector.AssetPath,
+                            Tile = tile,
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            ],
+            placementSet
+        );
+    }
+
+    /// <summary>
+    /// Instantiates one named placement preset on the current persisted map selection state.
+    /// </summary>
+    public IReadOnlyList<MobData> ApplySectorObjectPalettePlacementPreset(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementPreset preset
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return ApplySectorObjectPalettePlacementSet(scenePreview, selection, preset.CreatePlacementSet());
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a proto-backed palette placement request on grouped scene-sector hits.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(
+        EditorMapScenePreview scenePreview,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementRequest request,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return BuildPlacementPreview(
+            scenePreview,
+            BuildPlacementPreviewObjects(scenePreview, sectorHitGroups, [request], renderRequest),
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a reusable palette placement set on grouped scene-sector hits.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(
+        EditorMapScenePreview scenePreview,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementSet placementSet,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        return BuildPlacementPreview(
+            scenePreview,
+            BuildPlacementPreviewObjects(scenePreview, sectorHitGroups, placementSet.Entries, renderRequest),
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a named palette placement preset on grouped scene-sector hits.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementPreset(
+        EditorMapScenePreview scenePreview,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementPreset preset,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return PreviewSectorObjectPalettePlacementSet(
+            scenePreview,
+            sectorHitGroups,
+            preset.CreatePlacementSet(),
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a proto-backed palette placement request on a persisted rectangular area selection.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementRequest request,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PreviewSectorObjectPalettePlacement(
+            scenePreview,
+            EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection),
+            request,
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a reusable palette placement set on a persisted rectangular area selection.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementSet placementSet,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        return PreviewSectorObjectPalettePlacementSet(
+            scenePreview,
+            EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection),
+            placementSet,
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a named palette placement preset on a persisted rectangular area selection.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementPreset(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorObjectPalettePlacementPreset preset,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return PreviewSectorObjectPalettePlacementPreset(
+            scenePreview,
+            EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection),
+            preset,
+            renderRequest
+        );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a proto-backed palette placement request on the current persisted map selection state.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementRequest request,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return selection.Area is { } areaSelection
+            ? PreviewSectorObjectPalettePlacement(scenePreview, areaSelection, request, renderRequest)
+            : PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                ResolveScenePointSelectionBySector(scenePreview, selection),
+                request,
+                renderRequest
+            );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a reusable palette placement set on the current persisted map selection state.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementSet placementSet,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        return selection.Area is { } areaSelection
+            ? PreviewSectorObjectPalettePlacementSet(scenePreview, areaSelection, placementSet, renderRequest)
+            : PreviewSectorObjectPalettePlacementSet(
+                scenePreview,
+                ResolveScenePointSelectionBySector(scenePreview, selection),
+                placementSet,
+                renderRequest
+            );
+    }
+
+    /// <summary>
+    /// Builds one live placement preview for a named palette placement preset on the current persisted map selection state.
+    /// </summary>
+    public EditorMapPlacementPreview PreviewSectorObjectPalettePlacementPreset(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorObjectPalettePlacementPreset preset,
+        EditorMapFloorRenderRequest? renderRequest = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return PreviewSectorObjectPalettePlacementSet(
+            scenePreview,
+            selection,
+            preset.CreatePlacementSet(),
+            renderRequest
+        );
+    }
+
+    private EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapViewState mapViewState,
+        EditorMapFloorRenderRequest? renderRequest
+    )
+    {
+        var objectPlacementState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        return objectPlacementState.Mode switch
         {
-            throw new ArgumentOutOfRangeException(nameof(protoNumber), protoNumber, "Proto numbers must be positive.");
+            EditorProjectMapObjectPlacementMode.SinglePlacement
+                when objectPlacementState.PlacementRequest is { } request => PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                mapViewState.Selection,
+                request,
+                renderRequest
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementSet
+                when objectPlacementState.PlacementSet is { } placementSet => PreviewSectorObjectPalettePlacementSet(
+                scenePreview,
+                mapViewState.Selection,
+                placementSet,
+                renderRequest
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementPreset
+                when objectPlacementState.FindSelectedPreset() is { } preset =>
+                PreviewSectorObjectPalettePlacementPreset(scenePreview, mapViewState.Selection, preset, renderRequest),
+            EditorProjectMapObjectPlacementMode.SinglePlacement => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not define one placement request."
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementSet => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not define one placement set."
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementPreset => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not resolve one selected placement preset."
+            ),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(objectPlacementState.Mode),
+                objectPlacementState.Mode,
+                "Unknown map object-placement mode."
+            ),
+        };
+    }
+
+    private IReadOnlyList<MobData> ApplyTrackedObjectPlacementTool(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapViewState mapViewState
+    )
+    {
+        var objectPlacementState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        return objectPlacementState.Mode switch
+        {
+            EditorProjectMapObjectPlacementMode.SinglePlacement
+                when objectPlacementState.PlacementRequest is { } request => ApplySectorObjectPalettePlacement(
+                scenePreview,
+                mapViewState.Selection,
+                request
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementSet
+                when objectPlacementState.PlacementSet is { } placementSet => ApplySectorObjectPalettePlacementSet(
+                scenePreview,
+                mapViewState.Selection,
+                placementSet
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementPreset
+                when objectPlacementState.FindSelectedPreset() is { } preset => ApplySectorObjectPalettePlacementPreset(
+                scenePreview,
+                mapViewState.Selection,
+                preset
+            ),
+            EditorProjectMapObjectPlacementMode.SinglePlacement => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not define one placement request."
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementSet => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not define one placement set."
+            ),
+            EditorProjectMapObjectPlacementMode.PlacementPreset => throw new InvalidOperationException(
+                $"The tracked object-placement tool for map view '{mapViewState.Id}' does not resolve one selected placement preset."
+            ),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(objectPlacementState.Mode),
+                objectPlacementState.Mode,
+                "Unknown map object-placement mode."
+            ),
+        };
+    }
+
+    private EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementToolState(
+        string mapViewStateId,
+        EditorProjectMapObjectPlacementToolState objectPlacementToolState,
+        bool activateTool
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+        var normalizedObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(objectPlacementToolState);
+        _ = SetMapWorldEditState(
+            mapViewStateId,
+            new EditorProjectMapWorldEditState
+            {
+                ActiveTool = activateTool
+                    ? EditorProjectMapWorldEditActiveTool.ObjectPlacement
+                    : worldEditState.ActiveTool,
+                Terrain = worldEditState.Terrain,
+                ObjectPlacement = normalizedObjectPlacementState,
+            }
+        );
+
+        return normalizedObjectPlacementState;
+    }
+
+    private static IReadOnlyList<EditorObjectPalettePlacementPreset> UpsertPlacementPreset(
+        IReadOnlyList<EditorObjectPalettePlacementPreset> presetLibrary,
+        EditorObjectPalettePlacementPreset preset
+    )
+    {
+        ArgumentNullException.ThrowIfNull(presetLibrary);
+        ArgumentNullException.ThrowIfNull(preset);
+
+        var updatedPresetLibrary = presetLibrary.ToList();
+        var existingIndex = updatedPresetLibrary.FindIndex(existing =>
+            string.Equals(existing.PresetId, preset.PresetId, StringComparison.OrdinalIgnoreCase)
+        );
+        if (existingIndex >= 0)
+            updatedPresetLibrary[existingIndex] = preset;
+        else
+            updatedPresetLibrary.Add(preset);
+
+        return updatedPresetLibrary;
+    }
+
+    private EditorProjectMapViewState ResolveTrackedMapViewState(string mapViewStateId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapViewStateId);
+
+        var mapViewState = _projectMapViewStates.FirstOrDefault(existing =>
+            string.Equals(existing.Id, mapViewStateId, StringComparison.OrdinalIgnoreCase)
+        );
+        if (mapViewState is null)
+            throw new InvalidOperationException($"No tracked map-view state matched '{mapViewStateId}'.");
+
+        return mapViewState;
+    }
+
+    private EditorMapScenePreview CreateEffectiveMapScenePreview(string mapName)
+    {
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
+        return effectiveWorkspace.CreateMapScenePreview(mapName, EditorArtResolverBindingStrategy.Conservative);
+    }
+
+    private static EditorProjectMapCameraState CreateCenteredTileCamera(EditorMapScenePreview scenePreview)
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+
+        if (scenePreview.Sectors.Count == 0)
+            return new EditorProjectMapCameraState();
+
+        var sectorTileWidth = scenePreview.Sectors[0].TileWidth;
+        var sectorTileHeight = scenePreview.Sectors[0].TileHeight;
+        if (sectorTileWidth <= 0 || sectorTileHeight <= 0)
+            return new EditorProjectMapCameraState();
+
+        return new EditorProjectMapCameraState
+        {
+            CenterTileX = (scenePreview.Width * sectorTileWidth) / 2d,
+            CenterTileY = (scenePreview.Height * sectorTileHeight) / 2d,
+            Zoom = 1d,
+        };
+    }
+
+    private static EditorMapFloorRenderRequest ComposeMapViewRenderRequest(
+        EditorProjectMapPreviewState previewState,
+        EditorMapFloorRenderRequest? renderRequest
+    ) => (renderRequest ?? new EditorMapFloorRenderRequest()).WithPreviewState(previewState);
+
+    private EditorMapPlacementPreview BuildPlacementPreview(
+        EditorMapScenePreview scenePreview,
+        IReadOnlyList<(EditorMapPlacementPreviewObject Object, double SortKey)> previewObjects,
+        EditorMapFloorRenderRequest? renderRequest
+    )
+    {
+        var sceneRender = EditorMapFloorRenderBuilder.Build(scenePreview, renderRequest);
+
+        var minLeft = 0d;
+        var minTop = 0d;
+        var maxRight = sceneRender.WidthPixels;
+        var maxBottom = sceneRender.HeightPixels;
+
+        foreach (var previewObject in previewObjects)
+            ExpandPlacementPreviewBounds(previewObject.Object, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+
+        var shiftX = minLeft < 0d ? -minLeft : 0d;
+        var shiftY = minTop < 0d ? -minTop : 0d;
+        var widthPixels = maxRight - minLeft;
+        var heightPixels = maxBottom - minTop;
+
+        var shiftedPreviewObjects = previewObjects
+            .OrderBy(static previewObject => previewObject.SortKey)
+            .ThenBy(static previewObject => previewObject.Object.MapTileX)
+            .ThenBy(static previewObject => previewObject.Object.MapTileY)
+            .Select(
+                (previewObject, drawOrder) =>
+                    new EditorMapPlacementPreviewObject
+                    {
+                        SectorAssetPath = previewObject.Object.SectorAssetPath,
+                        ProtoId = previewObject.Object.ProtoId,
+                        ObjectType = previewObject.Object.ObjectType,
+                        CurrentArtId = previewObject.Object.CurrentArtId,
+                        MapTileX = previewObject.Object.MapTileX,
+                        MapTileY = previewObject.Object.MapTileY,
+                        Tile = previewObject.Object.Tile,
+                        DrawOrder = drawOrder,
+                        AnchorX = previewObject.Object.AnchorX + shiftX,
+                        AnchorY = previewObject.Object.AnchorY + shiftY,
+                        SpriteBounds = previewObject.Object.SpriteBounds,
+                        IsTileGridSnapped = previewObject.Object.IsTileGridSnapped,
+                        State = previewObject.Object.State,
+                        ValidationMessage = previewObject.Object.ValidationMessage,
+                        SuggestedOpacity = previewObject.Object.SuggestedOpacity,
+                        SuggestedTintColor = previewObject.Object.SuggestedTintColor,
+                        Rotation = previewObject.Object.Rotation,
+                        RotationPitch = previewObject.Object.RotationPitch,
+                    }
+            )
+            .ToArray();
+
+        var renderQueue = BuildPlacementRenderQueue(sceneRender, previewObjects, shiftedPreviewObjects, shiftX, shiftY);
+        return new EditorMapPlacementPreview
+        {
+            MapName = sceneRender.MapName,
+            ViewMode = sceneRender.ViewMode,
+            TileWidthPixels = sceneRender.TileWidthPixels,
+            TileHeightPixels = sceneRender.TileHeightPixels,
+            WidthPixels = widthPixels,
+            HeightPixels = heightPixels,
+            Objects = shiftedPreviewObjects,
+            RenderQueue = renderQueue,
+        };
+    }
+
+    private IReadOnlyList<(EditorMapPlacementPreviewObject Object, double SortKey)> BuildPlacementPreviewObjects(
+        EditorMapScenePreview scenePreview,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        IReadOnlyList<EditorObjectPalettePlacementRequest> requests,
+        EditorMapFloorRenderRequest? renderRequest
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(requests);
+
+        if (sectorHitGroups.Count == 0 || requests.Count == 0 || scenePreview.Sectors.Count == 0)
+            return [];
+
+        var artResolver = Workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+        var tileWidth = scenePreview.Sectors[0].TileWidth;
+        var tileHeight = scenePreview.Sectors[0].TileHeight;
+        var mapTileHeight = checked(scenePreview.Height * tileHeight);
+        var renderProjectionRequest = renderRequest ?? new EditorMapFloorRenderRequest();
+        var (normalizedOffsetX, normalizedOffsetY) = ResolveRenderNormalizationOffset(
+            scenePreview,
+            renderProjectionRequest
+        );
+
+        List<(EditorMapPlacementPreviewObject Object, double SortKey)> previewObjects = [];
+        var sectorLookup = scenePreview.Sectors.ToDictionary(
+            sector => sector.AssetPath,
+            StringComparer.OrdinalIgnoreCase
+        );
+        for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+        {
+            var sectorHitGroup = sectorHitGroups[groupIndex];
+            ArgumentNullException.ThrowIfNull(sectorHitGroup);
+
+            if (sectorHitGroup.Hits.Count == 0)
+                continue;
+
+            var stagedTiles = new HashSet<Location>();
+            for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
+            {
+                var hit = sectorHitGroup.Hits[hitIndex];
+                if (!stagedTiles.Add(hit.Tile))
+                    continue;
+
+                for (var requestIndex = 0; requestIndex < requests.Count; requestIndex++)
+                {
+                    var request = requests[requestIndex];
+                    ArgumentNullException.ThrowIfNull(request);
+
+                    var previewMob = CreateSectorObjectFromPalettePlacement(
+                        GetCurrentProtoAssetForPlacement(request),
+                        request,
+                        hit.Tile.X,
+                        hit.Tile.Y
+                    );
+                    var previewObject = EditorMapScenePreviewBuilder.BuildObjectPreview(
+                        previewMob,
+                        artResolver.FindArt
+                    );
+                    if (previewObject.Location is not { } location)
+                        continue;
+
+                    var mapTileX = checked((sectorHitGroup.LocalX * tileWidth) + location.X);
+                    var mapTileY = checked((sectorHitGroup.LocalY * tileHeight) + location.Y);
+                    var adjustedMapTileY = mapTileHeight - 1 - mapTileY;
+                    var baseTileDrawOrder = EditorMapFloorRenderBuilder.GetDrawOrder(
+                        renderProjectionRequest.ViewMode,
+                        checked(scenePreview.Width * tileWidth),
+                        mapTileX,
+                        adjustedMapTileY
+                    );
+                    var (tileCenterX, tileCenterY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+                        renderProjectionRequest.ViewMode,
+                        renderProjectionRequest.TileWidthPixels,
+                        renderProjectionRequest.TileHeightPixels,
+                        mapTileX,
+                        adjustedMapTileY
+                    );
+                    var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                        tileCenterX,
+                        tileCenterY,
+                        previewObject
+                    );
+                    var sortKey = EditorMapFloorRenderBuilder.GetObjectSortKey(baseTileDrawOrder, previewObject);
+                    var placementState = ResolvePlacementPreviewState(sectorLookup, hit.SectorAssetPath, location);
+
+                    previewObjects.Add(
+                        (
+                            new EditorMapPlacementPreviewObject
+                            {
+                                SectorAssetPath = hit.SectorAssetPath,
+                                ProtoId = previewObject.ProtoId,
+                                ObjectType = previewObject.ObjectType,
+                                CurrentArtId = previewObject.CurrentArtId,
+                                MapTileX = mapTileX,
+                                MapTileY = mapTileY,
+                                Tile = location,
+                                DrawOrder = 0,
+                                AnchorX = anchorX + normalizedOffsetX,
+                                AnchorY = anchorY + normalizedOffsetY,
+                                SpriteBounds = previewObject.SpriteBounds,
+                                IsTileGridSnapped = previewObject.IsTileGridSnapped,
+                                State = placementState,
+                                ValidationMessage = GetPlacementValidationMessage(placementState),
+                                SuggestedOpacity = GetPlacementSuggestedOpacity(placementState),
+                                SuggestedTintColor = GetPlacementSuggestedTintColor(placementState),
+                                Rotation = previewObject.Rotation,
+                                RotationPitch = previewObject.RotationPitch,
+                            },
+                            sortKey
+                        )
+                    );
+                }
+            }
+        }
+
+        return ApplyPreviewTileOccupancyHeuristic(previewObjects);
+    }
+
+    private static IReadOnlyList<EditorMapRenderQueueItem> BuildPlacementRenderQueue(
+        EditorMapFloorRenderPreview sceneRender,
+        IReadOnlyList<(EditorMapPlacementPreviewObject Object, double SortKey)> previewObjects,
+        IReadOnlyList<EditorMapPlacementPreviewObject> shiftedPreviewObjects,
+        double shiftX,
+        double shiftY
+    )
+    {
+        List<(double SortKey, EditorMapRenderQueueItemKind Kind, int Index)> queueEntries = [];
+
+        for (var index = 0; index < sceneRender.RenderQueue.Count; index++)
+            queueEntries.Add((sceneRender.RenderQueue[index].SortKey, sceneRender.RenderQueue[index].Kind, index));
+
+        for (var index = 0; index < previewObjects.Count; index++)
+            queueEntries.Add(
+                (previewObjects[index].SortKey, EditorMapRenderQueueItemKind.PlacementPreviewObject, index)
+            );
+
+        return queueEntries
+            .OrderBy(static entry => entry.SortKey)
+            .ThenBy(static entry => entry.Kind)
+            .ThenBy(static entry => entry.Index)
+            .Select(
+                (entry, drawOrder) =>
+                {
+                    if (entry.Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject)
+                    {
+                        return new EditorMapRenderQueueItem
+                        {
+                            Kind = entry.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = entry.SortKey,
+                            PlacementPreviewObject = shiftedPreviewObjects[entry.Index],
+                        };
+                    }
+
+                    var sceneItem = sceneRender.RenderQueue[entry.Index];
+                    return sceneItem.Kind switch
+                    {
+                        EditorMapRenderQueueItemKind.FloorTile => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            Tile = ShiftTile(sceneItem.Tile!, shiftX, shiftY),
+                        },
+                        EditorMapRenderQueueItemKind.TileOverlay => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            TileOverlay = ShiftTileOverlay(sceneItem.TileOverlay!, shiftX, shiftY),
+                        },
+                        EditorMapRenderQueueItemKind.Object => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            Object = ShiftObject(sceneItem.Object!, shiftX, shiftY),
+                        },
+                        EditorMapRenderQueueItemKind.Roof => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            Roof = ShiftRoof(sceneItem.Roof!, shiftX, shiftY),
+                        },
+                        _ => throw new ArgumentOutOfRangeException(
+                            nameof(sceneItem.Kind),
+                            sceneItem.Kind,
+                            "Unsupported render queue kind."
+                        ),
+                    };
+                }
+            )
+            .ToArray();
+    }
+
+    private static EditorMapFloorTileRenderItem ShiftTile(
+        EditorMapFloorTileRenderItem tile,
+        double shiftX,
+        double shiftY
+    ) =>
+        shiftX == 0d && shiftY == 0d
+            ? tile
+            : new EditorMapFloorTileRenderItem
+            {
+                SectorAssetPath = tile.SectorAssetPath,
+                MapTileX = tile.MapTileX,
+                MapTileY = tile.MapTileY,
+                Tile = tile.Tile,
+                ArtId = tile.ArtId,
+                IsBlocked = tile.IsBlocked,
+                HasLight = tile.HasLight,
+                HasScript = tile.HasScript,
+                DrawOrder = tile.DrawOrder,
+                CenterX = tile.CenterX + shiftX,
+                CenterY = tile.CenterY + shiftY,
+            };
+
+    private static EditorMapTileOverlayRenderItem ShiftTileOverlay(
+        EditorMapTileOverlayRenderItem tileOverlay,
+        double shiftX,
+        double shiftY
+    ) =>
+        shiftX == 0d && shiftY == 0d
+            ? tileOverlay
+            : new EditorMapTileOverlayRenderItem
+            {
+                SectorAssetPath = tileOverlay.SectorAssetPath,
+                MapTileX = tileOverlay.MapTileX,
+                MapTileY = tileOverlay.MapTileY,
+                Tile = tileOverlay.Tile,
+                Kind = tileOverlay.Kind,
+                DrawOrder = tileOverlay.DrawOrder,
+                CenterX = tileOverlay.CenterX + shiftX,
+                CenterY = tileOverlay.CenterY + shiftY,
+                SuggestedOpacity = tileOverlay.SuggestedOpacity,
+                SuggestedTintColor = tileOverlay.SuggestedTintColor,
+            };
+
+    private static EditorMapObjectRenderItem ShiftObject(EditorMapObjectRenderItem obj, double shiftX, double shiftY) =>
+        shiftX == 0d && shiftY == 0d
+            ? obj
+            : new EditorMapObjectRenderItem
+            {
+                SectorAssetPath = obj.SectorAssetPath,
+                ObjectId = obj.ObjectId,
+                ProtoId = obj.ProtoId,
+                ObjectType = obj.ObjectType,
+                CurrentArtId = obj.CurrentArtId,
+                MapTileX = obj.MapTileX,
+                MapTileY = obj.MapTileY,
+                Tile = obj.Tile,
+                DrawOrder = obj.DrawOrder,
+                AnchorX = obj.AnchorX + shiftX,
+                AnchorY = obj.AnchorY + shiftY,
+                SpriteBounds = obj.SpriteBounds,
+                IsTileGridSnapped = obj.IsTileGridSnapped,
+            };
+
+    private static EditorMapRoofRenderItem ShiftRoof(EditorMapRoofRenderItem roof, double shiftX, double shiftY) =>
+        shiftX == 0d && shiftY == 0d
+            ? roof
+            : new EditorMapRoofRenderItem
+            {
+                SectorAssetPath = roof.SectorAssetPath,
+                RoofCell = roof.RoofCell,
+                MapTileX = roof.MapTileX,
+                MapTileY = roof.MapTileY,
+                ArtId = roof.ArtId,
+                DrawOrder = roof.DrawOrder,
+                AnchorX = roof.AnchorX + shiftX,
+                AnchorY = roof.AnchorY + shiftY,
+            };
+
+    private static void ExpandPlacementPreviewBounds(
+        EditorMapPlacementPreviewObject previewObject,
+        ref double minLeft,
+        ref double minTop,
+        ref double maxRight,
+        ref double maxBottom
+    ) =>
+        EditorMapFloorRenderBuilder.ExpandObjectBounds(
+            previewObject.SpriteBounds,
+            previewObject.AnchorX,
+            previewObject.AnchorY,
+            ref minLeft,
+            ref minTop,
+            ref maxRight,
+            ref maxBottom
+        );
+
+    private static IReadOnlyList<(
+        EditorMapPlacementPreviewObject Object,
+        double SortKey
+    )> ApplyPreviewTileOccupancyHeuristic(
+        IReadOnlyList<(EditorMapPlacementPreviewObject Object, double SortKey)> previewObjects
+    )
+    {
+        var duplicateTiles = previewObjects
+            .GroupBy(static preview => (preview.Object.SectorAssetPath, preview.Object.Tile))
+            .Where(static group => group.Count() > 1)
+            .Select(static group => group.Key)
+            .ToHashSet();
+
+        if (duplicateTiles.Count == 0)
+            return previewObjects;
+
+        return previewObjects
+            .Select(previewTuple =>
+            {
+                var preview = previewTuple.Object;
+                var state = duplicateTiles.Contains((preview.SectorAssetPath, preview.Tile))
+                    ? (
+                        preview.State is EditorMapPlacementPreviewState.BlockedTile
+                            ? EditorMapPlacementPreviewState.BlockedTile
+                            : EditorMapPlacementPreviewState.OccupiedTile
+                    )
+                    : preview.State;
+                return (
+                    new EditorMapPlacementPreviewObject
+                    {
+                        SectorAssetPath = preview.SectorAssetPath,
+                        ProtoId = preview.ProtoId,
+                        ObjectType = preview.ObjectType,
+                        CurrentArtId = preview.CurrentArtId,
+                        MapTileX = preview.MapTileX,
+                        MapTileY = preview.MapTileY,
+                        Tile = preview.Tile,
+                        DrawOrder = preview.DrawOrder,
+                        AnchorX = preview.AnchorX,
+                        AnchorY = preview.AnchorY,
+                        SpriteBounds = preview.SpriteBounds,
+                        IsTileGridSnapped = preview.IsTileGridSnapped,
+                        State = state,
+                        ValidationMessage = GetPlacementValidationMessage(state),
+                        SuggestedOpacity = GetPlacementSuggestedOpacity(state),
+                        SuggestedTintColor = GetPlacementSuggestedTintColor(state),
+                        Rotation = preview.Rotation,
+                        RotationPitch = preview.RotationPitch,
+                    },
+                    previewTuple.SortKey
+                );
+            })
+            .ToArray();
+    }
+
+    private static EditorMapPlacementPreviewState ResolvePlacementPreviewState(
+        IReadOnlyDictionary<string, EditorMapSectorScenePreview> sectorLookup,
+        string sectorAssetPath,
+        Location tile
+    )
+    {
+        if (!sectorLookup.TryGetValue(sectorAssetPath, out var sector))
+            return EditorMapPlacementPreviewState.Valid;
+
+        if (sector.IsTileBlocked(tile.X, tile.Y))
+            return EditorMapPlacementPreviewState.BlockedTile;
+
+        return sector.Objects.Any(obj => obj.Location == tile)
+            ? EditorMapPlacementPreviewState.OccupiedTile
+            : EditorMapPlacementPreviewState.Valid;
+    }
+
+    private static string? GetPlacementValidationMessage(EditorMapPlacementPreviewState state) =>
+        state switch
+        {
+            EditorMapPlacementPreviewState.Valid => null,
+            EditorMapPlacementPreviewState.BlockedTile => "Targets a blocked tile.",
+            EditorMapPlacementPreviewState.OccupiedTile => "Targets an occupied tile.",
+            _ => null,
+        };
+
+    private static double GetPlacementSuggestedOpacity(EditorMapPlacementPreviewState state) =>
+        state switch
+        {
+            EditorMapPlacementPreviewState.Valid => 0.85d,
+            EditorMapPlacementPreviewState.BlockedTile or EditorMapPlacementPreviewState.OccupiedTile => 0.55d,
+            _ => 0.75d,
+        };
+
+    private static uint? GetPlacementSuggestedTintColor(EditorMapPlacementPreviewState state) =>
+        state switch
+        {
+            EditorMapPlacementPreviewState.Valid => 0xAA66CC66u,
+            EditorMapPlacementPreviewState.BlockedTile => 0xAACC6666u,
+            EditorMapPlacementPreviewState.OccupiedTile => 0xAACCA066u,
+            _ => null,
+        };
+
+    private (double OffsetX, double OffsetY) ResolveRenderNormalizationOffset(
+        EditorMapScenePreview scenePreview,
+        EditorMapFloorRenderRequest? renderRequest
+    )
+    {
+        var sceneRender = EditorMapFloorRenderBuilder.Build(scenePreview, renderRequest);
+        if (scenePreview.Sectors.Count == 0)
+            return (0d, 0d);
+
+        var request = renderRequest ?? new EditorMapFloorRenderRequest();
+        var tileWidth = scenePreview.Sectors[0].TileWidth;
+        var tileHeight = scenePreview.Sectors[0].TileHeight;
+        var mapTileHeight = checked(scenePreview.Height * tileHeight);
+
+        if (sceneRender.Tiles.Count > 0)
+        {
+            var firstTile = sceneRender.Tiles[0];
+            var adjustedMapTileY = mapTileHeight - 1 - firstTile.MapTileY;
+            var (rawCenterX, rawCenterY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+                request.ViewMode,
+                request.TileWidthPixels,
+                request.TileHeightPixels,
+                firstTile.MapTileX,
+                adjustedMapTileY
+            );
+
+            return (firstTile.CenterX - rawCenterX, firstTile.CenterY - rawCenterY);
+        }
+
+        if (sceneRender.Objects.Count > 0)
+        {
+            var firstObject = sceneRender.Objects[0];
+            var sceneObject = FindSceneObjectPreview(scenePreview, firstObject.SectorAssetPath, firstObject.ObjectId);
+            if (sceneObject?.Location is { } location)
+            {
+                var mapTileX = firstObject.MapTileX;
+                var mapTileY = firstObject.MapTileY;
+                var adjustedMapTileY = mapTileHeight - 1 - mapTileY;
+                var (tileCenterX, tileCenterY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+                    request.ViewMode,
+                    request.TileWidthPixels,
+                    request.TileHeightPixels,
+                    mapTileX,
+                    adjustedMapTileY
+                );
+                var (rawAnchorX, rawAnchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                    tileCenterX,
+                    tileCenterY,
+                    sceneObject
+                );
+
+                return (firstObject.AnchorX - rawAnchorX, firstObject.AnchorY - rawAnchorY);
+            }
+        }
+
+        return (0d, 0d);
+    }
+
+    private static EditorMapObjectPreview? FindSceneObjectPreview(
+        EditorMapScenePreview scenePreview,
+        string sectorAssetPath,
+        GameObjectGuid objectId
+    ) =>
+        scenePreview
+            .Sectors.FirstOrDefault(sector =>
+                string.Equals(sector.AssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            )
+            ?.Objects.FirstOrDefault(obj => obj.ObjectId == objectId);
+
+    private static IReadOnlyList<EditorMapSceneSectorHitGroup> ResolveScenePointSelectionBySector(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return [];
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return [];
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+
+        return
+        [
+            new EditorMapSceneSectorHitGroup
+            {
+                SectorAssetPath = sector.AssetPath,
+                LocalX = sector.LocalX,
+                LocalY = sector.LocalY,
+                Hits =
+                [
+                    new EditorMapSceneHit
+                    {
+                        MapTileX = mapTileX,
+                        MapTileY = mapTileY,
+                        SectorAssetPath = sector.AssetPath,
+                        Tile = tile,
+                        ObjectHits = [],
+                    },
+                ],
+            },
+        ];
+    }
+
+    private IReadOnlyList<MobData> AddSectorObjectsFromPalettePlacement(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.ProtoNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                request.ProtoNumber,
+                "Proto numbers must be positive."
+            );
         }
 
         if (sectorHitGroups.Count == 0)
             return [];
 
         var protoAsset =
-            Workspace.Index.FindProtoDefinition(protoNumber)
+            Workspace.Index.FindProtoDefinition(request.ProtoNumber)
             ?? throw new InvalidOperationException(
-                $"Cannot instantiate object from proto {protoNumber} because no loaded proto definition matched that identifier."
+                $"Cannot instantiate object from proto {request.ProtoNumber} because no loaded proto definition matched that identifier."
             );
         var proto = GetCurrentProtoAsset(protoAsset.AssetPath);
 
@@ -1301,10 +3613,89 @@ public sealed class EditorWorkspaceSession
                         ValidateTileCoordinate(nameof(sectorHitGroup), hit.Tile.X);
                         ValidateTileCoordinate(nameof(sectorHitGroup), hit.Tile.Y);
 
-                        var createdObject = CreateSectorObjectFromProto(proto, protoNumber, hit.Tile.X, hit.Tile.Y);
+                        var createdObject = CreateSectorObjectFromPalettePlacement(
+                            proto,
+                            request,
+                            hit.Tile.X,
+                            hit.Tile.Y
+                        );
                         builder ??= new SectorBuilder(currentSector);
                         builder.AddObject(createdObject);
                         createdObjects.Add(createdObject);
+                    }
+
+                    if (builder is null)
+                        continue;
+
+                    _pendingSectorAssets[normalizedPath] = builder.Build();
+                }
+
+                return createdObjects.ToArray();
+            },
+            static createdObjects => createdObjects.Length > 0
+        );
+    }
+
+    private IReadOnlyList<MobData> AddSectorObjectsFromPalettePlacementSet(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorObjectPalettePlacementSet placementSet
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(placementSet);
+
+        if (!placementSet.HasEntries)
+            return [];
+
+        return TrackDirectAssetEdit(
+            () =>
+            {
+                var createdObjects = new List<MobData>();
+
+                for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+                {
+                    var sectorHitGroup = sectorHitGroups[groupIndex];
+                    ArgumentNullException.ThrowIfNull(sectorHitGroup);
+
+                    if (sectorHitGroup.Hits.Count == 0)
+                        continue;
+
+                    var normalizedPath = NormalizeAssetPath(sectorHitGroup.SectorAssetPath);
+                    var currentSector = GetCurrentSectorAsset(normalizedPath);
+                    SectorBuilder? builder = null;
+                    var stagedTiles = new HashSet<Location>();
+
+                    for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
+                    {
+                        var hit = sectorHitGroup.Hits[hitIndex];
+                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException(
+                                $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
+                            );
+                        }
+
+                        if (!stagedTiles.Add(hit.Tile))
+                            continue;
+
+                        ValidateTileCoordinate(nameof(sectorHitGroup), hit.Tile.X);
+                        ValidateTileCoordinate(nameof(sectorHitGroup), hit.Tile.Y);
+
+                        for (var entryIndex = 0; entryIndex < placementSet.Entries.Count; entryIndex++)
+                        {
+                            var entry = placementSet.Entries[entryIndex];
+                            ArgumentNullException.ThrowIfNull(entry);
+
+                            var createdObject = CreateSectorObjectFromPalettePlacement(
+                                GetCurrentProtoAssetForPlacement(entry),
+                                entry,
+                                hit.Tile.X,
+                                hit.Tile.Y
+                            );
+                            builder ??= new SectorBuilder(currentSector);
+                            builder.AddObject(createdObject);
+                            createdObjects.Add(createdObject);
+                        }
                     }
 
                     if (builder is null)
@@ -1450,8 +3841,202 @@ public sealed class EditorWorkspaceSession
             {
                 RemovedObjectIds = RemoveSectorObjects(sectorHitGroups),
             },
+            EditorMapObjectBrushMode.Rotate => new EditorMapObjectBrushResult
+            {
+                UpdatedObjectIds = SetSectorObjectRotation(sectorHitGroups, request.Rotation),
+            },
+            EditorMapObjectBrushMode.RotatePitch => new EditorMapObjectBrushResult
+            {
+                UpdatedObjectIds = SetSectorObjectRotationPitch(sectorHitGroups, request.RotationPitch),
+            },
+            EditorMapObjectBrushMode.MoveByOffset => new EditorMapObjectBrushResult
+            {
+                UpdatedObjectIds = MoveSectorObjectsByOffset(sectorHitGroups, request.DeltaTileX, request.DeltaTileY),
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(request), request.Mode, "Unknown object brush mode."),
         };
+    }
+
+    /// <summary>
+    /// Applies one higher-level object transform request to grouped scene-sector hits.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplySectorObjectTransform(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorMapObjectTransformRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new EditorMapObjectBrushResult { UpdatedObjectIds = TransformSectorObjects(sectorHitGroups, request) };
+    }
+
+    /// <summary>
+    /// Applies one typed object-brush request to a persisted rectangular area selection on a scene preview.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplySectorObjectBrush(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorMapObjectBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+        var filteredGroupedHits =
+            areaSelection.ObjectIds.Count == 0
+                ? groupedHits
+                : FilterSectorHitGroupsBySelectedObjectIds(groupedHits, areaSelection.ObjectIds);
+
+        return ApplySectorObjectBrush(filteredGroupedHits, request);
+    }
+
+    /// <summary>
+    /// Applies one higher-level object transform request to a persisted rectangular area selection on a scene preview.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplySectorObjectTransform(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapAreaSelectionState areaSelection,
+        EditorMapObjectTransformRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(areaSelection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+        var filteredGroupedHits =
+            areaSelection.ObjectIds.Count == 0
+                ? groupedHits
+                : FilterSectorHitGroupsBySelectedObjectIds(groupedHits, areaSelection.ObjectIds);
+
+        return ApplySectorObjectTransform(filteredGroupedHits, request);
+    }
+
+    /// <summary>
+    /// Applies one typed object-brush request to the current persisted map selection state.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplySectorObjectBrush(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorMapObjectBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (selection.Area is { } areaSelection)
+            return ApplySectorObjectBrush(scenePreview, areaSelection, request);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return new EditorMapObjectBrushResult();
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return new EditorMapObjectBrushResult();
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+        var selectedObjectIds = selection.GetSelectedObjectIds();
+        var objectHits =
+            selectedObjectIds.Count == 0
+                ? Array.Empty<EditorMapObjectPreview>()
+                : sector
+                    .Objects.Where(candidate =>
+                        candidate.Location == tile && selectedObjectIds.Contains(candidate.ObjectId)
+                    )
+                    .ToArray();
+
+        return ApplySectorObjectBrush(
+            [
+                new EditorMapSceneSectorHitGroup
+                {
+                    SectorAssetPath = sector.AssetPath,
+                    LocalX = sector.LocalX,
+                    LocalY = sector.LocalY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = mapTileX,
+                            MapTileY = mapTileY,
+                            SectorAssetPath = sector.AssetPath,
+                            Tile = tile,
+                            ObjectHits = objectHits,
+                        },
+                    ],
+                },
+            ],
+            request
+        );
+    }
+
+    /// <summary>
+    /// Applies one higher-level object transform request to the current persisted map selection state.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplySectorObjectTransform(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection,
+        EditorMapObjectTransformRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (selection.Area is { } areaSelection)
+            return ApplySectorObjectTransform(scenePreview, areaSelection, request);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return new EditorMapObjectBrushResult();
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return new EditorMapObjectBrushResult();
+
+        var tile = selection.Tile.Value;
+        var mapTileX = (sector.LocalX * sector.TileWidth) + tile.X;
+        var mapTileY = (sector.LocalY * sector.TileHeight) + tile.Y;
+        var selectedObjectIds = selection.GetSelectedObjectIds();
+        var objectHits =
+            selectedObjectIds.Count == 0
+                ? Array.Empty<EditorMapObjectPreview>()
+                : sector
+                    .Objects.Where(candidate =>
+                        candidate.Location == tile && selectedObjectIds.Contains(candidate.ObjectId)
+                    )
+                    .ToArray();
+
+        return ApplySectorObjectTransform(
+            [
+                new EditorMapSceneSectorHitGroup
+                {
+                    SectorAssetPath = sector.AssetPath,
+                    LocalX = sector.LocalX,
+                    LocalY = sector.LocalY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = mapTileX,
+                            MapTileY = mapTileY,
+                            SectorAssetPath = sector.AssetPath,
+                            Tile = tile,
+                            ObjectHits = objectHits,
+                        },
+                    ],
+                },
+            ],
+            request
+        );
     }
 
     /// <summary>
@@ -1599,6 +4184,256 @@ public sealed class EditorWorkspaceSession
         );
     }
 
+    private IReadOnlyList<GameObjectGuid> SetSectorObjectRotation(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        float rotation
+    ) => TransformSectorObjects(sectorHitGroups, EditorMapObjectTransformRequest.Rotate(rotation));
+
+    private IReadOnlyList<GameObjectGuid> SetSectorObjectRotationPitch(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        float rotationPitch
+    ) => TransformSectorObjects(sectorHitGroups, EditorMapObjectTransformRequest.RotatePitch(rotationPitch));
+
+    private IReadOnlyList<GameObjectGuid> TransformSectorObjects(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorMapObjectTransformRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (sectorHitGroups.Count == 0 || !request.HasChanges)
+            return [];
+
+        return TrackDirectAssetEdit(
+            () =>
+            {
+                var updatedObjectIds = new List<GameObjectGuid>();
+
+                for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+                {
+                    var sectorHitGroup = sectorHitGroups[groupIndex];
+                    ArgumentNullException.ThrowIfNull(sectorHitGroup);
+
+                    if (sectorHitGroup.Hits.Count == 0)
+                        continue;
+
+                    var normalizedPath = NormalizeAssetPath(sectorHitGroup.SectorAssetPath);
+                    var currentSector = GetCurrentSectorAsset(normalizedPath);
+                    var builder = new SectorBuilder(currentSector);
+                    var uniqueObjectIds = new HashSet<GameObjectGuid>();
+                    var changedAnyObjects = false;
+
+                    for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
+                    {
+                        var hit = sectorHitGroup.Hits[hitIndex];
+                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException(
+                                $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
+                            );
+                        }
+
+                        for (var objectHitIndex = 0; objectHitIndex < hit.ObjectHits.Count; objectHitIndex++)
+                        {
+                            var objectId = hit.ObjectHits[objectHitIndex].ObjectId;
+                            if (!uniqueObjectIds.Add(objectId))
+                                continue;
+
+                            var objectIndex = FindSectorObjectIndex(currentSector, normalizedPath, objectId);
+                            var currentObject = currentSector.Objects[objectIndex];
+                            var updatedBuilder = new MobDataBuilder(currentObject);
+                            var objectChanged = false;
+
+                            if (request.HasMoveOffset)
+                            {
+                                var currentLocation =
+                                    TryGetObjectLocation(currentObject)
+                                    ?? throw new InvalidOperationException(
+                                        $"Sector asset '{normalizedPath}' object {objectId} does not expose a usable location for object transforms."
+                                    );
+
+                                var nextTileX = currentLocation.X + request.DeltaTileX;
+                                var nextTileY = currentLocation.Y + request.DeltaTileY;
+                                ValidateTileCoordinate(nameof(request.DeltaTileX), nextTileX);
+                                ValidateTileCoordinate(nameof(request.DeltaTileY), nextTileY);
+
+                                if (nextTileX != currentLocation.X || nextTileY != currentLocation.Y)
+                                {
+                                    updatedBuilder.WithLocation(nextTileX, nextTileY);
+                                    objectChanged = true;
+                                }
+                            }
+
+                            if (
+                                request.Rotation.HasValue
+                                && ShouldApplyObjectFloatProperty(
+                                    currentObject,
+                                    ObjectField.ObjFPadIas1,
+                                    request.Rotation.Value
+                                )
+                            )
+                            {
+                                updatedBuilder.WithRotation(request.Rotation.Value);
+                                objectChanged = true;
+                            }
+
+                            if (
+                                request.RotationPitch.HasValue
+                                && ShouldApplyObjectFloatProperty(
+                                    currentObject,
+                                    ObjectField.ObjFRotationPitch,
+                                    request.RotationPitch.Value
+                                )
+                            )
+                            {
+                                updatedBuilder.WithRotationPitch(request.RotationPitch.Value);
+                                objectChanged = true;
+                            }
+
+                            if (request.AlignToTileGrid && TrySnapObjectToTileGrid(currentObject, updatedBuilder))
+                                objectChanged = true;
+
+                            if (!objectChanged)
+                                continue;
+
+                            var updatedObject = updatedBuilder.Build();
+                            builder.ReplaceObject(objectIndex, updatedObject);
+                            updatedObjectIds.Add(objectId);
+                            changedAnyObjects = true;
+                        }
+                    }
+
+                    if (!changedAnyObjects)
+                        continue;
+
+                    _pendingSectorAssets[normalizedPath] = builder.Build();
+                }
+
+                return updatedObjectIds.ToArray();
+            },
+            static updatedObjectIds => updatedObjectIds.Length > 0
+        );
+    }
+
+    private IReadOnlyList<GameObjectGuid> MoveSectorObjectsByOffset(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        int deltaTileX,
+        int deltaTileY
+    ) => TransformSectorObjects(sectorHitGroups, EditorMapObjectTransformRequest.MoveByOffset(deltaTileX, deltaTileY));
+
+    private static bool ShouldApplyObjectFloatProperty(MobData currentObject, ObjectField field, float value)
+    {
+        var currentProperty = currentObject.GetProperty(field);
+        if (currentProperty is null)
+            return value != 0f;
+
+        return currentProperty.GetFloat() != value;
+    }
+
+    private static bool TrySnapObjectToTileGrid(MobData currentObject, MobDataBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(currentObject);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var changed = false;
+
+        if (TryGetObjectIntProperty(currentObject, ObjectField.ObjFOffsetX) is { } offsetX && offsetX != 0)
+        {
+            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 0));
+            changed = true;
+        }
+
+        if (TryGetObjectIntProperty(currentObject, ObjectField.ObjFOffsetY) is { } offsetY && offsetY != 0)
+        {
+            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 0));
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static IReadOnlyList<EditorMapSceneSectorHitGroup> FilterSectorHitGroupsBySelectedObjectIds(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        IReadOnlyList<GameObjectGuid> selectedObjectIds
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(selectedObjectIds);
+
+        if (sectorHitGroups.Count == 0 || selectedObjectIds.Count == 0)
+            return sectorHitGroups;
+
+        var selectedObjectIdSet = selectedObjectIds.ToHashSet();
+        var filteredGroups = new EditorMapSceneSectorHitGroup[sectorHitGroups.Count];
+
+        for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+        {
+            var sectorHitGroup = sectorHitGroups[groupIndex];
+            ArgumentNullException.ThrowIfNull(sectorHitGroup);
+
+            var filteredHits = new EditorMapSceneHit[sectorHitGroup.Hits.Count];
+            for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
+            {
+                var hit = sectorHitGroup.Hits[hitIndex];
+                ArgumentNullException.ThrowIfNull(hit);
+
+                filteredHits[hitIndex] = new EditorMapSceneHit
+                {
+                    MapTileX = hit.MapTileX,
+                    MapTileY = hit.MapTileY,
+                    SectorAssetPath = hit.SectorAssetPath,
+                    Tile = hit.Tile,
+                    ObjectHits =
+                    [
+                        .. hit.ObjectHits.Where(objectHit => selectedObjectIdSet.Contains(objectHit.ObjectId)),
+                    ],
+                };
+            }
+
+            filteredGroups[groupIndex] = new EditorMapSceneSectorHitGroup
+            {
+                SectorAssetPath = sectorHitGroup.SectorAssetPath,
+                LocalX = sectorHitGroup.LocalX,
+                LocalY = sectorHitGroup.LocalY,
+                Hits = filteredHits,
+            };
+        }
+
+        return filteredGroups;
+    }
+
+    /// <summary>
+    /// Stages one placed-object primary rotation edit on a loaded sector asset.
+    /// Returns <see langword="null"/> when the object already uses <paramref name="rotation"/>,
+    /// or when the rotation property is absent and <paramref name="rotation"/> is <c>0</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no unique object with <paramref name="objectId"/> exists in the sector.
+    /// </exception>
+    public EditorSessionChange? SetSectorObjectRotation(string assetPath, GameObjectGuid objectId, float rotation)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return StageSectorChange(
+            normalizedPath,
+            sector =>
+            {
+                var objectIndex = FindSectorObjectIndex(sector, normalizedPath, objectId);
+                var currentObject = sector.Objects[objectIndex];
+                var currentRotationProperty = currentObject.GetProperty(ObjectField.ObjFPadIas1);
+
+                if (currentRotationProperty is null && rotation == 0f)
+                    return null;
+
+                if (currentRotationProperty is not null && currentRotationProperty.GetFloat() == rotation)
+                    return null;
+
+                var updatedObject = new MobDataBuilder(currentObject).WithRotation(rotation).Build();
+                return new SectorBuilder(sector).ReplaceObject(objectIndex, updatedObject).Build();
+            }
+        );
+    }
+
     /// <summary>
     /// Stages one placed-object pitch rotation edit on a loaded sector asset.
     /// Returns <see langword="null"/> when the object already uses <paramref name="rotationPitch"/>,
@@ -1709,19 +4544,26 @@ public sealed class EditorWorkspaceSession
         return Workspace;
     }
 
-    private EditorWorkspace ApplyPendingChangesCore(string? changeGroupLabel, bool persistedToDisk)
+    private EditorWorkspace ApplyPendingChangesCore(
+        string? changeGroupLabel,
+        bool persistedToDisk,
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys
+    )
     {
         if (!HasPendingChanges)
             return Workspace;
 
+        var pendingState = BuildPendingWorkspaceState(selectedScopeKeys);
+        if (pendingState.Changes.Count == 0)
+            return Workspace;
+
         var previousSnapshot = CaptureHistorySnapshot();
-        var pendingState = BuildPendingWorkspaceState();
         ThrowIfPendingStateIntroducesBlockingErrors(pendingState.Workspace.Validation);
 
-        CommitDialogChanges();
-        CommitScriptChanges();
-        CommitDirectAssetChanges();
-        CommitSaveChanges();
+        CommitDialogChanges(selectedScopeKeys);
+        CommitScriptChanges(selectedScopeKeys);
+        CommitDirectAssetChanges(selectedScopeKeys);
+        CommitSaveChanges(selectedScopeKeys);
         Workspace = pendingState.Workspace;
         RecordAppliedSnapshot(
             previousSnapshot,
@@ -1730,15 +4572,17 @@ public sealed class EditorWorkspaceSession
         return Workspace;
     }
 
-    private PendingWorkspaceState BuildPendingWorkspaceState()
+    private PendingWorkspaceState BuildPendingWorkspaceState(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    )
     {
-        var pendingChanges = CollectPendingChangesSnapshot();
-        var pendingDialogs = CollectDialogChanges();
-        var pendingScripts = CollectScriptChanges();
-        var pendingProtos = CollectProtoChanges();
-        var pendingMobs = CollectMobChanges();
-        var pendingSectors = CollectSectorChanges();
-        var pendingSave = CreatePendingSaveSnapshot();
+        var pendingChanges = CollectPendingChangesSnapshot(selectedScopeKeys);
+        var pendingDialogs = CollectDialogChanges(selectedScopeKeys);
+        var pendingScripts = CollectScriptChanges(selectedScopeKeys);
+        var pendingProtos = CollectProtoChanges(selectedScopeKeys);
+        var pendingMobs = CollectMobChanges(selectedScopeKeys);
+        var pendingSectors = CollectSectorChanges(selectedScopeKeys);
+        var pendingSave = CreatePendingSaveSnapshot(selectedScopeKeys);
 
         var updatedGameData =
             pendingDialogs.Count == 0
@@ -1838,7 +4682,9 @@ public sealed class EditorWorkspaceSession
         };
     }
 
-    private List<EditorSessionChange> CollectPendingChangesSnapshot()
+    private List<EditorSessionChange> CollectPendingChangesSnapshot(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    )
     {
         var changes = new List<EditorSessionChange>();
 
@@ -1846,7 +4692,10 @@ public sealed class EditorWorkspaceSession
             var (assetPath, editor) in _dialogEditors.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
         )
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Dialog, assetPath)
+            )
                 continue;
 
             changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Dialog, Target = assetPath });
@@ -1856,26 +4705,40 @@ public sealed class EditorWorkspaceSession
             var (assetPath, editor) in _scriptEditors.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
         )
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Script, assetPath)
+            )
                 continue;
 
             changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Script, Target = assetPath });
         }
 
-        foreach (
-            var assetPath in _pendingProtoAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+        if (IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null))
+        {
+            foreach (
+                var assetPath in _pendingProtoAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            )
+                changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Proto, Target = assetPath });
+
+            foreach (
+                var assetPath in _pendingMobAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            )
+                changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Mob, Target = assetPath });
+
+            foreach (
+                var assetPath in _pendingSectorAssets.Keys.OrderBy(
+                    static path => path,
+                    StringComparer.OrdinalIgnoreCase
+                )
+            )
+                changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Sector, Target = assetPath });
+        }
+
+        if (
+            _saveEditor?.HasPendingChanges == true
+            && IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget())
         )
-            changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Proto, Target = assetPath });
-
-        foreach (var assetPath in _pendingMobAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
-            changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Mob, Target = assetPath });
-
-        foreach (
-            var assetPath in _pendingSectorAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
-        )
-            changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Sector, Target = assetPath });
-
-        if (_saveEditor?.HasPendingChanges == true)
         {
             changes.Add(
                 new EditorSessionChange
@@ -2255,6 +5118,7 @@ public sealed class EditorWorkspaceSession
         var camera = mapViewState.Camera ?? new EditorProjectMapCameraState();
         var selection = mapViewState.Selection ?? new EditorProjectMapSelectionState();
         var preview = mapViewState.Preview ?? new EditorProjectMapPreviewState();
+        var worldEdit = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
 
         return new EditorProjectMapViewState
         {
@@ -2293,7 +5157,119 @@ public sealed class EditorWorkspaceSession
                 ShowBlockedTiles = preview.ShowBlockedTiles,
                 ShowScripts = preview.ShowScripts,
             },
+            WorldEdit = worldEdit,
         };
+    }
+
+    private static EditorProjectMapWorldEditState NormalizeProjectMapWorldEditState(
+        EditorProjectMapWorldEditState? worldEditState
+    )
+    {
+        var terrain = NormalizeProjectMapTerrainToolState(worldEditState?.Terrain);
+        var objectPlacement = NormalizeProjectMapObjectPlacementToolState(worldEditState?.ObjectPlacement);
+        return new EditorProjectMapWorldEditState
+        {
+            ActiveTool = worldEditState?.ActiveTool ?? EditorProjectMapWorldEditActiveTool.None,
+            Terrain = terrain,
+            ObjectPlacement = objectPlacement,
+        };
+    }
+
+    private static EditorProjectMapTerrainToolState NormalizeProjectMapTerrainToolState(
+        EditorProjectMapTerrainToolState? terrainToolState
+    ) =>
+        new()
+        {
+            MapPropertiesAssetPath = NormalizeOptionalAssetPath(terrainToolState?.MapPropertiesAssetPath),
+            PaletteX = terrainToolState?.PaletteX ?? 0UL,
+            PaletteY = terrainToolState?.PaletteY ?? 0UL,
+        };
+
+    private static EditorProjectMapObjectPlacementToolState NormalizeProjectMapObjectPlacementToolState(
+        EditorProjectMapObjectPlacementToolState? objectPlacementToolState
+    ) =>
+        new()
+        {
+            Mode = objectPlacementToolState?.Mode ?? EditorProjectMapObjectPlacementMode.SinglePlacement,
+            PlacementRequest = NormalizePlacementRequest(objectPlacementToolState?.PlacementRequest),
+            PlacementSet = NormalizePlacementSet(objectPlacementToolState?.PlacementSet),
+            PresetLibrary = NormalizePlacementPresetLibrary(objectPlacementToolState?.PresetLibrary),
+            SelectedPresetId = string.IsNullOrWhiteSpace(objectPlacementToolState?.SelectedPresetId)
+                ? null
+                : objectPlacementToolState!.SelectedPresetId.Trim(),
+        };
+
+    private static EditorObjectPalettePlacementRequest? NormalizePlacementRequest(
+        EditorObjectPalettePlacementRequest? placementRequest
+    ) =>
+        placementRequest is null
+            ? null
+            : new EditorObjectPalettePlacementRequest
+            {
+                ProtoNumber = placementRequest.ProtoNumber,
+                DeltaTileX = placementRequest.DeltaTileX,
+                DeltaTileY = placementRequest.DeltaTileY,
+                Rotation = placementRequest.Rotation,
+                RotationPitch = placementRequest.RotationPitch,
+                AlignToTileGrid = placementRequest.AlignToTileGrid,
+            };
+
+    private static EditorObjectPalettePlacementSet? NormalizePlacementSet(
+        EditorObjectPalettePlacementSet? placementSet
+    ) =>
+        placementSet is null
+            ? null
+            : new EditorObjectPalettePlacementSet
+            {
+                Name = placementSet.Name,
+                Entries = NormalizePlacementRequests(placementSet.Entries),
+            };
+
+    private static IReadOnlyList<EditorObjectPalettePlacementPreset> NormalizePlacementPresetLibrary(
+        IReadOnlyList<EditorObjectPalettePlacementPreset>? presetLibrary
+    )
+    {
+        if (presetLibrary is null || presetLibrary.Count == 0)
+            return [];
+
+        var normalizedPresets = new EditorObjectPalettePlacementPreset[presetLibrary.Count];
+        for (var i = 0; i < presetLibrary.Count; i++)
+            normalizedPresets[i] = NormalizePlacementPreset(presetLibrary[i]);
+
+        return normalizedPresets;
+    }
+
+    private static EditorObjectPalettePlacementPreset NormalizePlacementPreset(
+        EditorObjectPalettePlacementPreset preset
+    )
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        return new EditorObjectPalettePlacementPreset
+        {
+            PresetId = preset.PresetId,
+            Name = preset.Name,
+            Description = preset.Description,
+            Entries = NormalizePlacementRequests(preset.Entries),
+        };
+    }
+
+    private static IReadOnlyList<EditorObjectPalettePlacementRequest> NormalizePlacementRequests(
+        IReadOnlyList<EditorObjectPalettePlacementRequest>? placementRequests
+    )
+    {
+        if (placementRequests is null || placementRequests.Count == 0)
+            return [];
+
+        var normalizedRequests = new EditorObjectPalettePlacementRequest[placementRequests.Count];
+        for (var i = 0; i < placementRequests.Count; i++)
+        {
+            var placementRequest = placementRequests[i];
+            ArgumentNullException.ThrowIfNull(placementRequest);
+            normalizedRequests[i] = NormalizePlacementRequest(placementRequest)!;
+        }
+
+        return normalizedRequests;
     }
 
     private static IReadOnlyList<EditorProjectToolState> NormalizeProjectToolStates(
@@ -2322,6 +5298,72 @@ public sealed class EditorWorkspaceSession
 
     private static string? NormalizeOptionalAssetPath(string? assetPath) =>
         string.IsNullOrWhiteSpace(assetPath) ? null : NormalizeAssetPath(assetPath);
+
+    private static IReadOnlyList<EditorSessionChange> GetStagedTransactionPendingChanges(
+        EditorSessionStagedHistoryScope scope,
+        IReadOnlyList<EditorSessionChange> pendingChanges
+    )
+    {
+        return scope.Kind switch
+        {
+            EditorSessionStagedHistoryScopeKind.Dialog => pendingChanges
+                .Where(change =>
+                    change.Kind == EditorSessionChangeKind.Dialog
+                    && string.Equals(change.Target, scope.Target, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToArray(),
+            EditorSessionStagedHistoryScopeKind.Script => pendingChanges
+                .Where(change =>
+                    change.Kind == EditorSessionChangeKind.Script
+                    && string.Equals(change.Target, scope.Target, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToArray(),
+            EditorSessionStagedHistoryScopeKind.Save => pendingChanges
+                .Where(change =>
+                    change.Kind == EditorSessionChangeKind.Save
+                    && string.Equals(change.Target, scope.Target, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToArray(),
+            EditorSessionStagedHistoryScopeKind.DirectAssets => pendingChanges
+                .Where(change =>
+                    change.Kind
+                        is EditorSessionChangeKind.Proto
+                            or EditorSessionChangeKind.Mob
+                            or EditorSessionChangeKind.Sector
+                )
+                .ToArray(),
+            _ => throw new InvalidOperationException($"Unsupported staged transaction scope {scope.Kind}."),
+        };
+    }
+
+    private static string GetStagedTransactionLabel(EditorSessionStagedHistoryScope scope) =>
+        scope.Kind switch
+        {
+            EditorSessionStagedHistoryScopeKind.Dialog => scope.Target ?? "dialog",
+            EditorSessionStagedHistoryScopeKind.Script => scope.Target ?? "script",
+            EditorSessionStagedHistoryScopeKind.Save => scope.Target ?? "save",
+            EditorSessionStagedHistoryScopeKind.DirectAssets => "direct-assets",
+            _ => throw new InvalidOperationException($"Unsupported staged transaction scope {scope.Kind}."),
+        };
+
+    private static IReadOnlyList<string> GetStagedTransactionAffectedTargets(
+        EditorSessionStagedHistoryScope scope,
+        IReadOnlyList<EditorSessionChange> pendingChanges
+    )
+    {
+        if (
+            scope.Kind
+                is EditorSessionStagedHistoryScopeKind.Dialog
+                    or EditorSessionStagedHistoryScopeKind.Script
+                    or EditorSessionStagedHistoryScopeKind.Save
+            && scope.Target is not null
+        )
+        {
+            return [scope.Target];
+        }
+
+        return [.. pendingChanges.Select(static change => change.Target).Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
 
     private bool HasPendingDirectAssetChanges =>
         _pendingProtoAssets.Count > 0 || _pendingMobAssets.Count > 0 || _pendingSectorAssets.Count > 0;
@@ -2357,6 +5399,120 @@ public sealed class EditorWorkspaceSession
             return openAssetScope;
 
         return scopes.FirstOrDefault(scope => canUndo ? scope.CanUndo : scope.CanRedo);
+    }
+
+    private EditorSessionStagedTransactionSummary? GetPreferredStagedTransactionSummary(bool canUndo)
+    {
+        var summaries = GetStagedTransactionSummaries();
+        if (summaries.Count == 0)
+            return null;
+
+        var preferredScope = GetPreferredStagedHistoryScope(canUndo);
+        if (preferredScope is null)
+            return null;
+
+        return summaries.FirstOrDefault(summary =>
+            summary.Kind == preferredScope.Kind
+            && string.Equals(summary.Target, preferredScope.Target, StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    private EditorSessionStagedCommandSummary? CreateDefaultStagedCommandSummary(EditorSessionStagedCommandKind kind)
+    {
+        var transaction = kind switch
+        {
+            EditorSessionStagedCommandKind.Undo => GetPreferredUndoStagedTransactionSummary(),
+            EditorSessionStagedCommandKind.Redo => GetPreferredRedoStagedTransactionSummary(),
+            _ => throw new InvalidOperationException($"Unsupported staged command kind {kind}."),
+        };
+
+        if (transaction is null)
+            return null;
+
+        var verb = kind == EditorSessionStagedCommandKind.Undo ? "Undo" : "Redo";
+        return new EditorSessionStagedCommandSummary
+        {
+            Kind = kind,
+            Label = $"{verb} {transaction.Label}",
+            Transaction = transaction,
+            CanExecute = kind == EditorSessionStagedCommandKind.Undo ? transaction.CanUndo : transaction.CanRedo,
+            IsDefault = true,
+        };
+    }
+
+    private EditorSessionHistoryCommandSummary? CreateDefaultHistoryCommandSummary(EditorSessionHistoryCommandKind kind)
+    {
+        var entry = kind switch
+        {
+            EditorSessionHistoryCommandKind.Undo => _undoSnapshots.TryPeek(out var undoFrame) ? undoFrame.Entry : null,
+            EditorSessionHistoryCommandKind.Redo => _redoSnapshots.TryPeek(out var redoFrame) ? redoFrame.Entry : null,
+            _ => throw new InvalidOperationException($"Unsupported history command kind {kind}."),
+        };
+
+        if (entry is null)
+            return null;
+
+        var verb = kind == EditorSessionHistoryCommandKind.Undo ? "Undo" : "Redo";
+        return new EditorSessionHistoryCommandSummary
+        {
+            Kind = kind,
+            Label = $"{verb} {entry.Label}",
+            Entry = entry,
+            CanExecute = true,
+        };
+    }
+
+    private IReadOnlyList<EditorSessionStagedCommandSummary> CreateAvailableStagedCommandSummaries(
+        EditorSessionStagedCommandKind kind
+    )
+    {
+        var preferred =
+            kind == EditorSessionStagedCommandKind.Undo
+                ? GetPreferredUndoStagedTransactionSummary()
+                : GetPreferredRedoStagedTransactionSummary();
+        var summaries = GetStagedTransactionSummaries();
+        var commands = new List<EditorSessionStagedCommandSummary>(summaries.Count);
+        var verb = kind == EditorSessionStagedCommandKind.Undo ? "Undo" : "Redo";
+
+        foreach (var transaction in summaries)
+        {
+            var canExecute = kind == EditorSessionStagedCommandKind.Undo ? transaction.CanUndo : transaction.CanRedo;
+            if (!canExecute)
+                continue;
+
+            var isDefault =
+                preferred is not null
+                && transaction.Kind == preferred.Kind
+                && string.Equals(transaction.Target, preferred.Target, StringComparison.OrdinalIgnoreCase);
+
+            commands.Add(
+                new EditorSessionStagedCommandSummary
+                {
+                    Kind = kind,
+                    Label = $"{verb} {transaction.Label}",
+                    Transaction = transaction,
+                    CanExecute = true,
+                    IsDefault = isDefault,
+                }
+            );
+        }
+
+        commands.Sort(
+            static (left, right) =>
+            {
+                var defaultOrder = right.IsDefault.CompareTo(left.IsDefault);
+                if (defaultOrder != 0)
+                    return defaultOrder;
+
+                var kindOrder = left.Kind.CompareTo(right.Kind);
+                if (kindOrder != 0)
+                    return kindOrder;
+
+                return StringComparer.OrdinalIgnoreCase.Compare(left.Label, right.Label);
+            }
+        );
+
+        return commands;
     }
 
     private bool TryGetActiveAssetHistoryScope(
@@ -2614,6 +5770,7 @@ public sealed class EditorWorkspaceSession
                     RecordedAtUtc = latestFrame.Entry.RecordedAtUtc,
                     PersistedToDisk = true,
                     Changes = latestFrame.Entry.Changes,
+                    ProjectState = latestFrame.Entry.ProjectState,
                 }
             )
         );
@@ -2682,6 +5839,7 @@ public sealed class EditorWorkspaceSession
             RecordedAtUtc = DateTimeOffset.UtcNow,
             PersistedToDisk = persistedToDisk,
             Changes = [.. changes],
+            ProjectState = CreateProjectStateSummary(),
         };
 
     private static string CreateHistoryLabel(
@@ -2701,6 +5859,27 @@ public sealed class EditorWorkspaceSession
             _ => $"{verb} {changes.Count} session changes",
         };
     }
+
+    private EditorSessionProjectStateSummary CreateProjectStateSummary() =>
+        new()
+        {
+            ActiveAssetPath = _projectActiveAssetPath,
+            OpenAssets = [.. _projectOpenAssets],
+            Bookmarks = [.. _projectBookmarks],
+            MapViewStates = [.. _projectMapViewStates],
+            ViewStates = [.. _projectViewStates],
+            ToolStates = [.. _projectToolStates],
+        };
+
+    private EditorSessionBootstrapSummary CreateBootstrapSummary(EditorProjectRestoreResult? restore) =>
+        new()
+        {
+            ProjectState = CreateProjectStateSummary(),
+            Restore = restore,
+            StagedTransactions = GetStagedTransactionSummaries(),
+            StagedCommands = GetAvailableStagedCommandSummaries(),
+            HistoryCommands = GetHistoryCommandSummaries(),
+        };
 
     private void RestoreDialogEditorBaselines()
     {
@@ -2751,13 +5930,18 @@ public sealed class EditorWorkspaceSession
         }
     }
 
-    private Dictionary<string, DlgFile> CollectDialogChanges()
+    private Dictionary<string, DlgFile> CollectDialogChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    )
     {
         var pendingDialogs = new Dictionary<string, DlgFile>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (assetPath, editor) in _dialogEditors)
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Dialog, assetPath)
+            )
                 continue;
 
             pendingDialogs[assetPath] = editor.GetCurrentDialog();
@@ -2785,16 +5969,29 @@ public sealed class EditorWorkspaceSession
             );
     }
 
-    private string[] CollectPendingDialogAssetPaths() =>
-        _dialogEditors.Where(static pair => pair.Value.HasPendingChanges).Select(static pair => pair.Key).ToArray();
+    private string[] CollectPendingDialogAssetPaths(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        _dialogEditors
+            .Where(pair =>
+                pair.Value.HasPendingChanges
+                && IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Dialog, pair.Key)
+            )
+            .Select(static pair => pair.Key)
+            .ToArray();
 
-    private Dictionary<string, ScrFile> CollectScriptChanges()
+    private Dictionary<string, ScrFile> CollectScriptChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    )
     {
         var pendingScripts = new Dictionary<string, ScrFile>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (assetPath, editor) in _scriptEditors)
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Script, assetPath)
+            )
                 continue;
 
             pendingScripts[assetPath] = editor.GetCurrentScript();
@@ -2803,16 +6000,37 @@ public sealed class EditorWorkspaceSession
         return pendingScripts;
     }
 
-    private string[] CollectPendingScriptAssetPaths() =>
-        _scriptEditors.Where(static pair => pair.Value.HasPendingChanges).Select(static pair => pair.Key).ToArray();
+    private string[] CollectPendingScriptAssetPaths(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        _scriptEditors
+            .Where(pair =>
+                pair.Value.HasPendingChanges
+                && IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Script, pair.Key)
+            )
+            .Select(static pair => pair.Key)
+            .ToArray();
 
-    private Dictionary<string, ProtoData> CollectProtoChanges() =>
-        new(_pendingProtoAssets, StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, ProtoData> CollectProtoChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
+            ? new(_pendingProtoAssets, StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
 
-    private Dictionary<string, MobData> CollectMobChanges() => new(_pendingMobAssets, StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, MobData> CollectMobChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
+            ? new(_pendingMobAssets, StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
 
-    private Dictionary<string, Sector> CollectSectorChanges() =>
-        new(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, Sector> CollectSectorChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
+            ? new(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
 
     private EditorSessionChange? StageSectorChange(string normalizedPath, Func<Sector, Sector?> update) =>
         TrackDirectAssetEdit(
@@ -2905,50 +6123,147 @@ public sealed class EditorWorkspaceSession
             Directory.CreateDirectory(directory);
     }
 
-    private void CommitDialogChanges()
+    private void CommitDialogChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)
     {
-        foreach (var editor in _dialogEditors.Values)
+        foreach (var (assetPath, editor) in _dialogEditors)
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Dialog, assetPath)
+            )
                 continue;
 
             editor.CommitPendingChanges();
         }
     }
 
-    private void CommitScriptChanges()
+    private void CommitScriptChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)
     {
-        foreach (var editor in _scriptEditors.Values)
+        foreach (var (assetPath, editor) in _scriptEditors)
         {
-            if (!editor.HasPendingChanges)
+            if (
+                !editor.HasPendingChanges
+                || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Script, assetPath)
+            )
                 continue;
 
             editor.CommitPendingChanges();
         }
     }
 
-    private void CommitDirectAssetChanges()
+    private void CommitDirectAssetChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)
     {
+        if (!IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null))
+            return;
+
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
         ClearDirectAssetDraftHistory();
     }
 
-    private LoadedSave? CreatePendingSaveSnapshot()
+    private LoadedSave? CreatePendingSaveSnapshot(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    )
     {
-        if (_saveEditor?.HasPendingChanges != true)
+        if (
+            _saveEditor?.HasPendingChanges != true
+            || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget())
+        )
             return Workspace.Save;
 
         return _saveEditor.CreateCommittedSnapshot();
     }
 
-    private void CommitSaveChanges()
+    private void CommitSaveChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)
     {
-        if (_saveEditor?.HasPendingChanges != true)
+        if (
+            _saveEditor?.HasPendingChanges != true
+            || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget())
+        )
             return;
 
         _saveEditor.CommitPendingChanges();
+    }
+
+    private static bool IncludesScope(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys,
+        EditorSessionStagedHistoryScopeKind kind,
+        string? target
+    ) => selectedScopeKeys is null || selectedScopeKeys.Contains(new EditorSessionStagedHistoryScopeKey(kind, target));
+
+    private static HashSet<EditorSessionStagedHistoryScopeKey> NormalizeSelectedStagedTransactionScopeKeys(
+        IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(stagedTransactions);
+
+        var scopeKeys = new HashSet<EditorSessionStagedHistoryScopeKey>();
+        foreach (var stagedTransaction in stagedTransactions)
+        {
+            ArgumentNullException.ThrowIfNull(stagedTransaction);
+            scopeKeys.Add(new EditorSessionStagedHistoryScopeKey(stagedTransaction.Kind, stagedTransaction.Target));
+        }
+
+        return scopeKeys;
+    }
+
+    private static HashSet<EditorSessionStagedHistoryScopeKey> CreateSelectedScopeKeys(
+        EditorSessionStagedHistoryScopeKind kind,
+        string? target
+    ) => [new EditorSessionStagedHistoryScopeKey(kind, target)];
+
+    private IReadOnlyList<EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys
+    )
+    {
+        var candidates = new List<EditorSessionValidationRepairCandidate>();
+
+        foreach (
+            var assetPath in Workspace.GameData.DialogsBySource.Keys.OrderBy(
+                static path => path,
+                StringComparer.OrdinalIgnoreCase
+            )
+        )
+        {
+            if (!IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Dialog, assetPath))
+                continue;
+
+            foreach (var issue in DialogValidator.Validate(GetCurrentDialogAsset(assetPath)))
+                AddDialogRepairCandidates(candidates, assetPath, issue);
+        }
+
+        return candidates;
+    }
+
+    private EditorWorkspaceValidationReport GetPendingValidation(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys
+    )
+    {
+        if (selectedScopeKeys is not null && selectedScopeKeys.Count == 0)
+            return Workspace.Validation;
+
+        return BuildPendingWorkspaceState(selectedScopeKeys).Workspace.Validation;
+    }
+
+    private EditorWorkspaceValidationReport CreateBlockingValidationReport(
+        EditorWorkspaceValidationReport pendingValidation
+    )
+    {
+        ArgumentNullException.ThrowIfNull(pendingValidation);
+
+        var blockingIssues = CollectPendingStateBlockingIssues(pendingValidation);
+        return blockingIssues.Length == 0
+            ? EditorWorkspaceValidationReport.Empty
+            : new EditorWorkspaceValidationReport { Issues = blockingIssues };
+    }
+
+    private void DiscardDirectAssetChanges()
+    {
+        _pendingProtoAssets.Clear();
+        _pendingMobAssets.Clear();
+        _pendingSectorAssets.Clear();
+        ClearDirectAssetDraftHistory();
     }
 
     private List<ScriptRetargetTarget> CollectScriptRetargetTargets(int sourceScriptId)
@@ -3179,6 +6494,22 @@ public sealed class EditorWorkspaceSession
         }
     }
 
+    private static int? TryGetObjectIntProperty(MobData mob, ObjectField field)
+    {
+        var property = mob.GetProperty(field);
+        if (property is null)
+            return null;
+
+        try
+        {
+            return property.GetInt32();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private static uint GetRoofArtId(Sector sector, int roofX, int roofY)
     {
         if (sector.Roofs is null)
@@ -3206,10 +6537,46 @@ public sealed class EditorWorkspaceSession
         return CreateSectorObjectFromProto(GetCurrentProtoAsset(protoAsset.AssetPath), protoNumber, tileX, tileY);
     }
 
+    private static MobData CreateSectorObjectFromPalettePlacement(
+        ProtoData proto,
+        EditorObjectPalettePlacementRequest request,
+        int tileX,
+        int tileY
+    )
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var finalTileX = tileX + request.DeltaTileX;
+        var finalTileY = tileY + request.DeltaTileY;
+        ValidateTileCoordinate(nameof(tileX), finalTileX);
+        ValidateTileCoordinate(nameof(tileY), finalTileY);
+
+        var builder = new MobDataBuilder(
+            proto,
+            CreateObjectInstanceId(request.ProtoNumber),
+            CreateProtoReferenceId(request.ProtoNumber)
+        ).WithLocation(finalTileX, finalTileY);
+
+        if (request.AlignToTileGrid)
+            builder.WithOffset(0, 0);
+
+        if (request.Rotation.HasValue)
+            builder.WithRotation(request.Rotation.Value);
+
+        if (request.RotationPitch.HasValue)
+            builder.WithRotationPitch(request.RotationPitch.Value);
+
+        return builder.Build();
+    }
+
     private static MobData CreateSectorObjectFromProto(ProtoData proto, int protoNumber, int tileX, int tileY) =>
-        new MobDataBuilder(proto, CreateObjectInstanceId(protoNumber), CreateProtoReferenceId(protoNumber))
-            .WithLocation(tileX, tileY)
-            .Build();
+        CreateSectorObjectFromPalettePlacement(
+            proto,
+            EditorObjectPalettePlacementRequest.Place(protoNumber),
+            tileX,
+            tileY
+        );
 
     private static GameObjectGuid CreateProtoReferenceId(int protoNumber)
     {
@@ -3243,6 +6610,28 @@ public sealed class EditorWorkspaceSession
                 $"Roof coordinates must be between 0 and {SectorRoofAxisLength - 1}."
             );
         }
+    }
+
+    private ProtoData GetCurrentProtoAssetForPlacement(EditorObjectPalettePlacementRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.ProtoNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                request.ProtoNumber,
+                "Proto numbers must be positive."
+            );
+        }
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(request.ProtoNumber)
+            ?? throw new InvalidOperationException(
+                $"Cannot instantiate object from proto {request.ProtoNumber} because no loaded proto definition matched that identifier."
+            );
+
+        return GetCurrentProtoAsset(protoAsset.AssetPath);
     }
 
     private ProtoData GetCurrentProtoAsset(string assetPath)

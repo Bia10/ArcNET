@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Optional inputs for <see cref="EditorWorkspaceLoader"/>.
@@ -10,6 +10,12 @@ public sealed class EditorWorkspaceLoadOptions
     /// Install-backed workspace loading supplies this automatically.
     /// </summary>
     public string? GameDirectory { get; init; }
+
+    /// <summary>
+    /// Optional module name used when one install-backed workspace should load only one specific module context.
+    /// When omitted, install-backed loading keeps its existing whole-install behavior.
+    /// </summary>
+    public string? ModuleName { get; init; }
 
     /// <summary>
     /// Optional save directory. Must be supplied together with <see cref="SaveSlotName"/>.

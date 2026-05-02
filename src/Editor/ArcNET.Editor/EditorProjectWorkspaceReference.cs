@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted workspace input that can reopen an <see cref="EditorWorkspace"/>.
@@ -19,6 +19,12 @@ public sealed class EditorProjectWorkspaceReference
     /// Optional save directory reopened together with the workspace.
     /// </summary>
     public string? SaveFolder { get; init; }
+
+    /// <summary>
+    /// Optional module name reopened together with one install-backed workspace.
+    /// When supplied, the workspace is reopened against one specific module context.
+    /// </summary>
+    public string? ModuleName { get; init; }
 
     /// <summary>
     /// Optional save slot reopened together with the workspace.
@@ -50,6 +56,7 @@ public sealed class EditorProjectWorkspaceReference
     /// </summary>
     public static EditorProjectWorkspaceReference ForGameInstall(
         string gameDirectory,
+        string? moduleName = null,
         string? saveFolder = null,
         string? saveSlotName = null
     )
@@ -60,6 +67,7 @@ public sealed class EditorProjectWorkspaceReference
         {
             Kind = EditorProjectWorkspaceKind.GameInstall,
             RootPath = gameDirectory,
+            ModuleName = moduleName,
             SaveFolder = saveFolder,
             SaveSlotName = saveSlotName,
         };
@@ -72,6 +80,7 @@ public sealed class EditorProjectWorkspaceReference
         new()
         {
             GameDirectory = Kind == EditorProjectWorkspaceKind.GameInstall ? RootPath : null,
+            ModuleName = Kind == EditorProjectWorkspaceKind.GameInstall ? ModuleName : null,
             SaveFolder = SaveFolder,
             SaveSlotName = SaveSlotName,
         };

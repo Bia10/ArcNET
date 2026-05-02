@@ -19,4 +19,19 @@ public enum EditorMapObjectBrushMode
     /// Remove hit objects identified by grouped scene hits.
     /// </summary>
     Erase,
+
+    /// <summary>
+    /// Set the primary rotation of hit objects identified by grouped scene hits.
+    /// </summary>
+    Rotate,
+
+    /// <summary>
+    /// Set the pitch rotation of hit objects identified by grouped scene hits.
+    /// </summary>
+    RotatePitch,
+
+    /// <summary>
+    /// Move hit objects by one sector-local tile offset.
+    /// </summary>
+    MoveByOffset,
 }

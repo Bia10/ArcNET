@@ -7,6 +7,8 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class EditorMapSceneHit
 {
+    private const int TilesPerRoofCellAxis = 4;
+
     /// <summary>
     /// Map-local tile X coordinate hit by the pointer.
     /// </summary>
@@ -26,6 +28,12 @@ public sealed class EditorMapSceneHit
     /// Sector-local tile coordinate hit by the pointer.
     /// </summary>
     public required Location Tile { get; init; }
+
+    /// <summary>
+    /// Sector-local roof-cell coordinate derived from <see cref="Tile"/> using the 16x16 roof grid.
+    /// </summary>
+    public Location RoofCell =>
+        new(checked((short)(Tile.X / TilesPerRoofCellAxis)), checked((short)(Tile.Y / TilesPerRoofCellAxis)));
 
     /// <summary>
     /// All preview objects positioned on the hit tile, ordered by the scene-hit depth heuristic and then preview order.

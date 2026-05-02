@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Describes which persisted project assets a live session could reopen directly.
@@ -24,4 +24,9 @@ public sealed class EditorProjectRestoreResult
     /// Normalized project asset paths that were preserved for round-tripping but not reopened directly.
     /// </summary>
     public IReadOnlyList<string> SkippedAssetPaths { get; init; } = [];
+
+    /// <summary>
+    /// Normalized project/session state now tracked by the live session after restore completes.
+    /// </summary>
+    public required EditorSessionProjectStateSummary RestoredProjectState { get; init; }
 }

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -119,6 +119,20 @@ public sealed class MobDataBuilder
         BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(1), packed);
         return WithProperty(new ObjectProperty { Field = ObjectField.ObjFLocation, RawBytes = bytes });
     }
+
+    /// <summary>
+    /// Sets the screen-space tile offsets of the object.
+    /// </summary>
+    public MobDataBuilder WithOffset(int offsetX, int offsetY) =>
+        WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, offsetX))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, offsetY));
+
+    /// <summary>
+    /// Sets the primary rotation of the object using the legacy
+    /// <see cref="ObjectField.ObjFPadIas1"/> field that stores <c>ObjFRotation</c>.
+    /// </summary>
+    public MobDataBuilder WithRotation(float rotation) =>
+        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFPadIas1, rotation));
 
     /// <summary>
     /// Sets the pitch rotation of the object (<see cref="ObjectField.ObjFRotationPitch"/>).
