@@ -1,4 +1,4 @@
-﻿using ArcNET.Archive;
+using ArcNET.Archive;
 
 namespace ArcNET.Editor;
 
@@ -44,6 +44,11 @@ internal static class EditorAudioAssetLoader
         string gameDir,
         CancellationToken cancellationToken = default
     ) => Task.Run(() => LoadFromGameInstall(gameDir, cancellationToken), cancellationToken);
+
+    public static Task<EditorAudioAssetLoadResult> LoadFromModuleDirectoryAsync(
+        string moduleDirectory,
+        CancellationToken cancellationToken = default
+    ) => Task.Run(() => LoadFromModuleDirectory(moduleDirectory, cancellationToken), cancellationToken);
 
     private static EditorAudioAssetLoadResult LoadFromGameInstall(string gameDir, CancellationToken cancellationToken)
     {
@@ -108,6 +113,76 @@ internal static class EditorAudioAssetLoader
         return new EditorAudioAssetLoadResult(EditorAudioAssetCatalog.Create(entries), dataByPath);
     }
 
+    private static EditorAudioAssetLoadResult LoadFromModuleDirectory(
+        string moduleDirectory,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
+        if (!Directory.Exists(moduleDirectory))
+            throw new DirectoryNotFoundException($"Module directory not found: {moduleDirectory}");
+
+        var dataByPath = new Dictionary<string, ReadOnlyMemory<byte>>(StringComparer.OrdinalIgnoreCase);
+        var sourceByPath = new Dictionary<
+            string,
+            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
+        >(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var archivePath in DiscoverModuleArchivePaths(moduleDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var archive = DatArchive.Open(archivePath);
+            foreach (var entry in archive.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsSupportedAudioAsset(entry.Path))
+                    continue;
+
+                var assetPath = NormalizeVirtualPath(entry.Path);
+                dataByPath[assetPath] = archive.GetEntryData(entry.Path);
+                sourceByPath[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
+            }
+        }
+
+        foreach (var filePath in Directory.EnumerateFiles(moduleDirectory, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                filePath.Contains(
+                    $"{Path.DirectorySeparatorChar}Save{Path.DirectorySeparatorChar}",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+                continue;
+
+            if (!IsSupportedAudioAsset(filePath))
+                continue;
+
+            var assetPath = NormalizeVirtualPath(Path.GetRelativePath(moduleDirectory, filePath));
+            var bytes = File.ReadAllBytes(filePath);
+            dataByPath[assetPath] = bytes;
+            sourceByPath[assetPath] = (EditorAssetSourceKind.LooseFile, filePath, null);
+        }
+
+        var entries = dataByPath
+            .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair =>
+            {
+                var source = sourceByPath[pair.Key];
+                return new EditorAudioAssetEntry
+                {
+                    AssetPath = pair.Key,
+                    SourceKind = source.SourceKind,
+                    SourcePath = source.SourcePath,
+                    SourceEntryPath = source.SourceEntryPath,
+                    ByteLength = pair.Value.Length,
+                };
+            });
+
+        return new EditorAudioAssetLoadResult(EditorAudioAssetCatalog.Create(entries), dataByPath);
+    }
+
     private static IReadOnlyList<string> DiscoverArchivePaths(string gameDir)
     {
         var paths = new List<string>();
@@ -129,6 +204,37 @@ internal static class EditorAudioAssetLoader
         }
 
         return archivePaths;
+    }
+
+    private static IReadOnlyList<string> DiscoverModuleArchivePaths(string moduleDirectory)
+    {
+        var moduleName = Path.GetFileName(
+            moduleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        );
+        var modulesRoot = Directory.GetParent(moduleDirectory)?.FullName;
+        if (modulesRoot is null || !Directory.Exists(modulesRoot))
+            return [];
+
+        var archivePaths = new List<string>();
+        foreach (
+            var path in Directory
+                .EnumerateFiles(modulesRoot, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => IsModuleArchiveCandidate(path, moduleName))
+                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+        )
+        {
+            if (TryAcceptArchiveCandidate(path))
+                archivePaths.Add(path);
+        }
+
+        return archivePaths;
+    }
+
+    private static bool IsModuleArchiveCandidate(string path, string moduleName)
+    {
+        var fileName = Path.GetFileName(path);
+        return fileName.Equals($"{moduleName}.dat", StringComparison.OrdinalIgnoreCase)
+            || fileName.StartsWith($"{moduleName}.PATCH", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<string> EnumerateSortedFiles(string dir, string pattern, SearchOption searchOption) =>
