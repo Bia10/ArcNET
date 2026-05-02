@@ -268,6 +268,320 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task StagedTransactionSummaries_ReportDialogAndScriptTransactions()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                new ScriptBuilder().WithDescription("Guard").AddCondition(ScriptConditionType.True).Build(),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+
+            var summaries = session.GetStagedTransactionSummaries();
+            var dialogSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+            var scriptSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Script);
+
+            await Assert.That(summaries.Count).IsEqualTo(2);
+            await Assert.That(dialogSummary.Label).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(dialogSummary.Target).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(dialogSummary.AffectedTargets).IsEquivalentTo(["dlg/00001Guard.dlg"]);
+            await Assert.That(dialogSummary.PendingChangeCount).IsEqualTo(1);
+            await Assert.That(dialogSummary.PendingChanges[0].Kind).IsEqualTo(EditorSessionChangeKind.Dialog);
+            await Assert.That(dialogSummary.PendingChanges[0].Target).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(dialogSummary.HasPendingChanges).IsTrue();
+            await Assert.That(dialogSummary.CanUndo).IsTrue();
+            await Assert.That(dialogSummary.CanRedo).IsFalse();
+            await Assert.That(dialogSummary.CanApplyFromSession).IsTrue();
+            await Assert.That(dialogSummary.CanDiscardFromSession).IsTrue();
+            await Assert.That(dialogSummary.CanApplyIndividually).IsTrue();
+            await Assert.That(dialogSummary.CanSaveIndividually).IsTrue();
+            await Assert.That(dialogSummary.BlockingValidation.HasIssues).IsFalse();
+            await Assert.That(dialogSummary.RepairCandidateCount).IsEqualTo(0);
+            await Assert.That(dialogSummary.CanRepairFromSession).IsFalse();
+
+            await Assert.That(scriptSummary.Label).IsEqualTo("scr/00077Guard.scr");
+            await Assert.That(scriptSummary.Target).IsEqualTo("scr/00077Guard.scr");
+            await Assert.That(scriptSummary.AffectedTargets).IsEquivalentTo(["scr/00077Guard.scr"]);
+            await Assert.That(scriptSummary.PendingChangeCount).IsEqualTo(1);
+            await Assert.That(scriptSummary.PendingChanges[0].Kind).IsEqualTo(EditorSessionChangeKind.Script);
+            await Assert.That(scriptSummary.PendingChanges[0].Target).IsEqualTo("scr/00077Guard.scr");
+            await Assert.That(scriptSummary.HasPendingChanges).IsTrue();
+            await Assert.That(scriptSummary.CanUndo).IsTrue();
+            await Assert.That(scriptSummary.CanRedo).IsFalse();
+            await Assert.That(scriptSummary.CanApplyFromSession).IsTrue();
+            await Assert.That(scriptSummary.CanDiscardFromSession).IsTrue();
+            await Assert.That(scriptSummary.CanApplyIndividually).IsTrue();
+            await Assert.That(scriptSummary.CanSaveIndividually).IsTrue();
+            await Assert.That(scriptSummary.BlockingValidation.HasIssues).IsFalse();
+            await Assert.That(scriptSummary.RepairCandidateCount).IsEqualTo(0);
+            await Assert.That(scriptSummary.CanRepairFromSession).IsFalse();
+            await Assert.That(session.CanApplyPendingChanges).IsTrue();
+            await Assert.That(session.CanDiscardPendingChanges).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task StagedTransactionSummaries_ReportAndDispatchUndoRedo()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                new ScriptBuilder().WithDescription("Guard").AddCondition(ScriptConditionType.True).Build(),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Updated guard");
+
+            var summaries = session.GetStagedTransactionSummaries();
+            var dialogSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+            var scriptSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Script);
+
+            session.UndoStagedChanges(dialogSummary);
+            session.UndoStagedChanges(scriptSummary);
+
+            var undoneSummaries = session.GetStagedTransactionSummaries();
+            var undoneDialogSummary = undoneSummaries.Single(summary =>
+                summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog
+            );
+            var undoneScriptSummary = undoneSummaries.Single(summary =>
+                summary.Kind == EditorSessionStagedHistoryScopeKind.Script
+            );
+
+            await Assert.That(session.HasPendingChanges).IsFalse();
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(1);
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Guard");
+            await Assert.That(undoneDialogSummary.CanUndo).IsFalse();
+            await Assert.That(undoneDialogSummary.CanRedo).IsTrue();
+            await Assert.That(undoneScriptSummary.CanUndo).IsFalse();
+            await Assert.That(undoneScriptSummary.CanRedo).IsTrue();
+
+            session.RedoStagedChanges(undoneDialogSummary);
+            session.RedoStagedChanges(undoneScriptSummary);
+
+            await Assert.That(session.HasPendingChanges).IsTrue();
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(2);
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Updated guard");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task HistoryCommandSummaries_ReportDefaultUndoAndRedoCommands()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                new ScriptBuilder().WithDescription("Guard").AddCondition(ScriptConditionType.True).Build(),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.OpenAsset(new EditorProjectOpenAsset { AssetPath = "scr/00077Guard.scr", ViewId = "script-grid" });
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    ViewId = "map-scene",
+                    Camera = new EditorProjectMapCameraState { Zoom = 2.5 },
+                    Selection = new EditorProjectMapSelectionState(),
+                    Preview = new EditorProjectMapPreviewState { OutlineMode = EditorMapPreviewMode.Lights },
+                }
+            );
+            session.SetActiveAsset("scr/00077Guard.scr");
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+
+            var updatedWorkspace = session.BeginChangeGroup("Guard touch-up").ApplyPendingChanges();
+            var defaultUndo = session.GetDefaultUndoHistoryCommandSummary();
+            var defaultRedo = session.GetDefaultRedoHistoryCommandSummary();
+            var commands = session.GetHistoryCommandSummaries();
+
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(2);
+            await Assert.That(defaultUndo).IsNotNull();
+            await Assert.That(defaultUndo!.Kind).IsEqualTo(EditorSessionHistoryCommandKind.Undo);
+            await Assert.That(defaultUndo.Label).IsEqualTo("Undo Guard touch-up");
+            await Assert.That(defaultUndo.CanExecute).IsTrue();
+            await Assert.That(defaultUndo.Entry.ProjectState.ActiveAssetPath).IsEqualTo("scr/00077Guard.scr");
+            await Assert.That(defaultUndo.Entry.ProjectState.OpenAssets.Count).IsEqualTo(2);
+            await Assert.That(defaultUndo.Entry.ProjectState.MapViewStates.Count).IsEqualTo(1);
+            await Assert.That(defaultRedo).IsNull();
+            await Assert.That(commands.Count).IsEqualTo(1);
+            await Assert.That(commands[0].Kind).IsEqualTo(EditorSessionHistoryCommandKind.Undo);
+
+            session.Undo();
+
+            var redoAfterUndo = session.GetDefaultRedoHistoryCommandSummary();
+            var commandsAfterUndo = session.GetHistoryCommandSummaries();
+
+            await Assert.That(redoAfterUndo).IsNotNull();
+            await Assert.That(redoAfterUndo!.Kind).IsEqualTo(EditorSessionHistoryCommandKind.Redo);
+            await Assert.That(redoAfterUndo.Label).IsEqualTo("Redo Guard touch-up");
+            await Assert.That(redoAfterUndo.CanExecute).IsTrue();
+            await Assert.That(redoAfterUndo.Entry.ProjectState.ActiveAssetPath).IsEqualTo("scr/00077Guard.scr");
+            await Assert.That(commandsAfterUndo.Count).IsEqualTo(1);
+            await Assert.That(commandsAfterUndo[0].Kind).IsEqualTo(EditorSessionHistoryCommandKind.Redo);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteHistoryCommand_RoutesDefaultUndoAndRedo()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                new ScriptBuilder().WithDescription("Guard").AddCondition(ScriptConditionType.True).Build(),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            dialogEditor.AddControlEntry(20, "E:");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var updatedWorkspace = session.BeginChangeGroup("Guard touch-up").ApplyPendingChanges();
+            var undoCommand = session.GetDefaultUndoHistoryCommandSummary();
+
+            await Assert.That(undoCommand).IsNotNull();
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(2);
+
+            var undoneWorkspace = session.ExecuteHistoryCommand(undoCommand!);
+
+            await Assert.That(ReferenceEquals(session.Workspace, undoneWorkspace)).IsTrue();
+            await Assert.That(undoneWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(1);
+
+            var redoCommand = session.GetDefaultRedoHistoryCommandSummary();
+
+            await Assert.That(redoCommand).IsNotNull();
+            await Assert.That(redoCommand!.Entry.ProjectState.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+
+            var redoneWorkspace = session.ExecuteHistoryCommand(redoCommand);
+
+            await Assert.That(ReferenceEquals(session.Workspace, redoneWorkspace)).IsTrue();
+            await Assert.That(redoneWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(2);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task ApplyPendingChanges_RefreshesWorkspaceAndCommitsDialogAndScriptBaselines()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1411,6 +1725,19 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(session.GetOpenAssets().Count).IsEqualTo(1);
             await Assert.That(session.ActiveAssetPath).IsEqualTo("scr/00077Guard.scr");
 
+            var undoHistory = session.GetUndoHistory();
+
+            await Assert.That(undoHistory.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].ProjectState.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(undoHistory[0].ProjectState.OpenAssets.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].ProjectState.OpenAssets[0].AssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(undoHistory[0].ProjectState.OpenAssets[0].ViewId).IsEqualTo("dialog-graph");
+            await Assert.That(undoHistory[0].ProjectState.MapViewStates.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].ProjectState.MapViewStates[0].Camera.Zoom).IsEqualTo(1.25);
+            await Assert
+                .That(undoHistory[0].ProjectState.MapViewStates[0].Preview.OutlineMode)
+                .IsEqualTo(EditorMapPreviewMode.Blocked);
+
             var undoneWorkspace = session.Undo();
             var undoneOpenAssets = session.GetOpenAssets();
             var undoneMapViews = session.GetMapViewStates();
@@ -1580,6 +1907,9 @@ public sealed class EditorWorkspaceSessionTests
                 .That(undoHistory[0].Changes.Any(change => change.Kind == EditorSessionChangeKind.Script))
                 .IsTrue();
             await Assert.That(undoHistory[0].RecordedAtUtc).IsNotEqualTo(default(DateTimeOffset));
+            await Assert.That(undoHistory[0].ProjectState.ActiveAssetPath).IsNull();
+            await Assert.That(undoHistory[0].ProjectState.OpenAssets.Count).IsEqualTo(2);
+            await Assert.That(undoHistory[0].ProjectState.MapViewStates.Count).IsEqualTo(0);
             await Assert.That(session.GetRedoHistory().Count).IsEqualTo(0);
 
             session.Undo();
@@ -1590,6 +1920,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(redoHistory[0].Label).IsEqualTo("Guard touch-up");
             await Assert.That(redoHistory[0].PersistedToDisk).IsFalse();
             await Assert.That(redoHistory[0].Changes.Count).IsEqualTo(2);
+            await Assert.That(redoHistory[0].ProjectState.ActiveAssetPath).IsNull();
         }
         finally
         {
@@ -1719,6 +2050,552 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(redoneScope.HasPendingChanges).IsTrue();
             await Assert.That(redoneScope.CanUndo).IsTrue();
             await Assert.That(redoneScope.CanRedo).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task StagedTransactionSummaries_GroupDirectAssetDrafts()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            const int protoNumber = 1001;
+            const uint tileArtId = 0x00112233u;
+
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(new MobDataBuilder(MakePc(protoNumber)).WithLocation(1, 2).Build()),
+                Path.Combine(contentDir, "maps", "map01", "sector.sec")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+
+            session.SetSectorTileArt("maps/map01/sector.sec", 5, 6, tileArtId);
+
+            var summary = session.GetStagedTransactionSummaries().Single();
+
+            await Assert.That(summary.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.DirectAssets);
+            await Assert.That(summary.Target).IsNull();
+            await Assert.That(summary.Label).IsEqualTo("direct-assets");
+            await Assert.That(summary.AffectedTargets).IsEquivalentTo(["maps/map01/sector.sec"]);
+            await Assert.That(summary.PendingChangeCount).IsEqualTo(1);
+            await Assert.That(summary.PendingChanges[0].Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(summary.PendingChanges[0].Target).IsEqualTo("maps/map01/sector.sec");
+            await Assert.That(summary.HasPendingChanges).IsTrue();
+            await Assert.That(summary.CanUndo).IsTrue();
+            await Assert.That(summary.CanRedo).IsFalse();
+            await Assert.That(summary.CanApplyFromSession).IsTrue();
+            await Assert.That(summary.CanDiscardFromSession).IsTrue();
+            await Assert.That(summary.CanApplyIndividually).IsTrue();
+            await Assert.That(summary.CanSaveIndividually).IsTrue();
+            await Assert.That(summary.BlockingValidation.HasIssues).IsFalse();
+            await Assert.That(summary.RepairCandidateCount).IsEqualTo(0);
+            await Assert.That(summary.CanRepairFromSession).IsFalse();
+
+            session.UndoDirectAssetChanges();
+
+            var undoneSummary = session.GetStagedTransactionSummaries().Single();
+
+            await Assert.That(undoneSummary.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.DirectAssets);
+            await Assert.That(undoneSummary.Label).IsEqualTo("direct-assets");
+            await Assert.That(undoneSummary.AffectedTargets.Count).IsEqualTo(0);
+            await Assert.That(undoneSummary.PendingChangeCount).IsEqualTo(0);
+            await Assert.That(undoneSummary.HasPendingChanges).IsFalse();
+            await Assert.That(undoneSummary.CanUndo).IsFalse();
+            await Assert.That(undoneSummary.CanRedo).IsTrue();
+            await Assert.That(undoneSummary.CanApplyFromSession).IsFalse();
+            await Assert.That(undoneSummary.CanDiscardFromSession).IsFalse();
+            await Assert.That(undoneSummary.CanApplyIndividually).IsFalse();
+            await Assert.That(undoneSummary.CanSaveIndividually).IsFalse();
+            await Assert.That(undoneSummary.BlockingValidation.HasIssues).IsFalse();
+            await Assert.That(undoneSummary.RepairCandidateCount).IsEqualTo(0);
+            await Assert.That(undoneSummary.CanRepairFromSession).IsFalse();
+            await Assert.That(session.CanApplyPendingChanges).IsFalse();
+            await Assert.That(session.CanDiscardPendingChanges).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task StagedTransactionSummaries_BlockSessionApply_WhenPendingValidationHasErrors()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session
+                .GetDialogEditor("dlg/00001Guard.dlg")
+                .UpdateEntry(
+                    10,
+                    entry => new DialogEntry
+                    {
+                        Num = entry.Num,
+                        Text = entry.Text,
+                        GenderField = entry.GenderField,
+                        Iq = -1,
+                        Conditions = entry.Conditions,
+                        ResponseVal = entry.ResponseVal,
+                        Actions = entry.Actions,
+                    }
+                );
+
+            var summary = session.GetStagedTransactionSummaries().Single();
+
+            await Assert.That(summary.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Dialog);
+            await Assert.That(summary.HasPendingChanges).IsTrue();
+            await Assert.That(summary.CanApplyFromSession).IsFalse();
+            await Assert.That(summary.CanDiscardFromSession).IsTrue();
+            await Assert.That(summary.CanApplyIndividually).IsFalse();
+            await Assert.That(summary.CanSaveIndividually).IsFalse();
+            await Assert.That(summary.BlockingValidation.HasErrors).IsTrue();
+            await Assert.That(summary.BlockingValidation.Issues.Count).IsEqualTo(1);
+            await Assert.That(summary.RepairCandidateCount).IsEqualTo(2);
+            await Assert.That(summary.CanRepairFromSession).IsTrue();
+            await Assert.That(session.CanApplyPendingChanges).IsFalse();
+            await Assert.That(session.CanDiscardPendingChanges).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task TransactionScopedValidationAndRepairQueries_FollowSelectedTransaction()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+            session
+                .GetDialogEditor("dlg/00001Guard.dlg")
+                .UpdateEntry(
+                    10,
+                    entry => new DialogEntry
+                    {
+                        Num = entry.Num,
+                        Text = entry.Text,
+                        GenderField = entry.GenderField,
+                        Iq = -1,
+                        Conditions = entry.Conditions,
+                        ResponseVal = entry.ResponseVal,
+                        Actions = entry.Actions,
+                    }
+                );
+
+            var summaries = session.GetStagedTransactionSummaries();
+            var dialogSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+            var scriptSummary = summaries.Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Script);
+
+            var dialogValidation = session.GetPendingValidation(dialogSummary);
+            var scriptValidation = session.GetPendingValidation(scriptSummary);
+            var dialogRepairs = session.GetValidationRepairCandidates(dialogSummary);
+            var scriptRepairs = session.GetValidationRepairCandidates(scriptSummary);
+
+            await Assert.That(dialogValidation.HasErrors).IsTrue();
+            await Assert.That(scriptValidation.HasErrors).IsFalse();
+            await Assert.That(dialogSummary.BlockingValidation.HasErrors).IsTrue();
+            await Assert.That(scriptSummary.BlockingValidation.HasIssues).IsFalse();
+            await Assert.That(dialogRepairs.Count).IsEqualTo(2);
+            await Assert.That(scriptRepairs.Count).IsEqualTo(0);
+            await Assert.That(dialogSummary.RepairCandidateCount).IsEqualTo(2);
+            await Assert.That(scriptSummary.RepairCandidateCount).IsEqualTo(0);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ApplyPendingChanges_SelectedTransaction_AppliesOnlySelectedScope()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Updated guard");
+
+            var dialogSummary = session
+                .GetStagedTransactionSummaries()
+                .Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+
+            var updatedWorkspace = session.ApplyPendingChanges(dialogSummary);
+
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(2);
+            await Assert.That(updatedWorkspace.FindScript("scr/00077Guard.scr")!.Description).IsEqualTo("Guard");
+            await Assert.That(dialogEditor.HasPendingChanges).IsFalse();
+            await Assert.That(scriptEditor.HasPendingChanges).IsTrue();
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Script);
+            await Assert.That(session.GetPendingChanges()[0].Target).IsEqualTo("scr/00077Guard.scr");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task DiscardPendingChanges_SelectedTransaction_DiscardsOnlySelectedScope()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Updated guard");
+
+            var dialogSummary = session
+                .GetStagedTransactionSummaries()
+                .Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+
+            session.DiscardPendingChanges(dialogSummary);
+
+            await Assert.That(dialogEditor.HasPendingChanges).IsFalse();
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(1);
+            await Assert.That(scriptEditor.HasPendingChanges).IsTrue();
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Updated guard");
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Script);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ApplyPendingChanges_SelectedTransaction_ValidatesOnlySelectedScope()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.UpdateEntry(
+                10,
+                entry => new DialogEntry
+                {
+                    Num = entry.Num,
+                    Text = entry.Text,
+                    GenderField = entry.GenderField,
+                    Iq = -1,
+                    Conditions = entry.Conditions,
+                    ResponseVal = entry.ResponseVal,
+                    Actions = entry.Actions,
+                }
+            );
+            scriptEditor.WithDescription("Updated guard");
+
+            var scriptSummary = session
+                .GetStagedTransactionSummaries()
+                .Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Script);
+
+            var updatedWorkspace = session.ApplyPendingChanges(scriptSummary);
+
+            await Assert
+                .That(updatedWorkspace.FindScript("scr/00077Guard.scr")!.Description)
+                .IsEqualTo("Updated guard");
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries[0].Iq).IsEqualTo(0);
+            await Assert.That(dialogEditor.HasPendingChanges).IsTrue();
+            await Assert.That(scriptEditor.HasPendingChanges).IsFalse();
+            await Assert.That(session.CanApplyPendingChanges).IsFalse();
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Dialog);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SavePendingChanges_SelectedTransaction_PersistsOnlySelectedScope()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        var scriptPath = Path.Combine(contentDir, "scr", "00077Guard.scr");
+        var dialogPath = Path.Combine(contentDir, "dlg", "00001Guard.dlg");
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), scriptPath);
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                dialogPath
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Persisted guard");
+
+            var dialogSummary = session
+                .GetStagedTransactionSummaries()
+                .Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Dialog);
+
+            var updatedWorkspace = session.SavePendingChanges(dialogSummary);
+            var persistedDialog = DialogFormat.ParseFile(dialogPath);
+            var persistedScript = ScriptFormat.ParseFile(scriptPath);
+            var undoHistory = session.GetUndoHistory();
+
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries.Count).IsEqualTo(2);
+            await Assert.That(updatedWorkspace.FindScript("scr/00077Guard.scr")!.Description).IsEqualTo("Guard");
+            await Assert.That(persistedDialog.Entries.Count).IsEqualTo(2);
+            await Assert.That(persistedScript.Description).IsEqualTo("Guard");
+            await Assert.That(dialogEditor.HasPendingChanges).IsFalse();
+            await Assert.That(scriptEditor.HasPendingChanges).IsTrue();
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Script);
+            await Assert.That(undoHistory.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].PersistedToDisk).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SavePendingChanges_SelectedTransaction_ValidatesOnlySelectedScope()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        var scriptPath = Path.Combine(contentDir, "scr", "00077Guard.scr");
+        var dialogPath = Path.Combine(contentDir, "dlg", "00001Guard.dlg");
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), scriptPath);
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                dialogPath
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.UpdateEntry(
+                10,
+                entry => new DialogEntry
+                {
+                    Num = entry.Num,
+                    Text = entry.Text,
+                    GenderField = entry.GenderField,
+                    Iq = -1,
+                    Conditions = entry.Conditions,
+                    ResponseVal = entry.ResponseVal,
+                    Actions = entry.Actions,
+                }
+            );
+            scriptEditor.WithDescription("Persisted guard");
+
+            var scriptSummary = session
+                .GetStagedTransactionSummaries()
+                .Single(summary => summary.Kind == EditorSessionStagedHistoryScopeKind.Script);
+
+            var updatedWorkspace = session.SavePendingChanges(scriptSummary);
+            var persistedDialog = DialogFormat.ParseFile(dialogPath);
+            var persistedScript = ScriptFormat.ParseFile(scriptPath);
+            var undoHistory = session.GetUndoHistory();
+
+            await Assert
+                .That(updatedWorkspace.FindScript("scr/00077Guard.scr")!.Description)
+                .IsEqualTo("Persisted guard");
+            await Assert.That(updatedWorkspace.FindDialog("dlg/00001Guard.dlg")!.Entries[0].Iq).IsEqualTo(0);
+            await Assert.That(persistedScript.Description).IsEqualTo("Persisted guard");
+            await Assert.That(persistedDialog.Entries[0].Iq).IsEqualTo(0);
+            await Assert.That(dialogEditor.HasPendingChanges).IsTrue();
+            await Assert.That(scriptEditor.HasPendingChanges).IsFalse();
+            await Assert.That(session.CanApplyPendingChanges).IsFalse();
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Dialog);
+            await Assert.That(undoHistory.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].PersistedToDisk).IsTrue();
         }
         finally
         {
@@ -1870,6 +2747,377 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(preferredRedo).IsNotNull();
             await Assert.That(preferredRedo!.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Script);
             await Assert.That(preferredRedo.Target).IsEqualTo("scr/00077Guard.scr");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task PreferredStagedTransactionSummary_PrefersActiveAssetAndFallsBackToMergedRedo()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var preferredUndo = session.GetPreferredUndoStagedTransactionSummary();
+
+            await Assert.That(preferredUndo).IsNotNull();
+            await Assert.That(preferredUndo!.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Dialog);
+            await Assert.That(preferredUndo.Target).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(session.GetPreferredRedoStagedTransactionSummary()).IsNull();
+
+            session.UndoStagedChanges();
+
+            var preferredUndoAfterUndo = session.GetPreferredUndoStagedTransactionSummary();
+            var preferredRedo = session.GetPreferredRedoStagedTransactionSummary();
+
+            await Assert.That(preferredUndoAfterUndo).IsNotNull();
+            await Assert.That(preferredUndoAfterUndo!.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Dialog);
+            await Assert.That(preferredRedo).IsNotNull();
+            await Assert.That(preferredRedo!.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Script);
+            await Assert.That(preferredRedo.Target).IsEqualTo("scr/00077Guard.scr");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task StagedCommandSummaries_ReportDefaultUndoAndRedoCommands()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var defaultUndo = session.GetDefaultUndoStagedCommandSummary();
+            var defaultRedo = session.GetDefaultRedoStagedCommandSummary();
+            var commands = session.GetStagedCommandSummaries();
+
+            await Assert.That(defaultUndo).IsNotNull();
+            await Assert.That(defaultUndo!.Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(defaultUndo.Label).IsEqualTo("Undo dlg/00001Guard.dlg");
+            await Assert.That(defaultUndo.Transaction.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Dialog);
+            await Assert.That(defaultUndo.CanExecute).IsTrue();
+            await Assert.That(defaultUndo.IsDefault).IsTrue();
+            await Assert.That(defaultRedo).IsNull();
+            await Assert.That(commands.Count).IsEqualTo(1);
+            await Assert.That(commands[0].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(commands[0].IsDefault).IsTrue();
+
+            session.UndoStagedChanges();
+
+            var redoAfterUndo = session.GetDefaultRedoStagedCommandSummary();
+            var commandsAfterUndo = session.GetStagedCommandSummaries();
+
+            await Assert.That(redoAfterUndo).IsNotNull();
+            await Assert.That(redoAfterUndo!.Kind).IsEqualTo(EditorSessionStagedCommandKind.Redo);
+            await Assert.That(redoAfterUndo.Transaction.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Script);
+            await Assert.That(redoAfterUndo.CanExecute).IsTrue();
+            await Assert.That(redoAfterUndo.IsDefault).IsTrue();
+            await Assert.That(commandsAfterUndo.Count).IsEqualTo(2);
+            await Assert.That(commandsAfterUndo[0].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(commandsAfterUndo[1].Kind).IsEqualTo(EditorSessionStagedCommandKind.Redo);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteStagedCommand_RoutesDefaultUndoAndRedo()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Updated guard");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var undoCommand = session.GetDefaultUndoStagedCommandSummary();
+
+            await Assert.That(undoCommand).IsNotNull();
+
+            session.ExecuteStagedCommand(undoCommand!);
+
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(1);
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Updated guard");
+
+            var redoCommand = session.GetDefaultRedoStagedCommandSummary();
+
+            await Assert.That(redoCommand).IsNotNull();
+
+            session.ExecuteStagedCommand(redoCommand!);
+
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(2);
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Updated guard");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task AvailableStagedCommandSummaries_ExposePreferredAndNonDefaultUndoCommands()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var undoCommands = session.GetUndoStagedCommandSummaries();
+            var allCommands = session.GetAvailableStagedCommandSummaries();
+
+            await Assert.That(undoCommands.Count).IsEqualTo(2);
+            await Assert.That(undoCommands[0].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(undoCommands[0].Transaction.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Dialog);
+            await Assert.That(undoCommands[0].IsDefault).IsTrue();
+            await Assert.That(undoCommands[1].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(undoCommands[1].Transaction.Kind).IsEqualTo(EditorSessionStagedHistoryScopeKind.Script);
+            await Assert.That(undoCommands[1].IsDefault).IsFalse();
+            await Assert.That(allCommands.Count).IsEqualTo(2);
+            await Assert.That(allCommands[0].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+            await Assert.That(allCommands[1].Kind).IsEqualTo(EditorSessionStagedCommandKind.Undo);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task GetBootstrapSummary_CombinesProjectState_StagedCommands_AndHistoryCommands()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            session.OpenAsset(new EditorProjectOpenAsset { AssetPath = "scr/00077Guard.scr", ViewId = "script-grid" });
+            session.SetActiveAsset("scr/00077Guard.scr");
+            session.GetDialogEditor("dlg/00001Guard.dlg").AddControlEntry(20, "E:");
+            _ = session.BeginChangeGroup("Guard touch-up").ApplyPendingChanges();
+            session.GetScriptEditor("scr/00077Guard.scr").WithDescription("Updated guard");
+
+            var projectState = session.GetProjectStateSummary();
+            var stagedTransactions = session.GetStagedTransactionSummaries();
+            var stagedCommands = session.GetAvailableStagedCommandSummaries();
+            var historyCommands = session.GetHistoryCommandSummaries();
+            var bootstrap = session.GetBootstrapSummary();
+
+            await Assert.That(bootstrap.Restore).IsNull();
+            await Assert.That(bootstrap.ProjectState.ActiveAssetPath).IsEqualTo(projectState.ActiveAssetPath);
+            await Assert.That(bootstrap.ProjectState.OpenAssets.Count).IsEqualTo(projectState.OpenAssets.Count);
+            await Assert.That(bootstrap.StagedTransactions.Count).IsEqualTo(stagedTransactions.Count);
+            await Assert.That(bootstrap.StagedTransactions[0].Kind).IsEqualTo(stagedTransactions[0].Kind);
+            await Assert.That(bootstrap.StagedCommands.Count).IsEqualTo(stagedCommands.Count);
+            await Assert.That(bootstrap.StagedCommands[0].Kind).IsEqualTo(stagedCommands[0].Kind);
+            await Assert.That(bootstrap.HistoryCommands.Count).IsEqualTo(historyCommands.Count);
+            await Assert.That(bootstrap.HistoryCommands[0].Kind).IsEqualTo(historyCommands[0].Kind);
+            await Assert
+                .That(bootstrap.HistoryCommands[0].Entry.ProjectState.ActiveAssetPath)
+                .IsEqualTo(historyCommands[0].Entry.ProjectState.ActiveAssetPath);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteStagedCommand_CanRouteNonDefaultUndoCommand()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "dlg"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(MakeScriptFile("Guard"), Path.Combine(contentDir, "scr", "00077Guard.scr"));
+            DialogFormat.WriteToFile(
+                new DlgFile
+                {
+                    Entries =
+                    [
+                        new DialogEntry
+                        {
+                            Num = 10,
+                            Text = "Hello",
+                            GenderField = string.Empty,
+                            Iq = 0,
+                            Conditions = string.Empty,
+                            ResponseVal = 0,
+                            Actions = string.Empty,
+                        },
+                    ],
+                },
+                Path.Combine(contentDir, "dlg", "00001Guard.dlg")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var dialogEditor = session.GetDialogEditor("dlg/00001Guard.dlg");
+            var scriptEditor = session.GetScriptEditor("scr/00077Guard.scr");
+
+            dialogEditor.AddControlEntry(20, "E:");
+            scriptEditor.WithDescription("Updated guard");
+            session.SetActiveAsset("dlg/00001Guard.dlg");
+
+            var scriptUndoCommand = session
+                .GetUndoStagedCommandSummaries()
+                .Single(command =>
+                    command.Transaction.Kind == EditorSessionStagedHistoryScopeKind.Script && !command.IsDefault
+                );
+
+            session.ExecuteStagedCommand(scriptUndoCommand);
+
+            await Assert.That(dialogEditor.GetCurrentDialog().Entries.Count).IsEqualTo(2);
+            await Assert.That(scriptEditor.GetCurrentScript().Description).IsEqualTo("Guard");
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+            await Assert.That(session.GetPendingChanges()[0].Kind).IsEqualTo(EditorSessionChangeKind.Dialog);
         }
         finally
         {
@@ -2671,6 +3919,805 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task SectorCompositionHelpers_StageBulkRoofArtChangesFromGroupedSectorHits()
+    {
+        const int protoNumber = 1001;
+        const uint roofArtId = 0x00AABBCCu;
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(new MobDataBuilder(MakePc(protoNumber)).WithLocation(1, 2).Build()),
+                Path.Combine(contentDir, "maps", "map01", "sector_a.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(new MobDataBuilder(MakePc(protoNumber)).WithLocation(3, 4).Build()),
+                Path.Combine(contentDir, "maps", "map01", "sector_b.sec")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            var groupedHits = new EditorMapSceneSectorHitGroup[]
+            {
+                new()
+                {
+                    SectorAssetPath = "maps/map01/sector_a.sec",
+                    LocalX = 0,
+                    LocalY = 0,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = 8,
+                            MapTileY = 12,
+                            SectorAssetPath = "maps/map01/sector_a.sec",
+                            Tile = new Location(8, 12),
+                            ObjectHits = [],
+                        },
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = 11,
+                            MapTileY = 15,
+                            SectorAssetPath = "maps/map01/sector_a.sec",
+                            Tile = new Location(11, 15),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+                new()
+                {
+                    SectorAssetPath = "maps/map01/sector_b.sec",
+                    LocalX = 1,
+                    LocalY = 0,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = 65,
+                            MapTileY = 2,
+                            SectorAssetPath = "maps/map01/sector_b.sec",
+                            Tile = new Location(1, 2),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            };
+
+            var changes = session.SetSectorRoofArt(groupedHits, roofArtId);
+
+            await Assert.That(changes.Count).IsEqualTo(2);
+            await Assert.That(changes[0].Target).IsEqualTo("maps/map01/sector_a.sec");
+            await Assert.That(changes[1].Target).IsEqualTo("maps/map01/sector_b.sec");
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(2);
+
+            var summary = session.GetPendingChangeSummary();
+
+            await Assert.That(summary.HasChanges).IsTrue();
+            await Assert.That(summary.TotalChangeCount).IsEqualTo(2);
+            await Assert.That(summary.Groups.Count).IsEqualTo(1);
+            await Assert.That(summary.Groups[0].Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(summary.Groups[0].Targets.Count).IsEqualTo(2);
+
+            var updatedWorkspace = session.BeginChangeGroup("Bulk edit sector roofs").ApplyPendingChanges();
+            var updatedSectorA = updatedWorkspace.FindSector("maps/map01/sector_a.sec");
+            var updatedSectorB = updatedWorkspace.FindSector("maps/map01/sector_b.sec");
+
+            await Assert.That(updatedSectorA).IsNotNull();
+            await Assert.That(updatedSectorB).IsNotNull();
+            await Assert.That(updatedSectorA!.HasRoofs).IsTrue();
+            await Assert.That(updatedSectorA.Roofs).IsNotNull();
+            await Assert.That(updatedSectorA.Roofs![(3 * 16) + 2]).IsEqualTo(roofArtId);
+            await Assert.That(updatedSectorA.Roofs.Count(static roof => roof != 0)).IsEqualTo(1);
+            await Assert.That(updatedSectorB!.HasRoofs).IsTrue();
+            await Assert.That(updatedSectorB.Roofs).IsNotNull();
+            await Assert.That(updatedSectorB.Roofs![0]).IsEqualTo(roofArtId);
+            await Assert.That(updatedSectorB.Roofs.Count(static roof => roof != 0)).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorCompositionHelpers_ApplyLayerBrushRequest_StagesTileRoofAndBlockedModes()
+    {
+        const int protoNumber = 1001;
+        const uint tileArtId = 0x00010203u;
+        const uint roofArtId = 0x00040506u;
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(new MobDataBuilder(MakePc(protoNumber)).WithLocation(1, 2).Build()),
+                Path.Combine(contentDir, "maps", "map01", "sector_a.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(new MobDataBuilder(MakePc(protoNumber)).WithLocation(3, 4).Build()),
+                Path.Combine(contentDir, "maps", "map01", "sector_b.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var layerHits = new EditorMapSceneSectorHitGroup[]
+            {
+                new()
+                {
+                    SectorAssetPath = "maps/map01/sector_a.sec",
+                    LocalX = 0,
+                    LocalY = 0,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = 8,
+                            MapTileY = 12,
+                            SectorAssetPath = "maps/map01/sector_a.sec",
+                            Tile = new Location(8, 12),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+                new()
+                {
+                    SectorAssetPath = "maps/map01/sector_b.sec",
+                    LocalX = 1,
+                    LocalY = 0,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = 65,
+                            MapTileY = 2,
+                            SectorAssetPath = "maps/map01/sector_b.sec",
+                            Tile = new Location(1, 2),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            };
+
+            var tileSession = workspace.CreateSession();
+            var tileResult = tileSession.ApplySectorLayerBrush(
+                layerHits,
+                EditorMapLayerBrushRequest.SetTileArt(tileArtId)
+            );
+
+            await Assert.That(tileResult.HasChanges).IsTrue();
+            await Assert.That(tileResult.ChangeCount).IsEqualTo(2);
+            await Assert.That(tileResult.Changes[0].Target).IsEqualTo("maps/map01/sector_a.sec");
+            await Assert.That(tileResult.Changes[1].Target).IsEqualTo("maps/map01/sector_b.sec");
+
+            var tiledWorkspace = tileSession.BeginChangeGroup("Brush tile layers").ApplyPendingChanges();
+            var tiledSectorA = tiledWorkspace.FindSector("maps/map01/sector_a.sec");
+            var tiledSectorB = tiledWorkspace.FindSector("maps/map01/sector_b.sec");
+
+            await Assert.That(tiledSectorA).IsNotNull();
+            await Assert.That(tiledSectorB).IsNotNull();
+            await Assert.That(tiledSectorA!.Tiles[(12 * 64) + 8]).IsEqualTo(tileArtId);
+            await Assert.That(tiledSectorB!.Tiles[(2 * 64) + 1]).IsEqualTo(tileArtId);
+
+            var roofSession = workspace.CreateSession();
+            var roofResult = roofSession.ApplySectorLayerBrush(
+                layerHits,
+                EditorMapLayerBrushRequest.SetRoofArt(roofArtId)
+            );
+
+            await Assert.That(roofResult.HasChanges).IsTrue();
+            await Assert.That(roofResult.ChangeCount).IsEqualTo(2);
+
+            var roofedWorkspace = roofSession.BeginChangeGroup("Brush roof layers").ApplyPendingChanges();
+            var roofedSectorA = roofedWorkspace.FindSector("maps/map01/sector_a.sec");
+            var roofedSectorB = roofedWorkspace.FindSector("maps/map01/sector_b.sec");
+
+            await Assert.That(roofedSectorA).IsNotNull();
+            await Assert.That(roofedSectorB).IsNotNull();
+            await Assert.That(roofedSectorA!.Roofs).IsNotNull();
+            await Assert.That(roofedSectorB!.Roofs).IsNotNull();
+            await Assert.That(roofedSectorA.Roofs![(3 * 16) + 2]).IsEqualTo(roofArtId);
+            await Assert.That(roofedSectorB.Roofs![0]).IsEqualTo(roofArtId);
+
+            var blockedSession = workspace.CreateSession();
+            var blockedResult = blockedSession.ApplySectorLayerBrush(
+                layerHits,
+                EditorMapLayerBrushRequest.SetBlocked(blocked: true)
+            );
+
+            await Assert.That(blockedResult.HasChanges).IsTrue();
+            await Assert.That(blockedResult.ChangeCount).IsEqualTo(2);
+
+            var blockedWorkspace = blockedSession.BeginChangeGroup("Brush blocked tiles").ApplyPendingChanges();
+            var blockedSectorA = blockedWorkspace.FindSector("maps/map01/sector_a.sec");
+            var blockedSectorB = blockedWorkspace.FindSector("maps/map01/sector_b.sec");
+
+            await Assert.That(blockedSectorA).IsNotNull();
+            await Assert.That(blockedSectorB).IsNotNull();
+            await Assert.That(blockedSectorA!.BlockMask.IsBlocked(8, 12)).IsTrue();
+            await Assert.That(blockedSectorB!.BlockMask.IsBlocked(1, 2)).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorCompositionHelpers_ApplyLayerBrushRequest_FromAreaSelection_StagesProjectedRectangleTiles()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const uint tileArtId = 0x00070809u;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var preview = workspace.CreateMapScenePreview("map01");
+            var area = new EditorProjectMapAreaSelectionState
+            {
+                MinMapTileX = 63,
+                MinMapTileY = 2,
+                MaxMapTileX = 64,
+                MaxMapTileY = 2,
+            };
+
+            var result = session.ApplySectorLayerBrush(preview, area, EditorMapLayerBrushRequest.SetTileArt(tileArtId));
+
+            await Assert.That(result.HasChanges).IsTrue();
+            await Assert.That(result.ChangeCount).IsEqualTo(2);
+            await Assert.That(result.Changes[0].Target).IsEqualTo(sectorAssetPathA);
+            await Assert.That(result.Changes[1].Target).IsEqualTo(sectorAssetPathB);
+
+            var updatedWorkspace = session.BeginChangeGroup("Brush area tile layers").ApplyPendingChanges();
+            var updatedSectorA = updatedWorkspace.FindSector(sectorAssetPathA);
+            var updatedSectorB = updatedWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(updatedSectorA).IsNotNull();
+            await Assert.That(updatedSectorB).IsNotNull();
+            await Assert.That(updatedSectorA!.Tiles[(2 * 64) + 63]).IsEqualTo(tileArtId);
+            await Assert.That(updatedSectorB!.Tiles[(2 * 64) + 0]).IsEqualTo(tileArtId);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorCompositionHelpers_ApplyLayerBrushRequest_FromSelectionState_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const uint pointTileArtId = 0x000A0B0Cu;
+        const uint areaTileArtId = 0x000D0E0Fu;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointResult = pointSession.ApplySectorLayerBrush(
+                preview,
+                pointSelection,
+                EditorMapLayerBrushRequest.SetTileArt(pointTileArtId)
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.ChangeCount).IsEqualTo(1);
+            await Assert.That(pointResult.Changes[0].Target).IsEqualTo(sectorAssetPathA);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Brush point tile selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert.That(pointSectorA!.Tiles[(6 * 64) + 5]).IsEqualTo(pointTileArtId);
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorLayerBrush(
+                preview,
+                areaSelection,
+                EditorMapLayerBrushRequest.SetTileArt(areaTileArtId)
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.ChangeCount).IsEqualTo(2);
+            await Assert.That(areaResult.Changes[0].Target).IsEqualTo(sectorAssetPathA);
+            await Assert.That(areaResult.Changes[1].Target).IsEqualTo(sectorAssetPathB);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Brush area tile selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+            await Assert.That(areaSectorA!.Tiles[(2 * 64) + 63]).IsEqualTo(areaTileArtId);
+            await Assert.That(areaSectorB!.Tiles[(2 * 64) + 0]).IsEqualTo(areaTileArtId);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task TerrainPaletteHelpers_ApplyTerrainPaletteEntry_FromSelectionState_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointEntry = workspace.FindTerrainPaletteEntry("maps/map01/map.prp", 1, 0);
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointResult = pointSession.ApplyTerrainPaletteEntry(preview, pointSelection, pointEntry!);
+
+            await Assert.That(pointEntry).IsNotNull();
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.ChangeCount).IsEqualTo(1);
+            await Assert.That(pointResult.Changes[0].Target).IsEqualTo(sectorAssetPathA);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Paint point terrain tile").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert.That(pointSectorA!.Tiles[(6 * 64) + 5]).IsEqualTo(201u);
+
+            var areaEntry = workspace.FindTerrainPaletteEntry("maps/map01/map.prp", 1, 1);
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                },
+            };
+
+            var areaResult = areaSession.ApplyTerrainPaletteEntry(preview, areaSelection, areaEntry!);
+
+            await Assert.That(areaEntry).IsNotNull();
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.ChangeCount).IsEqualTo(2);
+            await Assert.That(areaResult.Changes[0].Target).IsEqualTo(sectorAssetPathA);
+            await Assert.That(areaResult.Changes[1].Target).IsEqualTo(sectorAssetPathB);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Paint area terrain tiles").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+            await Assert.That(areaSectorA!.Tiles[(2 * 64) + 63]).IsEqualTo(203u);
+            await Assert.That(areaSectorB!.Tiles[(2 * 64) + 0]).IsEqualTo(203u);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_ApplyTrackedTerrainTool_UsesPersistedTerrainSelection()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{southWestSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.TerrainPaint,
+                        Terrain = new EditorProjectMapTerrainToolState
+                        {
+                            MapPropertiesAssetPath = "maps/map01/map.prp",
+                            PaletteX = 1,
+                            PaletteY = 0,
+                        },
+                    },
+                }
+            );
+
+            var result = session.ApplyTrackedTerrainTool("map-view-1");
+
+            await Assert.That(result.HasChanges).IsTrue();
+            var updatedWorkspace = session.BeginChangeGroup("Apply tracked terrain tool").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+            await Assert.That(updatedSector!.Tiles[(6 * 64) + 5]).IsEqualTo(201u);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedTerrainPaletteEntry_UpdatesTrackedToolSummary()
+    {
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                    },
+                }
+            );
+
+            var paletteEntry = workspace.FindTerrainPaletteEntry("maps/map01/map.prp", 1, 0);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var toolState = session.SetTrackedTerrainPaletteEntry("map-view-1", paletteEntry!);
+            var summary = session.GetTrackedTerrainToolSummary("map-view-1");
+            var worldEditState = session.GetMapWorldEditState("map-view-1");
+
+            await Assert.That(toolState.MapPropertiesAssetPath).IsEqualTo("maps/map01/map.prp");
+            await Assert.That(toolState.PaletteX).IsEqualTo(1UL);
+            await Assert.That(toolState.PaletteY).IsEqualTo(0UL);
+            await Assert.That(worldEditState.ActiveTool).IsEqualTo(EditorProjectMapWorldEditActiveTool.TerrainPaint);
+            await Assert.That(summary.MapViewStateId).IsEqualTo("map-view-1");
+            await Assert.That(summary.MapName).IsEqualTo("map01");
+            await Assert.That(summary.CanApply).IsTrue();
+            await Assert.That(summary.SelectedEntry).IsNotNull();
+            await Assert.That(summary.SelectedEntry!.ArtId.Value).IsEqualTo(201u);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectBrushRequest_FromAreaSelection_StagesProjectedRectangleTiles()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var preview = workspace.CreateMapScenePreview("map01");
+            var area = new EditorProjectMapAreaSelectionState
+            {
+                MinMapTileX = 63,
+                MinMapTileY = 2,
+                MaxMapTileX = 64,
+                MaxMapTileY = 2,
+            };
+
+            var result = session.ApplySectorObjectBrush(
+                preview,
+                area,
+                EditorMapObjectBrushRequest.StampFromProto(protoNumber)
+            );
+
+            await Assert.That(result.HasChanges).IsTrue();
+            await Assert.That(result.CreatedObjectCount).IsEqualTo(2);
+            await Assert.That(result.RemovedObjectCount).IsEqualTo(0);
+            await Assert
+                .That(
+                    result
+                        .CreatedObjects.Select(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                        .ToArray()
+                )
+                .IsEquivalentTo(new[] { (63, 2), (0, 2) });
+
+            var updatedWorkspace = session.BeginChangeGroup("Brush area object selection").ApplyPendingChanges();
+            var updatedSectorA = updatedWorkspace.FindSector(sectorAssetPathA);
+            var updatedSectorB = updatedWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(updatedSectorA).IsNotNull();
+            await Assert.That(updatedSectorB).IsNotNull();
+            await Assert.That(updatedSectorA!.Objects.Count).IsEqualTo(1);
+            await Assert.That(updatedSectorB!.Objects.Count).IsEqualTo(1);
+            await Assert
+                .That(updatedSectorA.Objects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 2));
+            await Assert
+                .That(updatedSectorB.Objects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 2));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectBrushRequest_FromSelectionState_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var removedObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var retainedObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(10, 10).Build();
+            var removedObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+            var retainedObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(3, 4).Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(removedObjectA, retainedObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(removedObjectB, retainedObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointResult = pointSession.ApplySectorObjectBrush(
+                preview,
+                pointSelection,
+                EditorMapObjectBrushRequest.StampFromProto(protoNumber)
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert
+                .That(pointResult.CreatedObjects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((5, 6));
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Brush point object selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert.That(pointSectorA!.Objects.Count).IsEqualTo(3);
+            await Assert
+                .That(
+                    pointSectorA.Objects.Any(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation() == (5, 6))
+                )
+                .IsTrue();
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = removedObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [removedObjectA.Header.ObjectId, removedObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectBrush(
+                preview,
+                areaSelection,
+                EditorMapObjectBrushRequest.Erase()
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.RemovedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.RemovedObjectIds[0]).IsEqualTo(removedObjectA.Header.ObjectId);
+            await Assert.That(areaResult.RemovedObjectIds[1]).IsEqualTo(removedObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Brush area object erase").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+            await Assert.That(areaSectorA!.Objects.Count).IsEqualTo(1);
+            await Assert.That(areaSectorB!.Objects.Count).IsEqualTo(1);
+            await Assert.That(areaSectorA.Objects.Single().Header.ObjectId).IsEqualTo(retainedObjectA.Header.ObjectId);
+            await Assert.That(areaSectorB.Objects.Single().Header.ObjectId).IsEqualTo(retainedObjectB.Header.ObjectId);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task SectorObjectHelpers_StageGroupedProtoStampAcrossSceneSectorHits()
     {
         const int protoNumber = 1001;
@@ -2955,6 +5002,2329 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(undoHistory[0].Changes.All(change => change.Kind == EditorSessionChangeKind.Sector))
                 .IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectPalettePlacement_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float pointRotation = 0.5f;
+        const float pointRotationPitch = 1.25f;
+        const float areaRotation = 2.5f;
+        const float areaRotationPitch = 4.25f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointCreatedObjects = pointSession.ApplySectorObjectPalettePlacement(
+                preview,
+                pointSelection,
+                paletteEntry!.CreatePlacementRequest(
+                    deltaTileX: 1,
+                    deltaTileY: 2,
+                    rotation: pointRotation,
+                    rotationPitch: pointRotationPitch
+                )
+            );
+
+            await Assert.That(pointCreatedObjects.Count).IsEqualTo(1);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Palette place point selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+            var pointPreview = pointWorkspace.CreateMapScenePreview("map01");
+            var pointPreviewSectorA = pointPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+
+            var createdPointObjectId = pointCreatedObjects[0].Header.ObjectId;
+            var createdPointObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == createdPointObjectId);
+            await Assert
+                .That(createdPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((6, 8));
+            await Assert
+                .That(createdPointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(pointRotation);
+            await Assert
+                .That(createdPointObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(pointRotationPitch);
+            await Assert
+                .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == createdPointObjectId).Location)
+                .IsEqualTo(new Location(6, 8));
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                },
+            };
+
+            var areaCreatedObjects = areaSession.ApplySectorObjectPalettePlacement(
+                preview,
+                areaSelection,
+                paletteEntry.CreatePlacementRequest(
+                    deltaTileX: 0,
+                    deltaTileY: 1,
+                    rotation: areaRotation,
+                    rotationPitch: areaRotationPitch
+                )
+            );
+
+            await Assert.That(areaCreatedObjects.Count).IsEqualTo(2);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Palette place area selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var areaObjectAId = areaCreatedObjects[0].Header.ObjectId;
+            var areaObjectBId = areaCreatedObjects[1].Header.ObjectId;
+            var createdAreaObjectA = areaSectorA!.Objects.Single(obj => obj.Header.ObjectId == areaObjectAId);
+            var createdAreaObjectB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaObjectBId);
+
+            await Assert
+                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 3));
+            await Assert
+                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 3));
+            await Assert
+                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaObjectAId).Location)
+                .IsEqualTo(new Location(63, 3));
+            await Assert
+                .That(areaPreviewSectorB.Objects.Single(obj => obj.ObjectId == areaObjectBId).Location)
+                .IsEqualTo(new Location(0, 3));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectPalettePlacementPreset_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float pointRotation = 0.5f;
+        const float areaRotation = 1.25f;
+        const float areaRotationPitch = 2.25f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var pointPreset = paletteEntry!.CreatePlacementPreset(
+                "preset.point",
+                deltaTileX: 1,
+                rotation: pointRotation
+            );
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointCreatedObjects = pointSession.ApplySectorObjectPalettePlacementPreset(
+                preview,
+                pointSelection,
+                pointPreset
+            );
+
+            await Assert.That(pointCreatedObjects.Count).IsEqualTo(1);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Palette preset point selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+            var pointPreview = pointWorkspace.CreateMapScenePreview("map01");
+            var pointPreviewSectorA = pointPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+
+            var pointObjectId = pointCreatedObjects[0].Header.ObjectId;
+            var pointObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == pointObjectId);
+            await Assert.That(pointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((6, 6));
+            await Assert.That(pointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(pointRotation);
+            await Assert
+                .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == pointObjectId).Location)
+                .IsEqualTo(new Location(6, 6));
+
+            var areaPreset = EditorObjectPalettePlacementPreset.Create(
+                "preset.area",
+                "Area preset",
+                "Two-object named preset",
+                EditorObjectPalettePlacementRequest.Place(protoNumber, rotation: areaRotation),
+                EditorObjectPalettePlacementRequest.Place(
+                    protoNumber,
+                    deltaTileY: 1,
+                    rotation: areaRotation,
+                    rotationPitch: areaRotationPitch
+                )
+            );
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                },
+            };
+
+            var areaCreatedObjects = areaSession.ApplySectorObjectPalettePlacementPreset(
+                preview,
+                areaSelection,
+                areaPreset
+            );
+
+            await Assert.That(areaCreatedObjects.Count).IsEqualTo(4);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Palette preset area selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var areaAnchorAId = areaCreatedObjects[0].Header.ObjectId;
+            var areaOffsetAId = areaCreatedObjects[1].Header.ObjectId;
+            var areaAnchorBId = areaCreatedObjects[2].Header.ObjectId;
+            var areaOffsetBId = areaCreatedObjects[3].Header.ObjectId;
+            var areaAnchorA = areaSectorA!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorAId);
+            var areaOffsetA = areaSectorA.Objects.Single(obj => obj.Header.ObjectId == areaOffsetAId);
+            var areaAnchorB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorBId);
+            var areaOffsetB = areaSectorB.Objects.Single(obj => obj.Header.ObjectId == areaOffsetBId);
+
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 2));
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 3));
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 2));
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 3));
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(areaRotation);
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(areaRotation);
+            await Assert
+                .That(areaOffsetA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(areaOffsetB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaAnchorAId).Location)
+                .IsEqualTo(new Location(63, 2));
+            await Assert
+                .That(areaPreviewSectorB.Objects.Single(obj => obj.ObjectId == areaOffsetBId).Location)
+                .IsEqualTo(new Location(0, 3));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ObjectPaletteEntryPlacementDefaults_SnapProtoOffsetsToTileGrid()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(
+                WithProperties(
+                    MakeProto(protoNumber),
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 13),
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, -9)
+                ),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var session = workspace.CreateSession();
+            var selection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(5, 6),
+            };
+
+            var createdObjects = session.ApplySectorObjectPalettePlacement(
+                preview,
+                selection,
+                paletteEntry!.CreatePlacementRequest()
+            );
+
+            await Assert.That(createdObjects.Count).IsEqualTo(1);
+            await Assert.That(createdObjects[0].GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObjects[0].GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+
+            var updatedWorkspace = session
+                .BeginChangeGroup("Palette place snapped object selection")
+                .ApplyPendingChanges();
+            var sector = updatedWorkspace.FindSector(sectorAssetPath);
+            var scene = updatedWorkspace.CreateMapScenePreview("map01");
+            var previewSector = scene.Sectors.Single(candidate => candidate.AssetPath == sectorAssetPath);
+            var createdObjectId = createdObjects[0].Header.ObjectId;
+
+            await Assert.That(sector).IsNotNull();
+            var createdObject = sector!.Objects.Single(obj => obj.Header.ObjectId == createdObjectId);
+            await Assert.That(createdObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 6));
+            await Assert.That(createdObject.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObject.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert
+                .That(previewSector.Objects.Single(obj => obj.ObjectId == createdObjectId).IsTileGridSnapped)
+                .IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_PreviewObjectPalettePlacement_ProjectsSnappedGhostIntoUnifiedRenderQueue()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(
+                WithProperties(
+                    MakeProto(protoNumber),
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 13),
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, -9)
+                ),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+
+            var existingObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 5).Build();
+            var sector = MakeSector(existingObject);
+            sector.Tiles[(5 * 64) + 5] = 100u;
+            sector.Tiles[(6 * 64) + 6] = 200u;
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var scenePreview = workspace.CreateMapScenePreview("map01");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var selection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(6, 6),
+            };
+
+            var preview = session.PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                selection,
+                paletteEntry!.CreatePlacementRequest()
+            );
+
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.RenderQueue.Count).IsEqualTo(4);
+            await Assert
+                .That(preview.RenderQueue.Any(item => item.Kind == EditorMapRenderQueueItemKind.Object))
+                .IsTrue();
+            await Assert
+                .That(preview.RenderQueue.Any(item => item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject))
+                .IsTrue();
+
+            var previewObject = preview.Objects[0];
+            var previewTile = preview
+                .RenderQueue.Where(item => item.Kind == EditorMapRenderQueueItemKind.FloorTile)
+                .Select(item => item.Tile)
+                .OfType<EditorMapFloorTileRenderItem>()
+                .Single(tile => tile.MapTileX == 6 && tile.MapTileY == 6);
+
+            await Assert.That(previewObject.Tile).IsEqualTo(new Location(6, 6));
+            await Assert.That(previewObject.IsTileGridSnapped).IsTrue();
+            await Assert.That(previewObject.State).IsEqualTo(EditorMapPlacementPreviewState.Valid);
+            await Assert.That(previewObject.ValidationMessage).IsNull();
+            await Assert.That(previewObject.SuggestedOpacity).IsEqualTo(0.85d);
+            await Assert.That(previewObject.SuggestedTintColor).IsEqualTo(0xAA66CC66u);
+            await Assert.That(previewObject.AnchorX).IsEqualTo(previewTile.CenterX);
+            await Assert.That(previewObject.AnchorY).IsEqualTo(previewTile.CenterY);
+
+            var loadedSector = workspace.FindSector(sectorAssetPath);
+            await Assert.That(loadedSector).IsNotNull();
+            await Assert.That(loadedSector!.Objects.Count).IsEqualTo(1);
+            await Assert.That(session.HasPendingChanges).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewRenderHelpers_CreateMapFloorRenderPreview_UsesPreviewFlagsAndPendingSectorState()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var existingObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 5).Build();
+            var sector = new SectorBuilder(MakeSector(existingObject))
+                .SetTile(5, 5, 100u)
+                .SetRoof(0, 15, 999u)
+                .AddLight(MakeSectorLight(5, 5, artId: 0x01020304u))
+                .AddTileScript(MakeTileScript((5u * 64u) + 5u, 77))
+                .Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-scene",
+                    MapName = "map01",
+                    ViewId = "scene",
+                    Camera = new EditorProjectMapCameraState(),
+                    Selection = new EditorProjectMapSelectionState(),
+                    Preview = new EditorProjectMapPreviewState
+                    {
+                        UseScenePreview = true,
+                        ShowObjects = false,
+                        ShowRoofs = false,
+                        ShowLights = false,
+                        ShowBlockedTiles = true,
+                        ShowScripts = false,
+                    },
+                }
+            );
+
+            var blockedChange = session.SetSectorBlockedTile(sectorAssetPath, 5, 5, blocked: true);
+            var preview = session.CreateMapFloorRenderPreview(
+                "map-view-scene",
+                new EditorMapFloorRenderRequest
+                {
+                    ViewMode = EditorMapSceneViewMode.TopDown,
+                    TileWidthPixels = 32d,
+                    TileHeightPixels = 32d,
+                }
+            );
+
+            await Assert.That(blockedChange).IsNotNull();
+            await Assert.That(session.HasPendingChanges).IsTrue();
+            await Assert.That(preview.MapName).IsEqualTo("map01");
+            await Assert.That(preview.ViewMode).IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(preview.TileWidthPixels).IsEqualTo(32d);
+            await Assert.That(preview.TileHeightPixels).IsEqualTo(32d);
+            await Assert.That(preview.Tiles.Count).IsEqualTo(1);
+            await Assert.That(preview.Objects).IsEmpty();
+            await Assert.That(preview.Roofs).IsEmpty();
+            await Assert.That(preview.Overlays.Count).IsEqualTo(1);
+            await Assert.That(preview.Overlays[0].Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+            await Assert.That(preview.Overlays[0].MapTileX).IsEqualTo(5);
+            await Assert.That(preview.Overlays[0].MapTileY).IsEqualTo(5);
+            await Assert.That(preview.Overlays[0].CenterX).IsEqualTo(16d);
+            await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(16d);
+            await Assert.That(preview.RenderQueue.Count).IsEqualTo(2);
+            await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+            await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
+            await Assert.That(preview.RenderQueue[1].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewRenderHelpers_PreviewObjectPalettePlacement_UsesMapViewSelectionFlagsAndPendingSectorState()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var existingObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 5).Build();
+            var sector = new SectorBuilder(MakeSector(existingObject))
+                .SetTile(5, 5, 100u)
+                .SetTile(6, 6, 200u)
+                .SetRoof(0, 15, 999u)
+                .AddLight(MakeSectorLight(6, 6, artId: 0x01020304u))
+                .AddTileScript(MakeTileScript((6u * 64u) + 6u, 77))
+                .Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-scene",
+                    MapName = "map01",
+                    ViewId = "scene",
+                    Camera = new EditorProjectMapCameraState(),
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(6, 6),
+                    },
+                    Preview = new EditorProjectMapPreviewState
+                    {
+                        UseScenePreview = true,
+                        ShowObjects = false,
+                        ShowRoofs = false,
+                        ShowLights = false,
+                        ShowBlockedTiles = true,
+                        ShowScripts = false,
+                    },
+                }
+            );
+
+            var blockedChange = session.SetSectorBlockedTile(sectorAssetPath, 6, 6, blocked: true);
+            var preview = session.PreviewSectorObjectPalettePlacement(
+                "map-view-scene",
+                paletteEntry!.CreatePlacementRequest(),
+                new EditorMapFloorRenderRequest
+                {
+                    ViewMode = EditorMapSceneViewMode.TopDown,
+                    TileWidthPixels = 32d,
+                    TileHeightPixels = 32d,
+                }
+            );
+
+            await Assert.That(blockedChange).IsNotNull();
+            await Assert.That(session.HasPendingChanges).IsTrue();
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Objects[0].Tile).IsEqualTo(new Location(6, 6));
+            await Assert.That(preview.Objects[0].State).IsEqualTo(EditorMapPlacementPreviewState.BlockedTile);
+            await Assert.That(preview.Objects[0].ValidationMessage).IsEqualTo("Targets a blocked tile.");
+            await Assert.That(preview.Objects[0].SuggestedTintColor).IsEqualTo(0xAACC6666u);
+            await Assert.That(preview.RenderQueue.Count).IsEqualTo(4);
+            await Assert
+                .That(preview.RenderQueue.Count(item => item.Kind == EditorMapRenderQueueItemKind.FloorTile))
+                .IsEqualTo(2);
+            await Assert
+                .That(
+                    preview.RenderQueue.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.TileOverlay
+                        && item.TileOverlay?.Kind == EditorMapTileOverlayKind.BlockedTile
+                    )
+                )
+                .IsTrue();
+            await Assert
+                .That(
+                    preview.RenderQueue.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject
+                        && item.PlacementPreviewObject?.State == EditorMapPlacementPreviewState.BlockedTile
+                    )
+                )
+                .IsTrue();
+            await Assert
+                .That(preview.RenderQueue.Any(item => item.Kind == EditorMapRenderQueueItemKind.Object))
+                .IsFalse();
+            await Assert
+                .That(preview.RenderQueue.Any(item => item.Kind == EditorMapRenderQueueItemKind.Roof))
+                .IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapBootstrapHelpers_ResolveDefaultMap_PrefersSaveMapIdThenMap01Fallback()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map02"));
+
+        try
+        {
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", "101334386389.sec"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map02", "101334386390.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var fallbackMap = workspace.ResolveDefaultMap();
+
+            var save = CreateLoadedSave(
+                new SaveInfo
+                {
+                    ModuleName = "Arcanum",
+                    LeaderName = "Virgil",
+                    DisplayName = "Slot",
+                    MapId = 2,
+                    GameTimeDays = 1,
+                    GameTimeMs = 2,
+                    LeaderPortraitId = 3,
+                    LeaderLevel = 4,
+                    LeaderTileX = 5,
+                    LeaderTileY = 6,
+                    StoryState = 0,
+                }
+            );
+            var workspaceWithSave = CloneWorkspaceWithSave(workspace, save);
+            var resolvedMap = workspaceWithSave.ResolveDefaultMap();
+
+            await Assert.That(fallbackMap).IsNotNull();
+            await Assert.That(fallbackMap!.MapName).IsEqualTo("map01");
+            await Assert.That(fallbackMap.Source).IsEqualTo(EditorWorkspaceDefaultMapSource.ConventionalMap01);
+            await Assert.That(resolvedMap).IsNotNull();
+            await Assert.That(resolvedMap!.MapName).IsEqualTo("map02");
+            await Assert.That(resolvedMap.Source).IsEqualTo(EditorWorkspaceDefaultMapSource.SaveInfoMapId);
+            await Assert.That(resolvedMap.SaveMapId).IsEqualTo(2);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapBootstrapHelpers_CreateDefaultMapWorldEditScene_UsesResolvedDefaultMapAndCenteredCamera()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map02"));
+
+        try
+        {
+            var sector = new SectorBuilder(MakeSector()).SetTile(0, 0, 100u).Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", "101334386389.sec"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map02", "101334386390.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var scene = session.CreateDefaultMapWorldEditScene(
+                request: new EditorMapWorldEditSceneRequest
+                {
+                    RenderRequest = new EditorMapFloorRenderRequest
+                    {
+                        ViewMode = EditorMapSceneViewMode.Isometric,
+                        TileWidthPixels = 64d,
+                        TileHeightPixels = 32d,
+                    },
+                    ViewportWidth = 320d,
+                    ViewportHeight = 200d,
+                }
+            );
+
+            await Assert.That(scene.MapName).IsEqualTo("map01");
+            await Assert.That(scene.MapViewState.MapName).IsEqualTo("map01");
+            await Assert.That(scene.SceneRender.Tiles.Count).IsEqualTo(1);
+            await Assert.That(scene.ViewportLayout.ViewportWidth).IsEqualTo(320d);
+            await Assert.That(scene.ViewportLayout.ViewportHeight).IsEqualTo(200d);
+            await Assert.That(scene.ViewportLayout.CenterRenderX).IsGreaterThan(0d);
+            await Assert.That(scene.ViewportLayout.CenterRenderY).IsGreaterThan(0d);
+            await Assert.That(scene.PaintableScene.Items.Count).IsEqualTo(scene.SceneRender.RenderQueue.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapBootstrapHelpers_CreateDefaultMapWorldEditScene_AutoBindsConservativeNumericArtForPaintableScene()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            ArtFormat.WriteToFile(CreateArtFile(1, 1, [1]), Path.Combine(contentDir, "art", "200.art"));
+            SectorFormat.WriteToFile(
+                new SectorBuilder(
+                    MakeSector(
+                        new CharacterBuilder(ObjectType.Npc, objectId, protoId)
+                            .WithHitPoints(80)
+                            .WithLocation(0, 0)
+                            .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, 200u))
+                            .Build()
+                    )
+                )
+                    .SetTile(0, 0, 1u)
+                    .Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var scene = session.CreateDefaultMapWorldEditScene(
+                request: new EditorMapWorldEditSceneRequest
+                {
+                    RenderRequest = new EditorMapFloorRenderRequest
+                    {
+                        ViewMode = EditorMapSceneViewMode.Isometric,
+                        TileWidthPixels = 64d,
+                        TileHeightPixels = 32d,
+                    },
+                    PlacementRequest = workspace.FindObjectPaletteEntry(protoNumber)!.CreatePlacementRequest(),
+                }
+            );
+
+            await Assert.That(scene.PaintableScene.Items.Any(item => item.Sprite is not null)).IsTrue();
+            await Assert.That(scene.SpriteCoverage.ResolvedArtIds).Contains(new ArtId(200u));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapBootstrapHelpers_CreateMapWorldEditScene_ComposesViewportPaintableSceneAndPlacementGhost()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            ArtFormat.WriteToFile(CreateArtFile(1, 1, [1]), Path.Combine(contentDir, "art", "test.art"));
+
+            var sector = new SectorBuilder(MakeSector()).SetTile(6, 6, 100u).SetTile(7, 6, 100u).Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(new ArtId(100u), "art/test.art");
+            artResolver.Bind(new ArtId(200u), "art/test.art");
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "world-edit",
+                    MapName = "map01",
+                    ViewId = "scene",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 6d,
+                        CenterTileY = 6d,
+                        Zoom = 2d,
+                    },
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(6, 6),
+                    },
+                    Preview = new EditorProjectMapPreviewState
+                    {
+                        UseScenePreview = true,
+                        ShowObjects = true,
+                        ShowRoofs = true,
+                        ShowLights = true,
+                        ShowBlockedTiles = true,
+                        ShowScripts = true,
+                    },
+                }
+            );
+
+            var worldScene = session.CreateMapWorldEditScene(
+                "world-edit",
+                new EditorMapWorldEditSceneRequest
+                {
+                    RenderRequest = new EditorMapFloorRenderRequest
+                    {
+                        ViewMode = EditorMapSceneViewMode.Isometric,
+                        TileWidthPixels = 64d,
+                        TileHeightPixels = 32d,
+                    },
+                    PlacementRequest = paletteEntry!.CreatePlacementRequest(),
+                    ViewportWidth = 320d,
+                    ViewportHeight = 200d,
+                    ArtResolver = artResolver,
+                }
+            );
+
+            var tileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(worldScene.SceneRender, 6d, 6d);
+            var viewportX = EditorMapSceneRenderSpaceMath.RenderToViewportX(worldScene.ViewportLayout, tileCenter.X);
+            var viewportY = EditorMapSceneRenderSpaceMath.RenderToViewportY(worldScene.ViewportLayout, tileCenter.Y);
+            var hit = EditorMapSceneRenderSpaceMath.HitTestScene(
+                worldScene.SceneRender,
+                worldScene.ViewportLayout,
+                viewportX,
+                viewportY
+            );
+
+            await Assert.That(worldScene.MapName).IsEqualTo("map01");
+            await Assert.That(worldScene.SceneRender.Tiles.Count).IsEqualTo(2);
+            await Assert.That(worldScene.PlacementPreview).IsNotNull();
+            await Assert.That(worldScene.ViewportLayout.Zoom).IsEqualTo(2d);
+            await Assert.That(worldScene.SpriteCoverage.IsComplete).IsTrue();
+            await Assert.That(worldScene.SpriteCoverage.ReferencedArtIds.Count).IsEqualTo(2);
+            await Assert.That(worldScene.SpriteCoverage.ResolvedArtIds.Count).IsEqualTo(2);
+            await Assert.That(worldScene.SpriteCoverage.UnresolvedArtIds).IsEmpty();
+            await Assert
+                .That(worldScene.PaintableScene.Items.Count)
+                .IsEqualTo(worldScene.PlacementPreview!.RenderQueue.Count);
+            await Assert.That(worldScene.PaintableScene.SpriteCoverage.IsComplete).IsTrue();
+            await Assert
+                .That(
+                    worldScene.PaintableScene.Items.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.Sprite is not null
+                    )
+                )
+                .IsTrue();
+            await Assert
+                .That(
+                    worldScene.PaintableScene.Items.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject && item.Sprite is not null
+                    )
+                )
+                .IsTrue();
+            await Assert.That(hit).IsNotNull();
+            await Assert.That(hit!.MapTileX).IsEqualTo(6);
+            await Assert.That(hit.MapTileY).IsEqualTo(6);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapBootstrapHelpers_CreateMapWorldEditScene_ReportsUnresolvedSpriteCoverageWithoutBindings()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+
+            var sector = new SectorBuilder(MakeSector()).SetTile(6, 6, 100u).Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "world-edit-unresolved",
+                    MapName = "map01",
+                    ViewId = "scene",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 6d,
+                        CenterTileY = 6d,
+                        Zoom = 1d,
+                    },
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(6, 6),
+                    },
+                    Preview = new EditorProjectMapPreviewState(),
+                }
+            );
+
+            var worldScene = session.CreateMapWorldEditScene(
+                "world-edit-unresolved",
+                new EditorMapWorldEditSceneRequest
+                {
+                    RenderRequest = new EditorMapFloorRenderRequest
+                    {
+                        ViewMode = EditorMapSceneViewMode.TopDown,
+                        TileWidthPixels = 32d,
+                        TileHeightPixels = 32d,
+                    },
+                    PlacementRequest = paletteEntry!.CreatePlacementRequest(),
+                    ViewportWidth = 128d,
+                    ViewportHeight = 128d,
+                }
+            );
+
+            await Assert.That(worldScene.SpriteCoverage.IsComplete).IsFalse();
+            await Assert.That(worldScene.SpriteCoverage.ReferencedArtIds.Count).IsEqualTo(2);
+            await Assert.That(worldScene.SpriteCoverage.ResolvedArtIds).IsEmpty();
+            await Assert
+                .That(worldScene.SpriteCoverage.UnresolvedArtIds.Select(static artId => artId.Value).ToArray())
+                .IsEquivalentTo([100u, 200u]);
+            await Assert.That(worldScene.PaintableScene.SpriteCoverage.IsComplete).IsFalse();
+            await Assert
+                .That(
+                    worldScene.PaintableScene.Items.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.Sprite is not null
+                    )
+                )
+                .IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_PreviewObjectPalettePlacement_FlagsBlockedAndOccupiedGhostTiles()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(protoNumber, "Palette proto")] },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var occupiedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(7, 7).Build();
+            var sector = MakeSector(occupiedObject);
+            sector.Tiles[(6 * 64) + 6] = 100u;
+            sector.Tiles[(7 * 64) + 7] = 200u;
+            sector.BlockMask[(6 * 64 + 6) / 32] |= 1u << ((6 * 64 + 6) % 32);
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var scenePreview = workspace.CreateMapScenePreview("map01");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var blockedSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(6, 6),
+            };
+            var occupiedSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(7, 7),
+            };
+
+            var blockedPreview = session.PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                blockedSelection,
+                paletteEntry!.CreatePlacementRequest()
+            );
+            var occupiedPreview = session.PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                occupiedSelection,
+                paletteEntry.CreatePlacementRequest()
+            );
+
+            await Assert
+                .That(blockedPreview.Objects.Single().State)
+                .IsEqualTo(EditorMapPlacementPreviewState.BlockedTile);
+            await Assert.That(blockedPreview.Objects.Single().ValidationMessage).IsEqualTo("Targets a blocked tile.");
+            await Assert.That(blockedPreview.Objects.Single().SuggestedOpacity).IsEqualTo(0.55d);
+            await Assert.That(blockedPreview.Objects.Single().SuggestedTintColor).IsEqualTo(0xAACC6666u);
+
+            await Assert
+                .That(occupiedPreview.Objects.Single().State)
+                .IsEqualTo(EditorMapPlacementPreviewState.OccupiedTile);
+            await Assert
+                .That(occupiedPreview.Objects.Single().ValidationMessage)
+                .IsEqualTo("Targets an occupied tile.");
+            await Assert.That(occupiedPreview.Objects.Single().SuggestedOpacity).IsEqualTo(0.55d);
+            await Assert.That(occupiedPreview.Objects.Single().SuggestedTintColor).IsEqualTo(0xAACCA066u);
+            await Assert
+                .That(
+                    occupiedPreview.RenderQueue.Any(item =>
+                        item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject
+                        && item.PlacementPreviewObject?.State == EditorMapPlacementPreviewState.OccupiedTile
+                    )
+                )
+                .IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectPalettePlacementSet_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float anchorRotation = 0.25f;
+        const float offsetRotation = 1.75f;
+        const float offsetRotationPitch = 2.5f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+            var placementSet = EditorObjectPalettePlacementSet.Create(
+                "Two-object preset",
+                EditorObjectPalettePlacementRequest.Place(protoNumber, rotation: anchorRotation),
+                EditorObjectPalettePlacementRequest.Place(
+                    protoNumber,
+                    deltaTileY: 1,
+                    rotation: offsetRotation,
+                    rotationPitch: offsetRotationPitch
+                )
+            );
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+            };
+
+            var pointCreatedObjects = pointSession.ApplySectorObjectPalettePlacementSet(
+                preview,
+                pointSelection,
+                placementSet
+            );
+
+            await Assert.That(pointCreatedObjects.Count).IsEqualTo(2);
+
+            var pointWorkspace = pointSession
+                .BeginChangeGroup("Palette place set point selection")
+                .ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+            var pointPreview = pointWorkspace.CreateMapScenePreview("map01");
+            var pointPreviewSectorA = pointPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+
+            var pointAnchorId = pointCreatedObjects[0].Header.ObjectId;
+            var pointOffsetId = pointCreatedObjects[1].Header.ObjectId;
+            var pointAnchorObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == pointAnchorId);
+            var pointOffsetObject = pointSectorA.Objects.Single(obj => obj.Header.ObjectId == pointOffsetId);
+
+            await Assert.That(pointAnchorObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 6));
+            await Assert.That(pointOffsetObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 7));
+            await Assert
+                .That(pointAnchorObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(anchorRotation);
+            await Assert
+                .That(pointOffsetObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(offsetRotation);
+            await Assert
+                .That(pointOffsetObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(offsetRotationPitch);
+            await Assert
+                .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == pointAnchorId).Location)
+                .IsEqualTo(new Location(5, 6));
+            await Assert
+                .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == pointOffsetId).Location)
+                .IsEqualTo(new Location(5, 7));
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                },
+            };
+
+            var areaCreatedObjects = areaSession.ApplySectorObjectPalettePlacementSet(
+                preview,
+                areaSelection,
+                placementSet
+            );
+
+            await Assert.That(areaCreatedObjects.Count).IsEqualTo(4);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Palette place set area selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var areaAnchorAId = areaCreatedObjects[0].Header.ObjectId;
+            var areaOffsetAId = areaCreatedObjects[1].Header.ObjectId;
+            var areaAnchorBId = areaCreatedObjects[2].Header.ObjectId;
+            var areaOffsetBId = areaCreatedObjects[3].Header.ObjectId;
+            var areaAnchorA = areaSectorA!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorAId);
+            var areaOffsetA = areaSectorA.Objects.Single(obj => obj.Header.ObjectId == areaOffsetAId);
+            var areaAnchorB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorBId);
+            var areaOffsetB = areaSectorB.Objects.Single(obj => obj.Header.ObjectId == areaOffsetBId);
+
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 2));
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 3));
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 2));
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 3));
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
+            await Assert
+                .That(areaOffsetA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(offsetRotationPitch);
+            await Assert
+                .That(areaOffsetB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(offsetRotationPitch);
+            await Assert
+                .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaAnchorAId).Location)
+                .IsEqualTo(new Location(63, 2));
+            await Assert
+                .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaOffsetAId).Location)
+                .IsEqualTo(new Location(63, 3));
+            await Assert
+                .That(areaPreviewSectorB.Objects.Single(obj => obj.ObjectId == areaAnchorBId).Location)
+                .IsEqualTo(new Location(0, 2));
+            await Assert
+                .That(areaPreviewSectorB.Objects.Single(obj => obj.ObjectId == areaOffsetBId).Location)
+                .IsEqualTo(new Location(0, 3));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_PreviewAndApplyTrackedObjectPlacementTool_UsesPersistedPresetLibrary()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(9, 10),
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                        ObjectPlacement = new EditorProjectMapObjectPlacementToolState
+                        {
+                            Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                            PresetLibrary =
+                            [
+                                EditorObjectPalettePlacementPreset.Create(
+                                    "guard",
+                                    "Guard",
+                                    entries: [EditorObjectPalettePlacementRequest.Place(protoNumber, rotation: 1.25f)]
+                                ),
+                            ],
+                            SelectedPresetId = "guard",
+                        },
+                    },
+                }
+            );
+
+            var preview = session.PreviewTrackedObjectPlacementTool("map-view-1");
+            var createdObjects = session.ApplyTrackedObjectPlacementTool("map-view-1");
+
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.RenderQueue.Count).IsGreaterThan(0);
+            await Assert.That(createdObjects.Count).IsEqualTo(1);
+
+            var updatedWorkspace = session.BeginChangeGroup("Apply tracked object tool").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+            await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectPlacementHelpers_UpdateTrackedToolSummary()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(9, 10),
+                    },
+                }
+            );
+
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
+
+            await Assert.That(paletteEntry).IsNotNull();
+
+            var singlePlacementState = session.SetTrackedObjectPlacementEntry(
+                "map-view-1",
+                paletteEntry!,
+                rotation: 1.25f
+            );
+            var singlePlacementSummary = session.GetTrackedObjectPlacementToolSummary("map-view-1");
+
+            await Assert.That(singlePlacementState.Mode).IsEqualTo(EditorProjectMapObjectPlacementMode.SinglePlacement);
+            await Assert.That(singlePlacementSummary.CanPreviewOrApply).IsTrue();
+            await Assert.That(singlePlacementSummary.ToolState.PlacementRequest).IsNotNull();
+            await Assert.That(singlePlacementSummary.ToolState.PlacementRequest!.Rotation).IsEqualTo(1.25f);
+            await Assert.That(singlePlacementSummary.ResolvedPaletteEntries.Count).IsEqualTo(1);
+            await Assert.That(singlePlacementSummary.MissingProtoNumbers.Count).IsEqualTo(0);
+
+            var preset = paletteEntry.CreatePlacementPreset("guard", "Guard", rotation: 2.5f);
+            var presetState = session.SetTrackedObjectPlacementPreset("map-view-1", preset);
+            var presetSummary = session.GetTrackedObjectPlacementToolSummary("map-view-1");
+            var preview = session.PreviewTrackedObjectPlacementTool("map-view-1");
+            var createdObjects = session.ApplyTrackedObjectPlacementTool("map-view-1");
+
+            await Assert.That(presetState.Mode).IsEqualTo(EditorProjectMapObjectPlacementMode.PlacementPreset);
+            await Assert.That(presetState.PresetLibrary.Count).IsEqualTo(1);
+            await Assert.That(presetState.SelectedPresetId).IsEqualTo("guard");
+            await Assert.That(presetSummary.CanPreviewOrApply).IsTrue();
+            await Assert.That(presetSummary.SelectedPreset).IsNotNull();
+            await Assert.That(presetSummary.SelectedPreset!.PresetId).IsEqualTo("guard");
+            await Assert.That(presetSummary.EffectivePlacementSet).IsNotNull();
+            await Assert.That(presetSummary.EffectivePlacementSet!.Entries.Count).IsEqualTo(1);
+            await Assert.That(presetSummary.ResolvedPaletteEntries.Count).IsEqualTo(1);
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(createdObjects.Count).IsEqualTo(1);
+
+            var updatedWorkspace = session.BeginChangeGroup("Apply tracked object tool").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+            await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectTransformRequest_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float pointRotation = 0.75f;
+        const float pointRotationPitch = 1.5f;
+        const float areaRotation = 2.25f;
+        const float areaRotationPitch = 3.5f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var transformedPointObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            var selectedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var retainedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var selectedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+            var retainedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(transformedPointObject, selectedAreaObjectA, retainedAreaObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(selectedAreaObjectB, retainedAreaObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+                ObjectId = transformedPointObject.Header.ObjectId,
+            };
+
+            var pointResult = pointSession.ApplySectorObjectTransform(
+                preview,
+                pointSelection,
+                EditorMapObjectTransformRequest.Transform(
+                    deltaTileX: 1,
+                    deltaTileY: 2,
+                    rotation: pointRotation,
+                    rotationPitch: pointRotationPitch
+                )
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.UpdatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.UpdatedObjectIds.Single()).IsEqualTo(transformedPointObject.Header.ObjectId);
+
+            var pointWorkspace = pointSession
+                .BeginChangeGroup("Transform point object selection")
+                .ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+
+            var updatedPointObject = pointSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == transformedPointObject.Header.ObjectId
+            );
+            await Assert
+                .That(updatedPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((6, 8));
+            await Assert
+                .That(updatedPointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(pointRotation);
+            await Assert
+                .That(updatedPointObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(pointRotationPitch);
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = selectedAreaObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [selectedAreaObjectA.Header.ObjectId, selectedAreaObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectTransform(
+                preview,
+                areaSelection,
+                EditorMapObjectTransformRequest.Transform(
+                    deltaTileX: 0,
+                    deltaTileY: 1,
+                    rotation: areaRotation,
+                    rotationPitch: areaRotationPitch
+                )
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.UpdatedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.UpdatedObjectIds[0]).IsEqualTo(selectedAreaObjectA.Header.ObjectId);
+            await Assert.That(areaResult.UpdatedObjectIds[1]).IsEqualTo(selectedAreaObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Transform area object selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var updatedSelectedAreaObjectA = areaSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectA.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectA = areaSectorA.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectA.Header.ObjectId
+            );
+            var updatedSelectedAreaObjectB = areaSectorB!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectB.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectB = areaSectorB.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
+            );
+
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 3));
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 3));
+            await Assert
+                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 2));
+            await Assert
+                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 2));
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .Location
+                )
+                .IsEqualTo(new Location(63, 3));
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .Rotation
+                )
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .RotationPitch
+                )
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .Location
+                )
+                .IsEqualTo(new Location(0, 3));
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .Rotation
+                )
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .RotationPitch
+                )
+                .IsEqualTo(areaRotationPitch);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectBrushRequest_MoveByOffset_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var movedPointObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            var selectedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var retainedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var selectedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+            var retainedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(movedPointObject, selectedAreaObjectA, retainedAreaObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(selectedAreaObjectB, retainedAreaObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+                ObjectId = movedPointObject.Header.ObjectId,
+            };
+
+            var pointResult = pointSession.ApplySectorObjectBrush(
+                preview,
+                pointSelection,
+                EditorMapObjectBrushRequest.MoveByOffset(deltaTileX: 2, deltaTileY: 3)
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.UpdatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.UpdatedObjectIds.Single()).IsEqualTo(movedPointObject.Header.ObjectId);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Move point object selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert
+                .That(
+                    pointSectorA!
+                        .Objects.Single(obj => obj.Header.ObjectId == movedPointObject.Header.ObjectId)
+                        .GetProperty(ObjectField.ObjFLocation)!
+                        .GetLocation()
+                )
+                .IsEqualTo((7, 9));
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = selectedAreaObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [selectedAreaObjectA.Header.ObjectId, selectedAreaObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectBrush(
+                preview,
+                areaSelection,
+                EditorMapObjectBrushRequest.MoveByOffset(deltaTileX: 0, deltaTileY: 1)
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.UpdatedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.UpdatedObjectIds[0]).IsEqualTo(selectedAreaObjectA.Header.ObjectId);
+            await Assert.That(areaResult.UpdatedObjectIds[1]).IsEqualTo(selectedAreaObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Move area object selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var updatedSelectedAreaObjectA = areaSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectA.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectA = areaSectorA.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectA.Header.ObjectId
+            );
+            var updatedSelectedAreaObjectB = areaSectorB!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectB.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectB = areaSectorB.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
+            );
+
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 3));
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 3));
+            await Assert
+                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((63, 2));
+            await Assert
+                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((0, 2));
+
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .Location
+                )
+                .IsEqualTo(new Location(63, 3));
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .Location
+                )
+                .IsEqualTo(new Location(0, 3));
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectTransformRequest_SnapToTileGrid_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var pointObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).WithOffset(12, -8).Build();
+            var selectedAreaObjectA = new MobDataBuilder(MakePc(protoNumber))
+                .WithLocation(63, 2)
+                .WithOffset(3, 4)
+                .Build();
+            var retainedAreaObjectA = new MobDataBuilder(MakePc(protoNumber))
+                .WithLocation(63, 2)
+                .WithOffset(9, 10)
+                .Build();
+            var selectedAreaObjectB = new MobDataBuilder(MakePc(protoNumber))
+                .WithLocation(0, 2)
+                .WithOffset(-7, 11)
+                .Build();
+            var retainedAreaObjectB = new MobDataBuilder(MakePc(protoNumber))
+                .WithLocation(0, 2)
+                .WithOffset(-5, 6)
+                .Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(pointObject, selectedAreaObjectA, retainedAreaObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(selectedAreaObjectB, retainedAreaObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+                ObjectId = pointObject.Header.ObjectId,
+            };
+
+            var pointResult = pointSession.ApplySectorObjectTransform(
+                preview,
+                pointSelection,
+                EditorMapObjectTransformRequest.SnapToTileGrid()
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.UpdatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.UpdatedObjectIds.Single()).IsEqualTo(pointObject.Header.ObjectId);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Snap point object to tile grid").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+
+            var updatedPointObject = pointSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == pointObject.Header.ObjectId
+            );
+            await Assert
+                .That(updatedPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((5, 6));
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+
+            var pointPreview = pointWorkspace.CreateMapScenePreview("map01");
+            var pointPreviewSectorA = pointPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            await Assert
+                .That(
+                    pointPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == pointObject.Header.ObjectId)
+                        .IsTileGridSnapped
+                )
+                .IsTrue();
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = selectedAreaObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [selectedAreaObjectA.Header.ObjectId, selectedAreaObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectTransform(
+                preview,
+                areaSelection,
+                EditorMapObjectTransformRequest.SnapToTileGrid()
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.UpdatedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.UpdatedObjectIds[0]).IsEqualTo(selectedAreaObjectA.Header.ObjectId);
+            await Assert.That(areaResult.UpdatedObjectIds[1]).IsEqualTo(selectedAreaObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Snap area objects to tile grid").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var updatedSelectedAreaObjectA = areaSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectA.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectA = areaSectorA.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectA.Header.ObjectId
+            );
+            var updatedSelectedAreaObjectB = areaSectorB!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectB.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectB = areaSectorB.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
+            );
+
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFOffsetX)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFOffsetY)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFOffsetX)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFOffsetY)).IsNotNull();
+
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .IsTileGridSnapped
+                )
+                .IsTrue();
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .IsTileGridSnapped
+                )
+                .IsTrue();
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == retainedAreaObjectA.Header.ObjectId)
+                        .IsTileGridSnapped
+                )
+                .IsFalse();
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == retainedAreaObjectB.Header.ObjectId)
+                        .IsTileGridSnapped
+                )
+                .IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectBrushRequest_RotatePitch_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float pointRotationPitch = 2.5f;
+        const float areaRotationPitch = 7.25f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var rotatedPointObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            var selectedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var retainedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var selectedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+            var retainedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(rotatedPointObject, selectedAreaObjectA, retainedAreaObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(selectedAreaObjectB, retainedAreaObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+                ObjectId = rotatedPointObject.Header.ObjectId,
+            };
+
+            var pointResult = pointSession.ApplySectorObjectBrush(
+                preview,
+                pointSelection,
+                EditorMapObjectBrushRequest.RotatePitch(pointRotationPitch)
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.UpdatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.UpdatedObjectIds.Single()).IsEqualTo(rotatedPointObject.Header.ObjectId);
+
+            var pointWorkspace = pointSession
+                .BeginChangeGroup("Rotate point object pitch selection")
+                .ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert
+                .That(
+                    pointSectorA!
+                        .Objects.Single(obj => obj.Header.ObjectId == rotatedPointObject.Header.ObjectId)
+                        .GetProperty(ObjectField.ObjFRotationPitch)!
+                        .GetFloat()
+                )
+                .IsEqualTo(pointRotationPitch);
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = selectedAreaObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [selectedAreaObjectA.Header.ObjectId, selectedAreaObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectBrush(
+                preview,
+                areaSelection,
+                EditorMapObjectBrushRequest.RotatePitch(areaRotationPitch)
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.UpdatedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.UpdatedObjectIds[0]).IsEqualTo(selectedAreaObjectA.Header.ObjectId);
+            await Assert.That(areaResult.UpdatedObjectIds[1]).IsEqualTo(selectedAreaObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession
+                .BeginChangeGroup("Rotate area object pitch selection")
+                .ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var updatedSelectedAreaObjectA = areaSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectA.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectA = areaSectorA.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectA.Header.ObjectId
+            );
+            var updatedSelectedAreaObjectB = areaSectorB!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectB.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectB = areaSectorB.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
+            );
+
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNotNull();
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .IsEqualTo(areaRotationPitch);
+
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .RotationPitch
+                )
+                .IsEqualTo(areaRotationPitch);
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .RotationPitch
+                )
+                .IsEqualTo(areaRotationPitch);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorObjectHelpers_ApplyObjectBrushRequest_Rotate_RoutesPointAndAreaSelections()
+    {
+        const int protoNumber = 1001;
+        const ulong southWestSectorKey = 101334386389UL;
+        const ulong southEastSectorKey = 101334386390UL;
+        const float pointRotation = 0.5f;
+        const float areaRotation = 1.25f;
+        var sectorAssetPathA = $"maps/map01/{southWestSectorKey}.sec";
+        var sectorAssetPathB = $"maps/map01/{southEastSectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var rotatedPointObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            var selectedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var retainedAreaObjectA = new MobDataBuilder(MakePc(protoNumber)).WithLocation(63, 2).Build();
+            var selectedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+            var retainedAreaObjectB = new MobDataBuilder(MakePc(protoNumber)).WithLocation(0, 2).Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(rotatedPointObject, selectedAreaObjectA, retainedAreaObjectA),
+                Path.Combine(contentDir, "maps", "map01", $"{southWestSectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(selectedAreaObjectB, retainedAreaObjectB),
+                Path.Combine(contentDir, "maps", "map01", $"{southEastSectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            var pointSession = workspace.CreateSession();
+            var pointSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(5, 6),
+                ObjectId = rotatedPointObject.Header.ObjectId,
+            };
+
+            var pointResult = pointSession.ApplySectorObjectBrush(
+                preview,
+                pointSelection,
+                EditorMapObjectBrushRequest.Rotate(pointRotation)
+            );
+
+            await Assert.That(pointResult.HasChanges).IsTrue();
+            await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(pointResult.UpdatedObjectCount).IsEqualTo(1);
+            await Assert.That(pointResult.UpdatedObjectIds.Single()).IsEqualTo(rotatedPointObject.Header.ObjectId);
+
+            var pointWorkspace = pointSession.BeginChangeGroup("Rotate point object selection").ApplyPendingChanges();
+            var pointSectorA = pointWorkspace.FindSector(sectorAssetPathA);
+
+            await Assert.That(pointSectorA).IsNotNull();
+            await Assert
+                .That(
+                    pointSectorA!
+                        .Objects.Single(obj => obj.Header.ObjectId == rotatedPointObject.Header.ObjectId)
+                        .GetProperty(ObjectField.ObjFPadIas1)!
+                        .GetFloat()
+                )
+                .IsEqualTo(pointRotation);
+
+            var areaSession = workspace.CreateSession();
+            var areaSelection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPathA,
+                Tile = new Location(63, 2),
+                ObjectId = selectedAreaObjectA.Header.ObjectId,
+                Area = new EditorProjectMapAreaSelectionState
+                {
+                    MinMapTileX = 63,
+                    MinMapTileY = 2,
+                    MaxMapTileX = 64,
+                    MaxMapTileY = 2,
+                    ObjectIds = [selectedAreaObjectA.Header.ObjectId, selectedAreaObjectB.Header.ObjectId],
+                },
+            };
+
+            var areaResult = areaSession.ApplySectorObjectBrush(
+                preview,
+                areaSelection,
+                EditorMapObjectBrushRequest.Rotate(areaRotation)
+            );
+
+            await Assert.That(areaResult.HasChanges).IsTrue();
+            await Assert.That(areaResult.CreatedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.RemovedObjectCount).IsEqualTo(0);
+            await Assert.That(areaResult.UpdatedObjectCount).IsEqualTo(2);
+            await Assert.That(areaResult.UpdatedObjectIds[0]).IsEqualTo(selectedAreaObjectA.Header.ObjectId);
+            await Assert.That(areaResult.UpdatedObjectIds[1]).IsEqualTo(selectedAreaObjectB.Header.ObjectId);
+
+            var areaWorkspace = areaSession.BeginChangeGroup("Rotate area object selection").ApplyPendingChanges();
+            var areaSectorA = areaWorkspace.FindSector(sectorAssetPathA);
+            var areaSectorB = areaWorkspace.FindSector(sectorAssetPathB);
+
+            await Assert.That(areaSectorA).IsNotNull();
+            await Assert.That(areaSectorB).IsNotNull();
+
+            var updatedSelectedAreaObjectA = areaSectorA!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectA.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectA = areaSectorA.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectA.Header.ObjectId
+            );
+            var updatedSelectedAreaObjectB = areaSectorB!.Objects.Single(obj =>
+                obj.Header.ObjectId == selectedAreaObjectB.Header.ObjectId
+            );
+            var updatedRetainedAreaObjectB = areaSectorB.Objects.Single(obj =>
+                obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
+            );
+
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
+            await Assert
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .IsEqualTo(areaRotation);
+
+            var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
+            var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
+            var areaPreviewSectorB = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathB);
+
+            await Assert
+                .That(
+                    areaPreviewSectorA
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectA.Header.ObjectId)
+                        .Rotation
+                )
+                .IsEqualTo(areaRotation);
+            await Assert
+                .That(
+                    areaPreviewSectorB
+                        .Objects.Single(obj => obj.ObjectId == selectedAreaObjectB.Header.ObjectId)
+                        .Rotation
+                )
+                .IsEqualTo(areaRotation);
         }
         finally
         {
@@ -3280,6 +7650,72 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task SetSectorObjectRotation_StagesUpdatedRotation_AndRefreshesPreview()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386392UL;
+        const float rotation = 1.25f;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            var rotatedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(6, 7).Build();
+            SectorFormat.WriteToFile(
+                MakeSector(rotatedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+
+            var rotateChange = session.SetSectorObjectRotation(
+                sectorAssetPath,
+                rotatedObject.Header.ObjectId,
+                rotation
+            );
+
+            await Assert.That(rotateChange).IsNotNull();
+            await Assert.That(rotateChange!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
+
+            var updatedWorkspace = session.BeginChangeGroup("Rotate sector object").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+
+            var updatedObject = updatedSector!.Objects.Single();
+
+            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
+            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(rotation);
+
+            var preview = updatedWorkspace.CreateMapScenePreview("map01");
+            var sectorPreview = preview.Sectors.Single();
+            var objectPreview = sectorPreview.Objects.Single();
+
+            await Assert.That(objectPreview.ObjectId).IsEqualTo(rotatedObject.Header.ObjectId);
+            await Assert.That(objectPreview.Location).IsEqualTo(new Location(6, 7));
+            await Assert.That(objectPreview.Rotation).IsEqualTo(rotation);
+
+            var undoHistory = session.GetUndoHistory();
+
+            await Assert.That(undoHistory.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].Label).IsEqualTo("Rotate sector object");
+            await Assert.That(undoHistory[0].Changes.Count).IsEqualTo(1);
+            await Assert.That(undoHistory[0].Changes[0].Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task SetSectorObjectRotationPitch_StagesUpdatedRotation_AndRefreshesPreview()
     {
         const int protoNumber = 1001;
@@ -3502,6 +7938,8 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(undoHistory.Count).IsEqualTo(1);
             await Assert.That(undoHistory[0].Label).IsEqualTo("Persist retarget");
             await Assert.That(undoHistory[0].PersistedToDisk).IsTrue();
+            await Assert.That(undoHistory[0].ProjectState.ActiveAssetPath).IsNull();
+            await Assert.That(undoHistory[0].ProjectState.OpenAssets.Count).IsEqualTo(0);
         }
         finally
         {
@@ -3755,6 +8193,63 @@ public sealed class EditorWorkspaceSessionTests
             SoundList = SectorSoundList.Default,
             BlockMask = new uint[128],
             Objects = objects,
+        };
+    }
+
+    private static EditorWorkspace CloneWorkspaceWithSave(EditorWorkspace workspace, LoadedSave save) =>
+        new()
+        {
+            ContentDirectory = workspace.ContentDirectory,
+            GameDirectory = workspace.GameDirectory,
+            InstallationType = workspace.InstallationType,
+            GameData = workspace.GameData,
+            Assets = workspace.Assets,
+            AudioAssets = workspace.AudioAssets,
+            Index = workspace.Index,
+            LoadReport = workspace.LoadReport,
+            Validation = workspace.Validation,
+            Save = save,
+            SaveFolder = Path.Combine("game-root", "save"),
+            SaveSlotName = "slot0001",
+        };
+
+    private static ArtFile CreateArtFile(int width, int height, byte[] pixels, uint frameRate = 8, uint actionFrame = 0)
+    {
+        ArtPaletteEntry[] CreatePalette(params (byte Blue, byte Green, byte Red)[] colors)
+        {
+            var palette = new ArtPaletteEntry[256];
+            for (var index = 0; index < colors.Length; index++)
+                palette[index + 1] = new(colors[index].Blue, colors[index].Green, colors[index].Red);
+
+            return palette;
+        }
+
+        ArtPaletteEntry[]?[] palettes = [CreatePalette((0, 0, 255)), null, null, null];
+        var paletteIds = new int[4];
+        for (var index = 0; index < palettes.Length; index++)
+            paletteIds[index] = palettes[index] is null ? 0 : index + 1;
+
+        return new ArtFile
+        {
+            Flags = ArtFlags.Static,
+            FrameRate = frameRate,
+            ActionFrame = actionFrame,
+            FrameCount = 1,
+            DataSizes = new uint[8],
+            PaletteData1 = new uint[8],
+            PaletteData2 = new uint[8],
+            PaletteIds = paletteIds,
+            Palettes = palettes,
+            Frames =
+            [
+                [
+                    new ArtFrame
+                    {
+                        Header = new ArtFrameHeader((uint)width, (uint)height, (uint)pixels.Length, 0, 0, 0, 0),
+                        Pixels = pixels,
+                    },
+                ],
+            ],
         };
     }
 

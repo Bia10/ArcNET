@@ -116,6 +116,30 @@ public sealed class EditorProjectTests
                         ShowBlockedTiles = true,
                         ShowScripts = false,
                     },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                        Terrain = new EditorProjectMapTerrainToolState
+                        {
+                            MapPropertiesAssetPath = "maps\\map01\\map.prp",
+                            PaletteX = 1,
+                            PaletteY = 2,
+                        },
+                        ObjectPlacement = new EditorProjectMapObjectPlacementToolState
+                        {
+                            Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                            PlacementRequest = EditorObjectPalettePlacementRequest.Place(1001, alignToTileGrid: true),
+                            PresetLibrary =
+                            [
+                                EditorObjectPalettePlacementPreset.Create(
+                                    "guard",
+                                    "Guard",
+                                    entries: [EditorObjectPalettePlacementRequest.Place(1001, rotation: 1.25f)]
+                                ),
+                            ],
+                            SelectedPresetId = "guard",
+                        },
+                    },
                 }
             );
 
@@ -190,6 +214,14 @@ public sealed class EditorProjectTests
             await Assert.That(project.MapViewStates[0].Selection.Area!.MaxMapTileY).IsEqualTo(9);
             await Assert.That(project.MapViewStates[0].Selection.Area!.ObjectIds.Count).IsEqualTo(1);
             await Assert.That(project.MapViewStates[0].Preview.OutlineMode).IsEqualTo(EditorMapPreviewMode.Blocked);
+            await Assert
+                .That(project.MapViewStates[0].WorldEdit.ActiveTool)
+                .IsEqualTo(EditorProjectMapWorldEditActiveTool.ObjectPlacement);
+            await Assert
+                .That(project.MapViewStates[0].WorldEdit.Terrain.MapPropertiesAssetPath)
+                .IsEqualTo("maps/map01/map.prp");
+            await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.SelectedPresetId).IsEqualTo("guard");
+            await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.PresetLibrary.Count).IsEqualTo(1);
             await Assert.That(project.ViewStates.Count).IsEqualTo(1);
             await Assert.That(project.ViewStates[0].AssetPath).IsEqualTo("scr/00077Guard.scr");
             await Assert.That(project.ToolStates.Count).IsEqualTo(1);
@@ -443,12 +475,20 @@ public sealed class EditorProjectTests
             await Assert.That(restore.RestoredActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
             await Assert.That(restore.RestoredAssetPaths).IsEquivalentTo(["dlg/00001Guard.dlg"]);
             await Assert.That(restore.SkippedAssetPaths).IsEquivalentTo(["mes/game.mes", "dlg/missing.dlg"]);
+            await Assert.That(restore.RestoredProjectState.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(restore.RestoredProjectState.OpenAssets.Count).IsEqualTo(3);
+            await Assert.That(restore.RestoredProjectState.Bookmarks.Count).IsEqualTo(1);
+            await Assert.That(restore.RestoredProjectState.MapViewStates.Count).IsEqualTo(1);
+            await Assert.That(restore.RestoredProjectState.ViewStates.Count).IsEqualTo(1);
+            await Assert.That(restore.RestoredProjectState.ToolStates.Count).IsEqualTo(1);
 
             await Assert.That(roundTripped.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
             await Assert.That(roundTripped.OpenAssets.Count).IsEqualTo(3);
             await Assert.That(roundTripped.OpenAssets.Any(asset => asset.AssetPath == "scr/00077Guard.scr")).IsFalse();
             await Assert.That(session.GetOpenAssets().Count).IsEqualTo(3);
             await Assert.That(session.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(session.GetProjectStateSummary().ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(session.GetProjectStateSummary().OpenAssets.Count).IsEqualTo(3);
             await Assert.That(session.GetMapViewStates().Count).IsEqualTo(1);
             await Assert.That(session.GetMapViewStates()[0].Id).IsEqualTo("map-view-1");
             await Assert.That(roundTripped.MapViewStates.Count).IsEqualTo(1);
@@ -502,7 +542,11 @@ public sealed class EditorProjectTests
         var saveFolder = Path.Combine(gameDir, "save");
         var project = new EditorProject
         {
-            Workspace = EditorProjectWorkspaceReference.ForGameInstall(gameDir, saveFolder, "slot0001"),
+            Workspace = EditorProjectWorkspaceReference.ForGameInstall(
+                gameDir,
+                saveFolder: saveFolder,
+                saveSlotName: "slot0001"
+            ),
             ActiveAssetPath = "dlg/00001Virgil.dlg",
             OpenAssets =
             [
@@ -576,6 +620,25 @@ public sealed class EditorProjectTests
                         ShowBlockedTiles = false,
                         ShowScripts = true,
                     },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.TerrainPaint,
+                        Terrain = new EditorProjectMapTerrainToolState
+                        {
+                            MapPropertiesAssetPath = "maps/map01/map.prp",
+                            PaletteX = 1,
+                            PaletteY = 1,
+                        },
+                        ObjectPlacement = new EditorProjectMapObjectPlacementToolState
+                        {
+                            Mode = EditorProjectMapObjectPlacementMode.PlacementSet,
+                            PlacementSet = EditorObjectPalettePlacementSet.Create(
+                                "Guards",
+                                EditorObjectPalettePlacementRequest.Place(1001, rotation: 0.5f),
+                                EditorObjectPalettePlacementRequest.Place(1002, deltaTileX: 1)
+                            ),
+                        },
+                    },
                 },
             ],
             ViewStates =
@@ -634,6 +697,19 @@ public sealed class EditorProjectTests
             await Assert.That(loaded.MapViewStates[0].Selection.Area!.ObjectIds.Count).IsEqualTo(1);
             await Assert.That(loaded.MapViewStates[0].Preview.OutlineMode).IsEqualTo(EditorMapPreviewMode.Objects);
             await Assert.That(loaded.MapViewStates[0].Preview.ShowRoofs).IsFalse();
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.ActiveTool)
+                .IsEqualTo(EditorProjectMapWorldEditActiveTool.TerrainPaint);
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.Terrain.MapPropertiesAssetPath)
+                .IsEqualTo("maps/map01/map.prp");
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.Mode)
+                .IsEqualTo(EditorProjectMapObjectPlacementMode.PlacementSet);
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.PlacementSet).IsNotNull();
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.PlacementSet!.Entries.Count)
+                .IsEqualTo(2);
             await Assert.That(loaded.ViewStates.Count).IsEqualTo(1);
             await Assert.That(loaded.ViewStates[0].Properties["zoom"]).IsEqualTo("1.25");
             await Assert.That(loaded.ToolStates.Count).IsEqualTo(1);
@@ -712,6 +788,16 @@ public sealed class EditorProjectTests
                             ShowBlockedTiles = true,
                             ShowScripts = false,
                         },
+                        WorldEdit = new EditorProjectMapWorldEditState
+                        {
+                            ActiveTool = EditorProjectMapWorldEditActiveTool.TerrainPaint,
+                            Terrain = new EditorProjectMapTerrainToolState
+                            {
+                                MapPropertiesAssetPath = "maps\\map01\\map.prp",
+                                PaletteX = 0,
+                                PaletteY = 1,
+                            },
+                        },
                     },
                 ],
                 OpenAssets =
@@ -725,10 +811,25 @@ public sealed class EditorProjectTests
                 ],
             };
 
-            var session = await project.LoadSessionAsync();
+            var load = await project.LoadSessionWithRestoreResultAsync();
+            var session = load.Session;
+            var bootstrap = load.BootstrapSummary;
+            var projectState = session.GetProjectStateSummary();
+            var stagedTransactions = session.GetStagedTransactionSummaries();
+            var stagedCommands = session.GetAvailableStagedCommandSummaries();
+            var historyCommands = session.GetHistoryCommandSummaries();
             var restoredProject = session.CreateProject(openAssets: []);
 
             await Assert.That(session.Workspace.ContentDirectory).IsEqualTo(contentDir);
+            await Assert.That(load.Restore.RestoredActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(load.Restore.RestoredProjectState.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
+            await Assert.That(load.Restore.RestoredProjectState.MapViewStates.Count).IsEqualTo(1);
+            await Assert.That(bootstrap.Restore).IsSameReferenceAs(load.Restore);
+            await Assert.That(bootstrap.ProjectState.ActiveAssetPath).IsEqualTo(projectState.ActiveAssetPath);
+            await Assert.That(bootstrap.ProjectState.MapViewStates.Count).IsEqualTo(projectState.MapViewStates.Count);
+            await Assert.That(bootstrap.StagedTransactions.Count).IsEqualTo(stagedTransactions.Count);
+            await Assert.That(bootstrap.StagedCommands.Count).IsEqualTo(stagedCommands.Count);
+            await Assert.That(bootstrap.HistoryCommands.Count).IsEqualTo(historyCommands.Count);
             await Assert.That(restoredProject.ActiveAssetPath).IsEqualTo("dlg/00001Guard.dlg");
             await Assert.That(restoredProject.OpenAssets.Count).IsEqualTo(2);
             await Assert.That(session.GetMapViewStates().Count).IsEqualTo(1);
@@ -736,6 +837,10 @@ public sealed class EditorProjectTests
             await Assert
                 .That(session.GetMapViewStates()[0].Selection.SectorAssetPath)
                 .IsEqualTo("maps/map01/0011ff44.sec");
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.ActiveTool)
+                .IsEqualTo(EditorProjectMapWorldEditActiveTool.TerrainPaint);
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Terrain.PaletteY).IsEqualTo(1UL);
             await Assert.That(restoredProject.MapViewStates.Count).IsEqualTo(1);
             await Assert
                 .That(restoredProject.MapViewStates[0].Preview.OutlineMode)

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -167,6 +167,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         await Assert.That(preview.Objects[0].OffsetY).IsEqualTo(4);
         await Assert.That(preview.Objects[0].OffsetZ).IsEqualTo(5.5f);
         await Assert.That(preview.Objects[0].CollisionHeight).IsEqualTo(6.5f);
+        await Assert.That(preview.Objects[0].IsTileGridSnapped).IsFalse();
         await Assert.That(preview.Objects[0].SpriteBounds).IsNull();
     }
 
@@ -237,6 +238,7 @@ public sealed class EditorMapScenePreviewBuilderTests
 
         await Assert.That(preview.Objects.Count).IsEqualTo(1);
         await Assert.That(preview.Objects[0].CurrentArtId).IsEqualTo(artId);
+        await Assert.That(preview.Objects[0].IsTileGridSnapped).IsTrue();
         await Assert.That(preview.Objects[0].SpriteBounds).IsNotNull();
         await Assert.That(preview.Objects[0].SpriteBounds!.MaxFrameWidth).IsEqualTo(9);
         await Assert.That(preview.Objects[0].SpriteBounds!.MaxFrameHeight).IsEqualTo(11);

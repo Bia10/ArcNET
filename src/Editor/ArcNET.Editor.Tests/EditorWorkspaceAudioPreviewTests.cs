@@ -79,6 +79,52 @@ public sealed class EditorWorkspaceAudioPreviewTests
         }
     }
 
+    [Test]
+    public async Task LoadAsync_IndexesAudioDetails_ForBrowserWorkflows()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "sound"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "music"));
+
+        try
+        {
+            await File.WriteAllBytesAsync(
+                Path.Combine(contentDir, "sound", "effect.wav"),
+                CreateWaveFileBytes(channelCount: 1, sampleRate: 8000, bitsPerSample: 16, sampleData: [1, 2, 3, 4])
+            );
+            await File.WriteAllBytesAsync(
+                Path.Combine(contentDir, "music", "theme.wav"),
+                CreateWaveFileBytes(
+                    channelCount: 2,
+                    sampleRate: 11025,
+                    bitsPerSample: 16,
+                    sampleData: [1, 2, 3, 4, 5, 6, 7, 8]
+                )
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var detail = workspace.FindAudioDetail("sound/effect.wav");
+            var search = workspace.SearchAudioDetails("theme");
+
+            await Assert.That(detail).IsNotNull();
+            await Assert.That(detail!.Asset.AssetPath).IsEqualTo("sound/effect.wav");
+            await Assert.That(detail.ChannelCount).IsEqualTo(1);
+            await Assert.That(detail.SampleRate).IsEqualTo(8000);
+            await Assert.That(detail.SampleFrameCount).IsEqualTo(2L);
+            await Assert.That(detail.SampleByteLength).IsEqualTo(4);
+            await Assert.That(detail.Duration).IsGreaterThan(TimeSpan.Zero);
+
+            await Assert.That(search.Count).IsEqualTo(1);
+            await Assert.That(search[0].Asset.AssetPath).IsEqualTo("music/theme.wav");
+            await Assert.That(search[0].ChannelCount).IsEqualTo(2);
+            await Assert.That(search[0].SampleRate).IsEqualTo(11025);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
     private static byte[] CreateWaveFileBytes(int channelCount, int sampleRate, int bitsPerSample, byte[] sampleData)
     {
         var blockAlign = checked((ushort)((channelCount * bitsPerSample) / 8));

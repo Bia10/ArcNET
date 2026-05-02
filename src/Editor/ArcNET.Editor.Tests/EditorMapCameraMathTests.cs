@@ -137,6 +137,32 @@ public sealed class EditorMapCameraMathTests
     }
 
     [Test]
+    public async Task HitTestScene_ExposesDerivedRoofCellForHitTile()
+    {
+        var scenePreview = CreateScenePreview(CreateSector(assetPath: "maps/map01/sector_b.sec", localX: 1, localY: 2));
+        var camera = new EditorProjectMapCameraState
+        {
+            CenterTileX = 96d,
+            CenterTileY = 160d,
+            Zoom = 1d,
+        };
+
+        var hit = EditorMapCameraMath.HitTestScene(
+            scenePreview,
+            camera,
+            viewportWidth: 640,
+            viewportHeight: 640,
+            pixelsPerTileAtZoom1: 8,
+            viewportX: EditorMapCameraMath.ProjectTileX(camera, 640, 640, 8, 74.25),
+            viewportY: EditorMapCameraMath.ProjectTileY(camera, 640, 640, 8, 143.25)
+        );
+
+        await Assert.That(hit).IsNotNull();
+        await Assert.That(hit!.Tile).IsEqualTo(new Location(10, 15));
+        await Assert.That(hit.RoofCell).IsEqualTo(new Location(2, 3));
+    }
+
+    [Test]
     public async Task HitTestScene_ReturnsStackedObjectsInPreviewOrder()
     {
         var firstObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 88, Guid.NewGuid());
