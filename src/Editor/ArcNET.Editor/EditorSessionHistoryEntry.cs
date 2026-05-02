@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// One applied or persisted session change group recorded in the undo/redo history.
@@ -24,4 +24,9 @@ public sealed class EditorSessionHistoryEntry
     /// Immutable summary of the assets affected by the recorded change group.
     /// </summary>
     public required IReadOnlyList<EditorSessionChange> Changes { get; init; }
+
+    /// <summary>
+    /// Project/session state restored when this history entry is applied or redone.
+    /// </summary>
+    public required EditorSessionProjectStateSummary ProjectState { get; init; }
 }
