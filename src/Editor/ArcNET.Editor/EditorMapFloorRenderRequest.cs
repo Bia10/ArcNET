@@ -72,4 +72,27 @@ public sealed class EditorMapFloorRenderRequest
             IncludeScriptOverlays = IncludeScriptOverlays && previewState.ShowScripts,
         };
     }
+
+    /// <summary>
+    /// Creates one opinionated world-edit scene render request for the supplied view mode.
+    /// </summary>
+    public static EditorMapFloorRenderRequest CreateWorldEditPreset(
+        EditorMapSceneViewMode viewMode = EditorMapSceneViewMode.Isometric
+    ) =>
+        viewMode switch
+        {
+            EditorMapSceneViewMode.Isometric => new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            },
+            EditorMapSceneViewMode.TopDown => new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.TopDown,
+                TileWidthPixels = 32d,
+                TileHeightPixels = 32d,
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
+        };
 }

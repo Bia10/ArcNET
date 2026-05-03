@@ -7,6 +7,7 @@ internal static class GameDataStoreSnapshotBuilder
 {
     public static GameDataStore CloneWithAssetReplacements(
         GameDataStore source,
+        IReadOnlyDictionary<string, MesFile>? updatedMessages = null,
         IReadOnlyDictionary<string, ScrFile>? updatedScripts = null,
         IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
         IReadOnlyDictionary<string, Sector>? updatedSectors = null,
@@ -21,12 +22,7 @@ internal static class GameDataStoreSnapshotBuilder
         foreach (var header in source.Objects)
             snapshot.AddObject(header);
 
-        CopyTrackedAssets(
-            source.MessagesBySource,
-            snapshot,
-            null,
-            static (store, asset, assetPath) => store.AddMessage(asset, assetPath)
-        );
+        CopyTrackedMessages(source.MessagesBySource, snapshot, updatedMessages);
         CopyTrackedAssets(
             source.SectorsBySource,
             snapshot,
@@ -77,6 +73,49 @@ internal static class GameDataStoreSnapshotBuilder
 
             foreach (var asset in assets)
                 add(snapshot, asset, assetPath);
+        }
+
+        if (updatedAssets is null)
+            return;
+
+        foreach (var (assetPath, updatedAsset) in updatedAssets)
+        {
+            if (assetsBySource.ContainsKey(assetPath))
+                continue;
+
+            add(snapshot, updatedAsset, assetPath);
+        }
+    }
+
+    private static void CopyTrackedMessages(
+        IReadOnlyDictionary<string, IReadOnlyList<MessageEntry>> messagesBySource,
+        GameDataStore snapshot,
+        IReadOnlyDictionary<string, MesFile>? updatedMessages
+    )
+    {
+        foreach (var (assetPath, entries) in messagesBySource)
+        {
+            if (updatedMessages is not null && updatedMessages.TryGetValue(assetPath, out var updatedMessage))
+            {
+                foreach (var entry in updatedMessage.Entries)
+                    snapshot.AddMessage(entry, assetPath);
+                continue;
+            }
+
+            foreach (var entry in entries)
+                snapshot.AddMessage(entry, assetPath);
+        }
+
+        if (updatedMessages is null)
+            return;
+
+        foreach (var (assetPath, updatedMessage) in updatedMessages)
+        {
+            if (messagesBySource.ContainsKey(assetPath))
+                continue;
+
+            foreach (var entry in updatedMessage.Entries)
+                snapshot.AddMessage(entry, assetPath);
         }
     }
 

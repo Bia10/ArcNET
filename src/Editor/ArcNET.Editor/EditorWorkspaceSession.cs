@@ -1,4 +1,7 @@
 ﻿using System.Buffers.Binary;
+using System.Globalization;
+using System.Text;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -13,9 +16,11 @@ public sealed class EditorWorkspaceSession
 {
     private const int SectorTileAxisLength = 64;
     private const int SectorRoofAxisLength = 16;
+    private const int ScriptDescriptionDiskLength = 40;
 
     private readonly Dictionary<string, DialogEditor> _dialogEditors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ScriptEditor> _scriptEditors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MesFile> _pendingMessageAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ProtoData> _pendingProtoAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MobData> _pendingMobAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Sector> _pendingSectorAssets = new(StringComparer.OrdinalIgnoreCase);
@@ -88,6 +93,7 @@ public sealed class EditorWorkspaceSession
     public bool HasPendingChanges =>
         _dialogEditors.Values.Any(static editor => editor.HasPendingChanges)
         || _scriptEditors.Values.Any(static editor => editor.HasPendingChanges)
+        || _pendingMessageAssets.Count > 0
         || _pendingProtoAssets.Count > 0
         || _pendingMobAssets.Count > 0
         || _pendingSectorAssets.Count > 0
@@ -141,6 +147,41 @@ public sealed class EditorWorkspaceSession
     {
         ArgumentNullException.ThrowIfNull(restore);
         return CreateBootstrapSummary(restore);
+    }
+
+    /// <summary>
+    /// Returns the default session undo command that hosts can bind without branching between
+    /// staged local history and applied session history.
+    /// Staged local undo is preferred when available; otherwise applied undo is returned.
+    /// </summary>
+    public EditorSessionCommandSummary? GetDefaultUndoCommandSummary() =>
+        CreateDefaultCommandSummary(EditorSessionCommandKind.Undo);
+
+    /// <summary>
+    /// Returns the default session redo command that hosts can bind without branching between
+    /// staged local history and applied session history.
+    /// Staged local redo is preferred when available; otherwise applied redo is returned.
+    /// </summary>
+    public EditorSessionCommandSummary? GetDefaultRedoCommandSummary() =>
+        CreateDefaultCommandSummary(EditorSessionCommandKind.Redo);
+
+    /// <summary>
+    /// Returns the current default session command inventory in stable order.
+    /// Undo is listed before redo when available.
+    /// </summary>
+    public IReadOnlyList<EditorSessionCommandSummary> GetCommandSummaries()
+    {
+        var commands = new List<EditorSessionCommandSummary>(capacity: 2);
+
+        var undo = GetDefaultUndoCommandSummary();
+        if (undo is not null)
+            commands.Add(undo);
+
+        var redo = GetDefaultRedoCommandSummary();
+        if (redo is not null)
+            commands.Add(redo);
+
+        return commands;
     }
 
     /// <summary>
@@ -295,8 +336,11 @@ public sealed class EditorWorkspaceSession
         {
             var selectedScopeKeys = CreateSelectedScopeKeys(scope.Kind, scope.Target);
             var scopePendingChanges = GetStagedTransactionPendingChanges(scope, pendingChanges);
+            PendingWorkspaceState? scopePendingState = scope.HasPendingChanges
+                ? BuildPendingWorkspaceState(selectedScopeKeys)
+                : null;
             var blockingValidation = scope.HasPendingChanges
-                ? CreateBlockingValidationReport(GetPendingValidation(selectedScopeKeys))
+                ? CreateBlockingValidationReport(scopePendingState!.Value.Workspace.Validation)
                 : EditorWorkspaceValidationReport.Empty;
             var repairCandidates = scope.HasPendingChanges ? GetValidationRepairCandidates(selectedScopeKeys) : [];
             summaries.Add(
@@ -316,6 +360,10 @@ public sealed class EditorWorkspaceSession
                     CanSaveIndividually = scope.HasPendingChanges && !blockingValidation.HasErrors,
                     BlockingValidation = blockingValidation,
                     RepairCandidates = repairCandidates,
+                    ImpactSummary = CreateImpactSummary(
+                        scopePendingChanges,
+                        scopePendingState.HasValue ? scopePendingState.Value.Workspace : Workspace
+                    ),
                 }
             );
         }
@@ -486,6 +534,31 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Executes one default session command through its chosen staged or applied history route.
+    /// </summary>
+    public EditorWorkspace ExecuteCommand(EditorSessionCommandSummary command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return command.SourceKind switch
+        {
+            EditorSessionCommandSourceKind.Staged => ExecuteStagedCommand(
+                command.StagedCommand
+                    ?? throw new InvalidOperationException(
+                        $"The session command '{command.Label}' did not include its staged routing payload."
+                    )
+            ).Workspace,
+            EditorSessionCommandSourceKind.History => ExecuteHistoryCommand(
+                command.HistoryCommand
+                    ?? throw new InvalidOperationException(
+                        $"The session command '{command.Label}' did not include its applied-history routing payload."
+                    )
+            ),
+            _ => throw new InvalidOperationException($"Unsupported session command source kind {command.SourceKind}."),
+        };
+    }
+
+    /// <summary>
     /// Undoes the most recent staged local edit across the session's merged dialog, script, save,
     /// and direct-asset history scopes.
     /// This does not affect applied session history.
@@ -585,6 +658,34 @@ public sealed class EditorWorkspaceSession
         NormalizeProjectMapWorldEditState(ResolveTrackedMapViewState(mapViewStateId).WorldEdit);
 
     /// <summary>
+    /// Persists tracked world-edit shell preferences for one map view while preserving the current
+    /// tracked terrain and object workflow state.
+    /// </summary>
+    public EditorProjectMapWorldEditShellState SetTrackedMapWorldEditShellPreferences(
+        string mapViewStateId,
+        EditorMapWorldEditShellRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+        var normalizedShellState = CreateProjectMapWorldEditShellState(request);
+        _ = SetMapWorldEditState(
+            mapViewStateId,
+            new EditorProjectMapWorldEditState
+            {
+                ActiveTool = worldEditState.ActiveTool,
+                Terrain = worldEditState.Terrain,
+                ObjectPlacement = worldEditState.ObjectPlacement,
+                Shell = normalizedShellState,
+            }
+        );
+
+        return normalizedShellState;
+    }
+
+    /// <summary>
     /// Returns one host-facing snapshot of the tracked terrain-paint tool for one map view.
     /// </summary>
     public EditorMapTerrainToolSummary GetTrackedTerrainToolSummary(string mapViewStateId)
@@ -597,6 +698,50 @@ public sealed class EditorWorkspaceSession
             MapName = mapViewState.MapName,
             ToolState = toolState,
             SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
+        };
+    }
+
+    /// <summary>
+    /// Returns one terrain palette browser summary for the tracked map view using the current
+    /// tracked palette asset when present, or the map's default <c>map.prp</c> asset path otherwise.
+    /// </summary>
+    public EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        var mapPropertiesAssetPath = ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState);
+        return new EditorMapTerrainPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            MapPropertiesAssetPath = mapPropertiesAssetPath,
+            Entries = Workspace.GetTerrainPalette(mapPropertiesAssetPath),
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
+        };
+    }
+
+    /// <summary>
+    /// Returns one terrain palette browser summary for the tracked map view enriched with optional
+    /// ART binding and preview payloads.
+    /// </summary>
+    public EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        var mapPropertiesAssetPath = ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState);
+        return new EditorMapTerrainPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            MapPropertiesAssetPath = mapPropertiesAssetPath,
+            Entries = Workspace.GetTerrainPalette(mapPropertiesAssetPath, artBindingStrategy, artPreviewOptions),
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState, artBindingStrategy, artPreviewOptions),
         };
     }
 
@@ -628,10 +773,40 @@ public sealed class EditorWorkspaceSession
                     : worldEditState.ActiveTool,
                 Terrain = normalizedTerrainState,
                 ObjectPlacement = worldEditState.ObjectPlacement,
+                Shell = worldEditState.Shell,
             }
         );
 
         return normalizedTerrainState;
+    }
+
+    /// <summary>
+    /// Tracks one terrain palette coordinate as the active terrain-paint tool state for one map view.
+    /// When <paramref name="mapPropertiesAssetPath"/> is omitted, the current tracked palette asset is used;
+    /// otherwise the map view falls back to its default <c>map.prp</c> asset path.
+    /// </summary>
+    public EditorProjectMapTerrainToolState SetTrackedTerrainPaletteEntry(
+        string mapViewStateId,
+        ulong paletteX,
+        ulong paletteY,
+        string? mapPropertiesAssetPath = null,
+        bool activateTool = true
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        var resolvedAssetPath = string.IsNullOrWhiteSpace(mapPropertiesAssetPath)
+            ? ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState)
+            : NormalizeAssetPath(mapPropertiesAssetPath);
+        var entry = Workspace.FindTerrainPaletteEntry(resolvedAssetPath, paletteX, paletteY);
+        if (entry is null)
+        {
+            throw new InvalidOperationException(
+                $"The tracked terrain palette asset '{resolvedAssetPath}' does not resolve palette coordinates ({paletteX}, {paletteY})."
+            );
+        }
+
+        return SetTrackedTerrainPaletteEntry(mapViewStateId, entry, activateTool);
     }
 
     /// <summary>
@@ -645,14 +820,7 @@ public sealed class EditorWorkspaceSession
             toolState.Mode == EditorProjectMapObjectPlacementMode.PlacementPreset
                 ? toolState.FindSelectedPreset()
                 : null;
-        var effectivePlacementSet = toolState.Mode switch
-        {
-            EditorProjectMapObjectPlacementMode.SinglePlacement when toolState.PlacementRequest is { } request =>
-                new EditorObjectPalettePlacementSet { Entries = [request] },
-            EditorProjectMapObjectPlacementMode.PlacementSet => toolState.PlacementSet,
-            EditorProjectMapObjectPlacementMode.PlacementPreset => selectedPreset?.CreatePlacementSet(),
-            _ => null,
-        };
+        var effectivePlacementSet = ResolveEffectivePlacementSet(toolState, selectedPreset);
 
         var resolvedEntries = new List<EditorObjectPaletteEntry>();
         var missingProtoNumbers = new List<int>();
@@ -682,6 +850,150 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one object palette browser summary for the tracked map view using the full loaded object palette.
+    /// </summary>
+    public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
+        string mapViewStateId,
+        string? searchText = null,
+        string? category = null
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
+        var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
+        var browseEntries = effectiveSearchText is null
+            ? Workspace.GetObjectPalette()
+            : Workspace.SearchObjectPalette(effectiveSearchText);
+        var availableCategories = browseEntries
+            .Select(static entry => entry.Category)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var filteredEntries = FilterObjectPaletteEntriesByCategory(browseEntries, effectiveCategory);
+
+        return new EditorMapObjectPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            SearchText = effectiveSearchText,
+            Category = effectiveCategory,
+            AvailableCategories = availableCategories,
+            Entries = filteredEntries,
+            SelectedEntry = ResolveTrackedObjectPaletteSelectedEntry(filteredEntries, toolState),
+        };
+    }
+
+    /// <summary>
+    /// Returns one object palette browser summary for the tracked map view using the supplied ART binding strategy.
+    /// </summary>
+    public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        string? searchText = null,
+        string? category = null
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
+        var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
+        var browseEntries = effectiveSearchText is null
+            ? Workspace.GetObjectPalette(artBindingStrategy)
+            : Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy);
+        var availableCategories = browseEntries
+            .Select(static entry => entry.Category)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var filteredEntries = FilterObjectPaletteEntriesByCategory(browseEntries, effectiveCategory);
+
+        return new EditorMapObjectPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            SearchText = effectiveSearchText,
+            Category = effectiveCategory,
+            AvailableCategories = availableCategories,
+            Entries = filteredEntries,
+            SelectedEntry = ResolveTrackedObjectPaletteSelectedEntry(filteredEntries, toolState),
+        };
+    }
+
+    /// <summary>
+    /// Returns one object palette browser summary for the tracked map view enriched with ART preview payloads.
+    /// </summary>
+    public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions,
+        string? searchText = null,
+        string? category = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
+        var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
+        var browseEntries = effectiveSearchText is null
+            ? Workspace.GetObjectPalette(artBindingStrategy, artPreviewOptions)
+            : Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy, artPreviewOptions);
+        var availableCategories = browseEntries
+            .Select(static entry => entry.Category)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var filteredEntries = FilterObjectPaletteEntriesByCategory(browseEntries, effectiveCategory);
+
+        return new EditorMapObjectPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            SearchText = effectiveSearchText,
+            Category = effectiveCategory,
+            AvailableCategories = availableCategories,
+            Entries = filteredEntries,
+            SelectedEntry = ResolveTrackedObjectPaletteSelectedEntry(filteredEntries, toolState),
+        };
+    }
+
+    /// <summary>
+    /// Returns one selected-object summary for the tracked map view using the current staged scene preview.
+    /// </summary>
+    public EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        var selection = mapViewState.Selection;
+        var selectedObjects = ResolveSelectedObjectPreviews(scenePreview, selection);
+        var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
+        var missingObjectIds = explicitSelectedObjectIds
+            .Where(selectedObjectId => selectedObjects.All(candidate => candidate.ObjectId != selectedObjectId))
+            .ToArray();
+
+        return new EditorMapObjectSelectionSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            Selection = selection,
+            SelectedObjects = selectedObjects,
+            MissingObjectIds = missingObjectIds,
+            SectorAssetPaths = selectedObjects
+                .Select(candidate => FindSceneObjectSectorAssetPath(scenePreview, candidate.ObjectId))
+                .Where(static assetPath => assetPath is not null)
+                .Select(static assetPath => assetPath!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static assetPath => assetPath, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+        };
+    }
+
+    /// <summary>
     /// Tracks one single-placement request as the active object-placement tool state for one map view.
     /// </summary>
     public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementRequest(
@@ -692,12 +1004,23 @@ public sealed class EditorWorkspaceSession
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+
         return SetTrackedObjectPlacementToolState(
             mapViewStateId,
             new EditorProjectMapObjectPlacementToolState
             {
                 Mode = EditorProjectMapObjectPlacementMode.SinglePlacement,
                 PlacementRequest = NormalizePlacementRequest(request),
+                PlacementSet = currentObjectPlacementState.PlacementSet,
+                PresetLibrary = currentObjectPlacementState.PresetLibrary,
+                SelectedPresetId = currentObjectPlacementState.SelectedPresetId,
+                PaletteSearchText = currentObjectPlacementState.PaletteSearchText,
+                PaletteCategory = currentObjectPlacementState.PaletteCategory,
+                SelectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber,
             },
             activateTool
         );
@@ -727,6 +1050,268 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Tracks one proto number as the active single-placement object tool for one map view.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementEntry(
+        string mapViewStateId,
+        int protoNumber,
+        int deltaTileX = 0,
+        int deltaTileY = 0,
+        float? rotation = null,
+        float? rotationPitch = null,
+        bool alignToTileGrid = true,
+        bool activateTool = true
+    )
+    {
+        var entry =
+            Workspace.FindObjectPaletteEntry(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed object palette entry matched proto number {protoNumber}."
+            );
+
+        return SetTrackedObjectPlacementEntry(
+            mapViewStateId,
+            entry,
+            deltaTileX,
+            deltaTileY,
+            rotation,
+            rotationPitch,
+            alignToTileGrid,
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Updates the tracked object-palette browser filters for one map view while preserving the current placement workflow.
+    /// Passing an empty string clears one filter; passing <see langword="null"/> preserves the current persisted value.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPaletteBrowserFilter(
+        string mapViewStateId,
+        string? searchText = null,
+        string? category = null,
+        bool activateTool = false
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+        var effectiveSearchText = searchText is null
+            ? currentObjectPlacementState.PaletteSearchText
+            : NormalizeOptionalText(searchText);
+        var effectiveCategory = category is null
+            ? currentObjectPlacementState.PaletteCategory
+            : NormalizeOptionalText(category);
+        var selectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber;
+        if (
+            selectedPaletteProtoNumber.HasValue
+            && !PaletteEntryMatchesFilters(selectedPaletteProtoNumber.Value, effectiveSearchText, effectiveCategory)
+        )
+        {
+            selectedPaletteProtoNumber = null;
+        }
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = currentObjectPlacementState.Mode,
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PlacementSet = currentObjectPlacementState.PlacementSet,
+                PresetLibrary = currentObjectPlacementState.PresetLibrary,
+                SelectedPresetId = currentObjectPlacementState.SelectedPresetId,
+                PaletteSearchText = effectiveSearchText,
+                PaletteCategory = effectiveCategory,
+                SelectedPaletteProtoNumber = selectedPaletteProtoNumber,
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Persists one selected object-palette proto number for the tracked map view while preserving the current placement workflow.
+    /// Optional browser filters follow the same semantics as <see cref="SetTrackedObjectPaletteBrowserFilter(string, string?, string?, bool)"/>.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SelectTrackedObjectPaletteEntry(
+        string mapViewStateId,
+        int protoNumber,
+        string? searchText = null,
+        string? category = null,
+        bool activateTool = false
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        _ =
+            Workspace.FindObjectPaletteEntry(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed object palette entry matched proto number {protoNumber}."
+            );
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+        var effectiveSearchText = searchText is null
+            ? currentObjectPlacementState.PaletteSearchText
+            : NormalizeOptionalText(searchText);
+        var effectiveCategory = category is null
+            ? currentObjectPlacementState.PaletteCategory
+            : NormalizeOptionalText(category);
+
+        if (!PaletteEntryMatchesFilters(protoNumber, effectiveSearchText, effectiveCategory))
+        {
+            if (!PaletteEntryMatchesFilters(protoNumber, null, effectiveCategory))
+                effectiveCategory = null;
+
+            if (!PaletteEntryMatchesFilters(protoNumber, effectiveSearchText, effectiveCategory))
+                effectiveSearchText = null;
+        }
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = currentObjectPlacementState.Mode,
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PlacementSet = currentObjectPlacementState.PlacementSet,
+                PresetLibrary = currentObjectPlacementState.PresetLibrary,
+                SelectedPresetId = currentObjectPlacementState.SelectedPresetId,
+                PaletteSearchText = effectiveSearchText,
+                PaletteCategory = effectiveCategory,
+                SelectedPaletteProtoNumber = protoNumber,
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Appends the tracked browser selection to the current effective placement workflow and activates placement-set mode.
+    /// The existing single-placement request or selected preset is preserved so hosts can switch back without rebuilding it.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState AppendTrackedObjectPaletteSelectionToPlacementSet(
+        string mapViewStateId,
+        int deltaTileX = 0,
+        int deltaTileY = 0,
+        float? rotation = null,
+        float? rotationPitch = null,
+        bool alignToTileGrid = true,
+        bool activateTool = true
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+        if (!currentObjectPlacementState.SelectedPaletteProtoNumber.HasValue)
+        {
+            throw new InvalidOperationException(
+                $"The tracked object-palette browser for map view '{mapViewStateId}' does not currently select one proto-backed palette entry."
+            );
+        }
+
+        var paletteEntry =
+            Workspace.FindObjectPaletteEntry(currentObjectPlacementState.SelectedPaletteProtoNumber.Value)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed object palette entry matched proto number {currentObjectPlacementState.SelectedPaletteProtoNumber.Value}."
+            );
+        var selectedPreset =
+            currentObjectPlacementState.Mode == EditorProjectMapObjectPlacementMode.PlacementPreset
+                ? currentObjectPlacementState.FindSelectedPreset()
+                : null;
+        var effectivePlacementSet = ResolveEffectivePlacementSet(currentObjectPlacementState, selectedPreset);
+        var updatedEntries = effectivePlacementSet?.Entries.ToList() ?? [];
+        updatedEntries.Add(
+            paletteEntry.CreatePlacementRequest(deltaTileX, deltaTileY, rotation, rotationPitch, alignToTileGrid)
+        );
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = EditorProjectMapObjectPlacementMode.PlacementSet,
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PlacementSet = new EditorObjectPalettePlacementSet
+                {
+                    Name = effectivePlacementSet?.Name,
+                    Entries = updatedEntries,
+                },
+                PresetLibrary = currentObjectPlacementState.PresetLibrary,
+                SelectedPresetId = currentObjectPlacementState.SelectedPresetId,
+                PaletteSearchText = currentObjectPlacementState.PaletteSearchText,
+                PaletteCategory = currentObjectPlacementState.PaletteCategory,
+                SelectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber,
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Applies one object-brush request to the current persisted selection for one tracked map view.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplyTrackedObjectBrush(
+        string mapViewStateId,
+        EditorMapObjectBrushRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        return ApplySectorObjectBrush(scenePreview, mapViewState.Selection, request);
+    }
+
+    /// <summary>
+    /// Applies one higher-level object transform request to the current persisted selection for one tracked map view.
+    /// </summary>
+    public EditorMapObjectBrushResult ApplyTrackedObjectTransform(
+        string mapViewStateId,
+        EditorMapObjectTransformRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        return ApplySectorObjectTransform(scenePreview, mapViewState.Selection, request);
+    }
+
+    /// <summary>
+    /// Erases the objects currently targeted by the persisted selection for one tracked map view.
+    /// </summary>
+    public EditorMapObjectBrushResult EraseTrackedSelectedObjects(string mapViewStateId) =>
+        ApplyTrackedObjectBrush(mapViewStateId, EditorMapObjectBrushRequest.Erase());
+
+    /// <summary>
+    /// Replaces the objects currently targeted by the persisted selection for one tracked map view with one proto number.
+    /// </summary>
+    public EditorMapObjectBrushResult ReplaceTrackedSelectedObjects(string mapViewStateId, int protoNumber)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        return ApplyTrackedObjectBrush(mapViewStateId, EditorMapObjectBrushRequest.ReplaceWithProto(protoNumber));
+    }
+
+    /// <summary>
+    /// Rotates the objects currently targeted by the persisted selection for one tracked map view.
+    /// </summary>
+    public EditorMapObjectBrushResult RotateTrackedSelectedObjects(string mapViewStateId, float rotation) =>
+        ApplyTrackedObjectBrush(mapViewStateId, EditorMapObjectBrushRequest.Rotate(rotation));
+
+    /// <summary>
+    /// Adjusts the pitch rotation of the objects currently targeted by the persisted selection for one tracked map view.
+    /// </summary>
+    public EditorMapObjectBrushResult RotatePitchTrackedSelectedObjects(string mapViewStateId, float rotationPitch) =>
+        ApplyTrackedObjectBrush(mapViewStateId, EditorMapObjectBrushRequest.RotatePitch(rotationPitch));
+
+    /// <summary>
+    /// Moves the objects currently targeted by the persisted selection for one tracked map view by one tile offset.
+    /// </summary>
+    public EditorMapObjectBrushResult MoveTrackedSelectedObjects(
+        string mapViewStateId,
+        int deltaTileX,
+        int deltaTileY
+    ) => ApplyTrackedObjectBrush(mapViewStateId, EditorMapObjectBrushRequest.MoveByOffset(deltaTileX, deltaTileY));
+
+    /// <summary>
     /// Tracks one placement set as the active object-placement tool state for one map view.
     /// </summary>
     public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementSet(
@@ -737,12 +1322,23 @@ public sealed class EditorWorkspaceSession
     {
         ArgumentNullException.ThrowIfNull(placementSet);
 
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+
         return SetTrackedObjectPlacementToolState(
             mapViewStateId,
             new EditorProjectMapObjectPlacementToolState
             {
                 Mode = EditorProjectMapObjectPlacementMode.PlacementSet,
                 PlacementSet = NormalizePlacementSet(placementSet),
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PresetLibrary = currentObjectPlacementState.PresetLibrary,
+                SelectedPresetId = currentObjectPlacementState.SelectedPresetId,
+                PaletteSearchText = currentObjectPlacementState.PaletteSearchText,
+                PaletteCategory = currentObjectPlacementState.PaletteCategory,
+                SelectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber,
             },
             activateTool
         );
@@ -772,8 +1368,13 @@ public sealed class EditorWorkspaceSession
             new EditorProjectMapObjectPlacementToolState
             {
                 Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                PlacementRequest = worldEditState.ObjectPlacement.PlacementRequest,
+                PlacementSet = worldEditState.ObjectPlacement.PlacementSet,
                 PresetLibrary = updatedPresetLibrary,
                 SelectedPresetId = normalizedPreset.PresetId,
+                PaletteSearchText = worldEditState.ObjectPlacement.PaletteSearchText,
+                PaletteCategory = worldEditState.ObjectPlacement.PaletteCategory,
+                SelectedPaletteProtoNumber = worldEditState.ObjectPlacement.SelectedPaletteProtoNumber,
             },
             activateTool
         );
@@ -798,11 +1399,135 @@ public sealed class EditorWorkspaceSession
             new EditorProjectMapObjectPlacementToolState
             {
                 Mode = EditorProjectMapObjectPlacementMode.PlacementPreset,
+                PlacementRequest = worldEditState.ObjectPlacement.PlacementRequest,
+                PlacementSet = worldEditState.ObjectPlacement.PlacementSet,
                 PresetLibrary = worldEditState.ObjectPlacement.PresetLibrary,
                 SelectedPresetId = presetId.Trim(),
+                PaletteSearchText = worldEditState.ObjectPlacement.PaletteSearchText,
+                PaletteCategory = worldEditState.ObjectPlacement.PaletteCategory,
+                SelectedPaletteProtoNumber = worldEditState.ObjectPlacement.SelectedPaletteProtoNumber,
             },
             activateTool
         );
+    }
+
+    /// <summary>
+    /// Returns the tracked object-placement preset library for one map view in stable normalized order.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPalettePlacementPreset> GetTrackedObjectPlacementPresetLibrary(
+        string mapViewStateId
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        return NormalizePlacementPresetLibrary(mapViewState.WorldEdit.ObjectPlacement.PresetLibrary);
+    }
+
+    /// <summary>
+    /// Returns one tracked placement preset by identifier for the supplied map view, or <see langword="null"/>
+    /// when the preset is not currently present in the tracked library.
+    /// </summary>
+    public EditorObjectPalettePlacementPreset? FindTrackedObjectPlacementPreset(string mapViewStateId, string presetId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(presetId);
+
+        var normalizedPresetId = presetId.Trim();
+        return GetTrackedObjectPlacementPresetLibrary(mapViewStateId)
+            .FirstOrDefault(preset =>
+                string.Equals(preset.PresetId, normalizedPresetId, StringComparison.OrdinalIgnoreCase)
+            );
+    }
+
+    /// <summary>
+    /// Replaces the tracked placement preset library for one map view while preserving the current
+    /// non-preset placement workflow unless preset mode is already active or explicitly activated.
+    /// </summary>
+    public EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementPresetLibrary(
+        string mapViewStateId,
+        IReadOnlyList<EditorObjectPalettePlacementPreset> presetLibrary,
+        string? selectedPresetId = null,
+        bool activateTool = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(presetLibrary);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+        var normalizedPresetLibrary = NormalizePlacementPresetLibrary(presetLibrary);
+        var resolvedSelectedPresetId = ResolveTrackedPlacementPresetSelection(
+            normalizedPresetLibrary,
+            selectedPresetId,
+            currentObjectPlacementState.SelectedPresetId
+        );
+        var updatedMode =
+            activateTool || currentObjectPlacementState.Mode == EditorProjectMapObjectPlacementMode.PlacementPreset
+                ? EditorProjectMapObjectPlacementMode.PlacementPreset
+                : currentObjectPlacementState.Mode;
+
+        return SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode = updatedMode,
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PlacementSet = currentObjectPlacementState.PlacementSet,
+                PresetLibrary = normalizedPresetLibrary,
+                SelectedPresetId = resolvedSelectedPresetId,
+                PaletteSearchText = currentObjectPlacementState.PaletteSearchText,
+                PaletteCategory = currentObjectPlacementState.PaletteCategory,
+                SelectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber,
+            },
+            activateTool
+        );
+    }
+
+    /// <summary>
+    /// Removes one tracked placement preset by identifier.
+    /// Returns <see langword="false"/> when no matching preset exists in the tracked library.
+    /// </summary>
+    public bool RemoveTrackedObjectPlacementPreset(string mapViewStateId, string presetId, bool activateTool = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(presetId);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var currentObjectPlacementState = NormalizeProjectMapObjectPlacementToolState(
+            mapViewState.WorldEdit.ObjectPlacement
+        );
+        var normalizedPresetId = presetId.Trim();
+        var updatedPresetLibrary = currentObjectPlacementState
+            .PresetLibrary.Where(preset =>
+                !string.Equals(preset.PresetId, normalizedPresetId, StringComparison.OrdinalIgnoreCase)
+            )
+            .ToArray();
+        if (updatedPresetLibrary.Length == currentObjectPlacementState.PresetLibrary.Count)
+            return false;
+
+        var resolvedSelectedPresetId = ResolveTrackedPlacementPresetSelection(
+            updatedPresetLibrary,
+            currentObjectPlacementState.SelectedPresetId
+        );
+
+        _ = SetTrackedObjectPlacementToolState(
+            mapViewStateId,
+            new EditorProjectMapObjectPlacementToolState
+            {
+                Mode =
+                    activateTool
+                    || currentObjectPlacementState.Mode == EditorProjectMapObjectPlacementMode.PlacementPreset
+                        ? EditorProjectMapObjectPlacementMode.PlacementPreset
+                        : currentObjectPlacementState.Mode,
+                PlacementRequest = currentObjectPlacementState.PlacementRequest,
+                PlacementSet = currentObjectPlacementState.PlacementSet,
+                PresetLibrary = updatedPresetLibrary,
+                SelectedPresetId = resolvedSelectedPresetId,
+                PaletteSearchText = currentObjectPlacementState.PaletteSearchText,
+                PaletteCategory = currentObjectPlacementState.PaletteCategory,
+                SelectedPaletteProtoNumber = currentObjectPlacementState.SelectedPaletteProtoNumber,
+            },
+            activateTool
+        );
+        return true;
     }
 
     /// <summary>
@@ -1072,6 +1797,54 @@ public sealed class EditorWorkspaceSession
         string? viewId = null,
         EditorMapWorldEditSceneRequest? request = null
     ) => CreateMapWorldEditScene(CreateDefaultMapViewState(id, viewId), request);
+
+    /// <summary>
+    /// Creates one opinionated tracked world-edit shell for the supplied map view.
+    /// The shell bundles a parity-style scene/view preset, tracked terrain/object browser state,
+    /// tracked object selection state, and one optional live tracked placement preview.
+    /// </summary>
+    public EditorMapWorldEditShell CreateTrackedMapWorldEditShell(
+        string mapViewStateId,
+        EditorMapWorldEditShellRequest? request = null
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
+        var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
+        var scene = CreateMapWorldEditScene(
+            mapViewStateId,
+            new EditorMapWorldEditSceneRequest
+            {
+                RenderRequest = renderRequest,
+                ViewportWidth = effectiveRequest.ViewportWidth,
+                ViewportHeight = effectiveRequest.ViewportHeight,
+            }
+        );
+        var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
+
+        return new EditorMapWorldEditShell
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ActiveTool = mapViewState.WorldEdit.ActiveTool,
+            ViewMode = renderRequest.ViewMode,
+            RenderRequest = renderRequest,
+            Scene = scene,
+            TrackedPlacementPreview =
+                effectiveRequest.IncludeTrackedPlacementPreview && objectPlacementTool.CanPreviewOrApply
+                    ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
+                    : null,
+            TerrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
+            TerrainPalette = GetTrackedTerrainPaletteSummary(mapViewStateId),
+            ObjectPlacementTool = objectPlacementTool,
+            ObjectPalette = GetTrackedObjectPaletteSummary(
+                mapViewStateId,
+                effectiveRequest.ObjectPaletteSearchText,
+                effectiveRequest.ObjectPaletteCategory
+            ),
+            ObjectSelection = GetTrackedObjectSelectionSummary(mapViewStateId),
+        };
+    }
 
     /// <summary>
     /// Builds one live placement preview from a typed map-view state and one palette placement request.
@@ -1418,21 +2191,23 @@ public sealed class EditorWorkspaceSession
     public EditorSessionPendingChangeSummary GetPendingChangeSummary()
     {
         if (!HasPendingChanges)
-            return CreatePendingChangeSummary([], Workspace, Workspace.Validation, []);
+            return CreatePendingChangeSummary([], Workspace, Workspace.Validation, [], []);
 
         var pendingState = BuildPendingWorkspaceState();
         return CreatePendingChangeSummary(
             pendingState.Changes,
             pendingState.Workspace,
             pendingState.Workspace.Validation,
-            CollectPendingStateBlockingIssues(pendingState.Workspace.Validation)
+            CollectPendingStateBlockingIssues(pendingState.Workspace.Validation),
+            GetValidationRepairCandidates(selectedScopeKeys: null)
         );
     }
 
     /// <summary>
     /// Returns staged repair candidates for the current session head.
-    /// Today this surfaces actionable dialog-local fixes for validation findings that can be repaired through
-    /// the existing dialog editor API without rebuilding the asset manually.
+    /// Today this surfaces actionable dialog-local fixes plus script-description normalization repairs that
+    /// can be applied through the existing session editors plus direct-asset script/proto-reference cleanup
+    /// repairs for broken workspace-level references.
     /// </summary>
     public IReadOnlyList<EditorSessionValidationRepairCandidate> GetValidationRepairCandidates()
     {
@@ -1470,11 +2245,17 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(candidate);
 
         var assetPath = NormalizeAssetPath(candidate.AssetPath);
-        var entry = GetCurrentDialogEntry(assetPath, candidate.DialogEntryNumber);
 
         switch (candidate.Kind)
         {
+            case EditorSessionValidationRepairCandidateKind.RenumberDuplicateDialogEntryNumber:
+                GetDialogEditor(assetPath)
+                    .WithDialog(
+                        RenumberDuplicateDialogEntries(GetCurrentDialogAsset(assetPath), candidate.DialogEntryNumber)
+                    );
+                return new EditorSessionChange { Kind = EditorSessionChangeKind.Dialog, Target = assetPath };
             case EditorSessionValidationRepairCandidateKind.SetDialogEntryIntelligenceRequirement:
+                _ = GetCurrentDialogEntry(assetPath, candidate.DialogEntryNumber);
                 if (!candidate.SuggestedIntelligenceRequirement.HasValue)
                 {
                     throw new ArgumentException(
@@ -1497,8 +2278,9 @@ public sealed class EditorWorkspaceSession
                             Actions = currentEntry.Actions,
                         }
                     );
-                break;
+                return new EditorSessionChange { Kind = EditorSessionChangeKind.Dialog, Target = assetPath };
             case EditorSessionValidationRepairCandidateKind.SetDialogResponseTarget:
+                _ = GetCurrentDialogEntry(assetPath, candidate.DialogEntryNumber);
                 if (!candidate.SuggestedResponseTargetNumber.HasValue)
                 {
                     throw new ArgumentException(
@@ -1509,13 +2291,72 @@ public sealed class EditorWorkspaceSession
 
                 GetDialogEditor(assetPath)
                     .SetResponseTarget(candidate.DialogEntryNumber, candidate.SuggestedResponseTargetNumber.Value);
-                break;
+                return new EditorSessionChange { Kind = EditorSessionChangeKind.Dialog, Target = assetPath };
+            case EditorSessionValidationRepairCandidateKind.SetScriptDescription:
+                if (candidate.SuggestedScriptDescription is null)
+                {
+                    throw new ArgumentException(
+                        "Script-description repair candidates must provide SuggestedScriptDescription.",
+                        nameof(candidate)
+                    );
+                }
+
+                GetScriptEditor(assetPath).WithDescription(candidate.SuggestedScriptDescription);
+                return new EditorSessionChange { Kind = EditorSessionChangeKind.Script, Target = assetPath };
+            case EditorSessionValidationRepairCandidateKind.ClearUnknownScriptAttachmentSlots:
+                GetScriptEditor(assetPath)
+                    .WithScript(ClearUnknownScriptAttachmentSlots(GetCurrentScriptAsset(assetPath)));
+                return new EditorSessionChange { Kind = EditorSessionChangeKind.Script, Target = assetPath };
+            case EditorSessionValidationRepairCandidateKind.SetProtoDisplayName:
+                if (!candidate.ProtoNumber.HasValue || candidate.ProtoNumber.Value <= 0)
+                {
+                    throw new ArgumentException(
+                        "Proto display-name repair candidates must provide a positive ProtoNumber.",
+                        nameof(candidate)
+                    );
+                }
+
+                if (string.IsNullOrWhiteSpace(candidate.SuggestedProtoDisplayName))
+                {
+                    throw new ArgumentException(
+                        "Proto display-name repair candidates must provide SuggestedProtoDisplayName.",
+                        nameof(candidate)
+                    );
+                }
+
+                return SetProtoDisplayName(
+                        candidate.ProtoNumber.Value,
+                        candidate.SuggestedProtoDisplayName,
+                        candidate.UseNameOverrideAsset
+                    )
+                    ?? new EditorSessionChange
+                    {
+                        Kind = EditorSessionChangeKind.Message,
+                        Target = candidate.UseNameOverrideAsset ? "oemes/oname.mes" : "mes/description.mes",
+                    };
+            case EditorSessionValidationRepairCandidateKind.ClearAssetScriptReference:
+                if (!candidate.ReferencedScriptId.HasValue || candidate.ReferencedScriptId.Value <= 0)
+                {
+                    throw new ArgumentException(
+                        "Direct-asset script-reference repair candidates must provide a positive ReferencedScriptId.",
+                        nameof(candidate)
+                    );
+                }
+
+                return ApplyDirectAssetScriptReferenceRepair(assetPath, candidate.ReferencedScriptId.Value);
+            case EditorSessionValidationRepairCandidateKind.ClearAssetProtoReference:
+                if (!candidate.ReferencedProtoNumber.HasValue || candidate.ReferencedProtoNumber.Value <= 0)
+                {
+                    throw new ArgumentException(
+                        "Direct-asset proto-reference repair candidates must provide a positive ReferencedProtoNumber.",
+                        nameof(candidate)
+                    );
+                }
+
+                return ApplyDirectAssetProtoReferenceRepair(assetPath, candidate.ReferencedProtoNumber.Value);
             default:
                 throw new InvalidOperationException($"Unsupported validation repair candidate kind {candidate.Kind}.");
         }
-
-        _ = entry;
-        return new EditorSessionChange { Kind = EditorSessionChangeKind.Dialog, Target = assetPath };
     }
 
     internal EditorWorkspace ApplyPendingChanges(string? changeGroupLabel) =>
@@ -1562,21 +2403,26 @@ public sealed class EditorWorkspaceSession
 
         var pendingDialogPaths = CollectPendingDialogAssetPaths(selectedScopeKeys);
         var pendingScriptPaths = CollectPendingScriptAssetPaths(selectedScopeKeys);
+        var pendingMessages = CollectMessageChanges(selectedScopeKeys);
         var pendingProtos = CollectProtoChanges(selectedScopeKeys);
         var pendingMobs = CollectMobChanges(selectedScopeKeys);
         var pendingSectors = CollectSectorChanges(selectedScopeKeys);
-        var persistSave =
-            _saveEditor?.HasPendingChanges == true
-            && IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget());
+        var saveBackedMobs = CollectSaveBackedMobChanges(pendingMobs);
+        var saveBackedSectors = CollectSaveBackedSectorChanges(pendingSectors);
+        var contentMobs = ExcludeSaveBackedMobChanges(pendingMobs, saveBackedMobs);
+        var contentSectors = ExcludeSaveBackedSectorChanges(pendingSectors, saveBackedSectors);
+        var saveSnapshotToPersist = CreatePendingSaveSnapshot(selectedScopeKeys, saveBackedMobs, saveBackedSectors);
+        var persistSave = !ReferenceEquals(saveSnapshotToPersist, Workspace.Save);
 
         var updatedWorkspace = ApplyPendingChangesCore(changeGroupLabel, persistedToDisk: false, selectedScopeKeys);
 
         if (
             pendingDialogPaths.Length == 0
             && pendingScriptPaths.Length == 0
+            && pendingMessages.Count == 0
             && pendingProtos.Count == 0
-            && pendingMobs.Count == 0
-            && pendingSectors.Count == 0
+            && contentMobs.Count == 0
+            && contentSectors.Count == 0
             && !persistSave
         )
         {
@@ -1585,12 +2431,13 @@ public sealed class EditorWorkspaceSession
 
         PersistDialogChanges(pendingDialogPaths);
         PersistScriptChanges(pendingScriptPaths);
+        PersistMessageChanges(pendingMessages);
         PersistProtoChanges(pendingProtos);
-        PersistMobChanges(pendingMobs);
-        PersistSectorChanges(pendingSectors);
+        PersistMobChanges(contentMobs);
+        PersistSectorChanges(contentSectors);
 
         if (persistSave)
-            PersistSaveChanges();
+            PersistSaveChanges(saveSnapshotToPersist!);
 
         PromoteLatestUndoHistoryToPersisted(changeGroupLabel);
 
@@ -1666,7 +2513,7 @@ public sealed class EditorWorkspaceSession
 
     /// <summary>
     /// Returns the current set of pending changes tracked by this session.
-    /// Results are ordered by change kind group: dialogs, scripts, protos, mobs, sectors, then the optional save editor.
+    /// Results are ordered by change kind group: dialogs, scripts, message assets, protos, mobs, sectors, then the optional save editor.
     /// </summary>
     public IReadOnlyList<EditorSessionChange> GetPendingChanges() => CollectPendingChangesSnapshot();
 
@@ -1763,6 +2610,91 @@ public sealed class EditorWorkspaceSession
                     }
                 }
 
+                return [.. targets.Select(static target => CreateDirectAssetChange(target.AssetPath, target.Format))];
+            },
+            static changes => changes.Length > 0
+        );
+    }
+
+    /// <summary>
+    /// Retargets one proto identifier across all currently referenced mob and sector assets.
+    /// The updates are staged in this session and can be applied or saved as one labeled change group.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the target proto number does not resolve to any loaded proto definition.
+    /// </exception>
+    public IReadOnlyList<EditorSessionChange> RetargetProtoReferences(int sourceProtoNumber, int targetProtoNumber)
+    {
+        if (sourceProtoNumber <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(sourceProtoNumber),
+                sourceProtoNumber,
+                "Proto numbers must be positive."
+            );
+
+        if (targetProtoNumber <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(targetProtoNumber),
+                targetProtoNumber,
+                "Proto numbers must be positive."
+            );
+
+        if (sourceProtoNumber == targetProtoNumber)
+            return [];
+
+        if (Workspace.Index.FindProtoDefinition(targetProtoNumber) is null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot retarget proto references to {targetProtoNumber} because no loaded proto definition matched that identifier."
+            );
+        }
+
+        return TrackDirectAssetEdit(
+            () =>
+            {
+                var targets = CollectProtoRetargetTargets(sourceProtoNumber);
+                if (targets.Count == 0)
+                    return Array.Empty<EditorSessionChange>();
+
+                foreach (var target in targets)
+                {
+                    switch (target.Format)
+                    {
+                        case FileFormat.Mob:
+                            if (
+                                TryRetargetProtoReference(
+                                    GetCurrentMobAsset(target.AssetPath),
+                                    sourceProtoNumber,
+                                    targetProtoNumber,
+                                    out var updatedMob
+                                )
+                            )
+                            {
+                                _pendingMobAssets[target.AssetPath] = updatedMob;
+                            }
+
+                            break;
+                        case FileFormat.Sector:
+                            if (
+                                TryRetargetProtoReference(
+                                    GetCurrentSectorAsset(target.AssetPath),
+                                    sourceProtoNumber,
+                                    targetProtoNumber,
+                                    out var updatedSector
+                                )
+                            )
+                            {
+                                _pendingSectorAssets[target.AssetPath] = updatedSector;
+                            }
+
+                            break;
+                        default:
+                            throw new InvalidOperationException(
+                                $"Proto retargeting does not support referencing assets of format {target.Format}."
+                            );
+                    }
+                }
+
                 return [.. targets.Select(CreateDirectAssetChange)];
             },
             static changes => changes.Length > 0
@@ -1848,6 +2780,51 @@ public sealed class EditorWorkspaceSession
             },
             static changes => changes.Length > 0
         );
+    }
+
+    /// <summary>
+    /// Stages one message-file entry replacement or insertion.
+    /// Returns <see langword="null"/> when the requested entry already matches the current staged value.
+    /// </summary>
+    public EditorSessionChange? SetMessageEntry(string assetPath, int messageIndex, string text, string? soundId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(messageIndex);
+
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return TrackDirectAssetEdit(
+            () =>
+            {
+                var currentFile = GetCurrentMessageAssetOrEmpty(normalizedPath);
+                var updatedFile = CreateMessageFileWithEntry(currentFile, messageIndex, soundId, text);
+                if (MessageFilesEqual(currentFile, updatedFile))
+                    return null;
+
+                _pendingMessageAssets[normalizedPath] = updatedFile;
+                return CreateDirectAssetChange(normalizedPath, FileFormat.Message);
+            },
+            static change => change is not null
+        );
+    }
+
+    /// <summary>
+    /// Stages one proto display-name message entry in either <c>mes/description.mes</c> or <c>oemes/oname.mes</c>.
+    /// This lets hosts repair missing proto display-name validation by supplying the intended text directly.
+    /// Returns <see langword="null"/> when the current staged message entry already matches <paramref name="displayName"/>.
+    /// </summary>
+    public EditorSessionChange? SetProtoDisplayName(
+        int protoNumber,
+        string displayName,
+        bool useNameOverrideAsset = false
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+        var messageAssetPath = useNameOverrideAsset ? "oemes/oname.mes" : "mes/description.mes";
+        var messageIndex = ResolveProtoDisplayNameMessageIndex(protoNumber);
+        return SetMessageEntry(messageAssetPath, messageIndex, displayName);
     }
 
     /// <summary>
@@ -2918,6 +3895,7 @@ public sealed class EditorWorkspaceSession
                     : worldEditState.ActiveTool,
                 Terrain = worldEditState.Terrain,
                 ObjectPlacement = normalizedObjectPlacementState,
+                Shell = worldEditState.Shell,
             }
         );
 
@@ -2942,6 +3920,89 @@ public sealed class EditorWorkspaceSession
             updatedPresetLibrary.Add(preset);
 
         return updatedPresetLibrary;
+    }
+
+    private static EditorMapWorldEditShellRequest CreateWorldEditShellRequest(
+        EditorProjectMapWorldEditShellState? shellState
+    )
+    {
+        var normalizedShellState = NormalizeProjectMapWorldEditShellState(shellState);
+        return new EditorMapWorldEditShellRequest
+        {
+            ViewMode = normalizedShellState.ViewMode,
+            ViewportWidth = normalizedShellState.ViewportWidth,
+            ViewportHeight = normalizedShellState.ViewportHeight,
+            ObjectPaletteSearchText = normalizedShellState.ObjectPaletteSearchText,
+            ObjectPaletteCategory = normalizedShellState.ObjectPaletteCategory,
+            IncludeTrackedPlacementPreview = normalizedShellState.IncludeTrackedPlacementPreview,
+        };
+    }
+
+    private static EditorProjectMapWorldEditShellState CreateProjectMapWorldEditShellState(
+        EditorMapWorldEditShellRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new EditorProjectMapWorldEditShellState
+        {
+            ViewMode = request.ViewMode,
+            ViewportWidth = NormalizeOptionalPositiveFinite(request.ViewportWidth),
+            ViewportHeight = NormalizeOptionalPositiveFinite(request.ViewportHeight),
+            ObjectPaletteSearchText = NormalizeOptionalText(request.ObjectPaletteSearchText),
+            ObjectPaletteCategory = NormalizeOptionalText(request.ObjectPaletteCategory),
+            IncludeTrackedPlacementPreview = request.IncludeTrackedPlacementPreview,
+        };
+    }
+
+    private static string? ResolveTrackedPlacementPresetSelection(
+        IReadOnlyList<EditorObjectPalettePlacementPreset> presetLibrary,
+        string? requestedSelectedPresetId,
+        string? fallbackSelectedPresetId = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(presetLibrary);
+
+        if (
+            TryResolveTrackedPlacementPresetId(
+                presetLibrary,
+                requestedSelectedPresetId,
+                out var resolvedRequestedPresetId
+            )
+        )
+            return resolvedRequestedPresetId;
+
+        if (
+            TryResolveTrackedPlacementPresetId(
+                presetLibrary,
+                fallbackSelectedPresetId,
+                out var resolvedFallbackPresetId
+            )
+        )
+            return resolvedFallbackPresetId;
+
+        return presetLibrary.Count > 0 ? presetLibrary[0].PresetId : null;
+    }
+
+    private static bool TryResolveTrackedPlacementPresetId(
+        IReadOnlyList<EditorObjectPalettePlacementPreset> presetLibrary,
+        string? presetId,
+        out string? resolvedPresetId
+    )
+    {
+        resolvedPresetId = null;
+        if (string.IsNullOrWhiteSpace(presetId))
+            return false;
+
+        var normalizedPresetId = presetId.Trim();
+        var matchedPreset = presetLibrary.FirstOrDefault(preset =>
+            string.Equals(preset.PresetId, normalizedPresetId, StringComparison.OrdinalIgnoreCase)
+        );
+        if (matchedPreset is null)
+            return false;
+
+        resolvedPresetId = matchedPreset.PresetId;
+        return true;
     }
 
     private EditorProjectMapViewState ResolveTrackedMapViewState(string mapViewStateId)
@@ -4489,7 +5550,7 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
-    /// Restores the previous staged direct proto, mob, and sector snapshot.
+    /// Restores the previous staged direct message, proto, mob, and sector snapshot.
     /// Dialog, script, and save-editor local histories are unaffected.
     /// </summary>
     public EditorWorkspaceSession UndoDirectAssetChanges()
@@ -4504,7 +5565,7 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
-    /// Reapplies the most recently undone staged direct proto, mob, and sector snapshot.
+    /// Reapplies the most recently undone staged direct message, proto, mob, and sector snapshot.
     /// Dialog, script, and save-editor local histories are unaffected.
     /// </summary>
     public EditorWorkspaceSession RedoDirectAssetChanges()
@@ -4558,13 +5619,19 @@ public sealed class EditorWorkspaceSession
             return Workspace;
 
         var previousSnapshot = CaptureHistorySnapshot();
-        ThrowIfPendingStateIntroducesBlockingErrors(pendingState.Workspace.Validation);
+        ThrowIfPendingStateIntroducesBlockingErrors(pendingState, selectedScopeKeys);
 
         CommitDialogChanges(selectedScopeKeys);
         CommitScriptChanges(selectedScopeKeys);
         CommitDirectAssetChanges(selectedScopeKeys);
         CommitSaveChanges(selectedScopeKeys);
+        var shouldRebaseSaveEditor =
+            _saveEditor is not null
+            && !ReferenceEquals(previousSnapshot.Workspace.Save, pendingState.Workspace.Save)
+            && !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget());
         Workspace = pendingState.Workspace;
+        if (shouldRebaseSaveEditor && Workspace.Save is not null)
+            _saveEditor!.RebaseCommittedState(Workspace.Save);
         RecordAppliedSnapshot(
             previousSnapshot,
             CreateHistoryEntry(changeGroupLabel, pendingState.Changes, persistedToDisk)
@@ -4579,26 +5646,36 @@ public sealed class EditorWorkspaceSession
         var pendingChanges = CollectPendingChangesSnapshot(selectedScopeKeys);
         var pendingDialogs = CollectDialogChanges(selectedScopeKeys);
         var pendingScripts = CollectScriptChanges(selectedScopeKeys);
+        var pendingMessages = CollectMessageChanges(selectedScopeKeys);
         var pendingProtos = CollectProtoChanges(selectedScopeKeys);
         var pendingMobs = CollectMobChanges(selectedScopeKeys);
         var pendingSectors = CollectSectorChanges(selectedScopeKeys);
-        var pendingSave = CreatePendingSaveSnapshot(selectedScopeKeys);
+        var saveBackedMobs = CollectSaveBackedMobChanges(pendingMobs);
+        var saveBackedSectors = CollectSaveBackedSectorChanges(pendingSectors);
+        var pendingSave = CreatePendingSaveSnapshot(selectedScopeKeys, saveBackedMobs, saveBackedSectors);
 
         var updatedGameData =
             pendingDialogs.Count == 0
             && pendingScripts.Count == 0
+            && pendingMessages.Count == 0
             && pendingProtos.Count == 0
             && pendingMobs.Count == 0
             && pendingSectors.Count == 0
                 ? Workspace.GameData
                 : GameDataStoreSnapshotBuilder.CloneWithAssetReplacements(
                     Workspace.GameData,
+                    updatedMessages: pendingMessages,
                     updatedScripts: pendingScripts,
                     updatedDialogs: pendingDialogs,
                     updatedSectors: pendingSectors,
                     updatedProtos: pendingProtos,
                     updatedMobs: pendingMobs
                 );
+        updatedGameData = EditorWorkspaceSaveComposition.OverlayWorldAssets(
+            updatedGameData,
+            Workspace.Assets,
+            pendingSave
+        );
 
         return new PendingWorkspaceState(
             pendingChanges,
@@ -4606,15 +5683,22 @@ public sealed class EditorWorkspaceSession
         );
     }
 
-    private void ThrowIfPendingStateIntroducesBlockingErrors(EditorWorkspaceValidationReport pendingValidation)
+    private void ThrowIfPendingStateIntroducesBlockingErrors(
+        PendingWorkspaceState pendingState,
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys
+    )
     {
-        ArgumentNullException.ThrowIfNull(pendingValidation);
+        var pendingValidation = pendingState.Workspace.Validation;
 
         var blockingIssues = CollectPendingStateBlockingIssues(pendingValidation);
         if (blockingIssues.Length == 0)
             return;
 
-        throw new EditorSessionValidationException(new EditorWorkspaceValidationReport { Issues = blockingIssues });
+        throw new EditorSessionValidationException(
+            new EditorWorkspaceValidationReport { Issues = blockingIssues },
+            CreateImpactSummary(pendingState.Changes, pendingState.Workspace),
+            GetValidationRepairCandidates(selectedScopeKeys)
+        );
     }
 
     private EditorWorkspaceValidationIssue[] CollectPendingStateBlockingIssues(
@@ -4639,19 +5723,27 @@ public sealed class EditorWorkspaceSession
         IReadOnlyList<EditorSessionChange> changes,
         EditorWorkspace workspace,
         EditorWorkspaceValidationReport validation,
-        IReadOnlyList<EditorWorkspaceValidationIssue> blockingIssues
+        IReadOnlyList<EditorWorkspaceValidationIssue> blockingIssues,
+        IReadOnlyList<EditorSessionValidationRepairCandidate> repairCandidates
     )
     {
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(validation);
         ArgumentNullException.ThrowIfNull(blockingIssues);
+        ArgumentNullException.ThrowIfNull(repairCandidates);
 
         var targetSummaries = changes
             .Select(change => new EditorSessionPendingChangeTargetSummary
             {
                 Kind = change.Kind,
                 Target = change.Target,
+                RepairCandidates =
+                [
+                    .. repairCandidates.Where(candidate =>
+                        candidate.AssetPath.Equals(change.Target, StringComparison.OrdinalIgnoreCase)
+                    ),
+                ],
                 DependencySummary =
                     change.Kind == EditorSessionChangeKind.Save
                         ? null
@@ -4675,11 +5767,179 @@ public sealed class EditorWorkspaceSession
             Changes = [.. changes],
             Groups = groups,
             Validation = validation,
+            ImpactSummary = CreateImpactSummary(changes, workspace),
             BlockingValidation =
                 blockingIssues.Count == 0
                     ? EditorWorkspaceValidationReport.Empty
                     : new EditorWorkspaceValidationReport { Issues = [.. blockingIssues] },
+            RepairCandidates = repairCandidates,
         };
+    }
+
+    private static EditorSessionImpactSummary CreateImpactSummary(
+        IReadOnlyList<EditorSessionChange> changes,
+        EditorWorkspace workspace
+    )
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        if (changes.Count == 0)
+        {
+            return new EditorSessionImpactSummary
+            {
+                DirectKinds = [],
+                DirectTargets = [],
+                RelatedKinds = [],
+                RelatedAssetPaths = [],
+                MapNames = [],
+                DefinedProtoNumbers = [],
+                DefinedScriptIds = [],
+                DefinedDialogIds = [],
+                ReferencedProtoNumbers = [],
+                ReferencedScriptIds = [],
+                ReferencedArtIds = [],
+            };
+        }
+
+        var directTargets = changes
+            .Select(static change => change.Target)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static target => target, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var directKinds = changes
+            .Select(static change => change.Kind)
+            .Distinct()
+            .OrderBy(static kind => kind)
+            .ToArray();
+
+        var relatedAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var relatedKinds = new HashSet<EditorSessionChangeKind>();
+        var mapNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var definedProtoNumbers = new HashSet<int>();
+        var definedScriptIds = new HashSet<int>();
+        var definedDialogIds = new HashSet<int>();
+        var referencedProtoNumbers = new HashSet<int>();
+        var referencedScriptIds = new HashSet<int>();
+        var referencedArtIds = new HashSet<uint>();
+
+        foreach (var directTarget in directTargets)
+        {
+            if (workspace.Index.FindAssetMap(directTarget) is { Length: > 0 } directMapName)
+                mapNames.Add(directMapName);
+
+            var dependencySummary = workspace.Index.FindAssetDependencySummary(directTarget);
+            if (dependencySummary is null)
+                continue;
+
+            if (!string.IsNullOrWhiteSpace(dependencySummary.MapName))
+                mapNames.Add(dependencySummary.MapName);
+
+            if (dependencySummary.DefinedProtoNumber.HasValue)
+                definedProtoNumbers.Add(dependencySummary.DefinedProtoNumber.Value);
+
+            if (dependencySummary.DefinedScriptId.HasValue)
+                definedScriptIds.Add(dependencySummary.DefinedScriptId.Value);
+
+            if (dependencySummary.DefinedDialogId.HasValue)
+                definedDialogIds.Add(dependencySummary.DefinedDialogId.Value);
+
+            foreach (var reference in dependencySummary.ProtoReferences)
+                referencedProtoNumbers.Add(reference.ProtoNumber);
+
+            foreach (var reference in dependencySummary.ScriptReferences)
+                referencedScriptIds.Add(reference.ScriptId);
+
+            foreach (var reference in dependencySummary.ArtReferences)
+                referencedArtIds.Add(reference.ArtId);
+
+            AddRelatedAssetPaths(
+                relatedAssetPaths,
+                relatedKinds,
+                mapNames,
+                workspace,
+                dependencySummary.IncomingProtoReferences.Select(static reference => reference.Asset.AssetPath),
+                directTargets
+            );
+            AddRelatedAssetPaths(
+                relatedAssetPaths,
+                relatedKinds,
+                mapNames,
+                workspace,
+                dependencySummary.IncomingScriptReferences.Select(static reference => reference.Asset.AssetPath),
+                directTargets
+            );
+        }
+
+        return new EditorSessionImpactSummary
+        {
+            DirectKinds = directKinds,
+            DirectTargets = directTargets,
+            RelatedKinds = relatedKinds.OrderBy(static kind => kind).ToArray(),
+            RelatedAssetPaths = relatedAssetPaths
+                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            MapNames = mapNames.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase).ToArray(),
+            DefinedProtoNumbers = definedProtoNumbers.OrderBy(static value => value).ToArray(),
+            DefinedScriptIds = definedScriptIds.OrderBy(static value => value).ToArray(),
+            DefinedDialogIds = definedDialogIds.OrderBy(static value => value).ToArray(),
+            ReferencedProtoNumbers = referencedProtoNumbers.OrderBy(static value => value).ToArray(),
+            ReferencedScriptIds = referencedScriptIds.OrderBy(static value => value).ToArray(),
+            ReferencedArtIds = referencedArtIds.OrderBy(static value => value).ToArray(),
+        };
+    }
+
+    private static void AddRelatedAssetPaths(
+        HashSet<string> relatedAssetPaths,
+        HashSet<EditorSessionChangeKind> relatedKinds,
+        HashSet<string> mapNames,
+        EditorWorkspace workspace,
+        IEnumerable<string> assetPaths,
+        IReadOnlyList<string> directTargets
+    )
+    {
+        foreach (var assetPath in assetPaths)
+        {
+            if (directTargets.Contains(assetPath, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            if (!relatedAssetPaths.Add(assetPath))
+                continue;
+
+            if (TryGetImpactKind(workspace, assetPath, out var relatedKind))
+                relatedKinds.Add(relatedKind);
+
+            if (workspace.Index.FindAssetMap(assetPath) is { Length: > 0 } relatedMapName)
+                mapNames.Add(relatedMapName);
+        }
+    }
+
+    private static bool TryGetImpactKind(EditorWorkspace workspace, string assetPath, out EditorSessionChangeKind kind)
+    {
+        switch (workspace.Assets.Find(assetPath)?.Format)
+        {
+            case FileFormat.Dialog:
+                kind = EditorSessionChangeKind.Dialog;
+                return true;
+            case FileFormat.Script:
+                kind = EditorSessionChangeKind.Script;
+                return true;
+            case FileFormat.Message:
+                kind = EditorSessionChangeKind.Message;
+                return true;
+            case FileFormat.Proto:
+                kind = EditorSessionChangeKind.Proto;
+                return true;
+            case FileFormat.Mob:
+                kind = EditorSessionChangeKind.Mob;
+                return true;
+            case FileFormat.Sector:
+                kind = EditorSessionChangeKind.Sector;
+                return true;
+            default:
+                kind = default;
+                return false;
+        }
     }
 
     private List<EditorSessionChange> CollectPendingChangesSnapshot(
@@ -4716,6 +5976,14 @@ public sealed class EditorWorkspaceSession
 
         if (IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null))
         {
+            foreach (
+                var assetPath in _pendingMessageAssets.Keys.OrderBy(
+                    static path => path,
+                    StringComparer.OrdinalIgnoreCase
+                )
+            )
+                changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Message, Target = assetPath });
+
             foreach (
                 var assetPath in _pendingProtoAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             )
@@ -4766,6 +6034,28 @@ public sealed class EditorWorkspaceSession
 
         switch (issue.Code)
         {
+            case DialogValidationCode.DuplicateEntryNumber:
+                if (
+                    candidates.Any(candidate =>
+                        candidate.Kind == EditorSessionValidationRepairCandidateKind.RenumberDuplicateDialogEntryNumber
+                        && candidate.AssetPath.Equals(assetPath, StringComparison.OrdinalIgnoreCase)
+                        && candidate.DialogEntryNumber == issue.EntryNumber.Value
+                    )
+                )
+                    break;
+
+                candidates.Add(
+                    new EditorSessionValidationRepairCandidate
+                    {
+                        Kind = EditorSessionValidationRepairCandidateKind.RenumberDuplicateDialogEntryNumber,
+                        AssetPath = assetPath,
+                        DialogEntryNumber = issue.EntryNumber.Value,
+                        Title = "Renumber duplicate entries",
+                        Description =
+                            $"Preserve the first dialog entry {issue.EntryNumber.Value} and renumber later duplicates to unused dialog entry numbers.",
+                    }
+                );
+                break;
             case DialogValidationCode.NegativeIntelligenceRequirement:
                 candidates.Add(
                     new EditorSessionValidationRepairCandidate
@@ -4807,6 +6097,237 @@ public sealed class EditorWorkspaceSession
                 );
                 break;
         }
+    }
+
+    private static void AddScriptRepairCandidates(
+        List<EditorSessionValidationRepairCandidate> candidates,
+        string assetPath,
+        ScrFile script,
+        ScriptValidationIssue issue
+    )
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(script);
+        ArgumentNullException.ThrowIfNull(issue);
+
+        switch (issue.Code)
+        {
+            case ScriptValidationCode.DescriptionTooLong:
+            case ScriptValidationCode.DescriptionContainsNonAscii:
+            {
+                var normalizedDescription = NormalizeScriptDescriptionForDisk(script.Description);
+                if (string.Equals(normalizedDescription, script.Description, StringComparison.Ordinal))
+                    return;
+
+                if (
+                    candidates.Any(candidate =>
+                        candidate.Kind == EditorSessionValidationRepairCandidateKind.SetScriptDescription
+                        && candidate.AssetPath.Equals(assetPath, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(
+                            candidate.SuggestedScriptDescription,
+                            normalizedDescription,
+                            StringComparison.Ordinal
+                        )
+                    )
+                )
+                    return;
+
+                candidates.Add(
+                    new EditorSessionValidationRepairCandidate
+                    {
+                        Kind = EditorSessionValidationRepairCandidateKind.SetScriptDescription,
+                        AssetPath = assetPath,
+                        DialogEntryNumber = 0,
+                        Title = "Normalize description for disk",
+                        Description =
+                            "Replace the script description with the exact ASCII text that will round-trip through the 40-byte .scr header field.",
+                        SuggestedScriptDescription = normalizedDescription,
+                    }
+                );
+                return;
+            }
+            case ScriptValidationCode.UnknownAttachmentSlot:
+            {
+                var unknownSlots = GetUnknownScriptAttachmentSlots(script);
+                if (unknownSlots.Length == 0)
+                    return;
+
+                if (
+                    candidates.Any(candidate =>
+                        candidate.Kind == EditorSessionValidationRepairCandidateKind.ClearUnknownScriptAttachmentSlots
+                        && candidate.AssetPath.Equals(assetPath, StringComparison.OrdinalIgnoreCase)
+                    )
+                )
+                    return;
+
+                candidates.Add(
+                    new EditorSessionValidationRepairCandidate
+                    {
+                        Kind = EditorSessionValidationRepairCandidateKind.ClearUnknownScriptAttachmentSlots,
+                        AssetPath = assetPath,
+                        DialogEntryNumber = 0,
+                        Title = "Clear unknown attachment slots",
+                        Description =
+                            $"Replace non-empty unknown attachment slot(s) {string.Join(", ", unknownSlots)} with empty no-op entries so the script only uses ArcNET's currently named attachment range.",
+                    }
+                );
+                return;
+            }
+            default:
+                return;
+        }
+    }
+
+    private static void AddMissingScriptReferenceRepairCandidate(
+        List<EditorSessionValidationRepairCandidate> candidates,
+        EditorWorkspaceValidationIssue issue
+    )
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(issue);
+
+        if (
+            issue.Code != EditorWorkspaceValidationCode.MissingScriptDefinition
+            || string.IsNullOrWhiteSpace(issue.AssetPath)
+            || !issue.ReferencedScriptId.HasValue
+            || issue.ReferencedScriptId.Value <= 0
+        )
+            return;
+
+        candidates.Add(
+            new EditorSessionValidationRepairCandidate
+            {
+                Kind = EditorSessionValidationRepairCandidateKind.ClearAssetScriptReference,
+                AssetPath = issue.AssetPath,
+                DialogEntryNumber = 0,
+                Title = "Clear broken script reference",
+                Description =
+                    $"Retarget script {issue.ReferencedScriptId.Value} to 0 in {issue.AssetPath} because no loaded script definition matched that identifier.",
+                ReferencedScriptId = issue.ReferencedScriptId.Value,
+            }
+        );
+    }
+
+    private static void AddMissingProtoReferenceRepairCandidate(
+        List<EditorSessionValidationRepairCandidate> candidates,
+        EditorWorkspaceValidationIssue issue
+    )
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(issue);
+
+        if (
+            issue.Code != EditorWorkspaceValidationCode.MissingProtoDefinition
+            || string.IsNullOrWhiteSpace(issue.AssetPath)
+            || !issue.ReferencedProtoNumber.HasValue
+            || issue.ReferencedProtoNumber.Value <= 0
+        )
+            return;
+
+        candidates.Add(
+            new EditorSessionValidationRepairCandidate
+            {
+                Kind = EditorSessionValidationRepairCandidateKind.ClearAssetProtoReference,
+                AssetPath = issue.AssetPath,
+                DialogEntryNumber = 0,
+                Title = "Clear broken proto reference",
+                Description =
+                    $"Rewrite matching proto references to a null object ID in {issue.AssetPath} because no loaded proto definition matched {issue.ReferencedProtoNumber.Value}.",
+                ReferencedProtoNumber = issue.ReferencedProtoNumber.Value,
+            }
+        );
+    }
+
+    private static void AddMissingProtoDisplayNameRepairCandidate(
+        EditorWorkspace workspace,
+        List<EditorSessionValidationRepairCandidate> candidates,
+        EditorWorkspaceValidationIssue issue
+    )
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(issue);
+
+        if (
+            issue.Code != EditorWorkspaceValidationCode.MissingProtoDisplayName
+            || string.IsNullOrWhiteSpace(issue.AssetPath)
+            || !TryResolveProtoDisplayNameRepair(
+                workspace,
+                issue.AssetPath,
+                out var protoNumber,
+                out var suggestedDisplayName
+            )
+        )
+            return;
+
+        if (
+            candidates.Any(candidate =>
+                candidate.Kind == EditorSessionValidationRepairCandidateKind.SetProtoDisplayName
+                && candidate.ProtoNumber == protoNumber
+            )
+        )
+            return;
+
+        candidates.Add(
+            new EditorSessionValidationRepairCandidate
+            {
+                Kind = EditorSessionValidationRepairCandidateKind.SetProtoDisplayName,
+                AssetPath = issue.AssetPath,
+                DialogEntryNumber = 0,
+                Title = "Add proto display name",
+                Description =
+                    $"Add display-name text '{suggestedDisplayName}' for proto {protoNumber} through oemes/oname.mes so the proto palette and validation surfaces resolve a stable name.",
+                ProtoNumber = protoNumber,
+                SuggestedProtoDisplayName = suggestedDisplayName,
+                UseNameOverrideAsset = true,
+            }
+        );
+    }
+
+    private static bool TryResolveProtoDisplayNameRepair(
+        EditorWorkspace workspace,
+        string assetPath,
+        out int protoNumber,
+        out string suggestedDisplayName
+    )
+    {
+        protoNumber = 0;
+        suggestedDisplayName = string.Empty;
+
+        if (!TryGetProtoNumberFromAssetPath(assetPath, out protoNumber))
+            return false;
+
+        suggestedDisplayName = CreateSuggestedProtoDisplayName(assetPath);
+        return !string.IsNullOrWhiteSpace(suggestedDisplayName)
+            && workspace.Index.FindProtoDefinition(protoNumber) is not null;
+    }
+
+    private static string CreateSuggestedProtoDisplayName(string assetPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        var fileName = Path.GetFileNameWithoutExtension(assetPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return string.Empty;
+
+        var separatorIndex = fileName.IndexOf(" - ", StringComparison.Ordinal);
+        var suggestedName = separatorIndex >= 0 ? fileName[(separatorIndex + 3)..] : fileName;
+        return suggestedName.Trim().Replace('_', ' ');
+    }
+
+    private static bool TryGetProtoNumberFromAssetPath(string assetPath, out int protoNumber)
+    {
+        protoNumber = 0;
+        if (string.IsNullOrWhiteSpace(assetPath))
+            return false;
+
+        var fileName = Path.GetFileNameWithoutExtension(assetPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return false;
+
+        var separatorIndex = fileName.IndexOf(' ');
+        var numericPrefix = separatorIndex >= 0 ? fileName[..separatorIndex] : fileName;
+        return int.TryParse(numericPrefix, NumberStyles.Integer, CultureInfo.InvariantCulture, out protoNumber);
     }
 
     private static string NormalizeAssetPath(string assetPath)
@@ -5167,13 +6688,28 @@ public sealed class EditorWorkspaceSession
     {
         var terrain = NormalizeProjectMapTerrainToolState(worldEditState?.Terrain);
         var objectPlacement = NormalizeProjectMapObjectPlacementToolState(worldEditState?.ObjectPlacement);
+        var shell = NormalizeProjectMapWorldEditShellState(worldEditState?.Shell);
         return new EditorProjectMapWorldEditState
         {
             ActiveTool = worldEditState?.ActiveTool ?? EditorProjectMapWorldEditActiveTool.None,
             Terrain = terrain,
             ObjectPlacement = objectPlacement,
+            Shell = shell,
         };
     }
+
+    private static EditorProjectMapWorldEditShellState NormalizeProjectMapWorldEditShellState(
+        EditorProjectMapWorldEditShellState? shellState
+    ) =>
+        new()
+        {
+            ViewMode = shellState?.ViewMode ?? EditorMapSceneViewMode.Isometric,
+            ViewportWidth = NormalizeOptionalPositiveFinite(shellState?.ViewportWidth),
+            ViewportHeight = NormalizeOptionalPositiveFinite(shellState?.ViewportHeight),
+            ObjectPaletteSearchText = NormalizeOptionalText(shellState?.ObjectPaletteSearchText),
+            ObjectPaletteCategory = NormalizeOptionalText(shellState?.ObjectPaletteCategory),
+            IncludeTrackedPlacementPreview = shellState?.IncludeTrackedPlacementPreview ?? true,
+        };
 
     private static EditorProjectMapTerrainToolState NormalizeProjectMapTerrainToolState(
         EditorProjectMapTerrainToolState? terrainToolState
@@ -5197,6 +6733,12 @@ public sealed class EditorWorkspaceSession
             SelectedPresetId = string.IsNullOrWhiteSpace(objectPlacementToolState?.SelectedPresetId)
                 ? null
                 : objectPlacementToolState!.SelectedPresetId.Trim(),
+            PaletteSearchText = NormalizeOptionalText(objectPlacementToolState?.PaletteSearchText),
+            PaletteCategory = NormalizeOptionalText(objectPlacementToolState?.PaletteCategory),
+            SelectedPaletteProtoNumber =
+                objectPlacementToolState?.SelectedPaletteProtoNumber > 0
+                    ? objectPlacementToolState.SelectedPaletteProtoNumber
+                    : null,
         };
 
     private static EditorObjectPalettePlacementRequest? NormalizePlacementRequest(
@@ -5299,6 +6841,12 @@ public sealed class EditorWorkspaceSession
     private static string? NormalizeOptionalAssetPath(string? assetPath) =>
         string.IsNullOrWhiteSpace(assetPath) ? null : NormalizeAssetPath(assetPath);
 
+    private static string? NormalizeOptionalText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static double? NormalizeOptionalPositiveFinite(double? value) =>
+        value.HasValue && double.IsFinite(value.Value) && value.Value > 0d ? value.Value : null;
+
     private static IReadOnlyList<EditorSessionChange> GetStagedTransactionPendingChanges(
         EditorSessionStagedHistoryScope scope,
         IReadOnlyList<EditorSessionChange> pendingChanges
@@ -5327,7 +6875,8 @@ public sealed class EditorWorkspaceSession
             EditorSessionStagedHistoryScopeKind.DirectAssets => pendingChanges
                 .Where(change =>
                     change.Kind
-                        is EditorSessionChangeKind.Proto
+                        is EditorSessionChangeKind.Message
+                            or EditorSessionChangeKind.Proto
                             or EditorSessionChangeKind.Mob
                             or EditorSessionChangeKind.Sector
                 )
@@ -5366,7 +6915,10 @@ public sealed class EditorWorkspaceSession
     }
 
     private bool HasPendingDirectAssetChanges =>
-        _pendingProtoAssets.Count > 0 || _pendingMobAssets.Count > 0 || _pendingSectorAssets.Count > 0;
+        _pendingMessageAssets.Count > 0
+        || _pendingProtoAssets.Count > 0
+        || _pendingMobAssets.Count > 0
+        || _pendingSectorAssets.Count > 0;
 
     private string GetSaveHistoryScopeTarget() =>
         string.IsNullOrWhiteSpace(Workspace.SaveSlotName) ? "save" : Workspace.SaveSlotName!;
@@ -5589,6 +7141,7 @@ public sealed class EditorWorkspaceSession
 
     private bool IsTrackedDirectAssetPath(string assetPath) =>
         _pendingProtoAssets.ContainsKey(assetPath)
+        || _pendingMessageAssets.ContainsKey(assetPath)
         || _pendingMobAssets.ContainsKey(assetPath)
         || _pendingSectorAssets.ContainsKey(assetPath);
 
@@ -5618,6 +7171,7 @@ public sealed class EditorWorkspaceSession
 
     private EditorWorkspaceSessionDirectAssetSnapshot CaptureDirectAssetSnapshot() =>
         new(
+            new Dictionary<string, MesFile>(_pendingMessageAssets, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, ProtoData>(_pendingProtoAssets, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, MobData>(_pendingMobAssets, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, Sector>(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase)
@@ -5779,6 +7333,7 @@ public sealed class EditorWorkspaceSession
     private void RestoreHistorySnapshot(EditorWorkspaceSessionSnapshot snapshot)
     {
         Workspace = snapshot.Workspace;
+        _pendingMessageAssets.Clear();
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
@@ -5791,6 +7346,7 @@ public sealed class EditorWorkspaceSession
 
     private void RestoreDirectAssetSnapshot(EditorWorkspaceSessionDirectAssetSnapshot snapshot)
     {
+        RestorePendingAssetDictionary(_pendingMessageAssets, snapshot.Messages);
         RestorePendingAssetDictionary(_pendingProtoAssets, snapshot.Protos);
         RestorePendingAssetDictionary(_pendingMobAssets, snapshot.Mobs);
         RestorePendingAssetDictionary(_pendingSectorAssets, snapshot.Sectors);
@@ -5879,7 +7435,185 @@ public sealed class EditorWorkspaceSession
             StagedTransactions = GetStagedTransactionSummaries(),
             StagedCommands = GetAvailableStagedCommandSummaries(),
             HistoryCommands = GetHistoryCommandSummaries(),
+            Commands = GetCommandSummaries(),
         };
+
+    private EditorSessionCommandSummary? CreateDefaultCommandSummary(EditorSessionCommandKind kind)
+    {
+        var stagedCommand = kind switch
+        {
+            EditorSessionCommandKind.Undo => GetDefaultUndoStagedCommandSummary(),
+            EditorSessionCommandKind.Redo => GetDefaultRedoStagedCommandSummary(),
+            _ => throw new InvalidOperationException($"Unsupported session command kind {kind}."),
+        };
+        if (stagedCommand is not null)
+        {
+            return new EditorSessionCommandSummary
+            {
+                Kind = kind,
+                Label = stagedCommand.Label,
+                SourceKind = EditorSessionCommandSourceKind.Staged,
+                StagedCommand = stagedCommand,
+                CanExecute = stagedCommand.CanExecute,
+            };
+        }
+
+        var historyCommand = kind switch
+        {
+            EditorSessionCommandKind.Undo => GetDefaultUndoHistoryCommandSummary(),
+            EditorSessionCommandKind.Redo => GetDefaultRedoHistoryCommandSummary(),
+            _ => throw new InvalidOperationException($"Unsupported session command kind {kind}."),
+        };
+        if (historyCommand is null)
+            return null;
+
+        return new EditorSessionCommandSummary
+        {
+            Kind = kind,
+            Label = historyCommand.Label,
+            SourceKind = EditorSessionCommandSourceKind.History,
+            HistoryCommand = historyCommand,
+            CanExecute = historyCommand.CanExecute,
+        };
+    }
+
+    private static string ResolveTrackedTerrainPaletteAssetPath(
+        EditorProjectMapViewState mapViewState,
+        EditorProjectMapTerrainToolState toolState
+    )
+    {
+        ArgumentNullException.ThrowIfNull(mapViewState);
+        ArgumentNullException.ThrowIfNull(toolState);
+
+        return string.IsNullOrWhiteSpace(toolState.MapPropertiesAssetPath)
+            ? $"maps/{mapViewState.MapName}/map.prp"
+            : NormalizeAssetPath(toolState.MapPropertiesAssetPath);
+    }
+
+    private static IReadOnlyList<EditorObjectPaletteEntry> FilterObjectPaletteEntriesByCategory(
+        IReadOnlyList<EditorObjectPaletteEntry> entries,
+        string? category
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+
+        if (string.IsNullOrWhiteSpace(category))
+            return entries;
+
+        var normalizedCategory = category.Trim();
+        return entries
+            .Where(entry => string.Equals(entry.Category, normalizedCategory, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    private static EditorObjectPalettePlacementSet? ResolveEffectivePlacementSet(
+        EditorProjectMapObjectPlacementToolState toolState,
+        EditorObjectPalettePlacementPreset? selectedPreset = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(toolState);
+
+        return toolState.Mode switch
+        {
+            EditorProjectMapObjectPlacementMode.SinglePlacement when toolState.PlacementRequest is { } request =>
+                new EditorObjectPalettePlacementSet { Entries = [request] },
+            EditorProjectMapObjectPlacementMode.PlacementSet => toolState.PlacementSet,
+            EditorProjectMapObjectPlacementMode.PlacementPreset => (
+                selectedPreset ?? toolState.FindSelectedPreset()
+            )?.CreatePlacementSet(),
+            _ => null,
+        };
+    }
+
+    private static EditorObjectPaletteEntry? ResolveTrackedObjectPaletteSelectedEntry(
+        IReadOnlyList<EditorObjectPaletteEntry> visibleEntries,
+        EditorProjectMapObjectPlacementToolState toolState
+    )
+    {
+        ArgumentNullException.ThrowIfNull(visibleEntries);
+        ArgumentNullException.ThrowIfNull(toolState);
+
+        var selectedProtoNumber =
+            toolState.SelectedPaletteProtoNumber
+            ?? (
+                toolState.Mode == EditorProjectMapObjectPlacementMode.SinglePlacement
+                && toolState.PlacementRequest is { } request
+                    ? request.ProtoNumber
+                    : null
+            );
+        return selectedProtoNumber.HasValue
+            ? visibleEntries.FirstOrDefault(entry => entry.ProtoNumber == selectedProtoNumber.Value)
+            : null;
+    }
+
+    private bool PaletteEntryMatchesFilters(int protoNumber, string? searchText, string? category)
+    {
+        var entry = Workspace.FindObjectPaletteEntry(protoNumber);
+        if (entry is null)
+            return false;
+
+        if (
+            !string.IsNullOrWhiteSpace(category)
+            && !string.Equals(entry.Category, category, StringComparison.OrdinalIgnoreCase)
+        )
+            return false;
+
+        return string.IsNullOrWhiteSpace(searchText)
+            || Workspace.SearchObjectPalette(searchText).Any(candidate => candidate.ProtoNumber == protoNumber);
+    }
+
+    private static IReadOnlyList<EditorMapObjectPreview> ResolveSelectedObjectPreviews(
+        EditorMapScenePreview scenePreview,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.Area is { } areaSelection)
+        {
+            var groupedHits = EditorMapCameraMath.ResolveSceneAreaSelectionBySector(scenePreview, areaSelection);
+            var filteredHits =
+                areaSelection.ObjectIds.Count == 0
+                    ? groupedHits
+                    : FilterSectorHitGroupsBySelectedObjectIds(groupedHits, areaSelection.ObjectIds);
+
+            return filteredHits
+                .SelectMany(static group => group.Hits)
+                .SelectMany(static hit => hit.ObjectHits)
+                .GroupBy(static previewObject => previewObject.ObjectId)
+                .Select(static group => group.First())
+                .ToArray();
+        }
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return [];
+
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (sector is null)
+            return [];
+
+        var tile = selection.Tile.Value;
+        var selectedObjectIds = selection.GetSelectedObjectIds();
+        return selectedObjectIds.Count == 0
+            ? []
+            : sector
+                .Objects.Where(candidate =>
+                    candidate.Location == tile && selectedObjectIds.Contains(candidate.ObjectId)
+                )
+                .ToArray();
+    }
+
+    private static string? FindSceneObjectSectorAssetPath(EditorMapScenePreview scenePreview, GameObjectGuid objectId)
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+
+        return scenePreview
+            .Sectors.FirstOrDefault(sector => sector.Objects.Any(candidate => candidate.ObjectId == objectId))
+            ?.AssetPath;
+    }
 
     private void RestoreDialogEditorBaselines()
     {
@@ -5969,6 +7703,113 @@ public sealed class EditorWorkspaceSession
             );
     }
 
+    private ScrFile GetCurrentScriptAsset(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        if (_scriptEditors.TryGetValue(normalizedPath, out var editor))
+            return editor.GetCurrentScript();
+
+        return Workspace.FindScript(normalizedPath)
+            ?? throw new InvalidOperationException($"No loaded script asset matched '{normalizedPath}'.");
+    }
+
+    private MesFile GetCurrentMessageAssetOrEmpty(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        if (_pendingMessageAssets.TryGetValue(normalizedPath, out var pendingMessage))
+            return pendingMessage;
+
+        return Workspace.FindMessageFile(normalizedPath) ?? new MesFile { Entries = [] };
+    }
+
+    private EditorSessionChange ApplyDirectAssetProtoReferenceRepair(string assetPath, int sourceProtoNumber)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return TrackDirectAssetEdit(
+                    () =>
+                    {
+                        var asset =
+                            Workspace.Assets.Find(normalizedPath)
+                            ?? throw new InvalidOperationException($"No loaded asset matched '{normalizedPath}'.");
+
+                        return asset.Format switch
+                        {
+                            FileFormat.Mob => TryClearProtoReference(
+                                GetCurrentMobAsset(normalizedPath),
+                                sourceProtoNumber,
+                                out var updatedMob
+                            )
+                                ? ApplyDirectAssetProtoReferenceRepair(normalizedPath, asset.Format, updatedMob)
+                                : [],
+                            FileFormat.Sector => TryClearProtoReference(
+                                GetCurrentSectorAsset(normalizedPath),
+                                sourceProtoNumber,
+                                out var updatedSector
+                            )
+                                ? ApplyDirectAssetProtoReferenceRepair(normalizedPath, asset.Format, updatedSector)
+                                : [],
+                            _ => throw new InvalidOperationException(
+                                $"Direct-asset proto-reference repairs do not support assets of format {asset.Format}."
+                            ),
+                        };
+                    },
+                    static changes => changes.Count > 0
+                )
+                .SingleOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Asset '{normalizedPath}' no longer contains proto reference {sourceProtoNumber}."
+            );
+    }
+
+    private EditorSessionChange ApplyDirectAssetScriptReferenceRepair(string assetPath, int sourceScriptId)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        return TrackDirectAssetEdit(
+                    () =>
+                    {
+                        var asset =
+                            Workspace.Assets.Find(normalizedPath)
+                            ?? throw new InvalidOperationException($"No loaded asset matched '{normalizedPath}'.");
+
+                        return asset.Format switch
+                        {
+                            FileFormat.Proto => EditorScriptReferenceRetargeter.TryRetarget(
+                                GetCurrentProtoAsset(normalizedPath),
+                                sourceScriptId,
+                                0,
+                                out var updatedProto
+                            )
+                                ? ApplyDirectAssetScriptReferenceRepair(normalizedPath, asset.Format, updatedProto)
+                                : [],
+                            FileFormat.Mob => EditorScriptReferenceRetargeter.TryRetarget(
+                                GetCurrentMobAsset(normalizedPath),
+                                sourceScriptId,
+                                0,
+                                out var updatedMob
+                            )
+                                ? ApplyDirectAssetScriptReferenceRepair(normalizedPath, asset.Format, updatedMob)
+                                : [],
+                            FileFormat.Sector => EditorScriptReferenceRetargeter.TryRetarget(
+                                GetCurrentSectorAsset(normalizedPath),
+                                sourceScriptId,
+                                0,
+                                out var updatedSector
+                            )
+                                ? ApplyDirectAssetScriptReferenceRepair(normalizedPath, asset.Format, updatedSector)
+                                : [],
+                            _ => throw new InvalidOperationException(
+                                $"Direct-asset script-reference repairs do not support assets of format {asset.Format}."
+                            ),
+                        };
+                    },
+                    static changes => changes.Count > 0
+                )
+                .SingleOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Asset '{normalizedPath}' no longer contains script reference {sourceScriptId}."
+            );
+    }
+
     private string[] CollectPendingDialogAssetPaths(
         IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
     ) =>
@@ -5999,6 +7840,13 @@ public sealed class EditorWorkspaceSession
 
         return pendingScripts;
     }
+
+    private Dictionary<string, MesFile> CollectMessageChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
+            ? new(_pendingMessageAssets, StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
 
     private string[] CollectPendingScriptAssetPaths(
         IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
@@ -6067,6 +7915,16 @@ public sealed class EditorWorkspaceSession
         }
     }
 
+    private void PersistMessageChanges(IReadOnlyDictionary<string, MesFile> messages)
+    {
+        foreach (var (assetPath, messageFile) in messages)
+        {
+            var outputPath = ResolveWorkspaceContentPath(assetPath);
+            EnsureParentDirectory(outputPath);
+            MessageFormat.WriteToFile(in messageFile, outputPath);
+        }
+    }
+
     private void PersistProtoChanges(IReadOnlyDictionary<string, ProtoData> protos)
     {
         foreach (var (assetPath, proto) in protos)
@@ -6097,10 +7955,9 @@ public sealed class EditorWorkspaceSession
         }
     }
 
-    private void PersistSaveChanges()
+    private void PersistSaveChanges(LoadedSave saveSnapshot)
     {
-        if (_saveEditor is null)
-            return;
+        ArgumentNullException.ThrowIfNull(saveSnapshot);
 
         if (string.IsNullOrWhiteSpace(Workspace.SaveFolder) || string.IsNullOrWhiteSpace(Workspace.SaveSlotName))
         {
@@ -6110,7 +7967,7 @@ public sealed class EditorWorkspaceSession
         }
 
         Directory.CreateDirectory(Workspace.SaveFolder!);
-        _saveEditor.Save(Workspace.SaveFolder!, Workspace.SaveSlotName!);
+        SaveGameWriter.Save(saveSnapshot, Workspace.SaveFolder!, Workspace.SaveSlotName!);
     }
 
     private string ResolveWorkspaceContentPath(string assetPath) =>
@@ -6156,6 +8013,7 @@ public sealed class EditorWorkspaceSession
         if (!IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null))
             return;
 
+        _pendingMessageAssets.Clear();
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
@@ -6163,16 +8021,29 @@ public sealed class EditorWorkspaceSession
     }
 
     private LoadedSave? CreatePendingSaveSnapshot(
-        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null,
+        IReadOnlyDictionary<string, MobData>? saveBackedMobs = null,
+        IReadOnlyDictionary<string, Sector>? saveBackedSectors = null
     )
     {
-        if (
+        var baseSave =
             _saveEditor?.HasPendingChanges != true
             || !IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Save, GetSaveHistoryScopeTarget())
-        )
-            return Workspace.Save;
+                ? Workspace.Save
+                : _saveEditor.CreateCommittedSnapshot();
 
-        return _saveEditor.CreateCommittedSnapshot();
+        if (baseSave is null)
+            return null;
+
+        if ((saveBackedMobs?.Count ?? 0) == 0 && (saveBackedSectors?.Count ?? 0) == 0)
+            return baseSave;
+
+        var saveFiles = SaveGamePayloadComposer.Compose(
+            baseSave,
+            new SaveGameUpdates { UpdatedMobiles = saveBackedMobs, UpdatedSectors = saveBackedSectors }
+        );
+        var saveIndex = SaveGameIndexRebuilder.Rebuild(baseSave.Index, saveFiles);
+        return SaveGameLoader.LoadFromFiles(baseSave.Info, saveIndex, saveFiles);
     }
 
     private void CommitSaveChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)
@@ -6184,6 +8055,82 @@ public sealed class EditorWorkspaceSession
             return;
 
         _saveEditor.CommitPendingChanges();
+    }
+
+    private Dictionary<string, MobData> CollectSaveBackedMobChanges(IReadOnlyDictionary<string, MobData> pendingMobs)
+    {
+        if (Workspace.Save is null || pendingMobs.Count == 0)
+            return new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase);
+
+        var saveBacked = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (assetPath, mob) in pendingMobs)
+        {
+            if (!Workspace.Save.Mobiles.ContainsKey(assetPath))
+                continue;
+
+            saveBacked[assetPath] = mob;
+        }
+
+        return saveBacked;
+    }
+
+    private Dictionary<string, Sector> CollectSaveBackedSectorChanges(
+        IReadOnlyDictionary<string, Sector> pendingSectors
+    )
+    {
+        if (Workspace.Save is null || pendingSectors.Count == 0)
+            return new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
+
+        var saveBacked = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (assetPath, sector) in pendingSectors)
+        {
+            if (!Workspace.Save.Sectors.ContainsKey(assetPath))
+                continue;
+
+            saveBacked[assetPath] = sector;
+        }
+
+        return saveBacked;
+    }
+
+    private static Dictionary<string, MobData> ExcludeSaveBackedMobChanges(
+        IReadOnlyDictionary<string, MobData> pendingMobs,
+        IReadOnlyDictionary<string, MobData> saveBackedMobs
+    )
+    {
+        if (saveBackedMobs.Count == 0)
+            return new Dictionary<string, MobData>(pendingMobs, StringComparer.OrdinalIgnoreCase);
+
+        var contentBacked = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (assetPath, mob) in pendingMobs)
+        {
+            if (saveBackedMobs.ContainsKey(assetPath))
+                continue;
+
+            contentBacked[assetPath] = mob;
+        }
+
+        return contentBacked;
+    }
+
+    private static Dictionary<string, Sector> ExcludeSaveBackedSectorChanges(
+        IReadOnlyDictionary<string, Sector> pendingSectors,
+        IReadOnlyDictionary<string, Sector> saveBackedSectors
+    )
+    {
+        if (saveBackedSectors.Count == 0)
+            return new Dictionary<string, Sector>(pendingSectors, StringComparer.OrdinalIgnoreCase);
+
+        var contentBacked = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (assetPath, sector) in pendingSectors)
+        {
+            if (saveBackedSectors.ContainsKey(assetPath))
+                continue;
+
+            contentBacked[assetPath] = sector;
+        }
+
+        return contentBacked;
     }
 
     private static bool IncludesScope(
@@ -6233,7 +8180,368 @@ public sealed class EditorWorkspaceSession
                 AddDialogRepairCandidates(candidates, assetPath, issue);
         }
 
+        foreach (
+            var assetPath in Workspace.GameData.ScriptsBySource.Keys.OrderBy(
+                static path => path,
+                StringComparer.OrdinalIgnoreCase
+            )
+        )
+        {
+            if (!IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.Script, assetPath))
+                continue;
+
+            var script = GetCurrentScriptAsset(assetPath);
+            foreach (var issue in ScriptValidator.Validate(script))
+                AddScriptRepairCandidates(candidates, assetPath, script, issue);
+        }
+
+        if (IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null))
+        {
+            foreach (var issue in GetPendingValidation(selectedScopeKeys).Issues)
+            {
+                AddMissingProtoDisplayNameRepairCandidate(Workspace, candidates, issue);
+                AddMissingProtoReferenceRepairCandidate(candidates, issue);
+                AddMissingScriptReferenceRepairCandidate(candidates, issue);
+            }
+        }
+
         return candidates;
+    }
+
+    private static string NormalizeScriptDescriptionForDisk(string description)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+
+        var truncatedDescription =
+            description.Length <= ScriptDescriptionDiskLength
+                ? description
+                : description[..ScriptDescriptionDiskLength];
+        return Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(truncatedDescription));
+    }
+
+    private static int[] GetUnknownScriptAttachmentSlots(ScrFile script)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+
+        return ScriptValidator
+            .GetActiveAttachmentSlots(script)
+            .Where(static slot => !ScriptValidator.IsKnownAttachmentSlot(slot))
+            .OrderBy(static slot => slot)
+            .ToArray();
+    }
+
+    private static ScrFile ClearUnknownScriptAttachmentSlots(ScrFile script)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+
+        var unknownSlots = GetUnknownScriptAttachmentSlots(script);
+        if (unknownSlots.Length == 0)
+            return script;
+
+        var builder = new ScriptBuilder(script);
+        foreach (var unknownSlot in unknownSlots)
+            builder.ReplaceCondition(unknownSlot, ScriptConditionType.True);
+
+        return builder.Build();
+    }
+
+    private static DlgFile RenumberDuplicateDialogEntries(DlgFile dialog, int duplicateEntryNumber)
+    {
+        ArgumentNullException.ThrowIfNull(dialog);
+
+        var entries = dialog.Entries.ToList();
+        var usedEntryNumbers = entries.Select(static entry => entry.Num).ToHashSet();
+        var nextEntryNumber = Math.Max(entries.Count == 0 ? 0 : entries.Max(static entry => entry.Num), 0);
+        var preservedFirstOccurrence = false;
+        var changed = false;
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            if (entry.Num != duplicateEntryNumber)
+                continue;
+
+            if (!preservedFirstOccurrence)
+            {
+                preservedFirstOccurrence = true;
+                continue;
+            }
+
+            changed = true;
+            entries[index] = CloneDialogEntry(
+                entry,
+                FindNextAvailableDialogEntryNumber(usedEntryNumbers, ref nextEntryNumber)
+            );
+        }
+
+        if (!changed)
+            return dialog;
+
+        entries.Sort(static (left, right) => left.Num.CompareTo(right.Num));
+        return new DlgFile { Entries = entries.AsReadOnly() };
+    }
+
+    private static int FindNextAvailableDialogEntryNumber(HashSet<int> usedEntryNumbers, ref int nextEntryNumber)
+    {
+        ArgumentNullException.ThrowIfNull(usedEntryNumbers);
+
+        while (true)
+        {
+            if (nextEntryNumber == int.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    "Cannot repair duplicate dialog entry numbers because no unused entry number remains in the Int32 range."
+                );
+            }
+
+            nextEntryNumber++;
+            if (usedEntryNumbers.Add(nextEntryNumber))
+                return nextEntryNumber;
+        }
+    }
+
+    private static DialogEntry CloneDialogEntry(DialogEntry entry, int entryNumber) =>
+        new()
+        {
+            Num = entryNumber,
+            Text = entry.Text,
+            GenderField = entry.GenderField,
+            Iq = entry.Iq,
+            Conditions = entry.Conditions,
+            ResponseVal = entry.ResponseVal,
+            Actions = entry.Actions,
+        };
+
+    private static bool TryClearProtoReference(MobData mob, int sourceProtoNumber, out MobData updated)
+    {
+        if (mob.Header.ProtoId.GetProtoNumber() != sourceProtoNumber)
+        {
+            updated = mob;
+            return false;
+        }
+
+        updated = new MobData
+        {
+            Header = CloneHeader(mob.Header, CreateNullProtoReferenceId()),
+            Properties = mob.Properties,
+        };
+        return true;
+    }
+
+    private static bool TryRetargetProtoReference(
+        MobData mob,
+        int sourceProtoNumber,
+        int targetProtoNumber,
+        out MobData updated
+    )
+    {
+        if (mob.Header.ProtoId.GetProtoNumber() != sourceProtoNumber)
+        {
+            updated = mob;
+            return false;
+        }
+
+        updated = new MobData
+        {
+            Header = CloneHeader(mob.Header, CreateProtoReferenceId(targetProtoNumber)),
+            Properties = mob.Properties,
+        };
+        return true;
+    }
+
+    private static bool TryClearProtoReference(Sector sector, int sourceProtoNumber, out Sector updated)
+    {
+        var changed = false;
+        var updatedObjects = new MobData[sector.Objects.Count];
+
+        for (var i = 0; i < sector.Objects.Count; i++)
+        {
+            if (TryClearProtoReference(sector.Objects[i], sourceProtoNumber, out var updatedObject))
+            {
+                updatedObjects[i] = updatedObject;
+                changed = true;
+            }
+            else
+            {
+                updatedObjects[i] = sector.Objects[i];
+            }
+        }
+
+        if (!changed)
+        {
+            updated = sector;
+            return false;
+        }
+
+        updated = new Sector
+        {
+            Lights = sector.Lights,
+            Tiles = sector.Tiles,
+            HasRoofs = sector.HasRoofs,
+            Roofs = sector.Roofs,
+            SectorScript = sector.SectorScript,
+            TileScripts = sector.TileScripts,
+            TownmapInfo = sector.TownmapInfo,
+            AptitudeAdjustment = sector.AptitudeAdjustment,
+            LightSchemeIdx = sector.LightSchemeIdx,
+            SoundList = sector.SoundList,
+            BlockMask = sector.BlockMask,
+            Objects = updatedObjects,
+        };
+        return true;
+    }
+
+    private static bool TryRetargetProtoReference(
+        Sector sector,
+        int sourceProtoNumber,
+        int targetProtoNumber,
+        out Sector updated
+    )
+    {
+        var changed = false;
+        var updatedObjects = new MobData[sector.Objects.Count];
+
+        for (var i = 0; i < sector.Objects.Count; i++)
+        {
+            if (
+                TryRetargetProtoReference(
+                    sector.Objects[i],
+                    sourceProtoNumber,
+                    targetProtoNumber,
+                    out var updatedObject
+                )
+            )
+            {
+                updatedObjects[i] = updatedObject;
+                changed = true;
+            }
+            else
+            {
+                updatedObjects[i] = sector.Objects[i];
+            }
+        }
+
+        if (!changed)
+        {
+            updated = sector;
+            return false;
+        }
+
+        updated = new Sector
+        {
+            Lights = sector.Lights,
+            Tiles = sector.Tiles,
+            HasRoofs = sector.HasRoofs,
+            Roofs = sector.Roofs,
+            SectorScript = sector.SectorScript,
+            TileScripts = sector.TileScripts,
+            TownmapInfo = sector.TownmapInfo,
+            AptitudeAdjustment = sector.AptitudeAdjustment,
+            LightSchemeIdx = sector.LightSchemeIdx,
+            SoundList = sector.SoundList,
+            BlockMask = sector.BlockMask,
+            Objects = updatedObjects,
+        };
+        return true;
+    }
+
+    private static GameObjectHeader CloneHeader(GameObjectHeader header, GameObjectGuid protoId) =>
+        new()
+        {
+            Version = header.Version,
+            ProtoId = protoId,
+            ObjectId = header.ObjectId,
+            GameObjectType = header.GameObjectType,
+            PropCollectionItems = header.PropCollectionItems,
+            Bitmap = [.. header.Bitmap],
+        };
+
+    private int ResolveProtoDisplayNameMessageIndex(int protoNumber)
+    {
+        if (!Workspace.InstallationType.HasValue)
+            return protoNumber;
+
+        var translatedKey = ArcanumInstallation.ToVanillaProtoId(protoNumber, Workspace.InstallationType.Value);
+        return translatedKey > 0 ? translatedKey : protoNumber;
+    }
+
+    private static MesFile CreateMessageFileWithEntry(MesFile file, int messageIndex, string? soundId, string text)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(text);
+
+        var entries = file.Entries.ToList();
+        var updatedEntry = new MessageEntry(messageIndex, soundId, text);
+        var existingIndex = entries.FindIndex(entry => entry.Index == messageIndex);
+        if (existingIndex >= 0)
+        {
+            entries[existingIndex] = updatedEntry;
+        }
+        else
+        {
+            entries.Add(updatedEntry);
+            entries.Sort(static (left, right) => left.Index.CompareTo(right.Index));
+        }
+
+        return new MesFile { Entries = entries };
+    }
+
+    private static bool MessageFilesEqual(MesFile left, MesFile right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+
+        return MessageFormat.WriteToArray(in left).AsSpan().SequenceEqual(MessageFormat.WriteToArray(in right));
+    }
+
+    private IReadOnlyList<EditorSessionChange> ApplyDirectAssetScriptReferenceRepair(
+        string assetPath,
+        FileFormat format,
+        ProtoData updatedProto
+    )
+    {
+        _pendingProtoAssets[assetPath] = updatedProto;
+        return [CreateDirectAssetChange(assetPath, format)];
+    }
+
+    private IReadOnlyList<EditorSessionChange> ApplyDirectAssetScriptReferenceRepair(
+        string assetPath,
+        FileFormat format,
+        MobData updatedMob
+    )
+    {
+        _pendingMobAssets[assetPath] = updatedMob;
+        return [CreateDirectAssetChange(assetPath, format)];
+    }
+
+    private IReadOnlyList<EditorSessionChange> ApplyDirectAssetScriptReferenceRepair(
+        string assetPath,
+        FileFormat format,
+        Sector updatedSector
+    )
+    {
+        _pendingSectorAssets[assetPath] = updatedSector;
+        return [CreateDirectAssetChange(assetPath, format)];
+    }
+
+    private IReadOnlyList<EditorSessionChange> ApplyDirectAssetProtoReferenceRepair(
+        string assetPath,
+        FileFormat format,
+        MobData updatedMob
+    )
+    {
+        _pendingMobAssets[assetPath] = updatedMob;
+        return [CreateDirectAssetChange(assetPath, format)];
+    }
+
+    private IReadOnlyList<EditorSessionChange> ApplyDirectAssetProtoReferenceRepair(
+        string assetPath,
+        FileFormat format,
+        Sector updatedSector
+    )
+    {
+        _pendingSectorAssets[assetPath] = updatedSector;
+        return [CreateDirectAssetChange(assetPath, format)];
     }
 
     private EditorWorkspaceValidationReport GetPendingValidation(
@@ -6260,10 +8568,47 @@ public sealed class EditorWorkspaceSession
 
     private void DiscardDirectAssetChanges()
     {
+        _pendingMessageAssets.Clear();
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
         ClearDirectAssetDraftHistory();
+    }
+
+    private List<ProtoRetargetTarget> CollectProtoRetargetTargets(int sourceProtoNumber)
+    {
+        var targets = new Dictionary<string, ProtoRetargetTarget>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var reference in Workspace.Index.FindProtoReferences(sourceProtoNumber))
+        {
+            var assetPath = reference.Asset.AssetPath;
+            if (!CurrentAssetStillContainsProtoReference(assetPath, reference.Format, sourceProtoNumber))
+                continue;
+
+            targets[assetPath] = new ProtoRetargetTarget(assetPath, reference.Format);
+        }
+
+        AddPendingProtoRetargetTarget(
+            targets,
+            _pendingMobAssets,
+            FileFormat.Mob,
+            static (asset, protoNumber) => asset.Header.ProtoId.GetProtoNumber() == protoNumber,
+            sourceProtoNumber
+        );
+        AddPendingProtoRetargetTarget(
+            targets,
+            _pendingSectorAssets,
+            FileFormat.Sector,
+            static (asset, protoNumber) => asset.Objects.Any(obj => obj.Header.ProtoId.GetProtoNumber() == protoNumber),
+            sourceProtoNumber
+        );
+
+        return
+        [
+            .. targets
+                .Values.OrderBy(static target => (int)target.Format)
+                .ThenBy(static target => target.AssetPath, StringComparer.OrdinalIgnoreCase),
+        ];
     }
 
     private List<ScriptRetargetTarget> CollectScriptRetargetTargets(int sourceScriptId)
@@ -6370,6 +8715,15 @@ public sealed class EditorWorkspaceSession
             _ => false,
         };
 
+    private bool CurrentAssetStillContainsProtoReference(string assetPath, FileFormat format, int protoNumber) =>
+        format switch
+        {
+            FileFormat.Mob => GetCurrentMobAsset(assetPath).Header.ProtoId.GetProtoNumber() == protoNumber,
+            FileFormat.Sector => GetCurrentSectorAsset(assetPath)
+                .Objects.Any(obj => obj.Header.ProtoId.GetProtoNumber() == protoNumber),
+            _ => false,
+        };
+
     private bool CurrentAssetStillContainsArtReference(string assetPath, FileFormat format, uint artId) =>
         format switch
         {
@@ -6396,6 +8750,23 @@ public sealed class EditorWorkspaceSession
                 continue;
 
             targets[assetPath] = new ScriptRetargetTarget(assetPath, format);
+        }
+    }
+
+    private static void AddPendingProtoRetargetTarget<T>(
+        Dictionary<string, ProtoRetargetTarget> targets,
+        IReadOnlyDictionary<string, T> pendingAssets,
+        FileFormat format,
+        Func<T, int, bool> containsProtoReference,
+        int protoNumber
+    )
+    {
+        foreach (var (assetPath, asset) in pendingAssets)
+        {
+            if (!containsProtoReference(asset, protoNumber))
+                continue;
+
+            targets[assetPath] = new ProtoRetargetTarget(assetPath, format);
         }
     }
 
@@ -6585,6 +8956,8 @@ public sealed class EditorWorkspaceSession
         return new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, new Guid(bytes));
     }
 
+    private static GameObjectGuid CreateNullProtoReferenceId() => new(GameObjectGuid.OidTypeNull, 0, 0, Guid.Empty);
+
     private static GameObjectGuid CreateObjectInstanceId(int protoNumber) =>
         new(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
 
@@ -6666,6 +9039,9 @@ public sealed class EditorWorkspaceSession
             ?? throw new InvalidOperationException($"No loaded sector asset matched '{normalizedPath}'.");
     }
 
+    private static EditorSessionChange CreateDirectAssetChange(ProtoRetargetTarget target) =>
+        CreateDirectAssetChange(target.AssetPath, target.Format);
+
     private static EditorSessionChange CreateDirectAssetChange(ScriptRetargetTarget target) =>
         CreateDirectAssetChange(target.AssetPath, target.Format);
 
@@ -6677,6 +9053,7 @@ public sealed class EditorWorkspaceSession
         {
             Kind = format switch
             {
+                FileFormat.Message => EditorSessionChangeKind.Message,
                 FileFormat.Proto => EditorSessionChangeKind.Proto,
                 FileFormat.Mob => EditorSessionChangeKind.Mob,
                 FileFormat.Sector => EditorSessionChangeKind.Sector,
@@ -6690,6 +9067,7 @@ public sealed class EditorWorkspaceSession
     private readonly record struct EditorWorkspaceSessionSnapshot(EditorWorkspace Workspace, EditorProject Project);
 
     private readonly record struct EditorWorkspaceSessionDirectAssetSnapshot(
+        IReadOnlyDictionary<string, MesFile> Messages,
         IReadOnlyDictionary<string, ProtoData> Protos,
         IReadOnlyDictionary<string, MobData> Mobs,
         IReadOnlyDictionary<string, Sector> Sectors
@@ -6704,6 +9082,8 @@ public sealed class EditorWorkspaceSession
         EditorSessionStagedHistoryScopeKind Kind,
         string? Target
     );
+
+    private readonly record struct ProtoRetargetTarget(string AssetPath, FileFormat Format);
 
     private readonly record struct ScriptRetargetTarget(string AssetPath, FileFormat Format);
 

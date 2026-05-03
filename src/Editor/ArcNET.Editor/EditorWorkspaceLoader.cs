@@ -321,7 +321,8 @@ public static class EditorWorkspaceLoader
         ArcanumInstallationType? installationType = options.GameDirectory is null
             ? null
             : ArcanumInstallation.Detect(options.GameDirectory);
-        var (index, validation) = EditorAssetIndexBuilder.Create(gameData, assets, installationType);
+        var effectiveGameData = EditorWorkspaceSaveComposition.OverlayWorldAssets(gameData, assets, save);
+        var (index, validation) = EditorAssetIndexBuilder.Create(effectiveGameData, assets, installationType);
 
         return new()
         {
@@ -329,7 +330,7 @@ public static class EditorWorkspaceLoader
             GameDirectory = options.GameDirectory,
             Module = module,
             InstallationType = installationType,
-            GameData = gameData,
+            GameData = effectiveGameData,
             Assets = assets,
             AudioAssets = audioAssets.Catalog,
             Index = index,

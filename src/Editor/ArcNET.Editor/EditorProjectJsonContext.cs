@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
@@ -19,6 +19,7 @@ namespace ArcNET.Editor;
 [JsonSerializable(typeof(EditorProjectMapSelectionState))]
 [JsonSerializable(typeof(EditorProjectMapPreviewState))]
 [JsonSerializable(typeof(EditorProjectMapWorldEditState))]
+[JsonSerializable(typeof(EditorProjectMapWorldEditShellState))]
 [JsonSerializable(typeof(EditorProjectMapTerrainToolState))]
 [JsonSerializable(typeof(EditorProjectMapObjectPlacementToolState))]
 [JsonSerializable(typeof(EditorObjectPalettePlacementRequest))]

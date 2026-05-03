@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -365,6 +365,87 @@ public sealed class EditorWorkspace
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions
     ) => FindObjectPaletteEntry(protoNumber, CreateArtResolver(artBindingStrategy), artPreviewOptions);
+
+    /// <summary>
+    /// Returns all loaded proto-backed object palette entries in stable browser order.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette() =>
+        Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber);
+            })
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    /// <summary>
+    /// Returns all loaded proto-backed object palette entries in stable browser order and resolves optional ART bindings.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(EditorArtResolver artResolver)
+    {
+        ArgumentNullException.ThrowIfNull(artResolver);
+
+        return Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber, artResolver);
+            })
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns all loaded proto-backed object palette entries in stable browser order and resolves optional ART bindings
+    /// using one workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
+        EditorArtResolverBindingStrategy artBindingStrategy
+    ) => GetObjectPalette(CreateArtResolver(artBindingStrategy));
+
+    /// <summary>
+    /// Returns all loaded proto-backed object palette entries in stable browser order and enriches bound entries with
+    /// browser-friendly ART detail plus preview payload.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
+        EditorArtResolver artResolver,
+        EditorArtPreviewOptions artPreviewOptions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artResolver);
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+
+        return Assets
+            .FindByFormat(FileFormat.Proto)
+            .Select(asset => (Asset: asset, Proto: FindProto(asset.AssetPath)))
+            .Where(static pair => pair.Proto is not null && TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out _))
+            .Select(pair =>
+            {
+                _ = TryGetProtoNumberFromAssetPath(pair.Asset.AssetPath, out var protoNumber);
+                return CreateObjectPaletteEntry(pair.Asset, pair.Proto!, protoNumber, artResolver, artPreviewOptions);
+            })
+            .OrderBy(entry => entry.ProtoNumber)
+            .ThenBy(entry => entry.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns all loaded proto-backed object palette entries in stable browser order and enriches bound entries with
+    /// browser-friendly ART detail plus preview payload using one workspace-created resolver seeded with the supplied strategy.
+    /// </summary>
+    public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions
+    ) => GetObjectPalette(CreateArtResolver(artBindingStrategy), artPreviewOptions);
 
     /// <summary>
     /// Returns proto-backed object palette entries whose proto number, asset path, display name,

@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 
 namespace ArcNET.Editor;
 
@@ -812,6 +812,16 @@ public sealed class SaveGameEditor
         _pendingUpdates = new PendingGameUpdates(_save);
         _characterLocator = new CharacterLocator(_save, _pendingUpdates);
         _saveInfoEditor = new SaveInfoEditor(_save, _characterLocator);
+        ClearHistory(EditorSessionStagedHistoryMutationKind.Clear);
+    }
+
+    internal void RebaseCommittedState(LoadedSave save)
+    {
+        ArgumentNullException.ThrowIfNull(save);
+
+        var state = CaptureState();
+        _save = save;
+        RestoreState(state);
         ClearHistory(EditorSessionStagedHistoryMutationKind.Clear);
     }
 
