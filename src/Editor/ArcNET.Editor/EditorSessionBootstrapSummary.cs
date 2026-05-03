@@ -32,4 +32,9 @@ public sealed class EditorSessionBootstrapSummary
     /// Current applied-history command summaries exposed by the session.
     /// </summary>
     public required IReadOnlyList<EditorSessionHistoryCommandSummary> HistoryCommands { get; init; }
+
+    /// <summary>
+    /// Current default session command summaries that unify staged and applied undo/redo routing.
+    /// </summary>
+    public required IReadOnlyList<EditorSessionCommandSummary> Commands { get; init; }
 }

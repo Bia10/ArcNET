@@ -92,6 +92,11 @@ public sealed class EditorSessionStagedTransactionSummary
     public required IReadOnlyList<EditorSessionValidationRepairCandidate> RepairCandidates { get; init; }
 
     /// <summary>
+    /// Aggregated dependency and relationship impact for the transaction's current staged state.
+    /// </summary>
+    public required EditorSessionImpactSummary ImpactSummary { get; init; }
+
+    /// <summary>
     /// Returns <see langword="true"/> when this transaction currently has one or more available repair candidates.
     /// </summary>
     public bool CanRepairFromSession => RepairCandidates.Count > 0;

@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// High-level change categories surfaced by <see cref="EditorWorkspaceSession"/>.
@@ -34,4 +34,9 @@ public enum EditorSessionChangeKind
     /// Pending save-slot edits.
     /// </summary>
     Save = 5,
+
+    /// <summary>
+    /// Pending message-file edits.
+    /// </summary>
+    Message = 6,
 }

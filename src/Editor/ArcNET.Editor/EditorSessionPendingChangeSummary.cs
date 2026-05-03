@@ -26,9 +26,19 @@ public sealed class EditorSessionPendingChangeSummary
     public required EditorWorkspaceValidationReport Validation { get; init; }
 
     /// <summary>
+    /// Aggregated dependency and relationship impact for the current staged session head.
+    /// </summary>
+    public required EditorSessionImpactSummary ImpactSummary { get; init; }
+
+    /// <summary>
     /// New blocking error-level validation findings introduced by the staged session state relative to the current workspace baseline.
     /// </summary>
     public required EditorWorkspaceValidationReport BlockingValidation { get; init; }
+
+    /// <summary>
+    /// Repair candidates currently available for the staged session head.
+    /// </summary>
+    public required IReadOnlyList<EditorSessionValidationRepairCandidate> RepairCandidates { get; init; }
 
     /// <summary>
     /// Returns <see langword="true"/> when one or more session changes are currently staged.
@@ -36,7 +46,17 @@ public sealed class EditorSessionPendingChangeSummary
     public bool HasChanges => Changes.Count > 0;
 
     /// <summary>
+    /// Returns <see langword="true"/> when the staged session head currently has one or more repair candidates.
+    /// </summary>
+    public bool CanRepairFromSession => RepairCandidates.Count > 0;
+
+    /// <summary>
     /// Total number of staged session changes.
     /// </summary>
     public int TotalChangeCount => Changes.Count;
+
+    /// <summary>
+    /// Number of currently available repair candidates for the staged session head.
+    /// </summary>
+    public int RepairCandidateCount => RepairCandidates.Count;
 }

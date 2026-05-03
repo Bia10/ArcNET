@@ -21,7 +21,22 @@ public sealed class EditorSessionPendingChangeTargetSummary
     public EditorAssetDependencySummary? DependencySummary { get; init; }
 
     /// <summary>
+    /// Repair candidates currently available for this staged target.
+    /// </summary>
+    public required IReadOnlyList<EditorSessionValidationRepairCandidate> RepairCandidates { get; init; }
+
+    /// <summary>
     /// Returns <see langword="true"/> when <see cref="DependencySummary"/> was resolved for this staged target.
     /// </summary>
     public bool HasDependencySummary => DependencySummary is not null;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when this staged target currently has one or more repair candidates.
+    /// </summary>
+    public bool CanRepairFromSession => RepairCandidates.Count > 0;
+
+    /// <summary>
+    /// Number of currently available repair candidates for this staged target.
+    /// </summary>
+    public int RepairCandidateCount => RepairCandidates.Count;
 }
