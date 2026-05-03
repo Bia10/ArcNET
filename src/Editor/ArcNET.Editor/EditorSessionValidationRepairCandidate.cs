@@ -39,4 +39,35 @@ public sealed class EditorSessionValidationRepairCandidate
     /// Suggested response target when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.SetDialogResponseTarget"/>.
     /// </summary>
     public int? SuggestedResponseTargetNumber { get; init; }
+
+    /// <summary>
+    /// Suggested script description when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.SetScriptDescription"/>.
+    /// </summary>
+    public string? SuggestedScriptDescription { get; init; }
+
+    /// <summary>
+    /// Broken source script identifier when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.ClearAssetScriptReference"/>.
+    /// </summary>
+    public int? ReferencedScriptId { get; init; }
+
+    /// <summary>
+    /// Broken source proto number when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.ClearAssetProtoReference"/>.
+    /// </summary>
+    public int? ReferencedProtoNumber { get; init; }
+
+    /// <summary>
+    /// Target proto number when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.SetProtoDisplayName"/>.
+    /// </summary>
+    public int? ProtoNumber { get; init; }
+
+    /// <summary>
+    /// Suggested proto display name when <see cref="Kind"/> is <see cref="EditorSessionValidationRepairCandidateKind.SetProtoDisplayName"/>.
+    /// </summary>
+    public string? SuggestedProtoDisplayName { get; init; }
+
+    /// <summary>
+    /// Indicates whether proto display-name repairs should stage the text in <c>oemes/oname.mes</c>
+    /// instead of <c>mes/description.mes</c>.
+    /// </summary>
+    public bool UseNameOverrideAsset { get; init; }
 }

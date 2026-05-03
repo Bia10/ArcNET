@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Formats;
 using static ArcNET.Editor.EditorWorkspaceValidationIssue;
 
@@ -51,7 +51,9 @@ internal sealed class EditorWorkspaceValidator
                 issues.Add(
                     Error(
                         reference.Asset.AssetPath,
-                        $"References proto {protoNumber} {reference.Count} time(s), but no matching proto asset was indexed."
+                        $"References proto {protoNumber} {reference.Count} time(s), but no matching proto asset was indexed.",
+                        EditorWorkspaceValidationCode.MissingProtoDefinition,
+                        referencedProtoNumber: protoNumber
                     )
                 );
             }
@@ -76,7 +78,8 @@ internal sealed class EditorWorkspaceValidator
             issues.Add(
                 Warning(
                     pair.Value.AssetPath,
-                    $"Proto {pair.Key} has no display-name entry in {DescriptionMesAssetPath} or {ProtoNameOverrideAssetPath} for {FormatProtoDisplayNameLookup(pair.Key, installationType.Value)}."
+                    $"Proto {pair.Key} has no display-name entry in {DescriptionMesAssetPath} or {ProtoNameOverrideAssetPath} for {FormatProtoDisplayNameLookup(pair.Key, installationType.Value)}.",
+                    EditorWorkspaceValidationCode.MissingProtoDisplayName
                 )
             );
         }
@@ -98,7 +101,9 @@ internal sealed class EditorWorkspaceValidator
                 issues.Add(
                     Warning(
                         reference.Asset.AssetPath,
-                        $"References script {scriptId} {reference.Count} time(s), but no matching script asset was indexed."
+                        $"References script {scriptId} {reference.Count} time(s), but no matching script asset was indexed.",
+                        EditorWorkspaceValidationCode.MissingScriptDefinition,
+                        referencedScriptId: scriptId
                     )
                 );
             }

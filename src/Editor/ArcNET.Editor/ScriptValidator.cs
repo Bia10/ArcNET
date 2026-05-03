@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using static ArcNET.Editor.ScriptValidationIssue;
 
 namespace ArcNET.Editor;
@@ -31,7 +31,11 @@ public static class ScriptValidator
     {
         ArgumentNullException.ThrowIfNull(script);
 
-        return CollectIssues(issues => ValidateAttachmentSlots(script.ActiveAttachmentSlots, issues));
+        return CollectIssues(issues =>
+        {
+            ValidateDescription(script.Description, issues);
+            ValidateAttachmentSlots(script.ActiveAttachmentSlots, issues);
+        });
     }
 
     internal static IEnumerable<int> GetActiveAttachmentSlots(ScrFile script)
@@ -65,6 +69,7 @@ public static class ScriptValidator
         {
             issues.Add(
                 Warning(
+                    ScriptValidationCode.DescriptionTooLong,
                     null,
                     $"Description length {description.Length} exceeds the 40 ASCII characters preserved on disk and will be truncated when written."
                 )
@@ -75,6 +80,7 @@ public static class ScriptValidator
         {
             issues.Add(
                 Warning(
+                    ScriptValidationCode.DescriptionContainsNonAscii,
                     null,
                     "Description contains non-ASCII characters that will be replaced with '?' when written to the .scr file."
                 )
@@ -98,6 +104,7 @@ public static class ScriptValidator
 
         issues.Add(
             Info(
+                ScriptValidationCode.UnknownAttachmentSlot,
                 null,
                 $"Uses non-empty attachment slot(s) that ArcNET does not name yet: {string.Join(", ", unknownSlots)}."
             )
