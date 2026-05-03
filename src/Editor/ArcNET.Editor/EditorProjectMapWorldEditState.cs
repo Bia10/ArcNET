@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted world-edit workflow state for one project map view.
@@ -19,4 +19,9 @@ public sealed class EditorProjectMapWorldEditState
     /// Persisted object-placement tool state.
     /// </summary>
     public EditorProjectMapObjectPlacementToolState ObjectPlacement { get; init; } = new();
+
+    /// <summary>
+    /// Persisted host-facing shell preferences for parity-style world-edit composition.
+    /// </summary>
+    public EditorProjectMapWorldEditShellState Shell { get; init; } = new();
 }

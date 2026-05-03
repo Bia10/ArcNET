@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted object-placement workflow state for one project map view.
@@ -30,6 +30,21 @@ public sealed class EditorProjectMapObjectPlacementToolState
     /// Selected preset identifier when <see cref="Mode"/> is <see cref="EditorProjectMapObjectPlacementMode.PlacementPreset"/>.
     /// </summary>
     public string? SelectedPresetId { get; init; }
+
+    /// <summary>
+    /// Optional persisted object-palette browser search text for this tracked map view.
+    /// </summary>
+    public string? PaletteSearchText { get; init; }
+
+    /// <summary>
+    /// Optional persisted object-palette browser category filter for this tracked map view.
+    /// </summary>
+    public string? PaletteCategory { get; init; }
+
+    /// <summary>
+    /// Optional proto number currently selected in the tracked object-palette browser.
+    /// </summary>
+    public int? SelectedPaletteProtoNumber { get; init; }
 
     /// <summary>
     /// Resolves the selected preset from <see cref="PresetLibrary"/>, or <see langword="null"/> when unavailable.
