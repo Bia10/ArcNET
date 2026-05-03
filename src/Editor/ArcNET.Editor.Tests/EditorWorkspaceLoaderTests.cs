@@ -242,6 +242,95 @@ public class EditorWorkspaceLoaderTests
         return SaveGameLoader.LoadFromParsed(info, index, tfafBytes);
     }
 
+    private static LoadedSave MakeMinimalSaveWithSector(string sectorPath, Sector sector)
+    {
+        var baseSave = MakeMinimalSave();
+        var sectorBytes = SectorFormat.WriteToArray(sector);
+        var files = new Dictionary<string, byte[]>(baseSave.Files, StringComparer.OrdinalIgnoreCase)
+        {
+            [sectorPath] = sectorBytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children =
+                                    [
+                                        new TfaiFileEntry
+                                        {
+                                            Name = "G_pc.mob",
+                                            Size = files["maps/map01/mobile/G_pc.mob"].Length,
+                                        },
+                                    ],
+                                },
+                                new TfaiFileEntry { Name = "map.jmp", Size = files["maps/map01/map.jmp"].Length },
+                                new TfaiFileEntry { Name = Path.GetFileName(sectorPath), Size = sectorBytes.Length },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return SaveGameLoader.LoadFromParsed(baseSave.Info, index, tfafBytes);
+    }
+
+    private static LoadedSave MakeMinimalSaveWithMob(string mobPath, MobData mob)
+    {
+        var baseSave = MakeMinimalSave();
+        var mobBytes = MobFormat.WriteToArray(mob);
+        var files = new Dictionary<string, byte[]>(baseSave.Files, StringComparer.OrdinalIgnoreCase)
+        {
+            [mobPath] = mobBytes,
+        };
+        var index = new SaveIndex
+        {
+            Root =
+            [
+                new TfaiDirectoryEntry
+                {
+                    Name = "maps",
+                    Children =
+                    [
+                        new TfaiDirectoryEntry
+                        {
+                            Name = "map01",
+                            Children =
+                            [
+                                new TfaiDirectoryEntry
+                                {
+                                    Name = "mobile",
+                                    Children =
+                                    [
+                                        new TfaiFileEntry { Name = Path.GetFileName(mobPath), Size = mobBytes.Length },
+                                    ],
+                                },
+                                new TfaiFileEntry { Name = "map.jmp", Size = files["maps/map01/map.jmp"].Length },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var tfafBytes = TfafFormat.Pack(index, files);
+        return SaveGameLoader.LoadFromParsed(baseSave.Info, index, tfafBytes);
+    }
+
     private static long PackTileLocation(int x, int y) => ((long)y << 32) | (uint)x;
 
     private static async Task WriteDatAsync(string archivePath, IReadOnlyDictionary<string, byte[]> entries)
@@ -2000,6 +2089,84 @@ public class EditorWorkspaceLoaderTests
 
             var editor = workspace.CreateSaveEditor();
             await Assert.That(editor.GetCurrentSaveInfo().LeaderName).IsEqualTo("WorkspacePc");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+            Directory.Delete(saveDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_PrefersMatchingSaveSectorOverrides()
+    {
+        const uint overriddenTileArtId = 0x11223344u;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var saveDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(saveDir);
+
+        try
+        {
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+            var saveSector = MakeSector();
+            saveSector.Tiles[0] = overriddenTileArtId;
+
+            var save = MakeMinimalSaveWithSector(sectorAssetPath, saveSector);
+            SaveGameWriter.Save(save, saveDir, "slot0001");
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                new EditorWorkspaceLoadOptions { SaveFolder = saveDir, SaveSlotName = "slot0001" }
+            );
+            var preview = workspace.CreateMapScenePreview("map01");
+            var sector = workspace.FindSector(sectorAssetPath);
+
+            await Assert.That(workspace.Save).IsNotNull();
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].AssetPath).IsEqualTo(sectorAssetPath);
+            await Assert.That(preview.Sectors[0].GetTileArtId(0, 0)).IsEqualTo(overriddenTileArtId);
+            await Assert.That(sector).IsNotNull();
+            await Assert.That(sector!.Tiles[0]).IsEqualTo(overriddenTileArtId);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+            Directory.Delete(saveDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_PrefersMatchingSaveMobOverrides()
+    {
+        const string overriddenPlayerName = "SaveOverride";
+        const string mobAssetPath = "maps/map01/mobile/G_pc.mob";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var saveDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01", "mobile"));
+        Directory.CreateDirectory(saveDir);
+
+        try
+        {
+            MobFormat.WriteToFile(MakePc(), Path.Combine(contentDir, "maps", "map01", "mobile", "G_pc.mob"));
+            var saveMob = new CharacterBuilder(MakePc()).WithPlayerName(overriddenPlayerName).Build();
+            var save = MakeMinimalSaveWithMob(mobAssetPath, saveMob);
+            SaveGameWriter.Save(save, saveDir, "slot0001");
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                new EditorWorkspaceLoadOptions { SaveFolder = saveDir, SaveSlotName = "slot0001" }
+            );
+            var mob = workspace.GameData.MobsBySource[mobAssetPath].Single();
+
+            await Assert.That(workspace.Save).IsNotNull();
+            await Assert.That(mob.GetProperty(ObjectField.ObjFPcPlayerName)).IsNotNull();
+            await Assert
+                .That(mob.GetProperty(ObjectField.ObjFPcPlayerName)!.GetString())
+                .IsEqualTo(overriddenPlayerName);
         }
         finally
         {

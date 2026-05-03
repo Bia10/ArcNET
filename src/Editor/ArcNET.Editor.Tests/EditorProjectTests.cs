@@ -138,6 +138,18 @@ public sealed class EditorProjectTests
                                 ),
                             ],
                             SelectedPresetId = "guard",
+                            PaletteSearchText = "  wolf  ",
+                            PaletteCategory = "  pc ",
+                            SelectedPaletteProtoNumber = 1002,
+                        },
+                        Shell = new EditorProjectMapWorldEditShellState
+                        {
+                            ViewMode = EditorMapSceneViewMode.TopDown,
+                            ViewportWidth = 320d,
+                            ViewportHeight = 200d,
+                            ObjectPaletteSearchText = "  guard  ",
+                            ObjectPaletteCategory = "  pc ",
+                            IncludeTrackedPlacementPreview = false,
                         },
                     },
                 }
@@ -222,6 +234,19 @@ public sealed class EditorProjectTests
                 .IsEqualTo("maps/map01/map.prp");
             await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.SelectedPresetId).IsEqualTo("guard");
             await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.PresetLibrary.Count).IsEqualTo(1);
+            await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteSearchText).IsEqualTo("wolf");
+            await Assert.That(project.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteCategory).IsEqualTo("pc");
+            await Assert
+                .That(project.MapViewStates[0].WorldEdit.ObjectPlacement.SelectedPaletteProtoNumber)
+                .IsEqualTo(1002);
+            await Assert
+                .That(project.MapViewStates[0].WorldEdit.Shell.ViewMode)
+                .IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(project.MapViewStates[0].WorldEdit.Shell.ViewportWidth).IsEqualTo(320d);
+            await Assert.That(project.MapViewStates[0].WorldEdit.Shell.ViewportHeight).IsEqualTo(200d);
+            await Assert.That(project.MapViewStates[0].WorldEdit.Shell.ObjectPaletteSearchText).IsEqualTo("guard");
+            await Assert.That(project.MapViewStates[0].WorldEdit.Shell.ObjectPaletteCategory).IsEqualTo("pc");
+            await Assert.That(project.MapViewStates[0].WorldEdit.Shell.IncludeTrackedPlacementPreview).IsFalse();
             await Assert.That(project.ViewStates.Count).IsEqualTo(1);
             await Assert.That(project.ViewStates[0].AssetPath).IsEqualTo("scr/00077Guard.scr");
             await Assert.That(project.ToolStates.Count).IsEqualTo(1);
@@ -445,6 +470,25 @@ public sealed class EditorProjectTests
                             ShowBlockedTiles = false,
                             ShowScripts = true,
                         },
+                        WorldEdit = new EditorProjectMapWorldEditState
+                        {
+                            ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                            ObjectPlacement = new EditorProjectMapObjectPlacementToolState
+                            {
+                                PaletteSearchText = "  wolf  ",
+                                PaletteCategory = "  pc ",
+                                SelectedPaletteProtoNumber = 1002,
+                            },
+                            Shell = new EditorProjectMapWorldEditShellState
+                            {
+                                ViewMode = EditorMapSceneViewMode.TopDown,
+                                ViewportWidth = 300d,
+                                ViewportHeight = 180d,
+                                ObjectPaletteSearchText = "guard",
+                                ObjectPaletteCategory = "pc",
+                                IncludeTrackedPlacementPreview = false,
+                            },
+                        },
                     },
                 ],
                 ViewStates =
@@ -509,6 +553,36 @@ public sealed class EditorProjectTests
             await Assert.That(roundTripped.MapViewStates[0].Preview.OutlineMode).IsEqualTo(EditorMapPreviewMode.Lights);
             await Assert.That(roundTripped.MapViewStates[0].Preview.ShowRoofs).IsFalse();
             await Assert.That(roundTripped.MapViewStates[0].Preview.ShowBlockedTiles).IsFalse();
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.Shell.ViewMode)
+                .IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Shell.ViewportWidth).IsEqualTo(300d);
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Shell.ViewportHeight).IsEqualTo(180d);
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Shell.ObjectPaletteSearchText).IsEqualTo("guard");
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Shell.ObjectPaletteCategory).IsEqualTo("pc");
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.Shell.IncludeTrackedPlacementPreview).IsFalse();
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.ObjectPlacement.PaletteSearchText)
+                .IsEqualTo("wolf");
+            await Assert.That(session.GetMapViewStates()[0].WorldEdit.ObjectPlacement.PaletteCategory).IsEqualTo("pc");
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.ObjectPlacement.SelectedPaletteProtoNumber)
+                .IsEqualTo(1002);
+            await Assert
+                .That(roundTripped.MapViewStates[0].WorldEdit.Shell.ViewMode)
+                .IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.Shell.ViewportWidth).IsEqualTo(300d);
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.Shell.ViewportHeight).IsEqualTo(180d);
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.Shell.ObjectPaletteSearchText).IsEqualTo("guard");
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.Shell.ObjectPaletteCategory).IsEqualTo("pc");
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.Shell.IncludeTrackedPlacementPreview).IsFalse();
+            await Assert
+                .That(roundTripped.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteSearchText)
+                .IsEqualTo("wolf");
+            await Assert.That(roundTripped.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteCategory).IsEqualTo("pc");
+            await Assert
+                .That(roundTripped.MapViewStates[0].WorldEdit.ObjectPlacement.SelectedPaletteProtoNumber)
+                .IsEqualTo(1002);
 
             var dialogAsset = roundTripped.OpenAssets.Single(static asset => asset.AssetPath == "dlg/00001Guard.dlg");
             var messageAsset = roundTripped.OpenAssets.Single(static asset => asset.AssetPath == "mes/game.mes");
@@ -637,6 +711,18 @@ public sealed class EditorProjectTests
                                 EditorObjectPalettePlacementRequest.Place(1001, rotation: 0.5f),
                                 EditorObjectPalettePlacementRequest.Place(1002, deltaTileX: 1)
                             ),
+                            PaletteSearchText = "guards",
+                            PaletteCategory = "pc",
+                            SelectedPaletteProtoNumber = 1002,
+                        },
+                        Shell = new EditorProjectMapWorldEditShellState
+                        {
+                            ViewMode = EditorMapSceneViewMode.TopDown,
+                            ViewportWidth = 480d,
+                            ViewportHeight = 270d,
+                            ObjectPaletteSearchText = "guards",
+                            ObjectPaletteCategory = "pc",
+                            IncludeTrackedPlacementPreview = false,
                         },
                     },
                 },
@@ -710,6 +796,19 @@ public sealed class EditorProjectTests
             await Assert
                 .That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.PlacementSet!.Entries.Count)
                 .IsEqualTo(2);
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteSearchText).IsEqualTo("guards");
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.PaletteCategory).IsEqualTo("pc");
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.ObjectPlacement.SelectedPaletteProtoNumber)
+                .IsEqualTo(1002);
+            await Assert
+                .That(loaded.MapViewStates[0].WorldEdit.Shell.ViewMode)
+                .IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.Shell.ViewportWidth).IsEqualTo(480d);
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.Shell.ViewportHeight).IsEqualTo(270d);
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.Shell.ObjectPaletteSearchText).IsEqualTo("guards");
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.Shell.ObjectPaletteCategory).IsEqualTo("pc");
+            await Assert.That(loaded.MapViewStates[0].WorldEdit.Shell.IncludeTrackedPlacementPreview).IsFalse();
             await Assert.That(loaded.ViewStates.Count).IsEqualTo(1);
             await Assert.That(loaded.ViewStates[0].Properties["zoom"]).IsEqualTo("1.25");
             await Assert.That(loaded.ToolStates.Count).IsEqualTo(1);
