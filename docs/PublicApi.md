@@ -4090,9 +4090,12 @@ namespace ArcNET.Editor
     {
         public EditorProjectMapObjectPlacementToolState() { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementMode Mode { get; init; }
+        public string? PaletteCategory { get; init; }
+        public string? PaletteSearchText { get; init; }
         public ArcNET.Editor.EditorObjectPalettePlacementRequest? PlacementRequest { get; init; }
         public ArcNET.Editor.EditorObjectPalettePlacementSet? PlacementSet { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPalettePlacementPreset> PresetLibrary { get; init; }
+        public int? SelectedPaletteProtoNumber { get; init; }
         public string? SelectedPresetId { get; init; }
         public ArcNET.Editor.EditorObjectPalettePlacementPreset? FindSelectedPreset() { }
     }
@@ -4150,7 +4153,18 @@ namespace ArcNET.Editor
         public EditorProjectMapWorldEditState() { }
         public ArcNET.Editor.EditorProjectMapWorldEditActiveTool ActiveTool { get; init; }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState ObjectPlacement { get; init; }
+        public ArcNET.Editor.EditorProjectMapWorldEditShellState Shell { get; init; }
         public ArcNET.Editor.EditorProjectMapTerrainToolState Terrain { get; init; }
+    }
+    public sealed class EditorProjectMapWorldEditShellState
+    {
+        public EditorProjectMapWorldEditShellState() { }
+        public bool IncludeTrackedPlacementPreview { get; init; }
+        public string? ObjectPaletteCategory { get; init; }
+        public string? ObjectPaletteSearchText { get; init; }
+        public ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
+        public double? ViewportHeight { get; init; }
+        public double? ViewportWidth { get; init; }
     }
     public sealed class EditorProjectOpenAsset
     {
@@ -4323,19 +4337,44 @@ namespace ArcNET.Editor
     {
         public EditorSessionPendingChangeSummary() { }
         public required ArcNET.Editor.EditorWorkspaceValidationReport BlockingValidation { get; init; }
+        public bool CanRepairFromSession { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> Changes { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChangeKindSummary> Groups { get; init; }
         public bool HasChanges { get; }
+        public required ArcNET.Editor.EditorSessionImpactSummary ImpactSummary { get; init; }
+        public int RepairCandidateCount { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> RepairCandidates { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionPendingChangeTargetSummary> TargetSummaries { get; init; }
         public int TotalChangeCount { get; }
         public required ArcNET.Editor.EditorWorkspaceValidationReport Validation { get; init; }
     }
+    public sealed class EditorSessionImpactSummary
+    {
+        public EditorSessionImpactSummary() { }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChangeKind> DirectKinds { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> DirectTargets { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> DefinedDialogIds { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> DefinedProtoNumbers { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> DefinedScriptIds { get; init; }
+        public bool HasDirectTargets { get; }
+        public bool HasMapCoverage { get; }
+        public bool HasRelatedAssets { get; }
+        public required System.Collections.Generic.IReadOnlyList<string> MapNames { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<uint> ReferencedArtIds { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> ReferencedProtoNumbers { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<int> ReferencedScriptIds { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> RelatedAssetPaths { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChangeKind> RelatedKinds { get; init; }
+    }
     public sealed class EditorSessionPendingChangeTargetSummary
     {
         public EditorSessionPendingChangeTargetSummary() { }
+        public bool CanRepairFromSession { get; }
         public ArcNET.Editor.EditorAssetDependencySummary? DependencySummary { get; init; }
         public bool HasDependencySummary { get; }
         public required ArcNET.Editor.EditorSessionChangeKind Kind { get; init; }
+        public int RepairCandidateCount { get; }
+        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> RepairCandidates { get; init; }
         public required string Target { get; init; }
     }
     public sealed class EditorSessionProjectStateSummary
@@ -4391,6 +4430,7 @@ namespace ArcNET.Editor
         public required bool CanSaveIndividually { get; init; }
         public required bool CanUndo { get; init; }
         public required bool HasPendingChanges { get; init; }
+        public required ArcNET.Editor.EditorSessionImpactSummary ImpactSummary { get; init; }
         public required ArcNET.Editor.EditorSessionStagedHistoryScopeKind Kind { get; init; }
         public required string Label { get; init; }
         public int PendingChangeCount { get; }
@@ -4402,6 +4442,12 @@ namespace ArcNET.Editor
     public sealed class EditorSessionValidationException : System.InvalidOperationException
     {
         public EditorSessionValidationException(ArcNET.Editor.EditorWorkspaceValidationReport validation) { }
+        public EditorSessionValidationException(ArcNET.Editor.EditorWorkspaceValidationReport validation, ArcNET.Editor.EditorSessionImpactSummary impactSummary) { }
+        public EditorSessionValidationException(ArcNET.Editor.EditorWorkspaceValidationReport validation, ArcNET.Editor.EditorSessionImpactSummary impactSummary, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> repairCandidates) { }
+        public bool CanRepairFromSession { get; }
+        public ArcNET.Editor.EditorSessionImpactSummary ImpactSummary { get; }
+        public int RepairCandidateCount { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> RepairCandidates { get; }
         public ArcNET.Editor.EditorWorkspaceValidationReport Validation { get; }
     }
     public sealed class EditorSessionValidationRepairCandidate
@@ -4411,14 +4457,26 @@ namespace ArcNET.Editor
         public required string Description { get; init; }
         public required int DialogEntryNumber { get; init; }
         public required ArcNET.Editor.EditorSessionValidationRepairCandidateKind Kind { get; init; }
+        public int? ProtoNumber { get; init; }
+        public int? ReferencedProtoNumber { get; init; }
+        public int? ReferencedScriptId { get; init; }
         public int? SuggestedIntelligenceRequirement { get; init; }
+        public string? SuggestedProtoDisplayName { get; init; }
         public int? SuggestedResponseTargetNumber { get; init; }
+        public string? SuggestedScriptDescription { get; init; }
         public required string Title { get; init; }
+        public bool UseNameOverrideAsset { get; init; }
     }
     public enum EditorSessionValidationRepairCandidateKind
     {
         SetDialogEntryIntelligenceRequirement = 0,
         SetDialogResponseTarget = 1,
+        SetScriptDescription = 2,
+        ClearAssetScriptReference = 3,
+        ClearAssetProtoReference = 4,
+        SetProtoDisplayName = 5,
+        RenumberDuplicateDialogEntryNumber = 6,
+        ClearUnknownScriptAttachmentSlots = 7,
     }
     public sealed class EditorSkippedArchiveCandidate
     {
@@ -4739,6 +4797,10 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorSessionChange? SetSectorRoofArt(string assetPath, int roofX, int roofY, uint artId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> SetSectorTileArt(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, uint artId) { }
         public ArcNET.Editor.EditorSessionChange? SetSectorTileArt(string assetPath, int tileX, int tileY, uint artId) { }
+        public ArcNET.Editor.EditorProjectMapWorldEditShellState SetTrackedMapWorldEditShellPreferences(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest request) { }
+        public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SetTrackedObjectPaletteBrowserFilter(string mapViewStateId, string? searchText = default, string? category = default, bool activateTool = false) { }
+        public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SelectTrackedObjectPaletteEntry(string mapViewStateId, int protoNumber, string? searchText = default, string? category = default, bool activateTool = false) { }
+        public ArcNET.Editor.EditorProjectMapObjectPlacementToolState AppendTrackedObjectPaletteSelectionToPlacementSet(string mapViewStateId, int deltaTileX = 0, int deltaTileY = 0, float? rotation = default, float? rotationPitch = default, bool alignToTileGrid = true, bool activateTool = true) { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementEntry(string mapViewStateId, ArcNET.Editor.EditorObjectPaletteEntry entry, int deltaTileX = 0, int deltaTileY = 0, float? rotation = default, float? rotationPitch = default, bool alignToTileGrid = true, bool activateTool = true) { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementPreset(string mapViewStateId, ArcNET.Editor.EditorObjectPalettePlacementPreset preset, bool activateTool = true) { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementRequest(string mapViewStateId, ArcNET.Editor.EditorObjectPalettePlacementRequest request, bool activateTool = true) { }

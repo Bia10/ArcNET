@@ -13,6 +13,7 @@ ArcNET is ready to power a full editor SDK when a host can build an Arcanum edit
 - reverse-engineer asset relationships, map layout rules, or object-placement semantics
 - invent its own history, dirty-state, apply/save, or project-restore model
 - rebuild the original world editor workflows from scratch just to reach basic parity
+- invent raw `ObjectField`-level contracts for the old editor's detail windows
 - implement its own camera math, hit testing, selection routing, terrain/object brush plumbing, or media preview decoding
 
 For this project, "full editor SDK" means two things at once:
@@ -20,7 +21,7 @@ For this project, "full editor SDK" means two things at once:
 1. Match at least the practical authoring workflows the original Arcanum World Editor exposed.
 2. Go beyond the original editor by offering safer transactions, stronger validation/repair, better persistence, and frontend-neutral APIs.
 
-## Audit Snapshot As Of 2026-05-02
+## Audit Snapshot As Of 2026-05-03
 
 The current codebase is materially ahead of the original implementation-target draft.
 The foundation is real, but full editor parity is not done yet.
@@ -33,10 +34,17 @@ What is already shipped and should be treated as baseline:
 - transactional dialog, script, and save editing through `EditorWorkspaceSession`
 - session apply/save/discard flows plus applied history snapshots
 - staged local undo/redo for dialog, script, save, and direct proto/mob/sector edits
-- project metadata persistence for open assets, bookmarks, view state, map camera/selection/preview state, and tool state
+- default session command summaries that unify staged-local and applied-history `Undo`/`Redo` routing through one host-facing surface
+- host-facing pending-change and staged-transaction impact summaries that aggregate direct targets, related referencing assets, touched maps, and referenced IDs from the effective staged workspace state
+- project metadata persistence for open assets, bookmarks, view state, map camera/selection/preview state, tool state, tracked terrain/object tool state, preset libraries, and default world-edit shell preferences
 - map outline and scene preview surfaces, hit testing, and selection projection
 - typed sector layer editing for tile art, roof art, blocked tiles, lights, and tile scripts
 - typed object placement, erase, replace, move, rotate, pitch-rotate, palette placement, placement sets, and placement presets
+- tracked terrain palette browser summaries and coordinate-based terrain selection helpers through `EditorWorkspaceSession`
+- tracked object palette browser summaries and proto-number-based tracked placement selection through `EditorWorkspaceSession`
+- tracked selected-object summaries plus tracked selection brush/transform/convenience helpers through `EditorWorkspaceSession`
+- tracked object-placement preset-library lookup, replacement, selection, and removal helpers through `EditorWorkspaceSession`, with project-backed persisted state
+- tracked world-edit shell bundles that compose parity-style top-down/isometric scenes, tool/browser summaries, selection state, and tracked placement preview through `EditorWorkspaceSession`
 - ART preview and WAV preview surfaces for host-side browsers and preview panes
 - host capability discovery through `EditorWorkspace.GetCapabilities()` with stable supported-versus-available backend slices, including tracked terrain/object workflow capabilities
 - tracked map-view terrain and object-placement tool helpers through `EditorWorkspaceSession` summaries, setters, preview, and apply flows
@@ -53,6 +61,7 @@ The legacy Arcanum World Editor clearly demonstrates a parity floor ArcNET still
 - terrain painting and terrain-art browsing
 - item, scenery, and critter prototype browsing
 - placed-object stamping and editing
+- selected-object and prototype detail windows for flags, script attachments, light settings, critter level, spells, skills, generator, and blending
 - fast save/reload world-edit workflows
 
 Against that parity floor, ArcNET currently looks like this:
@@ -62,26 +71,49 @@ Against that parity floor, ArcNET currently looks like this:
 | Open game/module content | Strong | Install-backed and loose-content workspace loading are real and already frontend-friendly. |
 | Save-slot composition | Strong | ArcNET goes beyond the original editor here with integrated save-backed workspace loading and typed save editing. |
 | Terrain painting | Partial | Tile art, roof art, and blocked-tile editing exist, but a host still has to assemble more of the actual terrain-tool workflow than it should. |
-| Terrain browsing/picking | Partial | Terrain/map property assets are indexed, but there is not yet a host-ready terrain palette/browser flow comparable to the original editor UX. |
-| Critter/item/scenery palette workflows | Partial | Proto-backed object palette entries, placement requests, placement sets, and presets exist, but the SDK still lacks a more complete end-to-end placement workflow layer. |
-| Object selection and manipulation | Partial | Hit testing, object IDs, move, rotate, pitch rotate, erase, replace, and transform helpers are present, but deeper live-edit semantics still need polish. |
-| Lights and tile scripts | Partial | Typed sector light and tile-script mutation seams exist, but higher-level tool workflows around them are still thin. |
-| Isometric/top-down scene support | Partial | Camera math, scene preview, and selection projection exist, but not a more opinionated host-facing scene/view contract that clearly reaches parity with the original editor modes. |
-| Project reopen/restore | Partial | ArcNET already exceeds the original editor in typed persistence direction, but restore coverage is still not rich enough to declare the workflow done. |
-| Undo/redo | Partial | Local staged undo/redo and applied history exist, but the full editing model still feels like coordinated slices rather than one unified editor command system. |
+| Terrain browsing/picking | Partial | Terrain/map property assets are indexed, and tracked terrain palette browser summaries plus coordinate selection now exist, but broader parity-grade browser/tool UX is still unfinished. |
+| Critter/item/scenery palette workflows | Strong | Proto-backed object palette entries, tracked object palette browser summaries, proto-number selection, placement requests, placement sets, presets, and tracked shell bundling now cover the practical browser-plus-placement floor. |
+| Object selection and manipulation | Strong | Hit testing, object IDs, move, rotate, pitch rotate, erase, replace, transforms, tracked selection summaries, and tracked convenience edit helpers now cover the practical manipulation floor. |
+| Object/prototype detail windows | Missing first-class contract | The low-level data layer exists, but the public backend still stops short of a typed inspector read/write surface for the old detail panes. |
+| Lights and tile scripts | Partial | Typed sector light and tile-script mutation seams exist, but only sector-light workflows are first-class today; object-light panes are still part of the missing inspector layer. |
+| Isometric/top-down scene support | Strong | Camera math, scene preview, selection projection, and tracked world-edit shell bundles now expose a host-facing scene/view contract for parity-style top-down and isometric shells. |
+| Project reopen/restore | Partial, stronger | ArcNET already exceeds the original editor in typed persistence direction, now including tracked terrain/object tool state, preset libraries, and default world-edit shell preferences, but restore coverage is still not rich enough to declare the workflow done. |
+| Undo/redo | Partial | Local staged undo/redo and applied history now also expose one default session command surface, but dirty-baseline polish and broader editing-model cleanup still remain. |
 
 Conclusion:
 
 - ArcNET already surpasses the old editor in foundation quality, save integration, validation direction, and project-model direction.
-- ArcNET does not yet match the old editor in turnkey world-editing workflow completeness.
-- The next priorities should therefore focus on parity-grade map/object authoring workflows before broader extensibility work.
+- ArcNET now reaches a credible original-editor parity floor for host-driven map/object authoring through typed SDK services.
+- The next priorities should therefore shift from basic parity-floor plumbing toward the missing object/proto inspector backend layer, then toward richer cross-asset authoring, repair, preview fidelity, and persistence depth.
+
+## Frontend Construction Readiness
+
+You can start frontend work now for:
+
+- module/open flows
+- object palette browsers with search, category, and art preview
+- top-down and isometric map shells
+- placement, selection, move/rotate/replace/erase workflows
+- apply/save/reopen loops for normal world-edit work
+
+Do not bind the following windows directly to the current public SDK yet:
+
+- selected-object and proto inspector shells
+- flags panes
+- script-attachment panes
+- critter level, spells, and skills panes
+- object-light panes
+- generator panes
+- blending panes
+
+Those windows need one explicit backend inspector layer so the frontend does not have to invent raw `ObjectField` or direct proto/mob mutation semantics.
 
 ## Priority Order
 
 Build these targets in order unless a frontend integration proves a different dependency path:
 
 1. Coherent session and history core
-2. World-edit parity floor
+2. Object/proto inspector contract
 3. Cross-asset authoring and repair
 4. Preview and interaction adapters
 5. Project and workspace persistence
@@ -96,15 +128,14 @@ Current progress:
 
 - staged local undo/redo exists for dialog, script, save, and direct asset drafts
 - session-level staged transaction summaries and staged command summaries exist
+- default session command summaries now unify staged-local and applied-history `Undo`/`Redo` routing for hosts that want one bindable command surface
 - applied history snapshots exist and restore project/session shell state
 - apply/save/discard can operate on all staged work or selected staged transactions
 
 Implementation targets:
 
-- unify staged and applied command semantics into one predictable host-facing editing model
 - keep transaction grouping first-class for multi-step user actions
 - expose clearer dirty baselines independent of history depth
-- make default undo/redo routing deterministic for mixed asset workflows
 - ensure apply/save/discard/reopen semantics stay coherent across all supported editor scopes
 
 Done when:
@@ -124,16 +155,20 @@ Current progress:
 - tile art, roof art, blocked-tile, light, and tile-script editing seams are real
 - object placement, erase, replace, move, rotate, pitch rotate, and combined transforms are real
 - object palette search, placement requests, placement sets, and placement presets are real
+- tracked terrain palette browser summaries and coordinate-based terrain selection now let hosts build a terrain picker without dropping into raw workspace lookups
+- tracked object palette browser summaries, persisted browser filters/selection, and proto-number-based tracked placement selection now let hosts build an object picker without dropping into raw workspace lookups
+- tracked selected-object summaries plus tracked selection brush/transform/convenience helpers now let hosts drive basic live object edits from persisted map-view selection state
+- tracked object-placement preset libraries now have first-class lookup, replacement, selection, and removal helpers instead of host-managed bookkeeping
+- tracked browser-selected palette entries can now be promoted into placement-set composition while preserving inactive single-placement and preset context
+- tracked world-edit shell bundles plus first-class shell-preference setters now let hosts bind parity-style top-down/isometric scenes, persist shell defaults, tool/browser state, selection, and tracked placement preview without rewriting raw map-view DTOs
 - scene hit testing, area selection routing, and project-persisted map selection state are real
 - tracked terrain-paint and object-placement tool summaries/setters now let hosts bind world-edit state with less manual project-state plumbing
 
-Implementation targets:
+Parity-floor assessment:
 
-- deepen the new tracked terrain/object tool layer so palette browsing and tool binding feel turnkey instead of merely structured
-- promote palette browsing into clearer item/scenery/critter/world-object authoring flows
-- add higher-level world-edit operations that feel like tools, not just mutation primitives
-- define stronger scene/view contracts for parity-grade isometric and top-down editing shells
-- cover more end-to-end map editing tasks through typed services instead of host orchestration
+- hosts can now build terrain painting, object placement, object editing, selection, and parity-style top-down/isometric map shells mostly by binding SDK services
+- common world-edit actions no longer require hosts to manipulate raw `.sec`, `.mob`, or proto data directly
+- the remaining work in this area is now mostly workflow polish and richer authoring semantics, not missing parity-floor primitives
 
 Done when:
 
@@ -141,6 +176,48 @@ Done when:
 - the SDK exposes enough palette and brush workflows to match the original world editor feature floor
 - common world-edit actions do not require hosts to manipulate raw `.sec`, `.mob`, or proto data directly
 - focused tests cover mixed terrain-plus-object workflows and end-to-end world-edit round trips
+
+Status:
+
+- Target 2 is now effectively complete at the parity-floor level described above.
+- The next frontend blocker is not more placement plumbing; it is the missing object/proto inspector layer captured in Target 2A below.
+
+## Target 2A: Object Inspector And Prototype Authoring
+
+Why this is next:
+The map/palette shell is far enough along that the biggest blocker to building the old editor's remaining windows is now the missing inspector layer, not placement or scene plumbing.
+
+Current progress:
+
+- `EditorWorkspace.FindProto(...)` and object palette entries already expose raw proto-backed reads.
+- `EditorMapObjectSelectionSummary` already gives stable selected-object identity, owning sector paths, and preview metadata.
+- `MobDataBuilder`, `CharacterBuilder`, `CharacterRecord`, and `SectorBuilder` already provide the low-level data/mutation substrate.
+- sector light editing, script asset authoring, and save-backed world-asset persistence already cover adjacent workflows this layer can reuse.
+
+Implementation targets:
+
+- add one host-facing inspector read model for either a selected placed object or a proto definition
+- add one public staged write surface for non-transform object/proto edits
+- project editor panes as typed groups instead of raw fields
+- expose the new inspector slices through capability discovery once stable
+
+Per-window backend contract expectations:
+
+| Window | Contract expectation |
+|---|---|
+| Flags | Typed boolean/enum groups by object type, plus set/clear helpers on the selected object or proto. |
+| Script attachments | Typed known attachment points plus set/clear/retarget helpers and validation-friendly missing/unknown-slot reporting. |
+| Light | Keep sector-light list editing separate from object-light properties; both need typed read/write DTOs. |
+| Level, spells, skills | Critter progression summaries and staged update helpers above the existing `CharacterBuilder` / `CharacterRecord` substrate. |
+| Generator | Typed spawn/generator settings, staged edit helpers, and validation. |
+| Blending | Typed blending/material settings plus preview-aware edit helpers. |
+
+Done when:
+
+- the frontend can render the old detail windows without raw `ObjectField` plumbing
+- selected-object and proto editing go through first-class session APIs instead of frontend-assembled direct-asset rewrites
+- capability discovery can truthfully advertise which inspector panes are supported in the loaded workspace
+- focused tests cover read-model composition plus staged apply/save for each pane group
 
 ## Target 3: Cross-Asset Authoring And Repair
 
@@ -150,13 +227,18 @@ Parity with the old editor is not enough; ArcNET should be safer and more automa
 Current progress:
 
 - script retargeting and art-reference replacement already exist as session-level helpers
+- proto reference retargeting now lets hosts migrate mob and sector object links to another loaded proto through `EditorWorkspaceSession`
+- proto display-name authoring can now stage message-file edits, including creating `oemes/oname.mes` or updating `mes/description.mes`, through `EditorWorkspaceSession`
+- save-backed workspaces now compose matching save-sector and save-mob overrides into the live workspace map view, and direct sector or mob saves target the loaded save slot instead of loose content when the save owns that asset path
 - dependency summaries already expose outgoing proto/script/art references plus incoming proto/script context
+- pending session and staged-transaction summaries now aggregate direct targets, direct/related asset categories, related referencing assets, touched maps, referenced IDs, and the current staged repair inventory for host-side impact explanations, with pending target summaries grouping repairs per staged target
+- blocked apply/save validation exceptions now include the staged impact summary plus the scoped repair inventory so hosts can explain what the failed commit attempt was trying to touch and how it could be repaired
 - validation findings already cover several missing-reference and local authoring issues
-- repair candidates already exist, but only for a narrow dialog slice
+- repair candidates now cover dialog entry fixes, duplicate dialog-entry renumbering, disk-safe script-description normalization, unknown script attachment-slot cleanup, missing proto display-name entry authoring, and per-asset cleanup of broken direct-asset script/proto references through one session repair surface
 
 Implementation targets:
 
-- broaden cross-asset edit helpers beyond script/art retargeting into more complete authoring operations
+- broaden cross-asset edit helpers beyond the current script/art/proto retargeting, art replacement, proto-display-name authoring, cleanup operations, and matching save-backed world-asset persistence into more complete authoring flows
 - expand validation from findings-only into a richer repair system
 - add dependency-aware pre-save validation across the effective staged session head
 - add richer pending-change impact summaries so hosts can explain exactly what a transaction will touch
@@ -203,11 +285,12 @@ Current progress:
 
 - `EditorProject` and `EditorProjectStore` already persist workspace references and substantial UI/session metadata
 - map camera, selection, and preview state already have typed persisted models
+- tracked terrain/object world-edit tool state, persisted object-palette browser state, preset libraries, and default tracked shell preferences now round-trip through `EditorProject` / `EditorProjectStore`
 - restore/load flows already reopen workspaces and return restore summaries
 
 Implementation targets:
 
-- persist richer live session state and workflow-specific tool state through the project model
+- persist deeper live session state beyond the current terrain/object tool, object-palette browser, preset-library, and shell-preference layer through the project model
 - make restore more complete for complex world-edit workflows
 - define versioned migration expectations before the project format grows further
 - ensure project persistence is treated as part of the SDK contract, not just host convenience
@@ -255,11 +338,9 @@ These should not displace the targets above:
 
 If the goal is to move toward a full-blown Arcanum editor SDK as quickly as possible, the next slices should be:
 
-1. Finish the coherent session command model so hosts can treat staged and applied history as one editing system.
-2. Extend the new tracked terrain workflow layer into richer palette browsing, brush binding, and selection-driven tool flows.
-3. Extend the new tracked object-placement workflow layer into clearer palette-browser, preset-library, and edit-tool flows.
-4. Expand repair candidates and dependency-aware validation beyond the current narrow dialog slice.
-5. Improve scene-preview fidelity and view contracts to better match original-editor world-edit expectations.
-6. Persist richer world-edit workflow state through `EditorProject` and then layer plugin seams above the new capability contract.
+1. Land selected-object/proto inspector summaries plus staged edit routing.
+2. Add typed pane contracts for flags, script attachments, critter progression, light, generator, and blending.
+3. Improve scene-preview fidelity and rendering semantics beyond the current shell contract.
+4. Persist deeper world-edit and inspector workflow state through `EditorProject`.
 
-Those six slices would move ArcNET from "strong editor foundation" toward "credible full editor SDK with original-editor parity and room to exceed it."
+Those four slices would move ArcNET from "strong editor foundation" toward "front-end-ready editor SDK that can honestly back the old editor's browser and detail windows."
