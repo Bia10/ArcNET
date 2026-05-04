@@ -99,9 +99,9 @@ Main takeaway:
 If the immediate question is "can I start writing the editor UI now?", the honest answer is:
 
 - yes for the outer shell: workspace/module open flows, palette browsing, placement, selection/manipulation, top-down/isometric scene shells, and normal apply/save/reopen loops already have backend seams that a frontend can bind directly
-- no for the old detail windows as they existed in the original editor: ArcNET still lacks one first-class object/proto inspector contract that exposes those panes without raw property plumbing
+- yes for the old detail windows' backend contracts: ArcNET now has one first-class selected-object/proto inspector summary plus typed flags, script-attachment, critter-progression, light, generator, and blending panes with staged edit routing; the remaining work is frontend binding plus deeper workflow hardening
 
-The current capability model already reflects that split: `EditorWorkspace.GetCapabilities()` advertises object palette browsing, placement, tracked object workflows, object transforms, sector-light editing, and sector tile-script editing, but it does not yet advertise a general object/proto inspector or property-window editing slice.
+The current capability model now reflects that split too: `EditorWorkspace.GetCapabilities()` advertises object palette browsing, placement, tracked object workflows, object transforms, sector-light editing, sector tile-script editing, and the full inspector pane slice set for summary, flags, script attachments, critter progression, light, generator, and blending.
 
 | Frontend component | Backend readiness | Existing backend surface | Remaining backend work |
 |---|---|---|---|
@@ -111,18 +111,19 @@ The current capability model already reflects that split: `EditorWorkspace.GetCa
 | Map canvas shell | Ready now | Tracked world-edit shell bundles already compose top-down/isometric scenes, tool summaries, palette summaries, selection, and tracked placement preview. | Frontend only. |
 | Selection/move/rotate/replace/erase | Ready now | Hit testing, persisted selection state, tracked selected-object summaries, and tracked transform/brush helpers already exist. | Frontend only. |
 | Apply/save/reload/reopen loop | Ready now for normal world-edit flows | Pending/apply/save summaries, save-backed world-asset persistence, project restore, and shell/tool persistence already exist. | Mostly frontend polish plus deeper restore coverage over time. |
-| Selected-object/proto inspector shell | Thin backend layer still required | Raw proto lookup, selection summaries, staged direct-asset history, and builder APIs already exist underneath. | Add one first-class inspector read model plus one staged write surface for non-transform object/proto edits. |
-| Flags window | Thin backend layer still required | The lower object-property layer can represent the data, but no typed flag grouping is exposed to hosts. | Add typed flag projection/edit helpers above raw object fields. |
-| Script attachments window | Thin backend layer still required | Script assets already have authoring/validation surfaces, and object script references are indexed, but there is no object-bound script-slot editor contract. | Add typed script-attachment summaries plus set/clear helpers for proto and selected-object workflows. |
-| Light window | Split: sector lights ready, object-light panes not ready | Sector light add/replace/remove plus light preview already exist. | Add an object-light inspector contract and keep sector-light editing as the map-level companion workflow. |
-| Level, spells, and skills windows | Data model exists, frontend contract missing | `CharacterBuilder` and `CharacterRecord` already model critter progression data cleanly. | Add selected-object/proto critter summaries plus staged update helpers above the current builders. |
-| Generator window | Missing first-class backend contract | Only the lower object-property layer is available today. | Add typed field mapping, staged edit routing, and validation for generator settings. |
-| Blending window | Missing first-class backend contract | Only the lower object-property layer is available today. | Add typed field mapping plus preview-aware edit helpers for blending/material settings. |
+| Selected-object/proto inspector shell | Ready now for the legacy detail-window backend slice | `EditorWorkspace.FindObjectInspectorSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorSummary(...)`, pane/readiness summaries, capability discovery, and typed flags/script/progression/light/generator/blending contracts now expose one presentation-neutral inspector shell with staged writes for the legacy non-transform panes. | Frontend binding plus broader end-to-end hardening. |
+| Flags window | Ready now | `EditorObjectInspectorFlagsSummary`, `EditorObjectInspectorFlagsUpdate`, `EditorWorkspace.FindObjectInspectorFlagsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorFlagsSummary(...)`, `SetTrackedObjectInspectorFlags(...)`, and `SetProtoInspectorFlags(...)` now give hosts one typed read/write contract for object flags. | Frontend only. |
+| Script attachments window | Ready now | `EditorObjectInspectorScriptAttachmentsSummary`, `EditorWorkspace.FindObjectInspectorScriptAttachmentsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorScriptAttachmentsSummary(...)`, and the new set/clear helpers now expose typed known-slot data plus missing/unknown-slot reporting for proto and selected-object workflows. | Frontend only. |
+| Light window | Ready now | `EditorObjectInspectorLightSummary`, `EditorObjectInspectorLightUpdate`, and the new workspace/session get/set helpers now expose typed object-light reads and staged writes above the property layer. | Frontend only. |
+| Level, spells, and skills windows | Ready now | `EditorObjectInspectorCritterProgressionSummary`, `EditorObjectInspectorCritterProgressionUpdate`, and the new workspace/session get/set helpers now expose typed critter progression reads and staged writes. | Frontend only. |
+| Generator window | Ready now | `EditorObjectInspectorGeneratorSummary`, `EditorObjectInspectorGeneratorUpdate`, and the new workspace/session get/set helpers now expose typed generator reads and staged writes. | Frontend only. |
+| Blending window | Ready now | `EditorObjectInspectorBlendingSummary`, `EditorObjectInspectorBlendingUpdate`, and the new workspace/session get/set helpers now expose typed blending/material reads and staged writes. | Frontend only. |
 
 What this means in practice:
 
 - you can start building the real editor frontend now if the first UI milestone is the browser/placement/scene/save shell shown in the screenshots
-- you should not let the frontend invent the data contract for flags/scripts/light/progression/generator/blending panes; the SDK needs one explicit inspector slice first so those dialogs stay backend-owned and presentation-neutral
+- the frontend can now bind the legacy detail windows directly against SDK-owned contracts instead of inventing its own field mapping
+- the remaining backend work has shifted from missing pane contracts to workflow hardening: preview fidelity, deeper persistence, and broader end-to-end apply/save coverage
 
 ## Readiness Snapshot
 
@@ -266,7 +267,7 @@ Working now:
 - tracked object-palette browser filters/selection now persist through tracked object-placement tool state, and the tracked browser selection can now be promoted into placement-set composition without losing inactive single-placement or preset context
 - tracked selected-object summaries and tracked selection brush/transform/convenience helpers on `EditorWorkspaceSession`
 - tracked object-placement preset libraries now have first-class lookup, replacement, selection, and removal helpers on `EditorWorkspaceSession`
-- tracked world-edit shell bundles on `EditorWorkspaceSession` now compose parity-style top-down/isometric scenes, tool/browser summaries, selection, and tracked placement preview in one host-facing model, and shell preferences now have a first-class setter instead of raw map-view DTO rewrites
+- tracked world-edit shell bundles on `EditorWorkspaceSession` now compose parity-style top-down/isometric scenes, tool/browser summaries, selection, tracked inspector state/summary, and tracked placement preview in one host-facing model, and shell preferences now have a first-class setter instead of raw map-view DTO rewrites
 - scene hit testing and persisted map selection state
 - tracked map-view terrain/object tool summaries and setters for host-ready tool binding, preview, and apply
 
@@ -279,7 +280,7 @@ Parity-floor status:
 Best next steps:
 
 1. Add first-class selected-object/proto inspector contracts above the current map/palette shell floor.
-2. Persist deeper world-edit workflow state beyond the current tool, browser, and shell-preference layer as the new shell contract is adopted by hosts.
+2. Persist deeper world-edit workflow state beyond the current tool, browser, shell-preference, and inspector-target/pane layer as the new shell contract is adopted by hosts.
 3. Improve scene-preview fidelity and rendering semantics beyond the new parity-floor shell contract.
 
 ## Phase 3A - Object Inspector And Prototype Authoring
@@ -292,21 +293,24 @@ Working now:
 
 - `EditorWorkspace.FindProto(...)` and object palette entries already expose raw proto-backed read access
 - tracked selected-object summaries already expose stable selection identity, owning sector paths, and preview metadata
+- `EditorWorkspace.FindObjectInspectorSummary(...)` and `EditorWorkspaceSession.GetTrackedObjectInspectorSummary(...)` now expose one first-class selected-object/proto inspector summary, including pane-readiness metadata and staged proto display-name resolution through pending message assets
+- `EditorWorkspace.FindObjectInspectorFlagsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorFlagsSummary(...)`, `SetTrackedObjectInspectorFlags(...)`, and `SetProtoInspectorFlags(...)` now expose one typed flags contract and staged edit surface for both proto and selected-object workflows
+- `EditorWorkspace.FindObjectInspectorScriptAttachmentsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorScriptAttachmentsSummary(...)`, and the new script set/clear helpers now expose one typed script-attachments contract with missing/unknown-slot reporting for both proto and selected-object workflows
+- `EditorProjectMapObjectInspectorState`, `EditorWorkspaceSession.GetTrackedObjectInspectorState(...)`, and `SetTrackedObjectInspectorState(...)` now persist the tracked inspector pane plus optional pinned proto target through `EditorProject` / `EditorProjectStore`, and tracked world-edit shells now bundle that inspector state together with the resolved summary
 - `MobDataBuilder`, `CharacterBuilder`, `CharacterRecord`, and `SectorBuilder` already provide the low-level mutation/data-model foundation
 - save-backed world-asset persistence and staged direct-asset history already exist for the edits this layer would stage
 
 Still missing:
 
-- one host-facing inspector read model for a selected placed object or proto definition
-- one public staged write surface for non-transform object/proto edits
-- typed pane models for flags, script attachments, critter progression, object-light settings, generator settings, and blending settings
-- capability discovery and project persistence guidance for those new inspector slices
+- broader end-to-end apply/save/reopen hardening across the full inspector slice
+- deeper workflow persistence beyond the current inspector target/pane layer once hosts start persisting richer window/layout semantics
+- scene-preview fidelity fixes for the remaining staged selected-object/raw-property mismatches
 
 Best next steps:
 
-1. Add one selected-object/proto inspector summary that groups properties by editor pane rather than raw object field.
-2. Add staged update helpers for flags, script attachments, critter progression, light settings, generator settings, and blending settings.
-3. Extend capability discovery and project/session persistence once the inspector surface becomes stable enough for hosts to bind directly.
+1. Harden end-to-end project/session reopen behavior now that the pane-specific inspector surfaces and their first persistence layer are stable enough for hosts to bind directly.
+2. Harden end-to-end inspector apply/save coverage across the full inspector slice.
+3. Improve scene-preview fidelity around the remaining raw/object array mismatches exposed by staged selected-object previews.
 
 ## Phase 4 - Cross-Asset Validation And Repair
 
@@ -371,19 +375,19 @@ Working now:
 
 - persisted workspace references
 - typed open assets, bookmarks, view states, tool states, and map view state
-- tracked terrain/object world-edit tool state, persisted object-palette browser state, preset libraries, and default tracked shell preferences now round-trip through `EditorProject` / `EditorProjectStore`
+- tracked terrain/object world-edit tool state, persisted object-palette browser state, preset libraries, default tracked shell preferences, and tracked inspector target/pane state now round-trip through `EditorProject` / `EditorProjectStore`
 - project restore summaries and bootstrap summaries
 - a minimum host capability contract through `EditorWorkspace.GetCapabilities()`
 
 Still missing:
 
-- deeper workflow persistence beyond the current terrain/object tool, object-palette browser, and shell-preference layer
+- deeper workflow persistence beyond the current terrain/object tool, object-palette browser, shell-preference, and inspector-target/pane layer
 - validators/importers/exporters/preview-provider plugin seams
 - compatibility guidance for third-party extensions
 
 Best next steps:
 
-1. Persist deeper world-edit workflow state beyond the current tool, browser, and shell-preference layer.
+1. Persist deeper world-edit workflow state beyond the current tool, browser, shell-preference, and inspector-target/pane layer.
 2. Extend the new capability-discovery contract as more optional backend slices become versioned SDK features.
 3. Add extension points only after the host-facing model is stable enough to version safely.
 
@@ -391,7 +395,7 @@ Best next steps:
 
 | Priority | Area | Why |
 |---|---|---|
-| P1 | Land the object/proto inspector contract | This is the current blocker between frontend-ready map shells and the old editor's detail windows. |
+| P1 | Harden object/proto inspector workflows | The pane contracts and first persistence layer are now in place, so the remaining risk is end-to-end apply/save/reopen reliability and preview fidelity. |
 | P1 | Finish the coherent editing core | This keeps the new frontend-bound workflows on one trustworthy undo/apply/save model. |
 | P1 | Harden save/reload/reopen world-edit loops | Frontend work should be able to treat editing as one persistent product flow, not a demo path. |
 | P2 | Improve scene fidelity and media support | Better preview fidelity directly reduces frontend reimplementation pressure. |
@@ -399,22 +403,19 @@ Best next steps:
 | P2 | Broaden dependency navigation | Larger content tooling still needs wider graph and relationship support. |
 | P3 | Define the plugin/host model | This should happen before too many host-specific seams accumulate accidentally. |
 
-## Next 10 Tasks
+## Next Tasks
 
 These are the best concrete tasks to move ArcNET toward a full Arcanum editor SDK:
 
 | Rank | Task | Why now |
 |---|---|---|
-| 1 | Add a first-class selected-object/proto inspector summary | This is the main missing backend seam for the old editor's detail windows. |
-| 2 | Add typed flags and script-attachment pane contracts | These are the most immediate inspector panes the frontend will need once the shell exists. |
-| 3 | Add typed critter level, spells, and skills pane contracts | The underlying character data model already exists, so this is high-leverage frontend unblocker work. |
-| 4 | Add typed light, generator, and blending pane contracts | These panes still need both field modeling and stable staged edit routing. |
-| 5 | Persist deeper world-edit and inspector session state through `EditorProject` / `EditorProjectStore` | Tool, browser, and shell defaults now survive reopen, but richer workflow context still needs to survive across sessions. |
-| 6 | Harden save/reload/reopen coverage for end-to-end world-edit frontend loops | The frontend should be able to trust day-to-day editing and reopen behavior before it grows larger. |
-| 7 | Improve scene-preview object depth/order fidelity | Better scene fidelity lowers frontend complexity immediately. |
-| 8 | Expand repair candidates beyond the current dialog-plus-script practical slice | This remains the clearest path to exceed the legacy editor once frontend-blocking seams are in place. |
-| 9 | Add broader graph traversal and semantic navigation helpers | Asset relationships are already useful but still incomplete. |
-| 10 | Extend capability discovery and define a minimum plugin surface around the new inspector slices | Extensibility should grow on top of the stabilized frontend-facing contract, not ahead of it. |
+| 1 | Harden save/reload/reopen coverage for end-to-end world-edit frontend loops | The frontend should be able to trust day-to-day editing and reopen behavior before it grows larger. |
+| 2 | Improve scene-preview object depth/order fidelity | Better scene fidelity lowers frontend complexity immediately. |
+| 3 | Resolve the remaining raw-property versus object-codec preview mismatches for staged selected-object arrays | The new pane contracts and persisted inspector target layer work, but selected-object preview still has known array-backed edge cases that should stop leaking into workflow tests. |
+| 4 | Expand repair candidates beyond the current dialog-plus-script practical slice | This remains the clearest path to exceed the legacy editor once frontend-blocking seams are in place. |
+| 5 | Add broader graph traversal and semantic navigation helpers | Asset relationships are already useful but still incomplete. |
+| 6 | Extend capability discovery and define a minimum plugin surface around the new inspector slices | Extensibility should grow on top of the stabilized frontend-facing contract, not ahead of it. |
+| 7 | Persist deeper workflow context beyond the current shell and inspector target/pane layer | Richer layout/window/session semantics are still the next persistence leverage point after the new baseline round-trip slice. |
 
 ## Done Definition
 

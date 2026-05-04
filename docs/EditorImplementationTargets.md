@@ -191,26 +191,32 @@ Current progress:
 
 - `EditorWorkspace.FindProto(...)` and object palette entries already expose raw proto-backed reads.
 - `EditorMapObjectSelectionSummary` already gives stable selected-object identity, owning sector paths, and preview metadata.
+- `EditorWorkspace.FindObjectInspectorSummary(...)` and `EditorWorkspaceSession.GetTrackedObjectInspectorSummary(...)` now expose one presentation-neutral selected-object/proto inspector summary, including pane-readiness metadata and staged proto display-name resolution.
+- `EditorWorkspace.FindObjectInspectorFlagsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorFlagsSummary(...)`, `SetTrackedObjectInspectorFlags(...)`, and `SetProtoInspectorFlags(...)` now expose one typed flags contract and staged edit surface above raw `ObjectField` plumbing.
+- `EditorWorkspace.FindObjectInspectorScriptAttachmentsSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorScriptAttachmentsSummary(...)`, and the new set/clear helpers now expose one typed script-attachment contract with missing/unknown-slot reporting for proto and selected-object workflows.
+- `EditorWorkspace.FindObjectInspectorCritterProgressionSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorCritterProgressionSummary(...)`, `SetTrackedObjectInspectorCritterProgression(...)`, and `SetProtoInspectorCritterProgression(...)` now expose one typed critter progression contract and staged edit surface.
+- `EditorWorkspace.FindObjectInspectorLightSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorLightSummary(...)`, `SetTrackedObjectInspectorLight(...)`, and `SetProtoInspectorLight(...)` now expose one typed object-light contract and staged edit surface.
+- `EditorWorkspace.FindObjectInspectorGeneratorSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorGeneratorSummary(...)`, `SetTrackedObjectInspectorGenerator(...)`, and `SetProtoInspectorGenerator(...)` now expose one typed generator contract and staged edit surface.
+- `EditorWorkspace.FindObjectInspectorBlendingSummary(...)`, `EditorWorkspaceSession.GetTrackedObjectInspectorBlendingSummary(...)`, `SetTrackedObjectInspectorBlending(...)`, and `SetProtoInspectorBlending(...)` now expose one typed blending/material contract and staged edit surface.
 - `MobDataBuilder`, `CharacterBuilder`, `CharacterRecord`, and `SectorBuilder` already provide the low-level data/mutation substrate.
 - sector light editing, script asset authoring, and save-backed world-asset persistence already cover adjacent workflows this layer can reuse.
 
 Implementation targets:
 
-- add one host-facing inspector read model for either a selected placed object or a proto definition
-- add one public staged write surface for non-transform object/proto edits
-- project editor panes as typed groups instead of raw fields
-- expose the new inspector slices through capability discovery once stable
+- persist the broader inspector workflow cleanly now that the remaining non-transform object/proto panes have typed contracts
+- harden selected-object preview/apply workflows around the remaining raw-property versus object-codec array mismatches
+- broaden end-to-end save/reopen coverage across the full inspector slice
 
 Per-window backend contract expectations:
 
 | Window | Contract expectation |
 |---|---|
-| Flags | Typed boolean/enum groups by object type, plus set/clear helpers on the selected object or proto. |
-| Script attachments | Typed known attachment points plus set/clear/retarget helpers and validation-friendly missing/unknown-slot reporting. |
-| Light | Keep sector-light list editing separate from object-light properties; both need typed read/write DTOs. |
-| Level, spells, skills | Critter progression summaries and staged update helpers above the existing `CharacterBuilder` / `CharacterRecord` substrate. |
-| Generator | Typed spawn/generator settings, staged edit helpers, and validation. |
-| Blending | Typed blending/material settings plus preview-aware edit helpers. |
+| Flags | Done: typed boolean/enum groups by object type plus `SetTrackedObjectInspectorFlags(...)` / `SetProtoInspectorFlags(...)` now exist. |
+| Script attachments | Done: typed known attachment points plus set/clear/retarget helpers and validation-friendly missing/unknown-slot reporting now exist. |
+| Light | Done: keep sector-light list editing separate from object-light properties; the object-light pane now has typed read/write DTOs and staged helpers. |
+| Level, spells, skills | Done: critter progression summaries and staged update helpers now sit above the existing `CharacterBuilder` / `CharacterRecord` substrate. |
+| Generator | Done: typed spawn/generator settings plus staged edit helpers now exist. |
+| Blending | Done: typed blending/material settings plus staged edit helpers now exist. |
 
 Done when:
 
@@ -338,9 +344,9 @@ These should not displace the targets above:
 
 If the goal is to move toward a full-blown Arcanum editor SDK as quickly as possible, the next slices should be:
 
-1. Land selected-object/proto inspector summaries plus staged edit routing.
-2. Add typed pane contracts for flags, script attachments, critter progression, light, generator, and blending.
-3. Improve scene-preview fidelity and rendering semantics beyond the current shell contract.
-4. Persist deeper world-edit and inspector workflow state through `EditorProject`.
+1. Persist deeper world-edit and inspector workflow state through `EditorProject`.
+2. Improve scene-preview fidelity and rendering semantics beyond the current shell contract.
+3. Resolve the remaining selected-object preview mismatches for array-backed staged inspector edits.
+4. Harden end-to-end inspector apply/save coverage across the now-complete pane contract set.
 
 Those four slices would move ArcNET from "strong editor foundation" toward "front-end-ready editor SDK that can honestly back the old editor's browser and detail windows."
