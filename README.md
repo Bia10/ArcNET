@@ -31,6 +31,8 @@ Span-based, low-allocation, UI-agnostic library APIs — usable from console too
 
 All packages target `net10.0` and are AOT / trim compatible. Runtime dependencies are intentionally small; the shared non-BCL package currently used across the core libraries is `Bia.ValueBuffers` for low-allocation buffer building.
 
+The packable NuGet libraries are intended to remain multiplatform across Windows, Linux, and macOS. Platform-specific tooling such as probes and other local diagnostics is outside that package contract.
+
 Package versions are now explicit per library via `src/ArcNET.PackageVersions.props`. Use `dotnet Build.cs package-version ArcNET.Core` to inspect the current version, then tag `ArcNET.Core-v<that version>` to publish that package. See [docs/NuGetPublishing.md](docs/NuGetPublishing.md) for the local pack and CI publish flow.
 
 The NuGet packages are already consumable, but the overall SDK is still under active construction toward the full modular editor goal described in [docs/EditorSdkRoadmap.md](docs/EditorSdkRoadmap.md). For the concrete near-term build order, use [docs/EditorImplementationTargets.md](docs/EditorImplementationTargets.md).
@@ -122,6 +124,8 @@ dotnet Build.cs pack ArcNET.Core
 ```
 
 Tagging `ArcNET.<Package>-v<semver>` publishes only that package via GitHub Actions. The full release contract is documented in [docs/NuGetPublishing.md](docs/NuGetPublishing.md).
+
+CI validates package packing on Windows, Ubuntu, and macOS for the publishable library projects.
 
 ## Testing
 

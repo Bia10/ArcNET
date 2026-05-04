@@ -10,9 +10,12 @@ Thank you for considering contributing!
    ```shell
    dotnet Build.cs build
    dotnet Build.cs test
+   dotnet Build.cs pack
    dotnet Build.cs format-check
    ```
 4. Open a Pull Request against `main` with a clear description of the change.
+
+Packable NuGet libraries are expected to stay portable across Windows, Linux, and macOS. Probe-style diagnostics and other local tooling are allowed to stay platform-specific, but package-facing code should not drift into a Windows-only contract.
 
 ## Code Style
 

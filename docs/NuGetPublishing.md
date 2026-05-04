@@ -2,6 +2,8 @@
 
 ArcNET is a multi-package repository. Each publishable library now gets its version from the explicit manifest in `src/ArcNET.PackageVersions.props`.
 
+The publishable library packages are expected to stay multiplatform across Windows, Linux, and macOS. Probe-style diagnostics and other local tooling are not part of that NuGet package portability contract.
+
 ## Tag Format
 
 - `ArcNET.Core-v1.2.3`
@@ -45,6 +47,8 @@ dotnet Build.cs pack ArcNET.Editor
 2. GitHub Actions runs `.github/workflows/nuget.yml`.
 3. The workflow resolves the manifest version for the tagged package and fails fast if the tag version does not match `src/ArcNET.PackageVersions.props`.
 4. The workflow restores tools, packs the matching project into `artifacts/nuget`, uploads the `.nupkg` and `.snupkg` artifacts, and pushes them to nuget.org using `NUGET_API_KEY`.
+
+The main CI workflow also validates `dotnet Build.cs pack` on Ubuntu and macOS so the package layer stays portable even when the full repository test matrix remains Windows-first.
 
 ## Notes
 
