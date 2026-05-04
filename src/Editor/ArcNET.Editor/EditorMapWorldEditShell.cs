@@ -6,6 +6,16 @@
 public sealed class EditorMapWorldEditShellRequest
 {
     /// <summary>
+    /// Optional ART resolver used to auto-create one workspace-backed sprite source when <see cref="SpriteSource"/> is not supplied.
+    /// </summary>
+    public EditorArtResolver? ArtResolver { get; init; }
+
+    /// <summary>
+    /// Optional ART-backed sprite source used to enrich shell paintable scene items with packed frames.
+    /// </summary>
+    public IEditorMapRenderSpriteSource? SpriteSource { get; init; }
+
+    /// <summary>
     /// Scene/view preset used for the committed render and tracked placement preview.
     /// </summary>
     public EditorMapSceneViewMode ViewMode { get; init; } = EditorMapSceneViewMode.Isometric;

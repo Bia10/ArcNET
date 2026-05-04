@@ -4028,9 +4028,11 @@ namespace ArcNET.Editor
     public sealed class EditorMapWorldEditShellRequest
     {
         public EditorMapWorldEditShellRequest() { }
+        public ArcNET.Editor.EditorArtResolver? ArtResolver { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }
+        public ArcNET.Editor.IEditorMapRenderSpriteSource? SpriteSource { get; init; }
         public ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
         public double? ViewportHeight { get; init; }
         public double? ViewportWidth { get; init; }
@@ -5193,6 +5195,7 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedCommandSummary> GetStagedCommandSummaries() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedHistoryScope> GetStagedHistoryScopes() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> GetStagedTransactionSummaries() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState> GetToolStates() { }
         public ArcNET.Editor.EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(string mapViewStateId) { }
@@ -5215,6 +5218,7 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> GetValidationRepairCandidates() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(ArcNET.Editor.EditorSessionStagedTransactionSummary stagedTransaction) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> stagedTransactions) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectViewState> GetViewStates() { }
         public ArcNET.Editor.EditorSessionChange? MoveSectorObject(string assetPath, ArcNET.Core.Primitives.GameObjectGuid objectId, int tileX, int tileY) { }
         public ArcNET.Editor.EditorMapObjectBrushResult MoveTrackedSelectedObjects(string mapViewStateId, int deltaTileX, int deltaTileY) { }
         public ArcNET.Editor.EditorProjectOpenAsset OpenAsset(ArcNET.Editor.EditorProjectOpenAsset openAsset) { }
@@ -5245,7 +5249,9 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorSessionChange RemoveSectorObject(string assetPath, ArcNET.Core.Primitives.GameObjectGuid objectId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.GameObjectGuid> RemoveSectorObjects(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups) { }
         public ArcNET.Editor.EditorSessionChange RemoveSectorTileScript(string assetPath, int index) { }
+        public bool RemoveToolState(string toolId, string? scopeId = null) { }
         public bool RemoveTrackedObjectPlacementPreset(string mapViewStateId, string presetId, bool activateTool = false) { }
+        public bool RemoveViewState(string id) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> ReplaceArtReferences(uint sourceArtId, uint targetArtId) { }
         public ArcNET.Editor.EditorSessionChange? ReplaceSectorLight(string assetPath, int index, ArcNET.Formats.SectorLight light) { }
         public ArcNET.Editor.EditorSessionChange? ReplaceSectorTileScript(string assetPath, int index, ArcNET.Formats.TileScript tileScript) { }
@@ -5279,6 +5285,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorSessionChange? SetSectorRoofArt(string assetPath, int roofX, int roofY, uint artId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> SetSectorTileArt(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, uint artId) { }
         public ArcNET.Editor.EditorSessionChange? SetSectorTileArt(string assetPath, int tileX, int tileY, uint artId) { }
+        public ArcNET.Editor.EditorProjectToolState SetToolState(ArcNET.Editor.EditorProjectToolState toolState) { }
         public ArcNET.Editor.EditorProjectMapWorldEditShellState SetTrackedMapWorldEditShellPreferences(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest request) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorBlending(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorBlendingUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorCritterProgression(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorCritterProgressionUpdate update) { }
@@ -5296,6 +5303,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SetTrackedObjectPlacementSet(string mapViewStateId, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, bool activateTool = true) { }
         public ArcNET.Editor.EditorProjectMapTerrainToolState SetTrackedTerrainPaletteEntry(string mapViewStateId, ArcNET.Editor.EditorTerrainPaletteEntry entry, bool activateTool = true) { }
         public ArcNET.Editor.EditorProjectMapTerrainToolState SetTrackedTerrainPaletteEntry(string mapViewStateId, ulong paletteX, ulong paletteY, string? mapPropertiesAssetPath = null, bool activateTool = true) { }
+        public ArcNET.Editor.EditorProjectViewState SetViewState(ArcNET.Editor.EditorProjectViewState viewState) { }
         public ArcNET.Editor.EditorWorkspace Undo() { }
         public ArcNET.Editor.EditorWorkspaceSession UndoDirectAssetChanges() { }
         public ArcNET.Editor.EditorWorkspaceSession UndoStagedChanges() { }

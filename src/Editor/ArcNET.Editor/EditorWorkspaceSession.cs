@@ -2572,6 +2572,8 @@ public sealed class EditorWorkspaceSession
                 RenderRequest = renderRequest,
                 ViewportWidth = effectiveRequest.ViewportWidth,
                 ViewportHeight = effectiveRequest.ViewportHeight,
+                ArtResolver = effectiveRequest.ArtResolver,
+                SpriteSource = effectiveRequest.SpriteSource,
             }
         );
         var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
