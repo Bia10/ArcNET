@@ -22,13 +22,18 @@ jobs:
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7
         with:
           global-json-file: global.json
 
@@ -38,35 +43,82 @@ jobs:
       - name: Build
         run: dotnet build ArcNET.Build.slnx -c Release
 
-      - name: Test (Core)
-        run: dotnet run --project src/Core/ArcNET.Core.Tests -c Release
+      - name: Test
+        run: dotnet Build.cs test
 
-      - name: Test (GameObjects)
-        run: dotnet run --project src/GameObjects/ArcNET.GameObjects.Tests -c Release
+  coverage:
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df
+        with:
+          egress-policy: audit
 
-      - name: Test (Formats)
-        run: dotnet run --project src/Formats/ArcNET.Formats.Tests -c Release
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
 
-      - name: Test (GameData)
-        run: dotnet run --project src/GameData/ArcNET.GameData.Tests -c Release
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7
+        with:
+          global-json-file: global.json
 
-      - name: Test (Archive)
-        run: dotnet run --project src/Archive/ArcNET.Archive.Tests -c Release
+      - name: Restore tools
+        run: dotnet tool restore
 
-      - name: Test (Patch)
-        run: dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
+      - name: Collect coverage
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/TestResults | Out-Null
 
-      - name: Test (DocTest)
-        run: dotnet run --project src/DocTest/ArcNET.DocTest -c Release
+          $coverageRuns = @(
+            @{ Name = 'ArcNET.Core.Tests'; Project = 'src/Core/ArcNET.Core.Tests' }
+            @{ Name = 'ArcNET.GameObjects.Tests'; Project = 'src/GameObjects/ArcNET.GameObjects.Tests' }
+            @{ Name = 'ArcNET.Formats.Tests'; Project = 'src/Formats/ArcNET.Formats.Tests' }
+            @{ Name = 'ArcNET.GameData.Tests'; Project = 'src/GameData/ArcNET.GameData.Tests' }
+            @{ Name = 'ArcNET.Archive.Tests'; Project = 'src/Archive/ArcNET.Archive.Tests' }
+            @{ Name = 'ArcNET.Patch.Tests'; Project = 'src/Patch/ArcNET.Patch.Tests' }
+            @{ Name = 'ArcNET.BinaryPatch.Tests'; Project = 'src/BinaryPatch/ArcNET.BinaryPatch.Tests' }
+            @{ Name = 'ArcNET.Editor.Tests'; Project = 'src/Editor/ArcNET.Editor.Tests' }
+            @{ Name = 'ArcNET.DocTest'; Project = 'src/DocTest/ArcNET.DocTest' }
+          )
+
+          foreach ($coverageRun in $coverageRuns) {
+            dotnet dotnet-coverage collect "dotnet run --project $($coverageRun.Project) -c Release" --output "artifacts/TestResults/$($coverageRun.Name).coverage.cobertura.xml" --output-format cobertura
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: coverage-reports
+          path: artifacts/TestResults/*.coverage.cobertura.xml
+          if-no-files-found: error
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2
+        with:
+          files: artifacts/TestResults/*.coverage.cobertura.xml
+          fail_ci_if_error: true
+          verbose: true
 
   format:
     runs-on: windows-latest
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7
         with:
           global-json-file: global.json
 
