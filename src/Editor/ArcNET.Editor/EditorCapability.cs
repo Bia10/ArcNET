@@ -34,4 +34,11 @@ public enum EditorCapability
     SceneHitTesting = 26,
     ArtPreview = 27,
     AudioPreviewWave = 28,
+    ObjectInspectorSummary = 29,
+    ObjectInspectorFlags = 30,
+    ObjectInspectorScriptAttachments = 31,
+    ObjectInspectorCritterProgression = 32,
+    ObjectInspectorLight = 33,
+    ObjectInspectorGenerator = 34,
+    ObjectInspectorBlending = 35,
 }

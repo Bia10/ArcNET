@@ -19,6 +19,7 @@ namespace ArcNET.Editor;
 [JsonSerializable(typeof(EditorProjectMapSelectionState))]
 [JsonSerializable(typeof(EditorProjectMapPreviewState))]
 [JsonSerializable(typeof(EditorProjectMapWorldEditState))]
+[JsonSerializable(typeof(EditorProjectMapObjectInspectorState))]
 [JsonSerializable(typeof(EditorProjectMapWorldEditShellState))]
 [JsonSerializable(typeof(EditorProjectMapTerrainToolState))]
 [JsonSerializable(typeof(EditorProjectMapObjectPlacementToolState))]

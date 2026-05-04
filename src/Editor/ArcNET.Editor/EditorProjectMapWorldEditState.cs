@@ -24,4 +24,9 @@ public sealed class EditorProjectMapWorldEditState
     /// Persisted host-facing shell preferences for parity-style world-edit composition.
     /// </summary>
     public EditorProjectMapWorldEditShellState Shell { get; init; } = new();
+
+    /// <summary>
+    /// Persisted object-inspector workflow state.
+    /// </summary>
+    public EditorProjectMapObjectInspectorState Inspector { get; init; } = new();
 }

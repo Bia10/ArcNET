@@ -652,10 +652,66 @@ public sealed class EditorWorkspaceSession
     public IReadOnlyList<EditorProjectMapViewState> GetMapViewStates() => [.. _projectMapViewStates];
 
     /// <summary>
+    /// Returns the session's host-defined view-state entries in their current normalized order.
+    /// </summary>
+    public IReadOnlyList<EditorProjectViewState> GetViewStates() => [.. _projectViewStates];
+
+    /// <summary>
+    /// Returns the session's host-defined tool-state entries in their current normalized order.
+    /// </summary>
+    public IReadOnlyList<EditorProjectToolState> GetToolStates() => [.. _projectToolStates];
+
+    /// <summary>
     /// Returns the persisted world-edit workflow state for one tracked map view.
     /// </summary>
     public EditorProjectMapWorldEditState GetMapWorldEditState(string mapViewStateId) =>
         NormalizeProjectMapWorldEditState(ResolveTrackedMapViewState(mapViewStateId).WorldEdit);
+
+    /// <summary>
+    /// Returns the persisted object-inspector workflow state for one tracked map view.
+    /// </summary>
+    public EditorProjectMapObjectInspectorState GetTrackedObjectInspectorState(string mapViewStateId) =>
+        NormalizeProjectMapObjectInspectorState(ResolveTrackedMapViewState(mapViewStateId).WorldEdit.Inspector);
+
+    /// <summary>
+    /// Persists tracked object-inspector state for one map view while preserving the current
+    /// tracked terrain, placement, and shell workflow state.
+    /// </summary>
+    public EditorProjectMapObjectInspectorState SetTrackedObjectInspectorState(
+        string mapViewStateId,
+        EditorProjectMapObjectInspectorState inspectorState
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspectorState);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var worldEditState = NormalizeProjectMapWorldEditState(mapViewState.WorldEdit);
+        var normalizedInspectorState = NormalizeProjectMapObjectInspectorState(inspectorState);
+        if (
+            normalizedInspectorState.TargetMode == EditorProjectMapObjectInspectorTargetMode.ProtoDefinition
+            && normalizedInspectorState.PinnedProtoNumber is int protoNumber
+            && Workspace.Index.FindProtoDefinition(protoNumber) is null
+        )
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' cannot pin object inspector proto {protoNumber} because that proto is not loaded."
+            );
+        }
+
+        _ = SetMapWorldEditState(
+            mapViewStateId,
+            new EditorProjectMapWorldEditState
+            {
+                ActiveTool = worldEditState.ActiveTool,
+                Terrain = worldEditState.Terrain,
+                ObjectPlacement = worldEditState.ObjectPlacement,
+                Shell = worldEditState.Shell,
+                Inspector = normalizedInspectorState,
+            }
+        );
+
+        return normalizedInspectorState;
+    }
 
     /// <summary>
     /// Persists tracked world-edit shell preferences for one map view while preserving the current
@@ -679,6 +735,7 @@ public sealed class EditorWorkspaceSession
                 Terrain = worldEditState.Terrain,
                 ObjectPlacement = worldEditState.ObjectPlacement,
                 Shell = normalizedShellState,
+                Inspector = worldEditState.Inspector,
             }
         );
 
@@ -774,6 +831,7 @@ public sealed class EditorWorkspaceSession
                 Terrain = normalizedTerrainState,
                 ObjectPlacement = worldEditState.ObjectPlacement,
                 Shell = worldEditState.Shell,
+                Inspector = worldEditState.Inspector,
             }
         );
 
@@ -968,9 +1026,33 @@ public sealed class EditorWorkspaceSession
     public EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(string mapViewStateId)
     {
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
-        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
         var selection = mapViewState.Selection;
-        var selectedObjects = ResolveSelectedObjectPreviews(scenePreview, selection);
+        IReadOnlyList<EditorMapObjectPreview> selectedObjects;
+        IReadOnlyList<string> sectorAssetPaths;
+
+        try
+        {
+            var scenePreview = effectiveWorkspace.CreateMapScenePreview(
+                mapViewState.MapName,
+                EditorArtResolverBindingStrategy.Conservative
+            );
+            selectedObjects = ResolveSelectedObjectPreviews(scenePreview, selection);
+            sectorAssetPaths = selectedObjects
+                .Select(candidate => FindSceneObjectSectorAssetPath(scenePreview, candidate.ObjectId))
+                .Where(static assetPath => assetPath is not null)
+                .Select(static assetPath => assetPath!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static assetPath => assetPath, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception) when (CanFallbackTrackedObjectSelectionSummary(selection))
+        {
+            selectedObjects = ResolveSelectedObjectPreviewsWithoutScene(effectiveWorkspace, selection);
+            sectorAssetPaths =
+                selectedObjects.Count == 0 || selection.SectorAssetPath is null ? [] : [selection.SectorAssetPath];
+        }
+
         var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
         var missingObjectIds = explicitSelectedObjectIds
             .Where(selectedObjectId => selectedObjects.All(candidate => candidate.ObjectId != selectedObjectId))
@@ -983,15 +1065,611 @@ public sealed class EditorWorkspaceSession
             Selection = selection,
             SelectedObjects = selectedObjects,
             MissingObjectIds = missingObjectIds,
-            SectorAssetPaths = selectedObjects
-                .Select(candidate => FindSceneObjectSectorAssetPath(scenePreview, candidate.ObjectId))
-                .Where(static assetPath => assetPath is not null)
-                .Select(static assetPath => assetPath!)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static assetPath => assetPath, StringComparer.OrdinalIgnoreCase)
-                .ToArray(),
+            SectorAssetPaths = sectorAssetPaths,
         };
     }
+
+    /// <summary>
+    /// Returns one host-facing object/proto inspector summary for the current persisted selection on one tracked map view.
+    /// The summary reflects the current staged proto/message state for the resolved target.
+    /// </summary>
+    public EditorObjectInspectorSummary GetTrackedObjectInspectorSummary(string mapViewStateId)
+    {
+        var selectionSummary = GetTrackedObjectSelectionSummary(mapViewStateId);
+        var inspectorState = GetTrackedObjectInspectorState(mapViewStateId);
+
+        return CreateTrackedObjectInspectorSummary(selectionSummary, inspectorState);
+    }
+
+    private EditorObjectInspectorSummary CreateTrackedObjectInspectorSummary(
+        EditorMapObjectSelectionSummary selectionSummary,
+        EditorProjectMapObjectInspectorState inspectorState
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selectionSummary);
+        ArgumentNullException.ThrowIfNull(inspectorState);
+
+        if (
+            inspectorState.TargetMode == EditorProjectMapObjectInspectorTargetMode.ProtoDefinition
+            && inspectorState.PinnedProtoNumber is int pinnedProtoNumber
+        )
+        {
+            var pinnedProtoEntry = FindCurrentObjectInspectorProtoEntry(pinnedProtoNumber);
+            if (pinnedProtoEntry is not null)
+            {
+                return new EditorObjectInspectorSummary
+                {
+                    TargetKind = EditorObjectInspectorTargetKind.ProtoDefinition,
+                    SelectionSummary = selectionSummary,
+                    Proto = pinnedProtoEntry,
+                    ProtoNumber = pinnedProtoNumber,
+                    TargetObjectType = pinnedProtoEntry.ObjectType,
+                    Panes = EditorObjectInspectorPaneSummary.CreateList(
+                        EditorObjectInspectorTargetKind.ProtoDefinition,
+                        pinnedProtoEntry.ObjectType
+                    ),
+                };
+            }
+        }
+
+        if (selectionSummary.SelectedObjects.Count == 1)
+        {
+            var selectedObject = selectionSummary.SelectedObjects[0];
+            var protoNumber = selectedObject.ProtoId.GetProtoNumber();
+            var protoEntry = protoNumber.HasValue ? FindCurrentObjectInspectorProtoEntry(protoNumber.Value) : null;
+
+            return new EditorObjectInspectorSummary
+            {
+                TargetKind = EditorObjectInspectorTargetKind.SelectedObject,
+                SelectionSummary = selectionSummary,
+                SelectedObject = selectedObject,
+                Proto = protoEntry,
+                ProtoNumber = protoNumber,
+                TargetObjectType = selectedObject.ObjectType,
+                Panes = EditorObjectInspectorPaneSummary.CreateList(
+                    EditorObjectInspectorTargetKind.SelectedObject,
+                    selectedObject.ObjectType
+                ),
+            };
+        }
+
+        var sharedProtoNumber = TryGetSharedSelectedProtoNumber(selectionSummary.SelectedObjects);
+        if (sharedProtoNumber.HasValue)
+        {
+            var protoEntry = FindCurrentObjectInspectorProtoEntry(sharedProtoNumber.Value);
+            if (protoEntry is not null)
+            {
+                return new EditorObjectInspectorSummary
+                {
+                    TargetKind = EditorObjectInspectorTargetKind.ProtoDefinition,
+                    SelectionSummary = selectionSummary,
+                    Proto = protoEntry,
+                    ProtoNumber = sharedProtoNumber.Value,
+                    TargetObjectType = protoEntry.ObjectType,
+                    Panes = EditorObjectInspectorPaneSummary.CreateList(
+                        EditorObjectInspectorTargetKind.ProtoDefinition,
+                        protoEntry.ObjectType
+                    ),
+                };
+            }
+        }
+
+        return new EditorObjectInspectorSummary
+        {
+            TargetKind = EditorObjectInspectorTargetKind.None,
+            SelectionSummary = selectionSummary,
+            ProtoNumber = sharedProtoNumber,
+            Panes = EditorObjectInspectorPaneSummary.CreateList(EditorObjectInspectorTargetKind.None, null),
+        };
+    }
+
+    /// <summary>
+    /// Returns one typed flags-pane contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(string mapViewStateId)
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorFlagsSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed flags-pane update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorFlags(
+        string mapViewStateId,
+        EditorObjectInspectorFlagsUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        if (!inspector.CanInspect || !inspector.TargetObjectType.HasValue)
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one inspectable object or shared proto target."
+            );
+        }
+
+        var flagUpdates = CollectFlagPropertyUpdates(inspector.TargetObjectType.Value, update);
+        if (flagUpdates.Count == 0)
+            return null;
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyFlagPropertyUpdates(mob, flagUpdates)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyFlagPropertyUpdates(proto, flagUpdates)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed flags-pane update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorFlags(int protoNumber, EditorObjectInspectorFlagsUpdate update)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+        var objectType = GetCurrentProtoAsset(normalizedPath).Header.GameObjectType;
+        var flagUpdates = CollectFlagPropertyUpdates(objectType, update);
+        if (flagUpdates.Count == 0)
+            return null;
+
+        return StageProtoChange(normalizedPath, proto => ApplyFlagPropertyUpdates(proto, flagUpdates));
+    }
+
+    /// <summary>
+    /// Returns one typed critter-progression contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(
+        string mapViewStateId
+    )
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorCritterProgressionSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed critter-progression update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorCritterProgression(
+        string mapViewStateId,
+        EditorObjectInspectorCritterProgressionUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        EnsureCritterProgressionTarget(inspector.TargetObjectType);
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyCritterProgressionUpdate(mob, update)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyCritterProgressionUpdate(proto, update)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed critter-progression update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorCritterProgression(
+        int protoNumber,
+        EditorObjectInspectorCritterProgressionUpdate update
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+        EnsureCritterProgressionTarget(GetCurrentProtoAsset(normalizedPath).Header.GameObjectType);
+
+        return StageProtoChange(normalizedPath, proto => ApplyCritterProgressionUpdate(proto, update));
+    }
+
+    /// <summary>
+    /// Returns one typed light contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorLightSummary GetTrackedObjectInspectorLightSummary(string mapViewStateId)
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorLightSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed light-pane update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorLight(
+        string mapViewStateId,
+        EditorObjectInspectorLightUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        if (!inspector.CanInspect)
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one inspectable object or shared proto target."
+            );
+        }
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyLightUpdate(mob, update)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyLightUpdate(proto, update)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed light-pane update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorLight(int protoNumber, EditorObjectInspectorLightUpdate update)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+
+        return StageProtoChange(normalizedPath, proto => ApplyLightUpdate(proto, update));
+    }
+
+    /// <summary>
+    /// Returns one typed generator contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorGeneratorSummary GetTrackedObjectInspectorGeneratorSummary(string mapViewStateId)
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorGeneratorSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed generator-pane update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorGenerator(
+        string mapViewStateId,
+        EditorObjectInspectorGeneratorUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        EnsureGeneratorTarget(inspector.TargetObjectType);
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyGeneratorUpdate(mob, update)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyGeneratorUpdate(proto, update)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed generator-pane update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorGenerator(int protoNumber, EditorObjectInspectorGeneratorUpdate update)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+        EnsureGeneratorTarget(GetCurrentProtoAsset(normalizedPath).Header.GameObjectType);
+
+        return StageProtoChange(normalizedPath, proto => ApplyGeneratorUpdate(proto, update));
+    }
+
+    /// <summary>
+    /// Returns one typed blending contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(string mapViewStateId)
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorBlendingSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed blending-pane update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorBlending(
+        string mapViewStateId,
+        EditorObjectInspectorBlendingUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        if (!inspector.CanInspect)
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one inspectable object or shared proto target."
+            );
+        }
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyBlendingUpdate(mob, update)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyBlendingUpdate(proto, update)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed blending-pane update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorBlending(int protoNumber, EditorObjectInspectorBlendingUpdate update)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+
+        return StageProtoChange(normalizedPath, proto => ApplyBlendingUpdate(proto, update));
+    }
+
+    /// <summary>
+    /// Returns one typed script-attachments contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object/proto and script-editor state.
+    /// </summary>
+    public EditorObjectInspectorScriptAttachmentsSummary GetTrackedObjectInspectorScriptAttachmentsSummary(
+        string mapViewStateId
+    )
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorScriptAttachmentsSummary(inspector);
+    }
+
+    private EditorObjectInspectorFlagsSummary CreateTrackedObjectInspectorFlagsSummary(
+        EditorObjectInspectorSummary inspector
+    ) => EditorObjectInspectorFlagsSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
+
+    private EditorObjectInspectorCritterProgressionSummary CreateTrackedObjectInspectorCritterProgressionSummary(
+        EditorObjectInspectorSummary inspector
+    ) =>
+        EditorObjectInspectorCritterProgressionSummary.Create(
+            inspector,
+            GetCurrentTrackedObjectInspectorProperties(inspector)
+        );
+
+    private EditorObjectInspectorLightSummary CreateTrackedObjectInspectorLightSummary(
+        EditorObjectInspectorSummary inspector
+    ) => EditorObjectInspectorLightSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
+
+    private EditorObjectInspectorGeneratorSummary CreateTrackedObjectInspectorGeneratorSummary(
+        EditorObjectInspectorSummary inspector
+    ) => EditorObjectInspectorGeneratorSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
+
+    private EditorObjectInspectorBlendingSummary CreateTrackedObjectInspectorBlendingSummary(
+        EditorObjectInspectorSummary inspector
+    ) => EditorObjectInspectorBlendingSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
+
+    private EditorObjectInspectorScriptAttachmentsSummary CreateTrackedObjectInspectorScriptAttachmentsSummary(
+        EditorObjectInspectorSummary inspector
+    ) =>
+        EditorObjectInspectorScriptAttachmentsSummary.Create(
+            inspector,
+            GetCurrentTrackedObjectInspectorProperties(inspector),
+            CreateCurrentObjectInspectorScriptReference
+        );
+
+    private IReadOnlyList<ObjectProperty> GetCurrentTrackedObjectInspectorProperties(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                GetCurrentTrackedSelectedInspectorObject(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject
+                ).Properties,
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => GetCurrentProtoAsset(
+                inspector.Proto.Asset.AssetPath
+            ).Properties,
+            _ => [],
+        };
+    }
+
+    /// <summary>
+    /// Stages one known script attachment point on the current persisted inspector target for one tracked map view.
+    /// Returns <see langword="null"/> when the requested slot already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorScriptAttachment(
+        string mapViewStateId,
+        ScriptAttachmentPoint attachmentPoint,
+        int scriptId,
+        uint flags = 0,
+        uint counters = 0
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scriptId);
+
+        return SetTrackedObjectInspectorScriptAttachment(
+            mapViewStateId,
+            (int)attachmentPoint,
+            new ObjectPropertyScript(flags, counters, scriptId)
+        );
+    }
+
+    /// <summary>
+    /// Clears one known script attachment point on the current persisted inspector target for one tracked map view.
+    /// Returns <see langword="null"/> when the slot is already empty.
+    /// </summary>
+    public EditorSessionChange? ClearTrackedObjectInspectorScriptAttachment(
+        string mapViewStateId,
+        ScriptAttachmentPoint attachmentPoint
+    ) => SetTrackedObjectInspectorScriptAttachment(mapViewStateId, (int)attachmentPoint, default);
+
+    /// <summary>
+    /// Stages one known script attachment point on the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested slot already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorScriptAttachment(
+        int protoNumber,
+        ScriptAttachmentPoint attachmentPoint,
+        int scriptId,
+        uint flags = 0,
+        uint counters = 0
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scriptId);
+
+        return SetProtoInspectorScriptAttachment(
+            protoNumber,
+            (int)attachmentPoint,
+            new ObjectPropertyScript(flags, counters, scriptId)
+        );
+    }
+
+    /// <summary>
+    /// Clears one known script attachment point on the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the slot is already empty.
+    /// </summary>
+    public EditorSessionChange? ClearProtoInspectorScriptAttachment(
+        int protoNumber,
+        ScriptAttachmentPoint attachmentPoint
+    ) => SetProtoInspectorScriptAttachment(protoNumber, (int)attachmentPoint, default);
 
     /// <summary>
     /// Tracks one single-placement request as the active object-placement tool state for one map view.
@@ -1598,6 +2276,46 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Adds or replaces one host-defined project view-state entry by its stable identifier.
+    /// </summary>
+    public EditorProjectViewState SetViewState(EditorProjectViewState viewState)
+    {
+        var normalizedViewState = NormalizeProjectViewState(viewState);
+        var updatedViewStates = _projectViewStates.ToList();
+        var existingIndex = updatedViewStates.FindIndex(existing =>
+            string.Equals(existing.Id, normalizedViewState.Id, StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (existingIndex >= 0)
+            updatedViewStates[existingIndex] = normalizedViewState;
+        else
+            updatedViewStates.Add(normalizedViewState);
+
+        _projectViewStates = [.. updatedViewStates];
+        return normalizedViewState;
+    }
+
+    /// <summary>
+    /// Adds or replaces one host-defined project tool-state entry by its tool and scope identity.
+    /// </summary>
+    public EditorProjectToolState SetToolState(EditorProjectToolState toolState)
+    {
+        var normalizedToolState = NormalizeProjectToolState(toolState);
+        var updatedToolStates = _projectToolStates.ToList();
+        var existingIndex = updatedToolStates.FindIndex(existing =>
+            ProjectToolStateMatches(existing, normalizedToolState)
+        );
+
+        if (existingIndex >= 0)
+            updatedToolStates[existingIndex] = normalizedToolState;
+        else
+            updatedToolStates.Add(normalizedToolState);
+
+        _projectToolStates = [.. updatedToolStates];
+        return normalizedToolState;
+    }
+
+    /// <summary>
     /// Adds or replaces the typed world-edit workflow state for one tracked map-view entry.
     /// </summary>
     public EditorProjectMapWorldEditState SetMapWorldEditState(
@@ -1643,6 +2361,42 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Removes one host-defined project view-state entry by its stable identifier.
+    /// </summary>
+    public bool RemoveViewState(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+        var updatedViewStates = _projectViewStates
+            .Where(existing => !string.Equals(existing.Id, id.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (updatedViewStates.Length == _projectViewStates.Count)
+            return false;
+
+        _projectViewStates = updatedViewStates;
+        return true;
+    }
+
+    /// <summary>
+    /// Removes one host-defined project tool-state entry by its tool and scope identity.
+    /// </summary>
+    public bool RemoveToolState(string toolId, string? scopeId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolId);
+
+        var normalizedToolId = toolId.Trim();
+        var normalizedScopeId = NormalizeOptionalText(scopeId);
+        var updatedToolStates = _projectToolStates
+            .Where(existing => !ProjectToolStateMatches(existing, normalizedToolId, normalizedScopeId))
+            .ToArray();
+        if (updatedToolStates.Length == _projectToolStates.Count)
+            return false;
+
+        _projectToolStates = updatedToolStates;
+        return true;
+    }
+
+    /// <summary>
     /// Builds one render-ready committed scene preview from a typed map-view state.
     /// The returned render respects the map-view preview visibility flags and includes staged session changes.
     /// </summary>
@@ -1652,7 +2406,7 @@ public sealed class EditorWorkspaceSession
     )
     {
         var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
-        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState.MapName);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState);
         var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
         return EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest);
     }
@@ -1821,6 +2575,9 @@ public sealed class EditorWorkspaceSession
             }
         );
         var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
+        var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
+        var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
+        var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
 
         return new EditorMapWorldEditShell
         {
@@ -1842,7 +2599,15 @@ public sealed class EditorWorkspaceSession
                 effectiveRequest.ObjectPaletteSearchText,
                 effectiveRequest.ObjectPaletteCategory
             ),
-            ObjectSelection = GetTrackedObjectSelectionSummary(mapViewStateId),
+            ObjectSelection = objectSelection,
+            ObjectInspectorState = objectInspectorState,
+            ObjectInspector = objectInspector,
+            ObjectInspectorFlags = CreateTrackedObjectInspectorFlagsSummary(objectInspector),
+            ObjectInspectorScriptAttachments = CreateTrackedObjectInspectorScriptAttachmentsSummary(objectInspector),
+            ObjectInspectorCritterProgression = CreateTrackedObjectInspectorCritterProgressionSummary(objectInspector),
+            ObjectInspectorLight = CreateTrackedObjectInspectorLightSummary(objectInspector),
+            ObjectInspectorGenerator = CreateTrackedObjectInspectorGeneratorSummary(objectInspector),
+            ObjectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(objectInspector),
         };
     }
 
@@ -3896,6 +4661,7 @@ public sealed class EditorWorkspaceSession
                 Terrain = worldEditState.Terrain,
                 ObjectPlacement = normalizedObjectPlacementState,
                 Shell = worldEditState.Shell,
+                Inspector = worldEditState.Inspector,
             }
         );
 
@@ -4022,6 +4788,88 @@ public sealed class EditorWorkspaceSession
     {
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
         return effectiveWorkspace.CreateMapScenePreview(mapName, EditorArtResolverBindingStrategy.Conservative);
+    }
+
+    private EditorMapScenePreview CreateEffectiveMapScenePreview(EditorProjectMapViewState mapViewState)
+    {
+        ArgumentNullException.ThrowIfNull(mapViewState);
+
+        try
+        {
+            return CreateEffectiveMapScenePreview(mapViewState.MapName);
+        }
+        catch (Exception) when (CanFallbackTrackedObjectSelectionSummary(mapViewState.Selection))
+        {
+            return CreateEffectiveMapScenePreviewWithoutSelectedObject(mapViewState.MapName, mapViewState.Selection);
+        }
+    }
+
+    private EditorMapScenePreview CreateEffectiveMapScenePreviewWithoutSelectedObject(
+        string mapName,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
+        var projection =
+            effectiveWorkspace.Index.FindMapProjection(mapName)
+            ?? throw new InvalidOperationException($"No indexed map projection matched '{mapName}'.");
+        var artResolver = effectiveWorkspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+        var sectorsByAssetPath = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sectorProjection in projection.Sectors)
+        {
+            var assetPath = sectorProjection.Asset.AssetPath;
+            var sector =
+                effectiveWorkspace.FindSector(assetPath)
+                ?? throw new InvalidOperationException(
+                    $"No loaded sector payload matched '{assetPath}' for map '{mapName}'."
+                );
+
+            sectorsByAssetPath[assetPath] = string.Equals(
+                assetPath,
+                selection.SectorAssetPath,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? CreateSceneFallbackSectorWithoutSelectedObject(sector, selection)
+                : sector;
+        }
+
+        return EditorMapScenePreviewBuilder.Build(projection, sectorsByAssetPath, artResolver.FindArt);
+    }
+
+    private static Sector CreateSceneFallbackSectorWithoutSelectedObject(
+        Sector sector,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sector);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.ObjectId is not { } selectedObjectId)
+            return sector;
+
+        var filteredObjects = sector.Objects.Where(obj => obj.Header.ObjectId != selectedObjectId).ToArray();
+        if (filteredObjects.Length == sector.Objects.Count)
+            return sector;
+
+        return new Sector
+        {
+            Lights = sector.Lights,
+            Tiles = sector.Tiles,
+            HasRoofs = sector.HasRoofs,
+            Roofs = sector.Roofs,
+            SectorScript = sector.SectorScript,
+            TileScripts = sector.TileScripts,
+            TownmapInfo = sector.TownmapInfo,
+            AptitudeAdjustment = sector.AptitudeAdjustment,
+            LightSchemeIdx = sector.LightSchemeIdx,
+            SoundList = sector.SoundList,
+            BlockMask = sector.BlockMask,
+            Objects = filteredObjects,
+        };
     }
 
     private static EditorProjectMapCameraState CreateCenteredTileCamera(EditorMapScenePreview scenePreview)
@@ -6600,20 +7448,23 @@ public sealed class EditorWorkspaceSession
 
         var normalizedViewStates = new EditorProjectViewState[viewStates.Count];
         for (var i = 0; i < viewStates.Count; i++)
-        {
-            var viewState = viewStates[i];
-            ArgumentNullException.ThrowIfNull(viewState);
-
-            normalizedViewStates[i] = new EditorProjectViewState
-            {
-                Id = viewState.Id,
-                AssetPath = NormalizeOptionalAssetPath(viewState.AssetPath),
-                ViewId = viewState.ViewId,
-                Properties = viewState.Properties,
-            };
-        }
+            normalizedViewStates[i] = NormalizeProjectViewState(viewStates[i]);
 
         return normalizedViewStates;
+    }
+
+    private static EditorProjectViewState NormalizeProjectViewState(EditorProjectViewState viewState)
+    {
+        ArgumentNullException.ThrowIfNull(viewState);
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewState.Id);
+
+        return new EditorProjectViewState
+        {
+            Id = viewState.Id.Trim(),
+            AssetPath = NormalizeOptionalAssetPath(viewState.AssetPath),
+            ViewId = NormalizeOptionalText(viewState.ViewId),
+            Properties = viewState.Properties ?? new Dictionary<string, string?>(),
+        };
     }
 
     private static IReadOnlyList<EditorProjectMapViewState> NormalizeProjectMapViewStates(
@@ -6689,12 +7540,39 @@ public sealed class EditorWorkspaceSession
         var terrain = NormalizeProjectMapTerrainToolState(worldEditState?.Terrain);
         var objectPlacement = NormalizeProjectMapObjectPlacementToolState(worldEditState?.ObjectPlacement);
         var shell = NormalizeProjectMapWorldEditShellState(worldEditState?.Shell);
+        var inspector = NormalizeProjectMapObjectInspectorState(worldEditState?.Inspector);
         return new EditorProjectMapWorldEditState
         {
             ActiveTool = worldEditState?.ActiveTool ?? EditorProjectMapWorldEditActiveTool.None,
             Terrain = terrain,
             ObjectPlacement = objectPlacement,
             Shell = shell,
+            Inspector = inspector,
+        };
+    }
+
+    private static EditorProjectMapObjectInspectorState NormalizeProjectMapObjectInspectorState(
+        EditorProjectMapObjectInspectorState? inspectorState
+    )
+    {
+        var targetMode = inspectorState?.TargetMode ?? EditorProjectMapObjectInspectorTargetMode.Selection;
+        var pinnedProtoNumber = inspectorState?.PinnedProtoNumber > 0 ? inspectorState.PinnedProtoNumber : null;
+        var activePane =
+            inspectorState is not null && Enum.IsDefined(typeof(EditorObjectInspectorPane), inspectorState.ActivePane)
+                ? inspectorState.ActivePane
+                : EditorObjectInspectorPane.Overview;
+
+        if (targetMode == EditorProjectMapObjectInspectorTargetMode.ProtoDefinition && pinnedProtoNumber is null)
+        {
+            targetMode = EditorProjectMapObjectInspectorTargetMode.Selection;
+        }
+
+        return new EditorProjectMapObjectInspectorState
+        {
+            TargetMode = targetMode,
+            PinnedProtoNumber =
+                targetMode == EditorProjectMapObjectInspectorTargetMode.ProtoDefinition ? pinnedProtoNumber : null,
+            ActivePane = activePane,
         };
     }
 
@@ -6823,20 +7701,30 @@ public sealed class EditorWorkspaceSession
 
         var normalizedToolStates = new EditorProjectToolState[toolStates.Count];
         for (var i = 0; i < toolStates.Count; i++)
-        {
-            var toolState = toolStates[i];
-            ArgumentNullException.ThrowIfNull(toolState);
-
-            normalizedToolStates[i] = new EditorProjectToolState
-            {
-                ToolId = toolState.ToolId,
-                ScopeId = toolState.ScopeId,
-                Properties = toolState.Properties,
-            };
-        }
+            normalizedToolStates[i] = NormalizeProjectToolState(toolStates[i]);
 
         return normalizedToolStates;
     }
+
+    private static EditorProjectToolState NormalizeProjectToolState(EditorProjectToolState toolState)
+    {
+        ArgumentNullException.ThrowIfNull(toolState);
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolState.ToolId);
+
+        return new EditorProjectToolState
+        {
+            ToolId = toolState.ToolId.Trim(),
+            ScopeId = NormalizeOptionalText(toolState.ScopeId),
+            Properties = toolState.Properties ?? new Dictionary<string, string?>(),
+        };
+    }
+
+    private static bool ProjectToolStateMatches(EditorProjectToolState left, EditorProjectToolState right) =>
+        ProjectToolStateMatches(left, right.ToolId, right.ScopeId);
+
+    private static bool ProjectToolStateMatches(EditorProjectToolState toolState, string toolId, string? scopeId) =>
+        string.Equals(toolState.ToolId, toolId, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(toolState.ScopeId, scopeId, StringComparison.OrdinalIgnoreCase);
 
     private static string? NormalizeOptionalAssetPath(string? assetPath) =>
         string.IsNullOrWhiteSpace(assetPath) ? null : NormalizeAssetPath(assetPath);
@@ -7606,6 +8494,72 @@ public sealed class EditorWorkspaceSession
                 .ToArray();
     }
 
+    private static bool CanFallbackTrackedObjectSelectionSummary(EditorProjectMapSelectionState selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        return selection.Area is null
+            && selection.SectorAssetPath is not null
+            && selection.Tile is not null
+            && selection.GetSelectedObjectIds().Count > 0;
+    }
+
+    private static IReadOnlyList<EditorMapObjectPreview> ResolveSelectedObjectPreviewsWithoutScene(
+        EditorWorkspace workspace,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.SectorAssetPath is null || selection.Tile is null)
+            return [];
+
+        var sector = workspace.FindSector(selection.SectorAssetPath);
+        if (sector is null)
+            return [];
+
+        var tile = selection.Tile.Value;
+        var selectedObjectIds = selection.GetSelectedObjectIds();
+        return selectedObjectIds.Count == 0
+            ? []
+            : sector
+                .Objects.Where(candidate =>
+                    candidate.GetProperty(ObjectField.ObjFLocation)?.GetLocation() == (tile.X, tile.Y)
+                    && selectedObjectIds.Contains(candidate.Header.ObjectId)
+                )
+                .Select(CreateFallbackObjectPreview)
+                .ToArray();
+    }
+
+    private static EditorMapObjectPreview CreateFallbackObjectPreview(MobData mob)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+
+        Location? location = null;
+        if (mob.GetProperty(ObjectField.ObjFLocation) is { } locationProperty)
+        {
+            var (tileX, tileY) = locationProperty.GetLocation();
+            location = new Location(checked((short)tileX), checked((short)tileY));
+        }
+
+        return new EditorMapObjectPreview
+        {
+            ObjectId = mob.Header.ObjectId,
+            ProtoId = mob.Header.ProtoId,
+            ObjectType = mob.Header.GameObjectType,
+            CurrentArtId = new ArtId((uint)(mob.GetProperty(ObjectField.ObjFCurrentAid)?.GetInt32() ?? 0)),
+            Location = location,
+            OffsetX = mob.GetProperty(ObjectField.ObjFOffsetX)?.GetInt32() ?? 0,
+            OffsetY = mob.GetProperty(ObjectField.ObjFOffsetY)?.GetInt32() ?? 0,
+            OffsetZ = mob.GetProperty(ObjectField.ObjFOffsetZ)?.GetFloat() ?? 0f,
+            CollisionHeight = mob.GetProperty(ObjectField.ObjFHeight)?.GetFloat() ?? 0f,
+            SpriteBounds = null,
+            Rotation = mob.GetProperty(ObjectField.ObjFPadIas1)?.GetFloat() ?? 0f,
+            RotationPitch = mob.GetProperty(ObjectField.ObjFRotationPitch)?.GetFloat() ?? 0f,
+        };
+    }
+
     private static string? FindSceneObjectSectorAssetPath(EditorMapScenePreview scenePreview, GameObjectGuid objectId)
     {
         ArgumentNullException.ThrowIfNull(scenePreview);
@@ -7720,6 +8674,1099 @@ public sealed class EditorWorkspaceSession
             return pendingMessage;
 
         return Workspace.FindMessageFile(normalizedPath) ?? new MesFile { Entries = [] };
+    }
+
+    private EditorObjectPaletteEntry? FindCurrentObjectInspectorProtoEntry(int protoNumber)
+    {
+        var asset = Workspace.Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return null;
+
+        return CreateCurrentObjectInspectorProtoEntry(asset, GetCurrentProtoAsset(asset.AssetPath), protoNumber);
+    }
+
+    private EditorObjectPaletteEntry CreateCurrentObjectInspectorProtoEntry(
+        EditorAssetEntry asset,
+        ProtoData proto,
+        int protoNumber
+    )
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(proto);
+
+        var nameMessageIndex = proto.GetProperty(ObjectField.ObjFName)?.GetInt32();
+        var descriptionMessageIndex = proto.GetProperty(ObjectField.ObjFDescription)?.GetInt32();
+        var currentArtIdValue = proto.GetProperty(ObjectField.ObjFCurrentAid)?.GetInt32();
+        ArtId? currentArtId = currentArtIdValue.HasValue ? new ArtId(unchecked((uint)currentArtIdValue.Value)) : null;
+
+        return new EditorObjectPaletteEntry
+        {
+            Asset = asset,
+            ProtoNumber = protoNumber,
+            ObjectType = proto.Header.GameObjectType,
+            PaletteGroup = GetObjectPaletteGroup(asset.AssetPath),
+            DisplayName = ResolveCurrentProtoDisplayName(protoNumber),
+            NameMessageIndex = nameMessageIndex,
+            DescriptionMessageIndex = descriptionMessageIndex,
+            Description = ResolveCurrentMessageText(descriptionMessageIndex),
+            CurrentArtId = currentArtId,
+        };
+    }
+
+    private string? ResolveCurrentProtoDisplayName(int protoNumber)
+    {
+        foreach (var messageIndex in EnumerateProtoDisplayNameKeys(protoNumber))
+        {
+            var overrideText = TryGetCurrentMessageText("oemes/oname.mes", messageIndex);
+            if (!string.IsNullOrWhiteSpace(overrideText))
+                return overrideText;
+
+            var descriptionText = TryGetCurrentMessageText("mes/description.mes", messageIndex);
+            if (!string.IsNullOrWhiteSpace(descriptionText))
+                return descriptionText;
+        }
+
+        return null;
+    }
+
+    private string? ResolveCurrentMessageText(int? messageIndex)
+    {
+        if (!messageIndex.HasValue)
+            return null;
+
+        var inspectedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var assets = Workspace.Index.FindMessageAssets(messageIndex.Value);
+        for (var assetIndex = 0; assetIndex < assets.Count; assetIndex++)
+        {
+            var assetPath = assets[assetIndex].AssetPath;
+            if (!inspectedAssets.Add(assetPath))
+                continue;
+
+            var text = TryGetCurrentMessageText(assetPath, messageIndex.Value);
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
+
+        foreach (var fallbackAssetPath in new[] { "mes/description.mes", "oemes/oname.mes" })
+        {
+            if (!inspectedAssets.Add(fallbackAssetPath))
+                continue;
+
+            var text = TryGetCurrentMessageText(fallbackAssetPath, messageIndex.Value);
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
+
+        return null;
+    }
+
+    private string? TryGetCurrentMessageText(string assetPath, int messageIndex)
+    {
+        var messageFile = GetCurrentMessageAssetOrEmpty(assetPath);
+        for (var entryIndex = 0; entryIndex < messageFile.Entries.Count; entryIndex++)
+        {
+            var entry = messageFile.Entries[entryIndex];
+            if (entry.Index == messageIndex)
+                return entry.Text;
+        }
+
+        return null;
+    }
+
+    private IEnumerable<int> EnumerateProtoDisplayNameKeys(int protoNumber)
+    {
+        if (Workspace.InstallationType.HasValue)
+        {
+            var translatedKey = ArcanumInstallation.ToVanillaProtoId(protoNumber, Workspace.InstallationType.Value);
+            if (translatedKey > 0 && translatedKey != protoNumber)
+                yield return translatedKey;
+        }
+
+        yield return protoNumber;
+    }
+
+    private static int? TryGetSharedSelectedProtoNumber(IReadOnlyList<EditorMapObjectPreview> selectedObjects)
+    {
+        if (selectedObjects.Count == 0)
+            return null;
+
+        var protoNumber = selectedObjects[0].ProtoId.GetProtoNumber();
+        if (!protoNumber.HasValue || protoNumber.Value <= 0)
+            return null;
+
+        for (var selectedObjectIndex = 1; selectedObjectIndex < selectedObjects.Count; selectedObjectIndex++)
+        {
+            if (selectedObjects[selectedObjectIndex].ProtoId.GetProtoNumber() != protoNumber)
+                return null;
+        }
+
+        return protoNumber;
+    }
+
+    private static string? GetObjectPaletteGroup(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        if (!normalizedPath.StartsWith("proto/", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var groupPath = Path.GetDirectoryName(normalizedPath[("proto/".Length)..]);
+        if (string.IsNullOrWhiteSpace(groupPath))
+            return null;
+
+        return groupPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
+    private EditorObjectInspectorScriptReference? CreateCurrentObjectInspectorScriptReference(int scriptId)
+    {
+        if (scriptId <= 0)
+            return null;
+
+        var asset = Workspace.Index.FindScriptDefinition(scriptId);
+        if (asset is null)
+            return null;
+
+        return EditorObjectInspectorScriptReference.Create(asset, GetCurrentScriptAsset(asset.AssetPath), scriptId);
+    }
+
+    private static IReadOnlyList<(ObjectField Field, int Value)> CollectFlagPropertyUpdates(
+        ObjectType objectType,
+        EditorObjectInspectorFlagsUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updates = new List<(ObjectField Field, int Value)>(capacity: 12);
+        var isItemLike =
+            objectType
+            is ObjectType.Weapon
+                or ObjectType.Ammo
+                or ObjectType.Armor
+                or ObjectType.Gold
+                or ObjectType.Food
+                or ObjectType.Scroll
+                or ObjectType.Key
+                or ObjectType.KeyRing
+                or ObjectType.Written
+                or ObjectType.Generic;
+        var isCritter = objectType is ObjectType.Pc or ObjectType.Npc;
+
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFFlags,
+            update.ObjectFlags,
+            applicable: true,
+            nameof(update.ObjectFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFSpellFlags,
+            update.SpellFlags,
+            applicable: true,
+            nameof(update.SpellFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFWallFlags,
+            update.WallFlags,
+            objectType is ObjectType.Wall,
+            nameof(update.WallFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFPortalFlags,
+            update.PortalFlags,
+            objectType is ObjectType.Portal,
+            nameof(update.PortalFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFContainerFlags,
+            update.ContainerFlags,
+            objectType is ObjectType.Container,
+            nameof(update.ContainerFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFSceneryFlags,
+            update.SceneryFlags,
+            objectType is ObjectType.Scenery,
+            nameof(update.SceneryFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFProjectileFlagsCombat,
+            update.ProjectileCombatFlags,
+            objectType is ObjectType.Projectile,
+            nameof(update.ProjectileCombatFlags)
+        );
+        AppendFlagUpdate(updates, ObjectField.ObjFItemFlags, update.ItemFlags, isItemLike, nameof(update.ItemFlags));
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFWeaponFlags,
+            update.WeaponFlags,
+            objectType is ObjectType.Weapon,
+            nameof(update.WeaponFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFAmmoFlags,
+            update.AmmoFlags,
+            objectType is ObjectType.Ammo,
+            nameof(update.AmmoFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFArmorFlags,
+            update.ArmorFlags,
+            objectType is ObjectType.Armor,
+            nameof(update.ArmorFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFGoldFlags,
+            update.GoldFlags,
+            objectType is ObjectType.Gold,
+            nameof(update.GoldFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFFoodFlags,
+            update.FoodFlags,
+            objectType is ObjectType.Food,
+            nameof(update.FoodFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFScrollFlags,
+            update.ScrollFlags,
+            objectType is ObjectType.Scroll,
+            nameof(update.ScrollFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFKeyRingFlags,
+            update.KeyRingFlags,
+            objectType is ObjectType.KeyRing,
+            nameof(update.KeyRingFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFWrittenFlags,
+            update.WrittenFlags,
+            objectType is ObjectType.Written,
+            nameof(update.WrittenFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFGenericFlags,
+            update.GenericFlags,
+            objectType is ObjectType.Generic,
+            nameof(update.GenericFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFCritterFlags,
+            update.CritterFlags,
+            isCritter,
+            nameof(update.CritterFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFCritterFlags2,
+            update.CritterFlags2,
+            isCritter,
+            nameof(update.CritterFlags2)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFPcFlags,
+            update.PcFlags,
+            objectType is ObjectType.Pc,
+            nameof(update.PcFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFNpcFlags,
+            update.NpcFlags,
+            objectType is ObjectType.Npc,
+            nameof(update.NpcFlags)
+        );
+        AppendFlagUpdate(
+            updates,
+            ObjectField.ObjFTrapFlags,
+            update.TrapFlags,
+            objectType is ObjectType.Trap,
+            nameof(update.TrapFlags)
+        );
+
+        return updates;
+    }
+
+    private static void AppendFlagUpdate<TEnum>(
+        List<(ObjectField Field, int Value)> updates,
+        ObjectField field,
+        TEnum? value,
+        bool applicable,
+        string groupName
+    )
+        where TEnum : struct, Enum
+    {
+        if (!value.HasValue)
+            return;
+
+        EnsureApplicableFlagGroup(applicable, groupName);
+        updates.Add((field, unchecked((int)Convert.ToUInt32(value.Value))));
+    }
+
+    private static void AppendFlagUpdate(
+        List<(ObjectField Field, int Value)> updates,
+        ObjectField field,
+        int? value,
+        bool applicable,
+        string groupName
+    )
+    {
+        if (!value.HasValue)
+            return;
+
+        EnsureApplicableFlagGroup(applicable, groupName);
+        updates.Add((field, value.Value));
+    }
+
+    private static void EnsureApplicableFlagGroup(bool applicable, string groupName)
+    {
+        if (!applicable)
+            throw new InvalidOperationException(
+                $"Flags group '{groupName}' does not apply to the current inspector target."
+            );
+    }
+
+    private static void EnsureCritterProgressionTarget(ObjectType? objectType)
+    {
+        if (objectType is not ObjectType.Pc and not ObjectType.Npc)
+            throw new InvalidOperationException("Critter progression only applies to Pc and Npc inspector targets.");
+    }
+
+    private static ProtoData? ApplyFlagPropertyUpdates(
+        ProtoData proto,
+        IReadOnlyList<(ObjectField Field, int Value)> flagUpdates
+    )
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(flagUpdates);
+
+        var updated = proto;
+        var changed = false;
+
+        for (var updateIndex = 0; updateIndex < flagUpdates.Count; updateIndex++)
+        {
+            var (field, value) = flagUpdates[updateIndex];
+            var currentValue = updated.GetProperty(field)?.GetInt32() ?? 0;
+            if (currentValue == value)
+                continue;
+
+            updated =
+                value == 0
+                    ? updated.WithoutProperty(field)
+                    : updated.WithProperty(ObjectPropertyFactory.ForInt32(field, value));
+            changed = true;
+        }
+
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyFlagPropertyUpdates(
+        MobData mob,
+        IReadOnlyList<(ObjectField Field, int Value)> flagUpdates
+    )
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(flagUpdates);
+
+        var updated = mob;
+        var changed = false;
+
+        for (var updateIndex = 0; updateIndex < flagUpdates.Count; updateIndex++)
+        {
+            var (field, value) = flagUpdates[updateIndex];
+            var currentValue = updated.GetProperty(field)?.GetInt32() ?? 0;
+            if (currentValue == value)
+                continue;
+
+            updated =
+                value == 0
+                    ? updated.WithoutProperty(field)
+                    : updated.WithProperty(ObjectPropertyFactory.ForInt32(field, value));
+            changed = true;
+        }
+
+        return changed ? updated : null;
+    }
+
+    private static ProtoData? ApplyCritterProgressionUpdate(
+        ProtoData proto,
+        EditorObjectInspectorCritterProgressionUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = proto;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatiguePts, update.FatiguePoints);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatigueAdj, update.FatigueAdjustment);
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterStatBaseIdx,
+            28,
+            CreateCritterBaseStatProgressionUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterBasicSkillIdx,
+            12,
+            CreateCritterBasicSkillUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterTechSkillIdx,
+            4,
+            CreateCritterTechSkillUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterSpellTechIdx,
+            25,
+            CreateCritterSpellTechUpdates(update)
+        );
+
+        return changed ? updated : null;
+    }
+
+    private static ProtoData? ApplyLightUpdate(ProtoData proto, EditorObjectInspectorLightUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = proto;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFLightFlags, update.LightFlags);
+        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.ObjFLightAid, update.LightArtId);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFLightColor, update.LightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyWholeInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFOverlayLightAid,
+            update.OverlayLightArtIds
+        );
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightColor, update.OverlayLightColor);
+
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyLightUpdate(MobData mob, EditorObjectInspectorLightUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = mob;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFLightFlags, update.LightFlags);
+        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.ObjFLightAid, update.LightArtId);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFLightColor, update.LightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyWholeInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFOverlayLightAid,
+            update.OverlayLightArtIds
+        );
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightColor, update.OverlayLightColor);
+
+        return changed ? updated : null;
+    }
+
+    private static ProtoData? ApplyGeneratorUpdate(ProtoData proto, EditorObjectInspectorGeneratorUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = proto;
+        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFNpcGeneratorData, update.GeneratorData);
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyGeneratorUpdate(MobData mob, EditorObjectInspectorGeneratorUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = mob;
+        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFNpcGeneratorData, update.GeneratorData);
+        return changed ? updated : null;
+    }
+
+    private static ProtoData? ApplyBlendingUpdate(ProtoData proto, EditorObjectInspectorBlendingUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = proto;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(
+            ref updated,
+            ObjectField.ObjFBlitFlags,
+            update.BlitFlags.HasValue ? unchecked((int)update.BlitFlags.Value) : null
+        );
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFBlitColor, update.BlitColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitAlpha, update.BlitAlpha);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitScale, update.BlitScale);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFMaterial, update.Material);
+
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyBlendingUpdate(MobData mob, EditorObjectInspectorBlendingUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = mob;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(
+            ref updated,
+            ObjectField.ObjFBlitFlags,
+            update.BlitFlags.HasValue ? unchecked((int)update.BlitFlags.Value) : null
+        );
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFBlitColor, update.BlitColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitAlpha, update.BlitAlpha);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitScale, update.BlitScale);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFMaterial, update.Material);
+
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyCritterProgressionUpdate(
+        MobData mob,
+        EditorObjectInspectorCritterProgressionUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = mob;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatiguePts, update.FatiguePoints);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatigueAdj, update.FatigueAdjustment);
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterStatBaseIdx,
+            28,
+            CreateCritterBaseStatProgressionUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterBasicSkillIdx,
+            12,
+            CreateCritterBasicSkillUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterTechSkillIdx,
+            4,
+            CreateCritterTechSkillUpdates(update)
+        );
+        changed |= ApplyInt32ArrayPropertyUpdate(
+            ref updated,
+            ObjectField.ObjFCritterSpellTechIdx,
+            25,
+            CreateCritterSpellTechUpdates(update)
+        );
+
+        return changed ? updated : null;
+    }
+
+    private static IReadOnlyList<(int Index, int? Value)> CreateCritterBaseStatProgressionUpdates(
+        EditorObjectInspectorCritterProgressionUpdate update
+    ) =>
+        [
+            (17, update.Level),
+            (18, update.ExperiencePoints),
+            (19, update.Alignment),
+            (20, update.FatePoints),
+            (21, update.UnspentPoints),
+            (22, update.MagickPoints),
+            (23, update.TechPoints),
+            (24, update.PoisonLevel),
+            (25, update.Age),
+            (26, update.Gender),
+            (27, update.Race),
+        ];
+
+    private static IReadOnlyList<(int Index, int? Value)> CreateCritterBasicSkillUpdates(
+        EditorObjectInspectorCritterProgressionUpdate update
+    ) =>
+        [
+            (0, update.SkillBow),
+            (1, update.SkillDodge),
+            (2, update.SkillMelee),
+            (3, update.SkillThrowing),
+            (4, update.SkillBackstab),
+            (5, update.SkillPickPocket),
+            (6, update.SkillProwling),
+            (7, update.SkillSpotTrap),
+            (8, update.SkillGambling),
+            (9, update.SkillHaggle),
+            (10, update.SkillHeal),
+            (11, update.SkillPersuasion),
+        ];
+
+    private static IReadOnlyList<(int Index, int? Value)> CreateCritterTechSkillUpdates(
+        EditorObjectInspectorCritterProgressionUpdate update
+    ) => [(0, update.SkillRepair), (1, update.SkillFirearms), (2, update.SkillPickLocks), (3, update.SkillDisarmTraps)];
+
+    private static IReadOnlyList<(int Index, int? Value)> CreateCritterSpellTechUpdates(
+        EditorObjectInspectorCritterProgressionUpdate update
+    ) =>
+        [
+            (0, update.SpellConveyance),
+            (1, update.SpellDivination),
+            (2, update.SpellAir),
+            (3, update.SpellEarth),
+            (4, update.SpellFire),
+            (5, update.SpellWater),
+            (6, update.SpellForce),
+            (7, update.SpellMental),
+            (8, update.SpellMeta),
+            (9, update.SpellMorph),
+            (10, update.SpellNature),
+            (11, update.SpellNecroBlack),
+            (12, update.SpellNecroWhite),
+            (13, update.SpellPhantasm),
+            (14, update.SpellSummoning),
+            (15, update.SpellTemporal),
+            (16, update.SpellMastery),
+            (17, update.TechHerbology),
+            (18, update.TechChemistry),
+            (19, update.TechElectric),
+            (20, update.TechExplosives),
+            (21, update.TechGun),
+            (22, update.TechMechanical),
+            (23, update.TechSmithy),
+            (24, update.TechTherapeutics),
+        ];
+
+    private static void EnsureGeneratorTarget(ObjectType? objectType)
+    {
+        if (objectType is ObjectType.Npc)
+            return;
+
+        throw new InvalidOperationException("Generator settings only apply to Npc targets.");
+    }
+
+    private static bool ApplyInt32PropertyUpdate(ref ProtoData proto, ObjectField field, int? value)
+    {
+        if (!value.HasValue)
+            return false;
+
+        var currentValue = proto.GetProperty(field)?.GetInt32() ?? 0;
+        if (currentValue == value.Value)
+            return false;
+
+        proto =
+            value.Value == 0
+                ? proto.WithoutProperty(field)
+                : proto.WithProperty(ObjectPropertyFactory.ForInt32(field, value.Value));
+        return true;
+    }
+
+    private static bool ApplyInt32PropertyUpdate(ref MobData mob, ObjectField field, int? value)
+    {
+        if (!value.HasValue)
+            return false;
+
+        var currentValue = mob.GetProperty(field)?.GetInt32() ?? 0;
+        if (currentValue == value.Value)
+            return false;
+
+        mob =
+            value.Value == 0
+                ? mob.WithoutProperty(field)
+                : mob.WithProperty(ObjectPropertyFactory.ForInt32(field, value.Value));
+        return true;
+    }
+
+    private static bool ApplyArtIdPropertyUpdate(ref ProtoData proto, ObjectField field, ArtId? value) =>
+        ApplyInt32PropertyUpdate(ref proto, field, value.HasValue ? unchecked((int)value.Value.Value) : null);
+
+    private static bool ApplyArtIdPropertyUpdate(ref MobData mob, ObjectField field, ArtId? value) =>
+        ApplyInt32PropertyUpdate(ref mob, field, value.HasValue ? unchecked((int)value.Value.Value) : null);
+
+    private static bool ApplyColorPropertyUpdate(ref ProtoData proto, ObjectField field, Color? value)
+    {
+        if (!value.HasValue)
+            return false;
+
+        var currentValue = ReadColorProperty(proto.GetProperty(field));
+        if (currentValue == value.Value)
+            return false;
+
+        proto =
+            value.Value == default
+                ? proto.WithoutProperty(field)
+                : proto.WithProperty(CreateColorProperty(field, value.Value));
+        return true;
+    }
+
+    private static bool ApplyColorPropertyUpdate(ref MobData mob, ObjectField field, Color? value)
+    {
+        if (!value.HasValue)
+            return false;
+
+        var currentValue = ReadColorProperty(mob.GetProperty(field));
+        if (currentValue == value.Value)
+            return false;
+
+        mob =
+            value.Value == default
+                ? mob.WithoutProperty(field)
+                : mob.WithProperty(CreateColorProperty(field, value.Value));
+        return true;
+    }
+
+    private static bool ApplyInt32ArrayPropertyUpdate(
+        ref ProtoData proto,
+        ObjectField field,
+        int minimumLength,
+        IReadOnlyList<(int Index, int? Value)> updates
+    )
+    {
+        var updatedValues = CreateUpdatedInt32Array(proto.GetProperty(field), minimumLength, updates);
+        if (updatedValues is null)
+            return false;
+
+        proto =
+            updatedValues.Length == 0
+                ? proto.WithoutProperty(field)
+                : proto.WithProperty(CreateInt32ArrayProperty(proto.GetProperty(field), field, updatedValues));
+        return true;
+    }
+
+    private static bool ApplyInt32ArrayPropertyUpdate(
+        ref MobData mob,
+        ObjectField field,
+        int minimumLength,
+        IReadOnlyList<(int Index, int? Value)> updates
+    )
+    {
+        var updatedValues = CreateUpdatedInt32Array(mob.GetProperty(field), minimumLength, updates);
+        if (updatedValues is null)
+            return false;
+
+        mob =
+            updatedValues.Length == 0
+                ? mob.WithoutProperty(field)
+                : mob.WithProperty(CreateInt32ArrayProperty(mob.GetProperty(field), field, updatedValues));
+        return true;
+    }
+
+    private static bool ApplyWholeInt32ArrayPropertyUpdate(
+        ref ProtoData proto,
+        ObjectField field,
+        IReadOnlyList<int>? values
+    )
+    {
+        if (values is null)
+            return false;
+
+        var updatedValues = values.ToArray();
+        var currentValues = proto.GetProperty(field)?.GetInt32Array() ?? [];
+        if (currentValues.AsSpan().SequenceEqual(updatedValues))
+            return false;
+
+        proto =
+            updatedValues.Length == 0
+                ? proto.WithoutProperty(field)
+                : proto.WithProperty(CreateInt32ArrayProperty(proto.GetProperty(field), field, updatedValues));
+        return true;
+    }
+
+    private static bool ApplyWholeInt32ArrayPropertyUpdate(
+        ref MobData mob,
+        ObjectField field,
+        IReadOnlyList<int>? values
+    )
+    {
+        if (values is null)
+            return false;
+
+        var updatedValues = values.ToArray();
+        var currentValues = mob.GetProperty(field)?.GetInt32Array() ?? [];
+        if (currentValues.AsSpan().SequenceEqual(updatedValues))
+            return false;
+
+        mob =
+            updatedValues.Length == 0
+                ? mob.WithoutProperty(field)
+                : mob.WithProperty(CreateInt32ArrayProperty(mob.GetProperty(field), field, updatedValues));
+        return true;
+    }
+
+    private static int[]? CreateUpdatedInt32Array(
+        ObjectProperty? currentProperty,
+        int minimumLength,
+        IReadOnlyList<(int Index, int? Value)> updates
+    )
+    {
+        var hasAnyUpdates = false;
+        for (var updateIndex = 0; updateIndex < updates.Count; updateIndex++)
+        {
+            if (updates[updateIndex].Value.HasValue)
+            {
+                hasAnyUpdates = true;
+                break;
+            }
+        }
+
+        if (!hasAnyUpdates)
+            return null;
+
+        var currentValues = currentProperty?.GetInt32Array() ?? [];
+        var updatedValues = new int[Math.Max(currentValues.Length, minimumLength)];
+        currentValues.CopyTo(updatedValues, 0);
+
+        for (var updateIndex = 0; updateIndex < updates.Count; updateIndex++)
+        {
+            var (index, value) = updates[updateIndex];
+            if (!value.HasValue)
+                continue;
+
+            updatedValues[index] = value.Value;
+        }
+
+        if (currentValues.Length == updatedValues.Length && currentValues.AsSpan().SequenceEqual(updatedValues))
+            return null;
+
+        return updatedValues.All(static value => value == 0) ? [] : updatedValues;
+    }
+
+    private static ObjectProperty CreateInt32ArrayProperty(
+        ObjectProperty? currentProperty,
+        ObjectField field,
+        ReadOnlySpan<int> values
+    ) => (currentProperty ?? new ObjectProperty { Field = field, RawBytes = [0] }).WithInt32Array(values);
+
+    private static Color ReadColorProperty(ObjectProperty? property)
+    {
+        if (property is null || property.RawBytes.Length < 3)
+            return default;
+
+        return new Color(property.RawBytes[0], property.RawBytes[1], property.RawBytes[2]);
+    }
+
+    private static ObjectProperty CreateColorProperty(ObjectField field, Color value) =>
+        new() { Field = field, RawBytes = [value.R, value.G, value.B] };
+
+    private EditorSessionChange? SetTrackedObjectInspectorScriptAttachment(
+        string mapViewStateId,
+        int slotIndex,
+        ObjectPropertyScript attachment
+    )
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        if (!inspector.CanInspect)
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one inspectable object or shared proto target."
+            );
+        }
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyScriptAttachmentUpdate(mob, slotIndex, attachment)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyScriptAttachmentUpdate(proto, slotIndex, attachment)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    private EditorSessionChange? SetProtoInspectorScriptAttachment(
+        int protoNumber,
+        int slotIndex,
+        ObjectPropertyScript attachment
+    )
+    {
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+
+        return StageProtoChange(
+            NormalizeAssetPath(protoAsset.AssetPath),
+            proto => ApplyScriptAttachmentUpdate(proto, slotIndex, attachment)
+        );
+    }
+
+    private static ProtoData? ApplyScriptAttachmentUpdate(
+        ProtoData proto,
+        int slotIndex,
+        ObjectPropertyScript attachment
+    )
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+
+        var currentProperty = proto.GetProperty(ObjectField.ObjFScriptsIdx);
+        var updatedScripts = CreateUpdatedScriptAttachments(currentProperty, slotIndex, attachment);
+        if (updatedScripts is null)
+            return null;
+
+        return updatedScripts.Length == 0
+            ? proto.WithoutProperty(ObjectField.ObjFScriptsIdx)
+            : proto.WithProperty(CreateScriptArrayProperty(currentProperty, updatedScripts));
+    }
+
+    private static MobData? ApplyScriptAttachmentUpdate(MobData mob, int slotIndex, ObjectPropertyScript attachment)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+
+        var currentProperty = mob.GetProperty(ObjectField.ObjFScriptsIdx);
+        var updatedScripts = CreateUpdatedScriptAttachments(currentProperty, slotIndex, attachment);
+        if (updatedScripts is null)
+            return null;
+
+        return updatedScripts.Length == 0
+            ? mob.WithoutProperty(ObjectField.ObjFScriptsIdx)
+            : mob.WithProperty(CreateScriptArrayProperty(currentProperty, updatedScripts));
+    }
+
+    private static ObjectPropertyScript[]? CreateUpdatedScriptAttachments(
+        ObjectProperty? currentProperty,
+        int slotIndex,
+        ObjectPropertyScript attachment
+    )
+    {
+        if (slotIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(slotIndex),
+                slotIndex,
+                "Script attachment slot indexes must be non-negative."
+            );
+        }
+
+        var currentScripts = currentProperty?.GetScriptArray() ?? [];
+        var updatedScripts = UpsertScriptAttachment(currentScripts, slotIndex, attachment);
+        return currentScripts.AsSpan().SequenceEqual(updatedScripts) ? null : updatedScripts;
+    }
+
+    private static ObjectProperty CreateScriptArrayProperty(
+        ObjectProperty? currentProperty,
+        ReadOnlySpan<ObjectPropertyScript> scripts
+    )
+    {
+        if (scripts.Length == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(scripts),
+                scripts.Length,
+                "Script attachment properties must contain at least one slot when materialized."
+            );
+        }
+
+        return (
+            currentProperty ?? new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }
+        ).WithScriptArray(scripts);
+    }
+
+    private static ObjectPropertyScript[] UpsertScriptAttachment(
+        ReadOnlySpan<ObjectPropertyScript> currentScripts,
+        int slotIndex,
+        ObjectPropertyScript attachment
+    )
+    {
+        var updatedScripts = new ObjectPropertyScript[Math.Max(currentScripts.Length, slotIndex + 1)];
+        currentScripts.CopyTo(updatedScripts);
+        updatedScripts[slotIndex] = attachment;
+
+        var trimLength = updatedScripts.Length;
+        while (trimLength > 0 && IsEmptyScriptAttachment(updatedScripts[trimLength - 1]))
+            trimLength--;
+
+        return trimLength == updatedScripts.Length ? updatedScripts : updatedScripts[..trimLength];
+    }
+
+    private static bool IsEmptyScriptAttachment(ObjectPropertyScript attachment) =>
+        attachment.ScriptId == 0 && attachment.Flags == 0 && attachment.Counters == 0;
+
+    private MobData GetCurrentTrackedSelectedInspectorObject(
+        EditorMapObjectSelectionSummary selectionSummary,
+        EditorMapObjectPreview selectedObject
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selectionSummary);
+        ArgumentNullException.ThrowIfNull(selectedObject);
+
+        var sectorAssetPath = ResolveTrackedSelectedInspectorSectorAssetPath(selectionSummary);
+        var sector = GetCurrentSectorAsset(sectorAssetPath);
+        var objectIndex = FindSectorObjectIndex(sector, sectorAssetPath, selectedObject.ObjectId);
+        return sector.Objects[objectIndex];
+    }
+
+    private EditorSessionChange? StageTrackedSelectedInspectorObjectChange(
+        EditorMapObjectSelectionSummary selectionSummary,
+        EditorMapObjectPreview selectedObject,
+        Func<MobData, MobData?> update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selectionSummary);
+        ArgumentNullException.ThrowIfNull(selectedObject);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var sectorAssetPath = ResolveTrackedSelectedInspectorSectorAssetPath(selectionSummary);
+        return StageSectorChange(
+            sectorAssetPath,
+            sector =>
+            {
+                var objectIndex = FindSectorObjectIndex(sector, sectorAssetPath, selectedObject.ObjectId);
+                var updatedObject = update(sector.Objects[objectIndex]);
+                return updatedObject is null
+                    ? null
+                    : new SectorBuilder(sector).ReplaceObject(objectIndex, updatedObject).Build();
+            }
+        );
+    }
+
+    private static string ResolveTrackedSelectedInspectorSectorAssetPath(
+        EditorMapObjectSelectionSummary selectionSummary
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selectionSummary);
+
+        if (!string.IsNullOrWhiteSpace(selectionSummary.Selection.SectorAssetPath))
+            return selectionSummary.Selection.SectorAssetPath;
+
+        if (selectionSummary.SectorAssetPaths.Count == 1)
+            return selectionSummary.SectorAssetPaths[0];
+
+        throw new InvalidOperationException(
+            $"Tracked map view '{selectionSummary.MapViewStateId}' does not currently resolve to exactly one sector asset for the selected inspector object."
+        );
     }
 
     private EditorSessionChange ApplyDirectAssetProtoReferenceRepair(string assetPath, int sourceProtoNumber)
@@ -7879,6 +9926,21 @@ public sealed class EditorWorkspaceSession
         IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
             ? new(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase)
             : new(StringComparer.OrdinalIgnoreCase);
+
+    private EditorSessionChange? StageProtoChange(string normalizedPath, Func<ProtoData, ProtoData?> update) =>
+        TrackDirectAssetEdit(
+            () =>
+            {
+                var currentProto = GetCurrentProtoAsset(normalizedPath);
+                var updatedProto = update(currentProto);
+                if (updatedProto is null)
+                    return null;
+
+                _pendingProtoAssets[normalizedPath] = updatedProto;
+                return CreateDirectAssetChange(normalizedPath, FileFormat.Proto);
+            },
+            static change => change is not null
+        );
 
     private EditorSessionChange? StageSectorChange(string normalizedPath, Func<Sector, Sector?> update) =>
         TrackDirectAssetEdit(

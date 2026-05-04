@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Request used when composing one opinionated tracked world-edit shell for a host map editor.
@@ -103,6 +103,46 @@ public sealed class EditorMapWorldEditShell
     /// Tracked selected-object summary for the shell.
     /// </summary>
     public required EditorMapObjectSelectionSummary ObjectSelection { get; init; }
+
+    /// <summary>
+    /// Persisted inspector workflow state for the tracked map view.
+    /// </summary>
+    public required EditorProjectMapObjectInspectorState ObjectInspectorState { get; init; }
+
+    /// <summary>
+    /// Tracked object/proto inspector summary for the shell.
+    /// </summary>
+    public required EditorObjectInspectorSummary ObjectInspector { get; init; }
+
+    /// <summary>
+    /// Typed flags-pane contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorFlagsSummary ObjectInspectorFlags { get; init; }
+
+    /// <summary>
+    /// Typed script-attachments contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorScriptAttachmentsSummary ObjectInspectorScriptAttachments { get; init; }
+
+    /// <summary>
+    /// Typed critter-progression contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorCritterProgressionSummary ObjectInspectorCritterProgression { get; init; }
+
+    /// <summary>
+    /// Typed light contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorLightSummary ObjectInspectorLight { get; init; }
+
+    /// <summary>
+    /// Typed generator contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorGeneratorSummary ObjectInspectorGenerator { get; init; }
+
+    /// <summary>
+    /// Typed blending contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorBlendingSummary ObjectInspectorBlending { get; init; }
 
     /// <summary>
     /// Returns <see langword="true"/> when the shell includes one live tracked placement preview overlay.

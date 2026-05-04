@@ -33,6 +33,13 @@ public sealed class EditorCapabilitySummary
         EditorCapability.ObjectPaletteBrowsing,
         EditorCapability.ObjectPlacement,
         EditorCapability.TrackedObjectPlacementWorkflow,
+        EditorCapability.ObjectInspectorSummary,
+        EditorCapability.ObjectInspectorFlags,
+        EditorCapability.ObjectInspectorScriptAttachments,
+        EditorCapability.ObjectInspectorCritterProgression,
+        EditorCapability.ObjectInspectorLight,
+        EditorCapability.ObjectInspectorGenerator,
+        EditorCapability.ObjectInspectorBlending,
         EditorCapability.ObjectTransformEditing,
         EditorCapability.SectorLightEditing,
         EditorCapability.SectorTileScriptEditing,
@@ -113,7 +120,16 @@ public sealed class EditorCapabilitySummary
             available.Add(EditorCapability.TerrainPaletteBrowsing);
 
         if (HasAssets(workspace, FileFormat.Proto))
+        {
             available.Add(EditorCapability.ObjectPaletteBrowsing);
+            available.Add(EditorCapability.ObjectInspectorSummary);
+            available.Add(EditorCapability.ObjectInspectorFlags);
+            available.Add(EditorCapability.ObjectInspectorScriptAttachments);
+            available.Add(EditorCapability.ObjectInspectorCritterProgression);
+            available.Add(EditorCapability.ObjectInspectorLight);
+            available.Add(EditorCapability.ObjectInspectorGenerator);
+            available.Add(EditorCapability.ObjectInspectorBlending);
+        }
 
         if (HasAssets(workspace, FileFormat.Art))
             available.Add(EditorCapability.ArtPreview);

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -308,6 +308,126 @@ public sealed class EditorWorkspace
     }
 
     /// <summary>
+    /// Looks up one host-facing object/proto inspector summary by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorSummary? FindObjectInspectorSummary(int protoNumber)
+    {
+        var asset = Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return null;
+
+        var proto = FindProto(asset.AssetPath);
+        if (proto is null)
+            return null;
+
+        var entry = CreateObjectPaletteEntry(asset, proto, protoNumber);
+        return new EditorObjectInspectorSummary
+        {
+            TargetKind = EditorObjectInspectorTargetKind.ProtoDefinition,
+            Proto = entry,
+            ProtoNumber = protoNumber,
+            TargetObjectType = entry.ObjectType,
+            Panes = EditorObjectInspectorPaneSummary.CreateList(
+                EditorObjectInspectorTargetKind.ProtoDefinition,
+                entry.ObjectType
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Looks up one typed flags-pane inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorFlagsSummary? FindObjectInspectorFlagsSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null ? null : EditorObjectInspectorFlagsSummary.Create(inspector, proto.Properties);
+    }
+
+    /// <summary>
+    /// Looks up one typed critter-progression inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorCritterProgressionSummary? FindObjectInspectorCritterProgressionSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null
+            ? null
+            : EditorObjectInspectorCritterProgressionSummary.Create(inspector, proto.Properties);
+    }
+
+    /// <summary>
+    /// Looks up one typed light-pane inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorLightSummary? FindObjectInspectorLightSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null ? null : EditorObjectInspectorLightSummary.Create(inspector, proto.Properties);
+    }
+
+    /// <summary>
+    /// Looks up one typed generator-pane inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorGeneratorSummary? FindObjectInspectorGeneratorSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null ? null : EditorObjectInspectorGeneratorSummary.Create(inspector, proto.Properties);
+    }
+
+    /// <summary>
+    /// Looks up one typed blending-pane inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorBlendingSummary? FindObjectInspectorBlendingSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null ? null : EditorObjectInspectorBlendingSummary.Create(inspector, proto.Properties);
+    }
+
+    /// <summary>
+    /// Looks up one typed script-attachments inspector contract by proto number.
+    /// Returns <see langword="null"/> when no matching proto asset was loaded.
+    /// </summary>
+    public EditorObjectInspectorScriptAttachmentsSummary? FindObjectInspectorScriptAttachmentsSummary(int protoNumber)
+    {
+        var inspector = FindObjectInspectorSummary(protoNumber);
+        if (inspector?.Proto is null)
+            return null;
+
+        var proto = FindProto(inspector.Proto.Asset.AssetPath);
+        return proto is null
+            ? null
+            : EditorObjectInspectorScriptAttachmentsSummary.Create(
+                inspector,
+                proto.Properties,
+                CreateObjectInspectorScriptReference
+            );
+    }
+
+    /// <summary>
     /// Looks up one proto-backed object palette entry by proto number and resolves optional ART bindings.
     /// Returns <see langword="null"/> when no matching proto asset was loaded.
     /// </summary>
@@ -411,6 +531,19 @@ public sealed class EditorWorkspace
     public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
         EditorArtResolverBindingStrategy artBindingStrategy
     ) => GetObjectPalette(CreateArtResolver(artBindingStrategy));
+
+    private EditorObjectInspectorScriptReference? CreateObjectInspectorScriptReference(int scriptId)
+    {
+        if (scriptId <= 0)
+            return null;
+
+        var asset = Index.FindScriptDefinition(scriptId);
+        if (asset is null)
+            return null;
+
+        var script = FindScript(asset.AssetPath);
+        return script is null ? null : EditorObjectInspectorScriptReference.Create(asset, script, scriptId);
+    }
 
     /// <summary>
     /// Returns all loaded proto-backed object palette entries in stable browser order and enriches bound entries with
