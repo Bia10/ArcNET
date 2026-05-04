@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -245,4 +245,46 @@ public sealed class EditorMapScenePreviewBuilderTests
         await Assert.That(preview.Objects[0].SpriteBounds!.MaxFrameCenterX).IsEqualTo(4);
         await Assert.That(preview.Objects[0].SpriteBounds!.MaxFrameCenterY).IsEqualTo(8);
     }
+
+    [Test]
+    public async Task BuildObjectPreview_ProjectsNpcProperties_WhenNpcCarriesFollowerArrayField()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 3, Guid.NewGuid());
+        var artId = new ArtId(0x01020304u);
+        var mob = CreateEmptyMob(ObjectType.Npc, objectId, MakeProtoId(1))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)artId.Value)))
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 10, 11))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 3))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 4))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFOffsetZ, 5.5f))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFHeight, 6.5f))
+            .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.ObjFCritterFollowerIdx));
+
+        var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);
+
+        await Assert.That(preview.ObjectId).IsEqualTo(objectId);
+        await Assert.That(preview.ProtoId).IsEqualTo(MakeProtoId(1));
+        await Assert.That(preview.ObjectType).IsEqualTo(ObjectType.Npc);
+        await Assert.That(preview.CurrentArtId).IsEqualTo(artId);
+        await Assert.That(preview.Location).IsEqualTo(new Location(10, 11));
+        await Assert.That(preview.OffsetX).IsEqualTo(3);
+        await Assert.That(preview.OffsetY).IsEqualTo(4);
+        await Assert.That(preview.OffsetZ).IsEqualTo(5.5f);
+        await Assert.That(preview.CollisionHeight).IsEqualTo(6.5f);
+    }
+
+    private static MobData CreateEmptyMob(ObjectType objectType, GameObjectGuid objectId, GameObjectGuid protoId) =>
+        new()
+        {
+            Header = new GameObjectHeader
+            {
+                Version = 0x08,
+                ProtoId = protoId,
+                ObjectId = objectId,
+                GameObjectType = objectType,
+                PropCollectionItems = 0,
+                Bitmap = new byte[ObjectFieldBitmapSize.For(objectType)],
+            },
+            Properties = [],
+        };
 }

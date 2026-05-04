@@ -260,6 +260,138 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task Build_Isometric_PreservesPreviewOrderForEqualDepthStackedObjects()
+    {
+        var firstObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 99, Guid.NewGuid());
+        var secondObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[(63 * 64) + 0] = 100u;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_a.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = tileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects =
+                    [
+                        new EditorMapObjectPreview
+                        {
+                            ObjectId = firstObjectId,
+                            ProtoId = protoId,
+                            ObjectType = ObjectType.Pc,
+                            CurrentArtId = new ArtId(0x01020304u),
+                            Location = new Location(0, 63),
+                            RotationPitch = 0f,
+                        },
+                        new EditorMapObjectPreview
+                        {
+                            ObjectId = secondObjectId,
+                            ProtoId = protoId,
+                            ObjectType = ObjectType.Npc,
+                            CurrentArtId = new ArtId(0x05060708u),
+                            Location = new Location(0, 63),
+                            RotationPitch = 0f,
+                        },
+                    ],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].ObjectId).IsEqualTo(firstObjectId);
+        await Assert.That(preview.Objects[1].ObjectId).IsEqualTo(secondObjectId);
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(3);
+        await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(firstObjectId);
+        await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(secondObjectId);
+    }
+
+    [Test]
+    public async Task Build_Isometric_PrefersCollisionHeightBeforePreviewOrderForEqualDepthStackedObjects()
+    {
+        var tallerObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 199, Guid.NewGuid());
+        var shorterObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 299, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[(63 * 64) + 0] = 100u;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_a.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = tileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects =
+                    [
+                        new EditorMapObjectPreview
+                        {
+                            ObjectId = tallerObjectId,
+                            ProtoId = protoId,
+                            ObjectType = ObjectType.Pc,
+                            CurrentArtId = new ArtId(0x01020304u),
+                            Location = new Location(0, 63),
+                            CollisionHeight = 32f,
+                            RotationPitch = 0f,
+                        },
+                        new EditorMapObjectPreview
+                        {
+                            ObjectId = shorterObjectId,
+                            ProtoId = protoId,
+                            ObjectType = ObjectType.Npc,
+                            CurrentArtId = new ArtId(0x05060708u),
+                            Location = new Location(0, 63),
+                            CollisionHeight = 8f,
+                            RotationPitch = 0f,
+                        },
+                    ],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].ObjectId).IsEqualTo(shorterObjectId);
+        await Assert.That(preview.Objects[1].ObjectId).IsEqualTo(tallerObjectId);
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(3);
+        await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(shorterObjectId);
+        await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(tallerObjectId);
+    }
+
+    [Test]
     public async Task Build_Isometric_ProjectsRoofCellsIntoUnifiedRenderQueue()
     {
         var tileArtIds = new uint[64 * 64];

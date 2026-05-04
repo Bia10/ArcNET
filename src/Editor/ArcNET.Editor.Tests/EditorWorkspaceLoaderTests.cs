@@ -83,8 +83,26 @@ public class EditorWorkspaceLoaderTests
             .. scriptIds.Select(scriptId => new ObjectPropertyScript(0u, 0u, scriptId)),
         ]);
 
+    private static ObjectProperty MakeScriptProperty(params (int SlotIndex, int ScriptId)[] attachments)
+    {
+        if (attachments.Length == 0)
+            return new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray([]);
+
+        var scripts = new ObjectPropertyScript[attachments.Max(static attachment => attachment.SlotIndex) + 1];
+        for (var attachmentIndex = 0; attachmentIndex < attachments.Length; attachmentIndex++)
+        {
+            var attachment = attachments[attachmentIndex];
+            scripts[attachment.SlotIndex] = new ObjectPropertyScript(0u, 0u, attachment.ScriptId);
+        }
+
+        return new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray(scripts);
+    }
+
     private static ObjectProperty MakeArtProperty(ObjectField field, uint artId) =>
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));
+
+    private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
+        new() { Field = field, RawBytes = [r, g, b] };
 
     private static MobData WithProperties(MobData mob, params ObjectProperty[] properties)
     {
@@ -138,9 +156,34 @@ public class EditorWorkspaceLoaderTests
             .Build();
     }
 
+    private static MobData MakeNpc(int protoNumber = 1)
+    {
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        return new CharacterBuilder(ObjectType.Npc, objectId, protoId).WithHitPoints(80).Build();
+    }
+
     private static ProtoData MakeProto(int protoNumber)
     {
         var mob = MakePc(protoNumber);
+        return new ProtoData
+        {
+            Header = new GameObjectHeader
+            {
+                Version = mob.Header.Version,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                GameObjectType = mob.Header.GameObjectType,
+                PropCollectionItems = 0,
+                Bitmap = [.. mob.Header.Bitmap],
+            },
+            Properties = [.. mob.Properties],
+        };
+    }
+
+    private static ProtoData MakeNpcProto(int protoNumber)
+    {
+        var mob = MakeNpc(protoNumber);
         return new ProtoData
         {
             Header = new GameObjectHeader
@@ -1401,6 +1444,333 @@ public class EditorWorkspaceLoaderTests
         finally
         {
             Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorSummary_BuildsProtoInspectorContract()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "mes"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile
+                {
+                    Entries =
+                    [
+                        new MessageEntry(protoNumber, "Inspector proto"),
+                        new MessageEntry(10, "Inspector description"),
+                    ],
+                },
+                Path.Combine(contentDir, "mes", "description.mes")
+            );
+
+            var proto = WithProperties(
+                MakeProto(protoNumber),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFName, 20),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFDescription, 10)
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - Inspector.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var inspector = workspace.FindObjectInspectorSummary(protoNumber);
+
+            await Assert.That(inspector).IsNotNull();
+            await Assert.That(inspector!.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(inspector.CanInspect).IsTrue();
+            await Assert.That(inspector.HasSelectionContext).IsFalse();
+            await Assert.That(inspector.HasSelectedObject).IsFalse();
+            await Assert.That(inspector.HasProto).IsTrue();
+            await Assert.That(inspector.ProtoNumber).IsEqualTo(protoNumber);
+            await Assert.That(inspector.TargetObjectType).IsEqualTo(ObjectType.Pc);
+            await Assert.That(inspector.Proto).IsNotNull();
+            await Assert.That(inspector.Proto!.DisplayName).IsEqualTo("Inspector proto");
+            await Assert.That(inspector.Proto.Description).IsEqualTo("Inspector description");
+
+            var overviewPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Overview);
+            var flagsPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Flags);
+            var scriptPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.ScriptAttachments);
+            var lightPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Light);
+            var critterPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.CritterProgression);
+            var generatorPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Generator);
+            var blendingPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Blending);
+
+            await Assert.That(overviewPane.IsApplicable).IsTrue();
+            await Assert.That(overviewPane.HasContract).IsTrue();
+            await Assert.That(flagsPane.IsApplicable).IsTrue();
+            await Assert.That(flagsPane.HasContract).IsTrue();
+            await Assert.That(scriptPane.IsApplicable).IsTrue();
+            await Assert.That(scriptPane.HasContract).IsTrue();
+            await Assert.That(lightPane.IsApplicable).IsTrue();
+            await Assert.That(lightPane.HasContract).IsTrue();
+            await Assert.That(critterPane.IsApplicable).IsTrue();
+            await Assert.That(critterPane.HasContract).IsTrue();
+            await Assert.That(generatorPane.IsApplicable).IsFalse();
+            await Assert.That(generatorPane.HasContract).IsTrue();
+            await Assert
+                .That(generatorPane.UnavailableReason)
+                .IsEqualTo("Generator settings only apply to Npc targets.");
+            await Assert.That(blendingPane.IsApplicable).IsTrue();
+            await Assert.That(blendingPane.HasContract).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorFlagsSummary_BuildsTypedFlagGroups()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+
+        try
+        {
+            var proto = WithProperties(
+                MakeProto(protoNumber)
+                    .WithoutProperty(ObjectField.ObjFFlags)
+                    .WithoutProperty(ObjectField.ObjFSpellFlags)
+                    .WithoutProperty(ObjectField.ObjFCritterFlags)
+                    .WithoutProperty(ObjectField.ObjFCritterFlags2)
+                    .WithoutProperty(ObjectField.ObjFPcFlags),
+                ObjectPropertyFactory.ForInt32(
+                    ObjectField.ObjFFlags,
+                    unchecked((int)(ObjFFlags.Flat | ObjFFlags.Translucent))
+                ),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFSpellFlags, unchecked((int)ObjFSpellFlags.Shielded)),
+                ObjectPropertyFactory.ForInt32(
+                    ObjectField.ObjFCritterFlags,
+                    unchecked((int)(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee))
+                ),
+                ObjectPropertyFactory.ForInt32(
+                    ObjectField.ObjFCritterFlags2,
+                    unchecked((int)ObjFCritterFlags2.DarkSight)
+                ),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFPcFlags, 7)
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorFlags.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var flags = workspace.FindObjectInspectorFlagsSummary(protoNumber);
+
+            await Assert.That(flags).IsNotNull();
+            await Assert.That(flags!.Inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(flags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
+            await Assert.That(flags.SpellFlags).IsEqualTo(ObjFSpellFlags.Shielded);
+            await Assert.That(flags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+            await Assert.That(flags.CritterFlags2).IsEqualTo(ObjFCritterFlags2.DarkSight);
+            await Assert.That(flags.PcFlags).IsEqualTo(7);
+            await Assert.That(flags.NpcFlags).IsNull();
+            await Assert.That(flags.ItemFlags).IsNull();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorCritterProgressionSummary_BuildsTypedProgressionFields()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+
+        try
+        {
+            var baseStats = new int[28];
+            baseStats[17] = 12;
+            baseStats[18] = 3456;
+            baseStats[19] = 111;
+            baseStats[20] = 3;
+            baseStats[21] = 4;
+            baseStats[22] = 5;
+            baseStats[23] = 6;
+            baseStats[24] = 7;
+            baseStats[25] = 32;
+            baseStats[26] = 1;
+            baseStats[27] = 2;
+
+            var basicSkills = new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+            var techSkills = new[] { 13, 14, 15, 16 };
+            var spellTech = Enumerable.Range(20, 25).ToArray();
+
+            var proto = WithProperties(
+                MakeProto(protoNumber)
+                    .WithoutProperty(ObjectField.ObjFCritterStatBaseIdx)
+                    .WithoutProperty(ObjectField.ObjFCritterBasicSkillIdx)
+                    .WithoutProperty(ObjectField.ObjFCritterTechSkillIdx)
+                    .WithoutProperty(ObjectField.ObjFCritterSpellTechIdx)
+                    .WithoutProperty(ObjectField.ObjFCritterFatiguePts)
+                    .WithoutProperty(ObjectField.ObjFCritterFatigueAdj),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterStatBaseIdx, baseStats),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterBasicSkillIdx, basicSkills),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterTechSkillIdx, techSkills),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterSpellTechIdx, spellTech),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatiguePts, 80),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatigueAdj, 9)
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorProgression.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var progression = workspace.FindObjectInspectorCritterProgressionSummary(protoNumber);
+
+            await Assert.That(progression).IsNotNull();
+            await Assert
+                .That(progression!.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(progression.IsCritterTarget).IsTrue();
+            await Assert.That(progression.FatiguePoints).IsEqualTo(80);
+            await Assert.That(progression.FatigueAdjustment).IsEqualTo(9);
+            await Assert.That(progression.Level).IsEqualTo(12);
+            await Assert.That(progression.ExperiencePoints).IsEqualTo(3456);
+            await Assert.That(progression.Alignment).IsEqualTo(111);
+            await Assert.That(progression.SkillPersuasion).IsEqualTo(12);
+            await Assert.That(progression.SkillRepair).IsEqualTo(13);
+            await Assert.That(progression.SkillDisarmTraps).IsEqualTo(16);
+            await Assert.That(progression.SpellConveyance).IsEqualTo(20);
+            await Assert.That(progression.SpellMastery).IsEqualTo(36);
+            await Assert.That(progression.TechTherapeutics).IsEqualTo(44);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorLightGeneratorAndBlendingSummaries_BuildsTypedFields()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+
+        try
+        {
+            var proto = WithProperties(
+                MakeNpcProto(protoNumber)
+                    .WithoutProperty(ObjectField.ObjFLightFlags)
+                    .WithoutProperty(ObjectField.ObjFLightAid)
+                    .WithoutProperty(ObjectField.ObjFLightColor)
+                    .WithoutProperty(ObjectField.ObjFOverlayLightFlags)
+                    .WithoutProperty(ObjectField.ObjFOverlayLightAid)
+                    .WithoutProperty(ObjectField.ObjFOverlayLightColor)
+                    .WithoutProperty(ObjectField.ObjFNpcGeneratorData)
+                    .WithoutProperty(ObjectField.ObjFBlitFlags)
+                    .WithoutProperty(ObjectField.ObjFBlitColor)
+                    .WithoutProperty(ObjectField.ObjFBlitAlpha)
+                    .WithoutProperty(ObjectField.ObjFBlitScale)
+                    .WithoutProperty(ObjectField.ObjFMaterial),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 12),
+                MakeArtProperty(ObjectField.ObjFLightAid, 0x1234u),
+                MakeColorProperty(ObjectField.ObjFLightColor, 0x11, 0x22, 0x33),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFOverlayLightFlags, 7),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFOverlayLightAid, [4, 5, 6]),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFOverlayLightColor, 9),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 42),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitFlags, unchecked((int)ObjFBlitFlags.BlendAdd)),
+                MakeColorProperty(ObjectField.ObjFBlitColor, 0x44, 0x55, 0x66),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 77),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitScale, 88),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFMaterial, 99)
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorVisuals.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var light = workspace.FindObjectInspectorLightSummary(protoNumber);
+            var generator = workspace.FindObjectInspectorGeneratorSummary(protoNumber);
+            var blending = workspace.FindObjectInspectorBlendingSummary(protoNumber);
+
+            await Assert.That(light).IsNotNull();
+            await Assert.That(light!.LightFlags).IsEqualTo(12);
+            await Assert.That(light.LightArtId).IsEqualTo(new ArtId(0x1234u));
+            await Assert.That(light.LightColor).IsEqualTo(new Color(0x11, 0x22, 0x33));
+            await Assert.That(light.OverlayLightFlags).IsEqualTo(7);
+            await Assert.That(light.OverlayLightArtIds).IsEquivalentTo([4, 5, 6]);
+            await Assert.That(light.OverlayLightColor).IsEqualTo(9);
+            await Assert.That(light.HasOverlayLights).IsTrue();
+
+            await Assert.That(generator).IsNotNull();
+            await Assert.That(generator!.IsNpcTarget).IsTrue();
+            await Assert.That(generator.GeneratorData).IsEqualTo(42);
+
+            await Assert.That(blending).IsNotNull();
+            await Assert.That(blending!.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(blending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
+            await Assert.That(blending.BlitAlpha).IsEqualTo(77);
+            await Assert.That(blending.BlitScale).IsEqualTo(88);
+            await Assert.That(blending.Material).IsEqualTo(99);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorScriptAttachmentsSummary_BuildsTypedAttachmentSlots()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Examine script"),
+                Path.Combine(contentDir, "scr", "00077Examine.scr")
+            );
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Unknown slot script"),
+                Path.Combine(contentDir, "scr", "00088Unknown.scr")
+            );
+
+            var proto = WithProperties(
+                MakeProto(protoNumber).WithoutProperty(ObjectField.ObjFScriptsIdx),
+                MakeScriptProperty((0, 77), (40, 88))
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorScripts.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var attachments = workspace.FindObjectInspectorScriptAttachmentsSummary(protoNumber);
+
+            await Assert.That(attachments).IsNotNull();
+            await Assert
+                .That(attachments!.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+
+            var examine = attachments.Attachments.Single(attachment =>
+                attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
+            );
+
+            await Assert.That(examine.ScriptId).IsEqualTo(77);
+            await Assert.That(examine.IsMissingScript).IsFalse();
+            await Assert.That(examine.Script).IsNotNull();
+            await Assert.That(examine.Script!.Description).IsEqualTo("Examine script");
+            await Assert.That(attachments.UnknownAttachments.Count).IsEqualTo(1);
+            await Assert.That(attachments.UnknownAttachments[0].SlotIndex).IsEqualTo(40);
+            await Assert.That(attachments.UnknownAttachments[0].ScriptId).IsEqualTo(88);
+            await Assert.That(attachments.UnknownAttachments[0].IsMissingScript).IsFalse();
+            await Assert.That(attachments.UnknownAttachments[0].Script).IsNotNull();
+            await Assert.That(attachments.UnknownAttachments[0].Script!.Description).IsEqualTo("Unknown slot script");
+            await Assert.That(attachments.HasUnknownAttachmentSlots).IsTrue();
+            await Assert.That(attachments.HasMissingScripts).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
         }
     }
 

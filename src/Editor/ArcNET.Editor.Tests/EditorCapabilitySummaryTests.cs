@@ -56,6 +56,13 @@ public sealed class EditorCapabilitySummaryTests
         await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectPaletteBrowsing)).IsTrue();
         await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectPlacement)).IsTrue();
         await Assert.That(capabilities.IsAvailable(EditorCapability.TrackedObjectPlacementWorkflow)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorSummary)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorFlags)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorScriptAttachments)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorCritterProgression)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorLight)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorGenerator)).IsTrue();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorBlending)).IsTrue();
         await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectTransformEditing)).IsTrue();
         await Assert.That(capabilities.IsAvailable(EditorCapability.SectorLightEditing)).IsTrue();
         await Assert.That(capabilities.IsAvailable(EditorCapability.SectorTileScriptEditing)).IsTrue();
@@ -92,6 +99,13 @@ public sealed class EditorCapabilitySummaryTests
         await Assert.That(capabilities.IsAvailable(EditorCapability.TerrainLayerEditing)).IsFalse();
         await Assert.That(capabilities.IsAvailable(EditorCapability.TrackedTerrainToolWorkflow)).IsFalse();
         await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectPaletteBrowsing)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorSummary)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorFlags)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorScriptAttachments)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorCritterProgression)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorLight)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorGenerator)).IsFalse();
+        await Assert.That(capabilities.IsAvailable(EditorCapability.ObjectInspectorBlending)).IsFalse();
         await Assert.That(capabilities.IsAvailable(EditorCapability.TrackedObjectPlacementWorkflow)).IsFalse();
         await Assert.That(capabilities.IsAvailable(EditorCapability.MapPreview)).IsFalse();
         await Assert.That(capabilities.IsAvailable(EditorCapability.MapScenePreview)).IsFalse();

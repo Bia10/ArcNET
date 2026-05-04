@@ -3661,6 +3661,76 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task ProjectStateHelpers_ManageGenericViewAndToolEntries()
+    {
+        var session = new EditorWorkspace
+        {
+            ContentDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()),
+            GameData = new GameDataStore(),
+        }.CreateSession();
+
+        var initialViewState = session.SetViewState(
+            new EditorProjectViewState
+            {
+                Id = " map-layout-1 ",
+                AssetPath = "scr\\00077Guard.scr",
+                ViewId = " script-grid ",
+                Properties = new Dictionary<string, string?> { ["dock"] = "left" },
+            }
+        );
+        var initialToolState = session.SetToolState(
+            new EditorProjectToolState
+            {
+                ToolId = " asset-browser ",
+                ScopeId = " left-sidebar ",
+                Properties = new Dictionary<string, string?> { ["filter"] = "dlg" },
+            }
+        );
+
+        var replacedViewState = session.SetViewState(
+            new EditorProjectViewState
+            {
+                Id = "MAP-LAYOUT-1",
+                AssetPath = "scr/00077Guard.scr",
+                ViewId = "script-grid",
+                Properties = new Dictionary<string, string?> { ["dock"] = "right" },
+            }
+        );
+        var replacedToolState = session.SetToolState(
+            new EditorProjectToolState
+            {
+                ToolId = "ASSET-BROWSER",
+                ScopeId = "LEFT-SIDEBAR",
+                Properties = new Dictionary<string, string?> { ["filter"] = "scr" },
+            }
+        );
+
+        var projectState = session.GetProjectStateSummary();
+
+        await Assert.That(initialViewState.Id).IsEqualTo("map-layout-1");
+        await Assert.That(initialViewState.AssetPath).IsEqualTo("scr/00077Guard.scr");
+        await Assert.That(initialViewState.ViewId).IsEqualTo("script-grid");
+        await Assert.That(initialToolState.ToolId).IsEqualTo("asset-browser");
+        await Assert.That(initialToolState.ScopeId).IsEqualTo("left-sidebar");
+        await Assert.That(replacedViewState.Properties["dock"]).IsEqualTo("right");
+        await Assert.That(replacedToolState.Properties["filter"]).IsEqualTo("scr");
+        await Assert.That(session.GetViewStates().Count).IsEqualTo(1);
+        await Assert.That(session.GetToolStates().Count).IsEqualTo(1);
+        await Assert.That(session.GetViewStates()[0].Id).IsEqualTo("MAP-LAYOUT-1");
+        await Assert.That(session.GetToolStates()[0].ToolId).IsEqualTo("ASSET-BROWSER");
+        await Assert.That(projectState.ViewStates.Count).IsEqualTo(1);
+        await Assert.That(projectState.ToolStates.Count).IsEqualTo(1);
+        await Assert.That(projectState.ViewStates[0].AssetPath).IsEqualTo("scr/00077Guard.scr");
+        await Assert.That(projectState.ToolStates[0].Properties["filter"]).IsEqualTo("scr");
+        await Assert.That(session.RemoveViewState("map-layout-1")).IsTrue();
+        await Assert.That(session.RemoveToolState("asset-browser", "left-sidebar")).IsTrue();
+        await Assert.That(session.RemoveViewState("missing-view")).IsFalse();
+        await Assert.That(session.RemoveToolState("missing-tool")).IsFalse();
+        await Assert.That(session.GetViewStates()).IsEmpty();
+        await Assert.That(session.GetToolStates()).IsEmpty();
+    }
+
+    [Test]
     public async Task ExecuteCommand_RoutesDefaultUndoRedoAcrossStagedAndAppliedHistory()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -5458,6 +5528,90 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(summary.CanApply).IsTrue();
             await Assert.That(summary.SelectedEntry).IsNotNull();
             await Assert.That(summary.SelectedEntry!.ArtId.Value).IsEqualTo(201u);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedTerrainPaletteEntry_PreservesPinnedInspectorState()
+    {
+        const int selectedProtoNumber = 1001;
+        const int pinnedProtoNumber = 1002;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(selectedProtoNumber),
+                Path.Combine(contentDir, "proto", "001001 - Selected.pro")
+            );
+            ProtoFormat.WriteToFile(
+                MakeNpcProto(pinnedProtoNumber),
+                Path.Combine(contentDir, "proto", "001002 - Pinned.pro")
+            );
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(selectedProtoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                        Inspector = new EditorProjectMapObjectInspectorState
+                        {
+                            TargetMode = EditorProjectMapObjectInspectorTargetMode.ProtoDefinition,
+                            PinnedProtoNumber = pinnedProtoNumber,
+                            ActivePane = EditorObjectInspectorPane.Generator,
+                        },
+                    },
+                }
+            );
+
+            _ = session.SetTrackedTerrainPaletteEntry("map-view-1", 1, 1);
+
+            var inspectorState = session.GetTrackedObjectInspectorState("map-view-1");
+            var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
+
+            await Assert
+                .That(inspectorState.TargetMode)
+                .IsEqualTo(EditorProjectMapObjectInspectorTargetMode.ProtoDefinition);
+            await Assert.That(inspectorState.PinnedProtoNumber).IsEqualTo(pinnedProtoNumber);
+            await Assert.That(inspectorState.ActivePane).IsEqualTo(EditorObjectInspectorPane.Generator);
+            await Assert.That(inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(inspector.ProtoNumber).IsEqualTo(pinnedProtoNumber);
         }
         finally
         {
@@ -7568,88 +7722,9 @@ public sealed class EditorWorkspaceSessionTests
         {
             if (Directory.Exists(contentDir))
                 Directory.Delete(contentDir, recursive: true);
+
             if (Directory.Exists(saveDir))
                 Directory.Delete(saveDir, recursive: true);
-        }
-    }
-
-    [Test]
-    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectPlacementHelpers_UpdateTrackedToolSummary()
-    {
-        const int protoNumber = 1001;
-        const ulong sectorKey = 101334386389UL;
-        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
-
-        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
-        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
-
-        try
-        {
-            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
-            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
-
-            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
-            var session = workspace.CreateSession();
-            _ = session.SetMapViewState(
-                new EditorProjectMapViewState
-                {
-                    Id = "map-view-1",
-                    MapName = "map01",
-                    Selection = new EditorProjectMapSelectionState
-                    {
-                        SectorAssetPath = sectorAssetPath,
-                        Tile = new Location(9, 10),
-                    },
-                }
-            );
-
-            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber);
-
-            await Assert.That(paletteEntry).IsNotNull();
-
-            var singlePlacementState = session.SetTrackedObjectPlacementEntry(
-                "map-view-1",
-                paletteEntry!,
-                rotation: 1.25f
-            );
-            var singlePlacementSummary = session.GetTrackedObjectPlacementToolSummary("map-view-1");
-
-            await Assert.That(singlePlacementState.Mode).IsEqualTo(EditorProjectMapObjectPlacementMode.SinglePlacement);
-            await Assert.That(singlePlacementSummary.CanPreviewOrApply).IsTrue();
-            await Assert.That(singlePlacementSummary.ToolState.PlacementRequest).IsNotNull();
-            await Assert.That(singlePlacementSummary.ToolState.PlacementRequest!.Rotation).IsEqualTo(1.25f);
-            await Assert.That(singlePlacementSummary.ResolvedPaletteEntries.Count).IsEqualTo(1);
-            await Assert.That(singlePlacementSummary.MissingProtoNumbers.Count).IsEqualTo(0);
-
-            var preset = paletteEntry.CreatePlacementPreset("guard", "Guard", rotation: 2.5f);
-            var presetState = session.SetTrackedObjectPlacementPreset("map-view-1", preset);
-            var presetSummary = session.GetTrackedObjectPlacementToolSummary("map-view-1");
-            var preview = session.PreviewTrackedObjectPlacementTool("map-view-1");
-            var createdObjects = session.ApplyTrackedObjectPlacementTool("map-view-1");
-
-            await Assert.That(presetState.Mode).IsEqualTo(EditorProjectMapObjectPlacementMode.PlacementPreset);
-            await Assert.That(presetState.PresetLibrary.Count).IsEqualTo(1);
-            await Assert.That(presetState.SelectedPresetId).IsEqualTo("guard");
-            await Assert.That(presetSummary.CanPreviewOrApply).IsTrue();
-            await Assert.That(presetSummary.SelectedPreset).IsNotNull();
-            await Assert.That(presetSummary.SelectedPreset!.PresetId).IsEqualTo("guard");
-            await Assert.That(presetSummary.EffectivePlacementSet).IsNotNull();
-            await Assert.That(presetSummary.EffectivePlacementSet!.Entries.Count).IsEqualTo(1);
-            await Assert.That(presetSummary.ResolvedPaletteEntries.Count).IsEqualTo(1);
-            await Assert.That(preview.Objects.Count).IsEqualTo(1);
-            await Assert.That(createdObjects.Count).IsEqualTo(1);
-
-            var updatedWorkspace = session.BeginChangeGroup("Apply tracked object tool").ApplyPendingChanges();
-            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
-
-            await Assert.That(updatedSector).IsNotNull();
-            await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
-        }
-        finally
-        {
-            if (Directory.Exists(contentDir))
-                Directory.Delete(contentDir, recursive: true);
         }
     }
 
@@ -7879,6 +7954,871 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_GetTrackedObjectInspectorSummary_UsesPersistedSelection_AndStagedProtoDisplayName()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            _ = session.SetProtoDisplayName(protoNumber, "Town Guard", useNameOverrideAsset: true);
+
+            var workspaceInspector = workspace.FindObjectInspectorSummary(protoNumber);
+            var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
+
+            await Assert.That(workspaceInspector).IsNotNull();
+            await Assert.That(workspaceInspector!.Proto).IsNotNull();
+            await Assert.That(workspaceInspector.Proto!.DisplayName).IsNull();
+            await Assert.That(inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert.That(inspector.CanInspect).IsTrue();
+            await Assert.That(inspector.HasSelectionContext).IsTrue();
+            await Assert.That(inspector.HasSelectedObject).IsTrue();
+            await Assert.That(inspector.HasProto).IsTrue();
+            await Assert.That(inspector.ProtoNumber).IsEqualTo(protoNumber);
+            await Assert.That(inspector.TargetObjectType).IsEqualTo(ObjectType.Pc);
+            await Assert.That(inspector.SelectionSummary).IsNotNull();
+            await Assert.That(inspector.SelectionSummary!.SelectedObjects.Count).IsEqualTo(1);
+            await Assert.That(inspector.SelectedObject).IsNotNull();
+            await Assert.That(inspector.SelectedObject!.ObjectId).IsEqualTo(selectedObject.Header.ObjectId);
+            await Assert.That(inspector.Proto).IsNotNull();
+            await Assert.That(inspector.Proto!.Asset.AssetPath).IsEqualTo("proto/001001 - InspectorTarget.pro");
+            await Assert.That(inspector.Proto.DisplayName).IsEqualTo("Town Guard");
+
+            var overviewPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Overview);
+            var flagsPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Flags);
+            var scriptPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.ScriptAttachments);
+            var critterPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.CritterProgression);
+            var generatorPane = inspector.Panes.Single(pane => pane.Pane == EditorObjectInspectorPane.Generator);
+
+            await Assert.That(overviewPane.IsApplicable).IsTrue();
+            await Assert.That(overviewPane.HasContract).IsTrue();
+            await Assert.That(flagsPane.IsApplicable).IsTrue();
+            await Assert.That(flagsPane.HasContract).IsTrue();
+            await Assert.That(scriptPane.IsApplicable).IsTrue();
+            await Assert.That(scriptPane.HasContract).IsTrue();
+            await Assert.That(critterPane.IsApplicable).IsTrue();
+            await Assert.That(generatorPane.IsApplicable).IsFalse();
+            await Assert
+                .That(generatorPane.UnavailableReason)
+                .IsEqualTo("Generator settings only apply to Npc targets.");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorState_PinsProtoAndFeedsShell()
+    {
+        const int selectedProtoNumber = 1001;
+        const int pinnedProtoNumber = 1002;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(selectedProtoNumber),
+                Path.Combine(contentDir, "proto", "001001 - Selected.pro")
+            );
+            ProtoFormat.WriteToFile(
+                MakeNpcProto(pinnedProtoNumber),
+                Path.Combine(contentDir, "proto", "001002 - Pinned.pro")
+            );
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(selectedProtoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                    },
+                }
+            );
+
+            var persistedState = session.SetTrackedObjectInspectorState(
+                "map-view-1",
+                new EditorProjectMapObjectInspectorState
+                {
+                    TargetMode = EditorProjectMapObjectInspectorTargetMode.ProtoDefinition,
+                    PinnedProtoNumber = pinnedProtoNumber,
+                    ActivePane = EditorObjectInspectorPane.Generator,
+                }
+            );
+
+            var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
+            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+
+            await Assert
+                .That(persistedState.TargetMode)
+                .IsEqualTo(EditorProjectMapObjectInspectorTargetMode.ProtoDefinition);
+            await Assert.That(persistedState.PinnedProtoNumber).IsEqualTo(pinnedProtoNumber);
+            await Assert.That(persistedState.ActivePane).IsEqualTo(EditorObjectInspectorPane.Generator);
+            await Assert.That(inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(inspector.HasSelectionContext).IsTrue();
+            await Assert.That(inspector.HasSelectedObject).IsFalse();
+            await Assert.That(inspector.ProtoNumber).IsEqualTo(pinnedProtoNumber);
+            await Assert.That(inspector.TargetObjectType).IsEqualTo(ObjectType.Npc);
+            await Assert.That(inspector.Proto).IsNotNull();
+            await Assert.That(inspector.Proto!.Asset.AssetPath).IsEqualTo("proto/001002 - Pinned.pro");
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.Inspector.TargetMode)
+                .IsEqualTo(EditorProjectMapObjectInspectorTargetMode.ProtoDefinition);
+            await Assert
+                .That(session.GetMapViewStates()[0].WorldEdit.Inspector.PinnedProtoNumber)
+                .IsEqualTo(pinnedProtoNumber);
+            await Assert.That(shell.ObjectInspectorState.ActivePane).IsEqualTo(EditorObjectInspectorPane.Generator);
+            await Assert
+                .That(shell.ObjectInspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
+            await Assert.That(shell.ObjectInspector.ProtoNumber).IsEqualTo(pinnedProtoNumber);
+            await Assert.That(shell.ObjectSelection.SelectedObjects.Count).IsEqualTo(1);
+            await Assert
+                .That(shell.ObjectSelection.SelectedObjects[0].ObjectId)
+                .IsEqualTo(selectedObject.Header.ObjectId);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorFlags_StagesSelectedObjectFlagEdits()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .WithProperty(
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                )
+                .WithProperty(
+                    ObjectPropertyFactory.ForInt32(
+                        ObjectField.ObjFCritterFlags,
+                        unchecked((int)ObjFCritterFlags.Animal)
+                    )
+                )
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFPcFlags, 1))
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var before = session.GetTrackedObjectInspectorFlagsSummary("map-view-1");
+            var change = session.SetTrackedObjectInspectorFlags(
+                "map-view-1",
+                new EditorObjectInspectorFlagsUpdate
+                {
+                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
+                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                    PcFlags = 7,
+                }
+            );
+            var after = session.GetTrackedObjectInspectorFlagsSummary("map-view-1");
+            var appliedWorkspace = session.ApplyPendingChanges();
+            var appliedSector = appliedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(before.ObjectFlags).IsEqualTo(ObjFFlags.Inventory);
+            await Assert.That(before.CritterFlags).IsEqualTo(ObjFCritterFlags.Animal);
+            await Assert.That(before.PcFlags).IsEqualTo(1);
+            await Assert.That(change).IsNotNull();
+            await Assert.That(change!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(change.Target).IsEqualTo(sectorAssetPath);
+            await Assert.That(after.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
+            await Assert.That(after.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+            await Assert.That(after.PcFlags).IsEqualTo(7);
+            await Assert.That(appliedSector).IsNotNull();
+            await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(ObjFFlags.Flat | ObjFFlags.Translucent)));
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFCritterFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee)));
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFPcFlags)!.GetInt32()).IsEqualTo(7);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorScriptAttachment_StagesSelectedObjectScriptEdit()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Examine script"),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var before = session.GetTrackedObjectInspectorScriptAttachmentsSummary("map-view-1");
+            var change = session.SetTrackedObjectInspectorScriptAttachment(
+                "map-view-1",
+                ScriptAttachmentPoint.Examine,
+                77
+            );
+            var after = session.GetTrackedObjectInspectorScriptAttachmentsSummary("map-view-1");
+            var appliedWorkspace = session.ApplyPendingChanges();
+            var appliedSector = appliedWorkspace.FindSector(sectorAssetPath);
+
+            var beforeExamine = before.Attachments.Single(attachment =>
+                attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
+            );
+            var afterExamine = after.Attachments.Single(attachment =>
+                attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
+            );
+
+            await Assert.That(beforeExamine.IsEmpty).IsTrue();
+            await Assert.That(change).IsNotNull();
+            await Assert.That(change!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(change.Target).IsEqualTo(sectorAssetPath);
+            await Assert.That(afterExamine.ScriptId).IsEqualTo(77);
+            await Assert.That(afterExamine.IsMissingScript).IsFalse();
+            await Assert.That(afterExamine.Script).IsNotNull();
+            await Assert.That(afterExamine.Script!.Description).IsEqualTo("Examine script");
+            await Assert.That(appliedSector).IsNotNull();
+            await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
+            await Assert.That(GetScriptIds(appliedSector.Objects[0].Properties)).IsEquivalentTo(new[] { 77 });
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorCritterProgression_StagesSelectedObjectProgressionEdits()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .WithFatigue(70, 8)
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var before = session.GetTrackedObjectInspectorCritterProgressionSummary("map-view-1");
+            var change = session.SetTrackedObjectInspectorCritterProgression(
+                "map-view-1",
+                new EditorObjectInspectorCritterProgressionUpdate
+                {
+                    FatiguePoints = 90,
+                    Level = 15,
+                    ExperiencePoints = 4321,
+                    SkillPersuasion = 21,
+                    SkillRepair = 30,
+                    SpellTemporal = 99,
+                    TechTherapeutics = 55,
+                }
+            );
+            var appliedWorkspace = session.ApplyPendingChanges();
+            var appliedSector = appliedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(before.FatiguePoints).IsEqualTo(70);
+            await Assert.That(before.Level).IsEqualTo(0);
+            await Assert.That(before.ExperiencePoints).IsEqualTo(0);
+            await Assert.That(before.SkillPersuasion).IsEqualTo(0);
+            await Assert.That(before.SkillRepair).IsEqualTo(0);
+            await Assert.That(before.SpellTemporal).IsEqualTo(0);
+            await Assert.That(before.TechTherapeutics).IsEqualTo(0);
+            await Assert.That(change).IsNotNull();
+            await Assert.That(change!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(change.Target).IsEqualTo(sectorAssetPath);
+            await Assert.That(appliedSector).IsNotNull();
+            await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
+
+            var appliedBaseStats = GetInt32Array(
+                appliedSector.Objects[0].Properties,
+                ObjectField.ObjFCritterStatBaseIdx
+            );
+            var appliedBasicSkills = GetInt32Array(
+                appliedSector.Objects[0].Properties,
+                ObjectField.ObjFCritterBasicSkillIdx
+            );
+            var appliedTechSkills = GetInt32Array(
+                appliedSector.Objects[0].Properties,
+                ObjectField.ObjFCritterTechSkillIdx
+            );
+            var appliedSpellTech = GetInt32Array(
+                appliedSector.Objects[0].Properties,
+                ObjectField.ObjFCritterSpellTechIdx
+            );
+
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFCritterFatiguePts)!.GetInt32())
+                .IsEqualTo(90);
+            await Assert.That(appliedBaseStats[17]).IsEqualTo(15);
+            await Assert.That(appliedBaseStats[18]).IsEqualTo(4321);
+            await Assert.That(appliedBasicSkills[11]).IsEqualTo(21);
+            await Assert.That(appliedTechSkills[0]).IsEqualTo(30);
+            await Assert.That(appliedSpellTech[15]).IsEqualTo(99);
+            await Assert.That(appliedSpellTech[24]).IsEqualTo(55);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorLightGeneratorAndBlending_StagesSelectedObjectEdits()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeNpcProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 1))
+                .WithProperty(MakeArtProperty(ObjectField.ObjFLightAid, 0x100u))
+                .WithProperty(MakeColorProperty(ObjectField.ObjFLightColor, 0x01, 0x02, 0x03))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 5))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var beforeLight = session.GetTrackedObjectInspectorLightSummary("map-view-1");
+            var beforeGenerator = session.GetTrackedObjectInspectorGeneratorSummary("map-view-1");
+            var beforeBlending = session.GetTrackedObjectInspectorBlendingSummary("map-view-1");
+
+            var generatorChange = session.SetTrackedObjectInspectorGenerator(
+                "map-view-1",
+                new EditorObjectInspectorGeneratorUpdate { GeneratorData = 42 }
+            );
+            var blendingChange = session.SetTrackedObjectInspectorBlending(
+                "map-view-1",
+                new EditorObjectInspectorBlendingUpdate
+                {
+                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitColor = new Color(0x44, 0x55, 0x66),
+                    BlitAlpha = 77,
+                    BlitScale = 88,
+                    Material = 99,
+                }
+            );
+            var lightChange = session.SetTrackedObjectInspectorLight(
+                "map-view-1",
+                new EditorObjectInspectorLightUpdate
+                {
+                    LightFlags = 9,
+                    LightArtId = new ArtId(0x234u),
+                    LightColor = new Color(0x10, 0x20, 0x30),
+                    OverlayLightFlags = 4,
+                    OverlayLightArtIds = [7, 8],
+                    OverlayLightColor = 12,
+                }
+            );
+
+            var appliedWorkspace = session.ApplyPendingChanges();
+            var appliedSector = appliedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(beforeLight.LightFlags).IsEqualTo(1);
+            await Assert.That(beforeLight.LightArtId).IsEqualTo(new ArtId(0x100u));
+            await Assert.That(beforeLight.LightColor).IsEqualTo(new Color(0x01, 0x02, 0x03));
+            await Assert.That(beforeGenerator.GeneratorData).IsEqualTo(5);
+            await Assert.That(beforeBlending.BlitAlpha).IsEqualTo(10);
+            await Assert.That(lightChange).IsNotNull();
+            await Assert.That(generatorChange).IsNotNull();
+            await Assert.That(blendingChange).IsNotNull();
+            await Assert.That(appliedSector).IsNotNull();
+            await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFLightFlags)!.GetInt32())
+                .IsEqualTo(9);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFLightAid)!.GetInt32())
+                .IsEqualTo(unchecked((int)0x234u));
+            await Assert
+                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.ObjFLightColor))
+                .IsEqualTo(new Color(0x10, 0x20, 0x30));
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFOverlayLightFlags)!.GetInt32())
+                .IsEqualTo(4);
+            await Assert
+                .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.ObjFOverlayLightAid))
+                .IsEquivalentTo([7, 8]);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFOverlayLightColor)!.GetInt32())
+                .IsEqualTo(12);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFNpcGeneratorData)!.GetInt32())
+                .IsEqualTo(42);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)ObjFBlitFlags.BlendAdd));
+            await Assert
+                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.ObjFBlitColor))
+                .IsEqualTo(new Color(0x44, 0x55, 0x66));
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitAlpha)!.GetInt32())
+                .IsEqualTo(77);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitScale)!.GetInt32())
+                .IsEqualTo(88);
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFMaterial)!.GetInt32()).IsEqualTo(99);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_SaveTrackedObjectInspectorEdits_PersistSaveBackedSectorChangesToSaveSlot()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var saveDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(saveDir);
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeNpcProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Examine script"),
+                Path.Combine(contentDir, "scr", "00077Guard.scr")
+            );
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(5, 6)
+                .WithHitPoints(80)
+                .WithFatigue(70, 8)
+                .WithProperty(
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                )
+                .WithProperty(
+                    ObjectPropertyFactory.ForInt32(
+                        ObjectField.ObjFCritterFlags,
+                        unchecked((int)ObjFCritterFlags.Animal)
+                    )
+                )
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 1))
+                .WithProperty(MakeArtProperty(ObjectField.ObjFLightAid, 0x100u))
+                .WithProperty(MakeColorProperty(ObjectField.ObjFLightColor, 0x01, 0x02, 0x03))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 5))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .Build();
+
+            SaveGameWriter.Save(
+                CreateLoadedSaveWithSector(
+                    CreateMinimalLoadedSave(
+                        new SaveInfo
+                        {
+                            ModuleName = "Arcanum",
+                            LeaderName = "WorkspacePc",
+                            DisplayName = "Save-backed inspector edit",
+                            MapId = 1,
+                            GameTimeDays = 0,
+                            GameTimeMs = 0,
+                            LeaderPortraitId = 1,
+                            LeaderLevel = 1,
+                            LeaderTileX = 0,
+                            LeaderTileY = 0,
+                            StoryState = 0,
+                        }
+                    ),
+                    sectorAssetPath,
+                    new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build()
+                ),
+                saveDir,
+                "slot0001"
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                new EditorWorkspaceLoadOptions { SaveFolder = saveDir, SaveSlotName = "slot0001" }
+            );
+            var session = workspace.CreateSession();
+
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var flagsChange = session.SetTrackedObjectInspectorFlags(
+                "map-view-1",
+                new EditorObjectInspectorFlagsUpdate
+                {
+                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
+                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                }
+            );
+            var scriptChange = session.SetTrackedObjectInspectorScriptAttachment(
+                "map-view-1",
+                ScriptAttachmentPoint.Examine,
+                77
+            );
+            var progressionChange = session.SetTrackedObjectInspectorCritterProgression(
+                "map-view-1",
+                new EditorObjectInspectorCritterProgressionUpdate
+                {
+                    FatiguePoints = 90,
+                    Level = 15,
+                    ExperiencePoints = 4321,
+                    SkillPersuasion = 21,
+                    SkillRepair = 30,
+                    SpellTemporal = 99,
+                    TechTherapeutics = 55,
+                }
+            );
+            var generatorChange = session.SetTrackedObjectInspectorGenerator(
+                "map-view-1",
+                new EditorObjectInspectorGeneratorUpdate { GeneratorData = 42 }
+            );
+            var blendingChange = session.SetTrackedObjectInspectorBlending(
+                "map-view-1",
+                new EditorObjectInspectorBlendingUpdate
+                {
+                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitColor = new Color(0x44, 0x55, 0x66),
+                    BlitAlpha = 77,
+                    BlitScale = 88,
+                    Material = 99,
+                }
+            );
+            var lightChange = session.SetTrackedObjectInspectorLight(
+                "map-view-1",
+                new EditorObjectInspectorLightUpdate
+                {
+                    LightFlags = 9,
+                    LightArtId = new ArtId(0x234u),
+                    LightColor = new Color(0x10, 0x20, 0x30),
+                    OverlayLightFlags = 4,
+                    OverlayLightArtIds = [7, 8],
+                    OverlayLightColor = 12,
+                }
+            );
+
+            var updatedWorkspace = session.BeginChangeGroup("Persist save-backed inspector edits").SavePendingChanges();
+            var persistedContentSector = SectorFormat.ParseFile(
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+            var persistedSave = SaveGameLoader.Load(saveDir, "slot0001");
+            var reloadedWorkspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                new EditorWorkspaceLoadOptions { SaveFolder = saveDir, SaveSlotName = "slot0001" }
+            );
+            var reloadedSector = reloadedWorkspace.FindSector(sectorAssetPath);
+            var reloadedSession = reloadedWorkspace.CreateSession();
+
+            _ = reloadedSession.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var reloadedFlags = reloadedSession.GetTrackedObjectInspectorFlagsSummary("map-view-1");
+            var reloadedScripts = reloadedSession.GetTrackedObjectInspectorScriptAttachmentsSummary("map-view-1");
+            var reloadedProgression = reloadedSession.GetTrackedObjectInspectorCritterProgressionSummary("map-view-1");
+            var reloadedLight = reloadedSession.GetTrackedObjectInspectorLightSummary("map-view-1");
+            var reloadedGenerator = reloadedSession.GetTrackedObjectInspectorGeneratorSummary("map-view-1");
+            var reloadedBlending = reloadedSession.GetTrackedObjectInspectorBlendingSummary("map-view-1");
+
+            await Assert.That(flagsChange).IsNotNull();
+            await Assert.That(scriptChange).IsNotNull();
+            await Assert.That(progressionChange).IsNotNull();
+            await Assert.That(generatorChange).IsNotNull();
+            await Assert.That(blendingChange).IsNotNull();
+            await Assert.That(lightChange).IsNotNull();
+            await Assert.That(updatedWorkspace.Save).IsNotNull();
+            await Assert.That(persistedContentSector.Objects.Count).IsEqualTo(0);
+            await Assert.That(persistedSave.Sectors.ContainsKey(sectorAssetPath)).IsTrue();
+            await Assert.That(persistedSave.Sectors[sectorAssetPath].Objects.Count).IsEqualTo(1);
+            await Assert.That(reloadedSector).IsNotNull();
+            await Assert.That(reloadedSector!.Objects.Count).IsEqualTo(1);
+            await Assert.That(reloadedSector.Objects[0].Header.ObjectId).IsEqualTo(selectedObject.Header.ObjectId);
+            await Assert.That(reloadedFlags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
+            await Assert.That(reloadedFlags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+
+            var reloadedExamine = reloadedScripts.Attachments.Single(attachment =>
+                attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
+            );
+
+            await Assert.That(reloadedExamine.ScriptId).IsEqualTo(77);
+            await Assert.That(reloadedExamine.IsMissingScript).IsFalse();
+            await Assert.That(reloadedProgression.FatiguePoints).IsEqualTo(90);
+            await Assert.That(reloadedProgression.ExperiencePoints).IsEqualTo(4321);
+            await Assert.That(reloadedProgression.SkillPersuasion).IsEqualTo(21);
+            await Assert.That(reloadedProgression.SkillRepair).IsEqualTo(30);
+            await Assert.That(reloadedProgression.SpellTemporal).IsEqualTo(99);
+            await Assert.That(reloadedProgression.TechTherapeutics).IsEqualTo(55);
+            await Assert.That(reloadedLight.LightFlags).IsEqualTo(9);
+            await Assert.That(reloadedLight.LightArtId).IsEqualTo(new ArtId(0x234u));
+            await Assert.That(reloadedLight.LightColor).IsEqualTo(new Color(0x10, 0x20, 0x30));
+            await Assert.That(reloadedLight.OverlayLightFlags).IsEqualTo(4);
+            await Assert.That(reloadedLight.OverlayLightArtIds).IsEquivalentTo([7, 8]);
+            await Assert.That(reloadedLight.OverlayLightColor).IsEqualTo(12);
+            await Assert.That(reloadedGenerator.GeneratorData).IsEqualTo(42);
+            await Assert.That(reloadedBlending.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(reloadedBlending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
+            await Assert.That(reloadedBlending.BlitAlpha).IsEqualTo(77);
+            await Assert.That(reloadedBlending.BlitScale).IsEqualTo(88);
+            await Assert.That(reloadedBlending.Material).IsEqualTo(99);
+            await Assert.That(session.HasPendingChanges).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+
+            if (Directory.Exists(saveDir))
+                Directory.Delete(saveDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_TrackedSelectionConvenienceHelpers_ReplaceAndEraseObjects()
     {
         const int sourceProtoNumber = 1001;
@@ -8073,10 +9013,125 @@ public sealed class EditorWorkspaceSessionTests
                 .That(shell.ObjectSelection.SelectedObjects[0].ObjectId)
                 .IsEqualTo(selectedObject.Header.ObjectId);
             await Assert
+                .That(shell.ObjectInspectorState.TargetMode)
+                .IsEqualTo(EditorProjectMapObjectInspectorTargetMode.Selection);
+            await Assert
+                .That(shell.ObjectInspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorFlags.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorScriptAttachments.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorCritterProgression.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorLight.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorGenerator.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
+                .That(shell.ObjectInspectorBlending.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert
                 .That(shell.ObjectPlacementTool.ToolState.Mode)
                 .IsEqualTo(EditorProjectMapObjectPlacementMode.SinglePlacement);
             await Assert.That(shell.ObjectPlacementTool.ResolvedPaletteEntries.Count).IsEqualTo(1);
             await Assert.That(shell.ObjectPlacementTool.ResolvedPaletteEntries[0].ProtoNumber).IsEqualTo(protoNumber);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_PreservesSelectionAndInspectorState_WhenSelectedObjectCarriesFollowerArrayField()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeNpcProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 42, Guid.NewGuid());
+            var selectedObject = new MobData
+            {
+                Header = new GameObjectHeader
+                {
+                    Version = 0x08,
+                    ProtoId = MakeProtoId(protoNumber),
+                    ObjectId = selectedObjectId,
+                    GameObjectType = ObjectType.Npc,
+                    PropCollectionItems = 0,
+                    Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Npc)],
+                },
+                Properties = [],
+            }
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)0x01020304u)))
+                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 5, 6))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 3))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 4))
+                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFOffsetZ, 5.5f))
+                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFHeight, 6.5f))
+                .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.ObjFCritterFollowerIdx));
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+
+            await Assert.That(shell.Scene.SceneRender.MapName).IsEqualTo("map01");
+            await Assert.That(shell.Scene.SceneRender.Objects.Count).IsEqualTo(1);
+            await Assert.That(shell.Scene.SceneRender.Objects[0].ObjectId).IsEqualTo(selectedObject.Header.ObjectId);
+            await Assert.That(shell.ObjectSelection.SelectedObjects.Count).IsEqualTo(1);
+            await Assert.That(shell.ObjectSelection.SectorAssetPaths).IsEquivalentTo([sectorAssetPath]);
+            await Assert
+                .That(shell.ObjectSelection.SelectedObjects[0].ObjectId)
+                .IsEqualTo(selectedObject.Header.ObjectId);
+            await Assert
+                .That(shell.ObjectInspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert.That(shell.ObjectInspector.SelectedObject).IsNotNull();
+            await Assert
+                .That(shell.ObjectInspectorFlags.Inspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
         }
         finally
         {
@@ -9873,6 +10928,9 @@ public sealed class EditorWorkspaceSessionTests
     private static ObjectProperty MakeArtProperty(ObjectField field, uint artId) =>
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));
 
+    private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
+        new() { Field = field, RawBytes = [r, g, b] };
+
     private static MobData WithProperties(MobData mob, params ObjectProperty[] properties)
     {
         byte[] bitmap = [.. mob.Header.Bitmap];
@@ -9925,9 +10983,34 @@ public sealed class EditorWorkspaceSessionTests
             .Build();
     }
 
+    private static MobData MakeNpc(int protoNumber = 1)
+    {
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        return new CharacterBuilder(ObjectType.Npc, objectId, protoId).WithHitPoints(80).Build();
+    }
+
     private static ProtoData MakeProto(int protoNumber)
     {
         var mob = MakePc(protoNumber);
+        return new ProtoData
+        {
+            Header = new GameObjectHeader
+            {
+                Version = mob.Header.Version,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                GameObjectType = mob.Header.GameObjectType,
+                PropCollectionItems = 0,
+                Bitmap = [.. mob.Header.Bitmap],
+            },
+            Properties = [.. mob.Properties],
+        };
+    }
+
+    private static ProtoData MakeNpcProto(int protoNumber)
+    {
+        var mob = MakeNpc(protoNumber);
         return new ProtoData
         {
             Header = new GameObjectHeader
@@ -10148,6 +11231,15 @@ public sealed class EditorWorkspaceSessionTests
             .SelectMany(static property => property.GetScriptArray())
             .Select(static script => script.ScriptId)
             .ToArray();
+
+    private static int[] GetInt32Array(IReadOnlyList<ObjectProperty> properties, ObjectField field) =>
+        properties.Single(property => property.Field == field).GetInt32Array();
+
+    private static Color GetColor(IReadOnlyList<ObjectProperty> properties, ObjectField field)
+    {
+        var bytes = properties.Single(property => property.Field == field).RawBytes;
+        return new Color(bytes[0], bytes[1], bytes[2]);
+    }
 
     private static uint[] GetArtIds(IReadOnlyList<ObjectProperty> properties) =>
         properties
