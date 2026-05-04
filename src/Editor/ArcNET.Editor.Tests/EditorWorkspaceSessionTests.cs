@@ -8181,7 +8181,9 @@ public sealed class EditorWorkspaceSessionTests
                         unchecked((int)ObjFCritterFlags.Animal)
                     )
                 )
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFPcFlags, 1))
+                .WithProperty(
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcFlags, unchecked((int)ObjFNpcFlags.Fighting))
+                )
                 .Build();
             SectorFormat.WriteToFile(
                 MakeSector(selectedObject),
@@ -8211,7 +8213,7 @@ public sealed class EditorWorkspaceSessionTests
                 {
                     ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
                     CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
-                    PcFlags = 7,
+                    NpcFlags = ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders,
                 }
             );
             var after = session.GetTrackedObjectInspectorFlagsSummary("map-view-1");
@@ -8220,13 +8222,13 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(before.ObjectFlags).IsEqualTo(ObjFFlags.Inventory);
             await Assert.That(before.CritterFlags).IsEqualTo(ObjFCritterFlags.Animal);
-            await Assert.That(before.PcFlags).IsEqualTo(1);
+            await Assert.That(before.NpcFlags).IsEqualTo(ObjFNpcFlags.Fighting);
             await Assert.That(change).IsNotNull();
             await Assert.That(change!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
             await Assert.That(change.Target).IsEqualTo(sectorAssetPath);
             await Assert.That(after.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
             await Assert.That(after.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
-            await Assert.That(after.PcFlags).IsEqualTo(7);
+            await Assert.That(after.NpcFlags).IsEqualTo(ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders);
             await Assert.That(appliedSector).IsNotNull();
             await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
             await Assert
@@ -8235,7 +8237,9 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFCritterFlags)!.GetInt32())
                 .IsEqualTo(unchecked((int)(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee)));
-            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFPcFlags)!.GetInt32()).IsEqualTo(7);
+            await Assert
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFNpcFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders)));
         }
         finally
         {

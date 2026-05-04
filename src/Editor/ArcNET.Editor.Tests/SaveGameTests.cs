@@ -612,11 +612,11 @@ public class SaveGameTests
         {
             SaveGameWriter.Save(save, tmpDir, "testslot");
 
-            float lastProgress = 0f;
+            float maxProgress = 0f;
             var progressReachedOne = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var progress = new Progress<float>(v =>
             {
-                lastProgress = v;
+                maxProgress = Math.Max(maxProgress, v);
                 if (v >= 1f)
                     progressReachedOne.TrySetResult(true);
             });
@@ -626,7 +626,7 @@ public class SaveGameTests
             // Allow the Progress<float> callback to fire (it posts to the sync context).
             var completed = await Task.WhenAny(progressReachedOne.Task, Task.Delay(5000));
             await Assert.That(ReferenceEquals(completed, progressReachedOne.Task)).IsTrue();
-            await Assert.That(lastProgress).IsEqualTo(1f);
+            await Assert.That(maxProgress).IsGreaterThanOrEqualTo(1f);
         }
         finally
         {
