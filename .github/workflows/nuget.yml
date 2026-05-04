@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: nuget
+
+permissions: read-all
+
+on:
+  push:
+    tags:
+      - "ArcNET.*-v*"
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  NUGET_SOURCE: https://api.nuget.org/v3/index.json
+  NUGET_API_KEY_SECRET_NAME: NUGET_API_KEY
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Resolve package id
+        id: resolve-package
+        shell: pwsh
+        run: |
+          $tagName = "${{ github.ref_name }}"
+          if ($tagName -notmatch '^(?<PackageId>.+)-v(?<PackageVersion>.+)$') {
+            throw "Unsupported package tag format '$tagName'. Expected ArcNET.<Package>-v<semver>."
+          }
+
+          $packageId = $Matches['PackageId']
+          $tagVersion = $Matches['PackageVersion']
+          $manifestVersion = (dotnet Build.cs package-version $packageId).Trim()
+          if ($manifestVersion -ne $tagVersion) {
+            throw "Tag version '$tagVersion' does not match manifest version '$manifestVersion' for '$packageId'."
+          }
+
+          "package-id=$packageId" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "package-version=$manifestVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Pack target package
+        run: dotnet Build.cs pack ${{ steps.resolve-package.outputs.package-id }}
+
+      - name: Upload NuGet artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ steps.resolve-package.outputs.package-id }}-nuget
+          path: |
+            artifacts/nuget/${{ steps.resolve-package.outputs.package-id }}.${{ steps.resolve-package.outputs.package-version }}.nupkg
+            artifacts/nuget/${{ steps.resolve-package.outputs.package-id }}.${{ steps.resolve-package.outputs.package-version }}.snupkg
+          if-no-files-found: error
+
+      - name: Push packages to NuGet
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets[env.NUGET_API_KEY_SECRET_NAME] }}
+          PACKAGE_ID: ${{ steps.resolve-package.outputs.package-id }}
+          PACKAGE_VERSION: ${{ steps.resolve-package.outputs.package-version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          packages=(artifacts/nuget/${PACKAGE_ID}.${PACKAGE_VERSION}.nupkg)
+          for package in "${packages[@]}"; do
+            if [[ "$package" == *.snupkg ]]; then
+              continue
+            fi
+
+            dotnet nuget push "$package" \
+              --api-key "$NUGET_API_KEY" \
+              --source "$NUGET_SOURCE" \
+              --skip-duplicate
+          done
+
+          symbols=(artifacts/nuget/${PACKAGE_ID}.${PACKAGE_VERSION}.snupkg)
+          for symbolPackage in "${symbols[@]}"; do
+            dotnet nuget push "$symbolPackage" \
+              --api-key "$NUGET_API_KEY" \
+              --source "$NUGET_SOURCE" \
+              --skip-duplicate
+          done
