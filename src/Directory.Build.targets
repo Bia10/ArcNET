@@ -1,10 +1,20 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)ArcNET.PackageVersions.props" />
 
-  <Target Name="ResolveArcNETPackageVersion" BeforeTargets="GetAssemblyVersion;GenerateNuspec" Condition="'$(IsPackable)' == 'true'">
+  <Target
+    Name="ResolveArcNETPackageVersion"
+    BeforeTargets="GetAssemblyVersion;GenerateNuspec"
+    Condition="'$(IsPackable)' == 'true'"
+  >
     <ItemGroup>
-      <_ArcNETResolvedPackageVersion Include="@(ArcNETPackageVersion)" Condition="'%(ArcNETPackageVersion.PackageId)' == '$(PackageId)'" />
-      <_ArcNETResolvedPackageVersion Include="@(ArcNETPackageVersion)" Condition="'$(PackageId)' == '' and '%(ArcNETPackageVersion.PackageId)' == '$(MSBuildProjectName)'" />
+      <_ArcNETResolvedPackageVersion
+        Include="@(ArcNETPackageVersion)"
+        Condition="'%(ArcNETPackageVersion.PackageId)' == '$(PackageId)'"
+      />
+      <_ArcNETResolvedPackageVersion
+        Include="@(ArcNETPackageVersion)"
+        Condition="'$(PackageId)' == '' and '%(ArcNETPackageVersion.PackageId)' == '$(MSBuildProjectName)'"
+      />
     </ItemGroup>
 
     <Error

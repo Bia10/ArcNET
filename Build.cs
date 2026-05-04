@@ -91,7 +91,9 @@ switch (command)
 static IReadOnlyDictionary<string, string> ReadPackageVersions(string manifestPath)
 {
     var document = XDocument.Load(manifestPath);
-    var root = document.Root ?? throw new InvalidOperationException($"Version manifest '{manifestPath}' is missing a root element.");
+    var root =
+        document.Root
+        ?? throw new InvalidOperationException($"Version manifest '{manifestPath}' is missing a root element.");
     var packageVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     foreach (var packageVersionElement in root.Descendants("ArcNETPackageVersion"))
@@ -111,7 +113,10 @@ static IReadOnlyDictionary<string, string> ReadPackageVersions(string manifestPa
     return packageVersions;
 }
 
-static IEnumerable<PackageProject> FindPackableProjects(string repoRoot, IReadOnlyDictionary<string, string> packageVersions)
+static IEnumerable<PackageProject> FindPackableProjects(
+    string repoRoot,
+    IReadOnlyDictionary<string, string> packageVersions
+)
 {
     foreach (
         var projectPath in Directory.GetFiles(Path.Combine(repoRoot, "src"), "*.csproj", SearchOption.AllDirectories)
@@ -138,12 +143,7 @@ static IEnumerable<PackageProject> FindPackableProjects(string repoRoot, IReadOn
             );
         }
 
-        yield return new PackageProject(
-            projectName,
-            effectivePackageId,
-            version,
-            projectPath
-        );
+        yield return new PackageProject(projectName, effectivePackageId, version, projectPath);
     }
 }
 
@@ -199,11 +199,16 @@ static IReadOnlyList<PackageProject> SelectPackages(
     return selectedProjects;
 }
 
-static PackageProject SelectSinglePackage(IReadOnlyList<PackageProject> packageProjects, IReadOnlyList<string> selectors)
+static PackageProject SelectSinglePackage(
+    IReadOnlyList<PackageProject> packageProjects,
+    IReadOnlyList<string> selectors
+)
 {
     if (selectors.Count != 1)
     {
-        throw new InvalidOperationException("Expected exactly one package id. Run 'dotnet Build.cs list-packages' to see the supported package ids.");
+        throw new InvalidOperationException(
+            "Expected exactly one package id. Run 'dotnet Build.cs list-packages' to see the supported package ids."
+        );
     }
 
     return SelectPackages(packageProjects, selectors)[0];
