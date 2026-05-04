@@ -59,7 +59,7 @@ internal static class ObjectPcCodec
         if (Bit(ObjectField.ObjFPcFogMask))
             obj.FogMask = reader.ReadInt32();
         if (Bit(ObjectField.ObjFPcPlayerName))
-            obj.PlayerName = reader.ReadPrefixedString();
+            obj.PlayerName = ObjectSerializationHelpers.ReadRawString(ref reader);
         if (Bit(ObjectField.ObjFPcBankMoney))
             obj.BankMoney = reader.ReadInt32();
         if (Bit(ObjectField.ObjFPcGlobalFlags))
@@ -115,7 +115,7 @@ internal static class ObjectPcCodec
         if (Bit(ObjectField.ObjFPcFogMask))
             writer.WriteInt32(obj.FogMask);
         if (Bit(ObjectField.ObjFPcPlayerName))
-            obj.PlayerName.Write(ref writer);
+            ObjectSerializationHelpers.WriteRawString(ref writer, obj.PlayerName);
         if (Bit(ObjectField.ObjFPcBankMoney))
             writer.WriteInt32(obj.BankMoney);
         if (Bit(ObjectField.ObjFPcGlobalFlags))

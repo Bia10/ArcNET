@@ -1,4 +1,5 @@
 ﻿using ArcNET.Core;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
@@ -37,6 +38,24 @@ public sealed class MobFormatTests
         w.WriteInt32(protoIndex);
         w.WriteBytes(new byte[16]);
     }
+
+    private static ObjectProperty CreateScalarObjectIdProperty(ObjectField field, Guid guid) =>
+        new() { Field = field, RawBytes = BuildBytes(w => WriteOidGuid(w, guid)) };
+
+    private static MobData CreateEmptyMob(ObjectType objectType, GameObjectGuid objectId, int protoIndex = 1) =>
+        new()
+        {
+            Header = new GameObjectHeader
+            {
+                Version = 0x77,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, protoIndex, Guid.Empty),
+                ObjectId = objectId,
+                GameObjectType = objectType,
+                PropCollectionItems = 0,
+                Bitmap = new byte[ObjectFieldBitmapSize.For(objectType)],
+            },
+            Properties = [],
+        };
 
     /// <summary>
     /// Writes a minimal valid MOB header with a Wall object type.
@@ -190,6 +209,304 @@ public sealed class MobFormatTests
         await Assert.That(mob.Properties[0].GetInt32()).IsEqualTo(999);
         await Assert.That(mob.Properties[1].Field).IsEqualTo(ObjectField.ObjFAid);
         await Assert.That(mob.Properties[1].GetInt32()).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task Parse_PcReservedScalarPadFields_ParseAsInt32_AndBridgeToGameObject()
+    {
+        const int padIas2 = 42;
+        const int padIas1 = 87;
+
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("00000004-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Pc);
+            w.WriteInt16(2);
+
+            var bitmap = new byte[20];
+            bitmap[(int)ObjectField.ObjFPcPadIas2 / 8] |= (byte)(1 << ((int)ObjectField.ObjFPcPadIas2 % 8));
+            bitmap[(int)ObjectField.ObjFPcPadIas1 / 8] |= (byte)(1 << ((int)ObjectField.ObjFPcPadIas1 % 8));
+            w.WriteBytes(bitmap);
+
+            w.WriteInt32(padIas2);
+            w.WriteInt32(padIas1);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+        var bridged = mob.ToGameObject().ToMobData();
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(2);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo(ObjectField.ObjFPcPadIas2);
+        await Assert.That(mob.Properties[0].ParseNote).IsNull();
+        await Assert.That(mob.Properties[0].GetInt32()).IsEqualTo(padIas2);
+        await Assert.That(mob.Properties[1].Field).IsEqualTo(ObjectField.ObjFPcPadIas1);
+        await Assert.That(mob.Properties[1].ParseNote).IsNull();
+        await Assert.That(mob.Properties[1].GetInt32()).IsEqualTo(padIas1);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPadIas2)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPadIas2)!.GetInt32()).IsEqualTo(padIas2);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPadIas1)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPadIas1)!.GetInt32()).IsEqualTo(padIas1);
+    }
+
+    [Test]
+    public async Task Parse_PcBackgroundText_MessageIndex_ParsesAsInt32_AndBridgeToGameObject()
+    {
+        const int backgroundText = 1234;
+
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("00000005-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Pc);
+            w.WriteInt16(1);
+
+            var bitmap = new byte[20];
+            bitmap[(int)ObjectField.ObjFPcBackgroundText / 8] |= (byte)(
+                1 << ((int)ObjectField.ObjFPcBackgroundText % 8)
+            );
+            w.WriteBytes(bitmap);
+
+            w.WriteInt32(backgroundText);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+        var bridged = mob.ToGameObject().ToMobData();
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(1);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo(ObjectField.ObjFPcBackgroundText);
+        await Assert.That(mob.Properties[0].ParseNote).IsNull();
+        await Assert.That(mob.Properties[0].GetInt32()).IsEqualTo(backgroundText);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcBackgroundText)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcBackgroundText)!.GetInt32()).IsEqualTo(backgroundText);
+    }
+
+    [Test]
+    public async Task Parse_NpcLeader_ScalarGuid_ParsesAndBridgeToGameObject()
+    {
+        var leaderGuid = Guid.Parse("00000006-0000-0000-0000-000000000000");
+        var expectedLeaderRaw = BuildBytes(w => WriteOidGuid(w, leaderGuid));
+
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("00000007-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Npc);
+            w.WriteInt16(1);
+
+            var bitmap = new byte[20];
+            bitmap[(int)ObjectField.ObjFNpcLeader / 8] |= (byte)(1 << ((int)ObjectField.ObjFNpcLeader % 8));
+            w.WriteBytes(bitmap);
+
+            WriteOidGuid(w, leaderGuid);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+        var bridged = mob.ToGameObject().ToMobData();
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(1);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo(ObjectField.ObjFNpcLeader);
+        await Assert.That(mob.Properties[0].ParseNote).IsNull();
+        await Assert.That(mob.Properties[0].RawBytes.SequenceEqual(expectedLeaderRaw)).IsTrue();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcLeader)).IsNotNull();
+        await Assert
+            .That(bridged.GetProperty(ObjectField.ObjFNpcLeader)!.RawBytes.SequenceEqual(expectedLeaderRaw))
+            .IsTrue();
+    }
+
+    [Test]
+    public async Task Parse_NpcSubstituteInventory_ScalarGuid_ParsesAndBridgeToGameObject()
+    {
+        var substituteInventoryGuid = Guid.Parse("00000008-0000-0000-0000-000000000000");
+        var expectedRaw = BuildBytes(w => WriteOidGuid(w, substituteInventoryGuid));
+
+        var bytes = BuildBytes(w =>
+        {
+            w.WriteInt32(0x77);
+            WriteOidRef(w);
+            WriteOidGuid(w, Guid.Parse("00000009-0000-0000-0000-000000000000"));
+            w.WriteUInt32((uint)ObjectType.Npc);
+            w.WriteInt16(1);
+
+            var bitmap = new byte[20];
+            bitmap[(int)ObjectField.ObjFNpcSubstituteInventory / 8] |= (byte)(
+                1 << ((int)ObjectField.ObjFNpcSubstituteInventory % 8)
+            );
+            w.WriteBytes(bitmap);
+
+            WriteOidGuid(w, substituteInventoryGuid);
+        });
+
+        var mob = MobFormat.ParseMemory(bytes);
+        var bridged = mob.ToGameObject().ToMobData();
+
+        await Assert.That(mob.Properties.Count).IsEqualTo(1);
+        await Assert.That(mob.Properties[0].Field).IsEqualTo(ObjectField.ObjFNpcSubstituteInventory);
+        await Assert.That(mob.Properties[0].ParseNote).IsNull();
+        await Assert.That(mob.Properties[0].RawBytes.SequenceEqual(expectedRaw)).IsTrue();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcSubstituteInventory)).IsNotNull();
+        await Assert
+            .That(bridged.GetProperty(ObjectField.ObjFNpcSubstituteInventory)!.RawBytes.SequenceEqual(expectedRaw))
+            .IsTrue();
+    }
+
+    [Test]
+    public async Task Parse_PcQuestPlayerNameAndPadI64_RawSchema_BridgesToGameObject()
+    {
+        var objectId = new GameObjectGuid(
+            GameObjectGuid.OidTypeGuid,
+            0,
+            0,
+            Guid.Parse("00000010-0000-0000-0000-000000000000")
+        );
+        const long padI64 = 0x1122334455667788L;
+        const string playerName = "Virgil";
+        var questValues = new[] { 10, 20, 30 };
+
+        var source = CreateEmptyMob(ObjectType.Pc, objectId)
+            .WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFPcQuestIdx, questValues))
+            .WithProperty(ObjectPropertyFactory.ForString(ObjectField.ObjFPcPlayerName, playerName))
+            .WithProperty(ObjectPropertyFactory.ForInt64(ObjectField.ObjFPadI64As1, padI64));
+
+        var parsed = MobFormat.ParseMemory(MobFormat.WriteToArray(in source));
+        var bridged = parsed.ToGameObject().ToMobData();
+
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFPcQuestIdx)).IsNotNull();
+        await Assert
+            .That(parsed.GetProperty(ObjectField.ObjFPcQuestIdx)!.GetInt32Array().SequenceEqual(questValues))
+            .IsTrue();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFPcPlayerName)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFPcPlayerName)!.GetString()).IsEqualTo(playerName);
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFPadI64As1)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFPadI64As1)!.GetInt64()).IsEqualTo(padI64);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcQuestIdx)).IsNotNull();
+        await Assert
+            .That(bridged.GetProperty(ObjectField.ObjFPcQuestIdx)!.GetInt32Array().SequenceEqual(questValues))
+            .IsTrue();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPlayerName)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPcPlayerName)!.GetString()).IsEqualTo(playerName);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPadI64As1)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFPadI64As1)!.GetInt64()).IsEqualTo(padI64);
+    }
+
+    [Test]
+    public async Task Parse_NpcFollowerArrayStandpointsAndScalarGuid_RawSchema_BridgesToGameObject()
+    {
+        var objectId = new GameObjectGuid(
+            GameObjectGuid.OidTypeGuid,
+            0,
+            0,
+            Guid.Parse("00000011-0000-0000-0000-000000000000")
+        );
+        var followerA = Guid.Parse("00000012-0000-0000-0000-000000000000");
+        var followerB = Guid.Parse("00000013-0000-0000-0000-000000000000");
+        var substituteInventory = Guid.Parse("00000014-0000-0000-0000-000000000000");
+        var expectedSubstituteRaw = BuildBytes(w => WriteOidGuid(w, substituteInventory));
+
+        var source = CreateEmptyMob(ObjectType.Npc, objectId)
+            .WithProperty(
+                ObjectPropertyFactory.ForObjectIdArray(ObjectField.ObjFCritterFollowerIdx, [followerA, followerB])
+            )
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFNpcStandpointDay, 11, 12))
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFNpcStandpointNight, 13, 14))
+            .WithProperty(CreateScalarObjectIdProperty(ObjectField.ObjFNpcSubstituteInventory, substituteInventory));
+
+        var parsed = MobFormat.ParseMemory(MobFormat.WriteToArray(in source));
+        var bridged = parsed.ToGameObject().ToMobData();
+
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFCritterFollowerIdx)).IsNotNull();
+        await Assert
+            .That(
+                parsed
+                    .GetProperty(ObjectField.ObjFCritterFollowerIdx)!
+                    .GetObjectIdArray()
+                    .SequenceEqual([followerA, followerB])
+            )
+            .IsTrue();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcStandpointDay)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcStandpointDay)!.GetLocation()).IsEqualTo((11, 12));
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcStandpointNight)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcStandpointNight)!.GetLocation()).IsEqualTo((13, 14));
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcSubstituteInventory)).IsNotNull();
+        await Assert
+            .That(
+                parsed
+                    .GetProperty(ObjectField.ObjFNpcSubstituteInventory)!
+                    .RawBytes.SequenceEqual(expectedSubstituteRaw)
+            )
+            .IsTrue();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFCritterFollowerIdx)).IsNotNull();
+        await Assert
+            .That(
+                bridged
+                    .GetProperty(ObjectField.ObjFCritterFollowerIdx)!
+                    .GetObjectIdArray()
+                    .SequenceEqual([followerA, followerB])
+            )
+            .IsTrue();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcStandpointDay)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcStandpointDay)!.GetLocation()).IsEqualTo((11, 12));
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcStandpointNight)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcStandpointNight)!.GetLocation()).IsEqualTo((13, 14));
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcSubstituteInventory)).IsNotNull();
+        await Assert
+            .That(
+                bridged
+                    .GetProperty(ObjectField.ObjFNpcSubstituteInventory)!
+                    .RawBytes.SequenceEqual(expectedSubstituteRaw)
+            )
+            .IsTrue();
+    }
+
+    [Test]
+    public async Task Parse_NpcAiData_ScalarInt32_RawSchema_BridgesToGameObject()
+    {
+        var objectId = new GameObjectGuid(
+            GameObjectGuid.OidTypeGuid,
+            0,
+            0,
+            Guid.Parse("00000015-0000-0000-0000-000000000000")
+        );
+        const int aiData = 314159;
+
+        var source = CreateEmptyMob(ObjectType.Npc, objectId)
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcAiData, aiData));
+
+        var parsed = MobFormat.ParseMemory(MobFormat.WriteToArray(in source));
+        var bridged = parsed.ToGameObject().ToMobData();
+
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcAiData)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcAiData)!.ParseNote).IsNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFNpcAiData)!.GetInt32()).IsEqualTo(aiData);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcAiData)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFNpcAiData)!.GetInt32()).IsEqualTo(aiData);
+    }
+
+    [Test]
+    public async Task Parse_CritterDeathTime_Int64_RawSchema_BridgesToGameObject()
+    {
+        var objectId = new GameObjectGuid(
+            GameObjectGuid.OidTypeGuid,
+            0,
+            0,
+            Guid.Parse("00000016-0000-0000-0000-000000000000")
+        );
+        const long deathTime = 0x02E2D5F99C7659E7L;
+
+        var source = CreateEmptyMob(ObjectType.Npc, objectId)
+            .WithProperty(ObjectPropertyFactory.ForInt64(ObjectField.ObjFCritterDeathTime, deathTime));
+
+        var parsed = MobFormat.ParseMemory(MobFormat.WriteToArray(in source));
+        var bridged = parsed.ToGameObject().ToMobData();
+
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFCritterDeathTime)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFCritterDeathTime)!.ParseNote).IsNull();
+        await Assert.That(parsed.GetProperty(ObjectField.ObjFCritterDeathTime)!.GetInt64()).IsEqualTo(deathTime);
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFCritterDeathTime)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.ObjFCritterDeathTime)!.GetInt64()).IsEqualTo(deathTime);
     }
 
     [Test]

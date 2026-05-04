@@ -25,7 +25,7 @@ internal static class ObjectInventoryGuidListCodec
         if (!hasCount)
             throw new InvalidOperationException($"{ownerName} inventory list requires an inventory count field.");
 
-        values = ObjectSerializationHelpers.ReadGuidArray(ref reader, reservedCount);
+        values = ObjectSerializationHelpers.ReadGuidArray(ref reader);
         reservedCount = values.Length;
 
         return new ReadResult(reservedCount, values);

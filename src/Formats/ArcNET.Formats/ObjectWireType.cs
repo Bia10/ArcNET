@@ -27,7 +27,7 @@ internal enum ObjectWireType : byte
     /// <summary>SAR block of 64-bit signed integer elements (8 bytes each).</summary>
     Int64Array = 6,
 
-    /// <summary>SAR block of 64-bit object handle elements (8 bytes each).</summary>
+    /// <summary>SAR block of 24-byte ObjectID elements.</summary>
     HandleArray = 7,
 
     /// <summary>SAR block of 12-byte Script elements.</summary>
@@ -35,4 +35,10 @@ internal enum ObjectWireType : byte
 
     /// <summary>SAR block of quest elements (element size determined from SAR header).</summary>
     QuestArray = 9,
+
+    /// <summary>Three-byte RGB color payload.</summary>
+    Rgb24 = 10,
+
+    /// <summary>Single 24-byte ObjectID payload.</summary>
+    ObjectId = 11,
 }

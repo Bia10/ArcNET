@@ -38,8 +38,10 @@ internal static class ObjectPropertyIo
 {
     private static readonly IObjectPropertySchemaProvider s_schemaProvider = ObjectPropertySchemaProvider.Default;
     private const int ByteWireSize = 1;
+    private const int Rgb24WireSize = 3;
     private const int Int32WireSize = 4;
     private const int Int64WireSize = 8;
+    private const int ObjectIdWireSize = ObjectPropertyExtensions.ObjectIdWireSize;
 
     // ── Public API ────────────────────────────────────────────────────────
 
@@ -144,7 +146,9 @@ internal static class ObjectPropertyIo
         wireType switch
         {
             ObjectWireType.Int32 or ObjectWireType.Float => reader.ReadBytes(Int32WireSize).ToArray(),
+            ObjectWireType.Rgb24 => reader.ReadBytes(Rgb24WireSize).ToArray(),
             ObjectWireType.Int64 => ReadPresencePrefixedField(ref reader, Int64WireSize),
+            ObjectWireType.ObjectId => reader.ReadBytes(ObjectIdWireSize).ToArray(),
             ObjectWireType.String => ReadStringField(ref reader),
             ObjectWireType.Int32Array
             or ObjectWireType.UInt32Array

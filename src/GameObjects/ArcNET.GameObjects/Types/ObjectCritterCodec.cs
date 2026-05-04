@@ -77,13 +77,13 @@ internal static class ObjectCritterCodec
         if (Bit(ObjectField.ObjFCritterDescriptionUnknown))
             obj.CritterDescriptionUnknown = reader.ReadInt32();
         if (Bit(ObjectField.ObjFCritterFollowerIdx))
-            obj.CritterFollowers = ObjectSerializationHelpers.ReadGuidArray(ref reader, reader.ReadInt32());
+            obj.CritterFollowers = ObjectSerializationHelpers.ReadGuidArray(ref reader);
         if (Bit(ObjectField.ObjFCritterTeleportDest))
-            obj.CritterTeleportDest = reader.ReadLocation();
+            obj.CritterTeleportDest = ObjectSerializationHelpers.ReadLocation(ref reader);
         if (Bit(ObjectField.ObjFCritterTeleportMap))
             obj.CritterTeleportMap = reader.ReadInt32();
         if (Bit(ObjectField.ObjFCritterDeathTime))
-            obj.CritterDeathTime = reader.ReadInt32();
+            obj.CritterDeathTime = ObjectSerializationHelpers.ReadPresencePrefixedInt64(ref reader);
         if (Bit(ObjectField.ObjFCritterAutoLevelScheme))
             obj.CritterAutoLevelScheme = reader.ReadInt32();
         if (Bit(ObjectField.ObjFCritterPadI1))
@@ -157,16 +157,13 @@ internal static class ObjectCritterCodec
         if (Bit(ObjectField.ObjFCritterDescriptionUnknown))
             writer.WriteInt32(obj.CritterDescriptionUnknown);
         if (Bit(ObjectField.ObjFCritterFollowerIdx))
-        {
-            writer.WriteInt32(obj.CritterFollowers.Length);
             ObjectSerializationHelpers.WriteGuidArray(ref writer, obj.CritterFollowers);
-        }
         if (Bit(ObjectField.ObjFCritterTeleportDest))
-            obj.CritterTeleportDest.Write(ref writer);
+            ObjectSerializationHelpers.WriteLocation(ref writer, obj.CritterTeleportDest);
         if (Bit(ObjectField.ObjFCritterTeleportMap))
             writer.WriteInt32(obj.CritterTeleportMap);
         if (Bit(ObjectField.ObjFCritterDeathTime))
-            writer.WriteInt32(obj.CritterDeathTime);
+            ObjectSerializationHelpers.WritePresencePrefixedInt64(ref writer, obj.CritterDeathTime);
         if (Bit(ObjectField.ObjFCritterAutoLevelScheme))
             writer.WriteInt32(obj.CritterAutoLevelScheme);
         if (Bit(ObjectField.ObjFCritterPadI1))

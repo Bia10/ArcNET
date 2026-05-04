@@ -147,21 +147,26 @@ public static class MobDataExtensions
     )
     {
         var list = new List<ObjectProperty>(properties.Count + 1);
-        var replaced = false;
+        var inserted = false;
         foreach (var existing in properties)
         {
             if (existing.Field == property.Field)
             {
                 list.Add(property);
-                replaced = true;
+                inserted = true;
+                continue;
             }
-            else
+
+            if (!inserted && existing.Field > property.Field)
             {
-                list.Add(existing);
+                list.Add(property);
+                inserted = true;
             }
+
+            list.Add(existing);
         }
 
-        if (!replaced)
+        if (!inserted)
             list.Add(property);
 
         return list;

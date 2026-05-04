@@ -43,9 +43,9 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.ObjFNpcWaypointCurrent))
             obj.WaypointCurrent = reader.ReadInt32();
         if (Bit(ObjectField.ObjFNpcStandpointDay))
-            obj.StandpointDay = reader.ReadLocation();
+            obj.StandpointDay = ObjectSerializationHelpers.ReadLocation(ref reader);
         if (Bit(ObjectField.ObjFNpcStandpointNight))
-            obj.StandpointNight = reader.ReadLocation();
+            obj.StandpointNight = ObjectSerializationHelpers.ReadLocation(ref reader);
         if (Bit(ObjectField.ObjFNpcOrigin))
             obj.Origin = reader.ReadInt32();
         if (Bit(ObjectField.ObjFNpcFaction))
@@ -99,9 +99,9 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.ObjFNpcWaypointCurrent))
             writer.WriteInt32(obj.WaypointCurrent);
         if (Bit(ObjectField.ObjFNpcStandpointDay))
-            obj.StandpointDay.Write(ref writer);
+            ObjectSerializationHelpers.WriteLocation(ref writer, obj.StandpointDay);
         if (Bit(ObjectField.ObjFNpcStandpointNight))
-            obj.StandpointNight.Write(ref writer);
+            ObjectSerializationHelpers.WriteLocation(ref writer, obj.StandpointNight);
         if (Bit(ObjectField.ObjFNpcOrigin))
             writer.WriteInt32(obj.Origin);
         if (Bit(ObjectField.ObjFNpcFaction))

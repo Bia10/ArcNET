@@ -103,6 +103,22 @@ public class MobDataExtensionsTests
         await Assert.That(mob.Properties.Count).IsEqualTo(0);
     }
 
+    [Test]
+    public async Task WithProperty_NewLowerField_PreservesFieldOrderForRoundTrip()
+    {
+        var mob = MakeMob(ObjectType.Npc, MakeProp(ObjectField.ObjFMaterial, 9));
+
+        var updated = mob.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFOverlayLightAid, [7, 8]));
+        var reparsed = MobFormat.ParseMemory(MobFormat.WriteToArray(updated));
+
+        await Assert.That(updated.Properties[0].Field).IsEqualTo(ObjectField.ObjFOverlayLightAid);
+        await Assert.That(updated.Properties[1].Field).IsEqualTo(ObjectField.ObjFMaterial);
+        await Assert.That(reparsed.GetProperty(ObjectField.ObjFOverlayLightAid)).IsNotNull();
+        await Assert
+            .That(reparsed.GetProperty(ObjectField.ObjFOverlayLightAid)!.GetInt32Array())
+            .IsEquivalentTo([7, 8]);
+    }
+
     // ── WithoutProperty ───────────────────────────────────────────────────────
 
     [Test]

@@ -26,7 +26,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.ObjFCurrentAid))
             obj.CurrentAid = reader.ReadArtId();
         if (Bit(ObjectField.ObjFLocation))
-            obj.Location = reader.ReadLocation();
+            obj.Location = ObjectSerializationHelpers.ReadLocation(ref reader);
         if (Bit(ObjectField.ObjFOffsetX))
             obj.OffsetX = reader.ReadInt32();
         if (Bit(ObjectField.ObjFOffsetY))
@@ -101,7 +101,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.ObjFPadIas1))
             obj.CommonPadIas1Reserved = reader.ReadInt32();
         if (Bit(ObjectField.ObjFPadI64As1))
-            obj.CommonPadI64As1Reserved = reader.ReadInt64();
+            obj.CommonPadI64As1Reserved = ObjectSerializationHelpers.ReadPresencePrefixedInt64(ref reader);
     }
 
     private static void ReadCombatFields(ObjectCommon obj, ref SpanReader reader, byte[] bitmap, bool isPrototype)
@@ -125,7 +125,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.ObjFCurrentAid))
             obj.CurrentAid.Write(ref writer);
         if (Bit(ObjectField.ObjFLocation))
-            obj.Location!.Value.Write(ref writer);
+            ObjectSerializationHelpers.WriteLocation(ref writer, obj.Location ?? default);
         if (Bit(ObjectField.ObjFOffsetX))
             writer.WriteInt32(obj.OffsetX);
         if (Bit(ObjectField.ObjFOffsetY))
@@ -200,7 +200,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.ObjFPadIas1))
             writer.WriteInt32(obj.CommonPadIas1Reserved);
         if (Bit(ObjectField.ObjFPadI64As1))
-            writer.WriteInt64(obj.CommonPadI64As1Reserved);
+            ObjectSerializationHelpers.WritePresencePrefixedInt64(ref writer, obj.CommonPadI64As1Reserved);
     }
 
     private static void WriteCombatFields(ObjectCommon obj, ref SpanWriter writer, byte[] bitmap, bool isPrototype)

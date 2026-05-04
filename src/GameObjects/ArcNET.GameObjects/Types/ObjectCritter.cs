@@ -37,7 +37,7 @@ public class ObjectCritter : ObjectCommon
     public GameObjectGuid[] CritterFollowers { get; internal set; } = [];
     public Location CritterTeleportDest { get; internal set; }
     public int CritterTeleportMap { get; internal set; }
-    public int CritterDeathTime { get; internal set; }
+    public long CritterDeathTime { get; internal set; }
     public int CritterAutoLevelScheme { get; internal set; }
 
     internal int InventoryCountReserved
