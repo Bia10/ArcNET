@@ -1,9 +1,6 @@
 <Project>
   <PropertyGroup>
-    <!-- MinVer: derives version from git tags -->
-    <MinVerDefaultPreReleaseIdentifiers>preview</MinVerDefaultPreReleaseIdentifiers>
-    <MinVerTagPrefix>v</MinVerTagPrefix>
-    <MinVerVerbosity>minimal</MinVerVerbosity>
+    <!-- Explicit package versions are resolved from src/ArcNET.PackageVersions.props. -->
 
     <Company>Bia10</Company>
     <Authors>Bia10</Authors>
@@ -72,11 +69,6 @@
     <AssemblyAttribute Include="System.CLSCompliantAttribute">
       <_Parameter1>false</_Parameter1>
     </AssemblyAttribute>
-  </ItemGroup>
-
-  <!-- MinVer package: private, not shipped to consumers -->
-  <ItemGroup>
-    <PackageReference Include="MinVer" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- CSharpier formatting enforcement -->

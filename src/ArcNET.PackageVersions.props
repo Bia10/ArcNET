@@ -1,0 +1,41 @@
+<Project>
+  <ItemGroup>
+    <!-- Explicit package versions for ArcNET's independently versioned NuGet libraries. -->
+    <ArcNETPackageVersion Include="ArcNET.Archive">
+      <PackageId>ArcNET.Archive</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.BinaryPatch">
+      <PackageId>ArcNET.BinaryPatch</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.Core">
+      <PackageId>ArcNET.Core</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.Dumpers">
+      <PackageId>ArcNET.Dumpers</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.Editor">
+      <PackageId>ArcNET.Editor</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.Formats">
+      <PackageId>ArcNET.Formats</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.GameData">
+      <PackageId>ArcNET.GameData</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.GameObjects">
+      <PackageId>ArcNET.GameObjects</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.Patch">
+      <PackageId>ArcNET.Patch</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+  </ItemGroup>
+</Project>

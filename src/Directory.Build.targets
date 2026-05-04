@@ -1,4 +1,21 @@
 <Project>
-  <!-- Add shared MSBuild targets here if needed.
-       For most libraries this file stays empty. -->
+  <Import Project="$(MSBuildThisFileDirectory)ArcNET.PackageVersions.props" />
+
+  <Target Name="ResolveArcNETPackageVersion" BeforeTargets="GetAssemblyVersion;GenerateNuspec" Condition="'$(IsPackable)' == 'true'">
+    <ItemGroup>
+      <_ArcNETResolvedPackageVersion Include="@(ArcNETPackageVersion)" Condition="'%(ArcNETPackageVersion.PackageId)' == '$(PackageId)'" />
+      <_ArcNETResolvedPackageVersion Include="@(ArcNETPackageVersion)" Condition="'$(PackageId)' == '' and '%(ArcNETPackageVersion.PackageId)' == '$(MSBuildProjectName)'" />
+    </ItemGroup>
+
+    <Error
+      Condition="'@(_ArcNETResolvedPackageVersion)' == ''"
+      Text="Packable project '$(MSBuildProjectName)' is missing an ArcNET.PackageVersions.props entry."
+    />
+
+    <PropertyGroup>
+      <ArcNETResolvedPackageVersion>@(_ArcNETResolvedPackageVersion->'%(Version)')</ArcNETResolvedPackageVersion>
+      <Version>$(ArcNETResolvedPackageVersion)</Version>
+      <PackageVersion>$(ArcNETResolvedPackageVersion)</PackageVersion>
+    </PropertyGroup>
+  </Target>
 </Project>
