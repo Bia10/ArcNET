@@ -1,4 +1,4 @@
-using ArcNET.GameObjects;
+﻿using ArcNET.GameObjects;
 
 namespace ArcNET.Formats.Tests;
 
@@ -32,7 +32,7 @@ public sealed class ObjectPropertySchemaProviderTests
     public async Task ResolveWireType_Pc_ComposesCritterAndPcBits()
     {
         var critterWireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Pc, 74);
-        var pcWireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Pc, 133);
+        var pcWireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Pc, 145);
 
         await Assert.That(critterWireType).IsEqualTo(ObjectWireType.Int32Array);
         await Assert.That(pcWireType).IsEqualTo(ObjectWireType.String);
@@ -41,9 +41,11 @@ public sealed class ObjectPropertySchemaProviderTests
     [Test]
     public async Task ResolveWireType_Npc_ComposesCritterAndNpcBits()
     {
-        var wireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Npc, 129);
+        var critterWireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Npc, 87);
+        var npcWireType = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Npc, 129);
 
-        await Assert.That(wireType).IsEqualTo(ObjectWireType.HandleArray);
+        await Assert.That(critterWireType).IsEqualTo(ObjectWireType.HandleArray);
+        await Assert.That(npcWireType).IsEqualTo(ObjectWireType.ObjectId);
     }
 
     [Test]
