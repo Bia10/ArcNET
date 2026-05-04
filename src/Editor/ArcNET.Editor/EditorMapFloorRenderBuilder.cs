@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -45,6 +45,7 @@ public static class EditorMapFloorRenderBuilder
         int MapTileY,
         Location Tile,
         double SortKey,
+        int PreviewOrder,
         double AnchorX,
         double AnchorY,
         EditorMapObjectSpriteBounds? SpriteBounds,
@@ -267,6 +268,7 @@ public static class EditorMapFloorRenderBuilder
                         MapTileY: mapTileY,
                         Tile: location,
                         SortKey: GetObjectSortKey(baseTileDrawOrder, obj),
+                        PreviewOrder: objectIndex,
                         AnchorX: anchorX,
                         AnchorY: anchorY,
                         SpriteBounds: obj.SpriteBounds,
@@ -354,9 +356,11 @@ public static class EditorMapFloorRenderBuilder
 
         var offsetX = -minLeft;
         var offsetY = -minTop;
-        var tiles = rawTiles
+        var orderedTiles = rawTiles
             .OrderBy(static tile => tile.DrawOrder)
             .ThenBy(static tile => tile.MapTileX)
+            .ToArray();
+        var tiles = orderedTiles
             .Select(tile => new EditorMapFloorTileRenderItem
             {
                 SectorAssetPath = tile.SectorAssetPath,
@@ -372,10 +376,12 @@ public static class EditorMapFloorRenderBuilder
                 CenterY = tile.CenterY + offsetY,
             })
             .ToArray();
-        var objects = rawObjects
+        var orderedObjects = rawObjects
             .OrderBy(static obj => obj.SortKey)
             .ThenBy(static obj => obj.MapTileX)
-            .ThenBy(static obj => obj.ObjectId)
+            .ThenBy(static obj => obj.PreviewOrder)
+            .ToArray();
+        var objects = orderedObjects
             .Select(
                 (obj, index) =>
                     new EditorMapObjectRenderItem
@@ -396,11 +402,13 @@ public static class EditorMapFloorRenderBuilder
                     }
             )
             .ToArray();
-        var overlays = rawTileOverlays
+        var orderedOverlays = rawTileOverlays
             .OrderBy(static overlay => overlay.SortKey)
             .ThenBy(static overlay => overlay.MapTileX)
             .ThenBy(static overlay => overlay.MapTileY)
             .ThenBy(static overlay => overlay.Kind)
+            .ToArray();
+        var overlays = orderedOverlays
             .Select(
                 (overlay, index) =>
                     new EditorMapTileOverlayRenderItem
@@ -418,9 +426,8 @@ public static class EditorMapFloorRenderBuilder
                     }
             )
             .ToArray();
-        var roofs = rawRoofs
-            .OrderBy(static roof => roof.SortKey)
-            .ThenBy(static roof => roof.MapTileY)
+        var orderedRoofs = rawRoofs.OrderBy(static roof => roof.SortKey).ThenBy(static roof => roof.MapTileY).ToArray();
+        var roofs = orderedRoofs
             .Select(
                 (roof, index) =>
                     new EditorMapRoofRenderItem
@@ -437,13 +444,13 @@ public static class EditorMapFloorRenderBuilder
             )
             .ToArray();
         var renderQueue = BuildRenderQueue(
-            rawTiles,
+            orderedTiles,
             tiles,
-            rawTileOverlays,
+            orderedOverlays,
             overlays,
-            rawObjects,
+            orderedObjects,
             objects,
-            rawRoofs,
+            orderedRoofs,
             roofs
         );
 
@@ -511,7 +518,8 @@ public static class EditorMapFloorRenderBuilder
         + objectPreview.OffsetY
         - objectPreview.OffsetZ
         + (objectPreview.SpriteBounds?.MaxFrameCenterY ?? 0)
-        + ((objectPreview.SpriteBounds?.MaxFrameHeight ?? 0) / 4096d);
+        + ((objectPreview.SpriteBounds?.MaxFrameHeight ?? 0) / 4096d)
+        + (objectPreview.CollisionHeight / 16777216d);
 
     internal static double GetTileOverlaySortKey(int tileDrawOrder, EditorMapTileOverlayKind kind) =>
         (tileDrawOrder * 4096d) + 1024d + (int)kind;

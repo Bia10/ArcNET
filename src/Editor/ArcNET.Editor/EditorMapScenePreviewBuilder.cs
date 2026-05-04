@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -157,47 +157,22 @@ public static class EditorMapScenePreviewBuilder
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache
     )
     {
-        var gameObject = mob.ToGameObject();
-        var currentArtId = gameObject.Common.CurrentAid;
-        Location? location = null;
-        var offsetX = gameObject.Common.OffsetX;
-        var offsetY = gameObject.Common.OffsetY;
-        var offsetZ = 0f;
-        var collisionHeight = 0f;
-        var rotation = 0f;
-        var rotationPitch = 0f;
-
-        if (mob.GetProperty(ObjectField.ObjFLocation) is { } locationProperty)
-        {
-            var (tileX, tileY) = locationProperty.GetLocation();
-            location = new Location(checked((short)tileX), checked((short)tileY));
-        }
-
-        if (mob.GetProperty(ObjectField.ObjFOffsetX) is { } offsetXProperty)
-            offsetX = offsetXProperty.GetInt32();
-
-        if (mob.GetProperty(ObjectField.ObjFOffsetY) is { } offsetYProperty)
-            offsetY = offsetYProperty.GetInt32();
-
-        if (mob.GetProperty(ObjectField.ObjFOffsetZ) is { } offsetZProperty)
-            offsetZ = offsetZProperty.GetFloat();
-
-        if (mob.GetProperty(ObjectField.ObjFHeight) is { } collisionHeightProperty)
-            collisionHeight = collisionHeightProperty.GetFloat();
-
-        if (mob.GetProperty(ObjectField.ObjFPadIas1) is { } rotationProperty)
-            rotation = rotationProperty.GetFloat();
-
-        if (mob.GetProperty(ObjectField.ObjFRotationPitch) is { } rotationPitchProperty)
-            rotationPitch = rotationPitchProperty.GetFloat();
+        var currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFCurrentAid);
+        var location = GetPreviewLocation(mob.GetProperty(ObjectField.ObjFLocation));
+        var offsetX = GetInt32OrDefault(mob, ObjectField.ObjFOffsetX);
+        var offsetY = GetInt32OrDefault(mob, ObjectField.ObjFOffsetY);
+        var offsetZ = GetFloatOrDefault(mob, ObjectField.ObjFOffsetZ);
+        var collisionHeight = GetFloatOrDefault(mob, ObjectField.ObjFHeight);
+        var rotation = GetFloatOrDefault(mob, ObjectField.ObjFPadIas1);
+        var rotationPitch = GetFloatOrDefault(mob, ObjectField.ObjFRotationPitch);
 
         return new EditorMapObjectPreview
         {
-            ObjectId = gameObject.ObjectId,
-            ProtoId = gameObject.ProtoId,
-            ObjectType = gameObject.Type,
+            ObjectId = mob.Header.ObjectId,
+            ProtoId = mob.Header.ProtoId,
+            ObjectType = mob.Header.GameObjectType,
             CurrentArtId = currentArtId,
-            Location = location ?? gameObject.Common.Location,
+            Location = location,
             OffsetX = offsetX,
             OffsetY = offsetY,
             OffsetZ = offsetZ,
@@ -206,6 +181,29 @@ public static class EditorMapScenePreviewBuilder
             Rotation = rotation,
             RotationPitch = rotationPitch,
         };
+    }
+
+    private static int GetInt32OrDefault(MobData mob, ObjectField field) =>
+        mob.GetProperty(field) is { ParseNote: null } property ? property.GetInt32() : 0;
+
+    private static float GetFloatOrDefault(MobData mob, ObjectField field) =>
+        mob.GetProperty(field) is { ParseNote: null } property ? property.GetFloat() : 0f;
+
+    private static ArtId GetArtIdOrDefault(MobData mob, ObjectField field) =>
+        mob.GetProperty(field) is { ParseNote: null } property
+            ? new ArtId(unchecked((uint)property.GetInt32()))
+            : default;
+
+    private static Location? GetPreviewLocation(ObjectProperty? property)
+    {
+        if (property is null || property.ParseNote is not null)
+            return null;
+
+        var (tileX, tileY) = property.GetLocation();
+        if (tileX is < short.MinValue or > short.MaxValue || tileY is < short.MinValue or > short.MaxValue)
+            return null;
+
+        return new Location((short)tileX, (short)tileY);
     }
 
     private static EditorMapObjectSpriteBounds? ResolveSpriteBounds(
