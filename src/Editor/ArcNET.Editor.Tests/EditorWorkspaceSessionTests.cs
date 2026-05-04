@@ -9050,6 +9050,74 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_UsesCustomSpriteSource()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var spriteSource = new TestSpriteSource();
+            var shell = session.CreateTrackedMapWorldEditShell(
+                "map-view-1",
+                new EditorMapWorldEditShellRequest { SpriteSource = spriteSource }
+            );
+
+            await Assert.That(spriteSource.ResolvedArtIds.Count).IsGreaterThan(0);
+            await Assert
+                .That(
+                    shell.Scene.PaintableScene.Items.Any(item =>
+                        item.Sprite is { PixelFormat: EditorArtPreviewPixelFormat.Bgra32 }
+                    )
+                )
+                .IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_PreservesSelectionAndInspectorState_WhenSelectedObjectCarriesFollowerArrayField()
     {
         const int protoNumber = 1001;
@@ -11223,6 +11291,34 @@ public sealed class EditorWorkspaceSessionTests
                 ],
             ],
         };
+    }
+
+    private sealed class TestSpriteSource : IEditorMapRenderSpriteSource
+    {
+        public List<ArtId> ResolvedArtIds { get; } = [];
+
+        public EditorMapRenderSprite? Resolve(ArtId artId, EditorMapRenderSpriteRequest? request = null)
+        {
+            if (artId.Value == 0)
+                return null;
+
+            ResolvedArtIds.Add(artId);
+            return new EditorMapRenderSprite
+            {
+                ArtId = artId,
+                AssetPath = $"art/{artId.Value}.art",
+                RotationIndex = request?.RotationIndex ?? 0,
+                FrameIndex = request?.FrameIndex ?? 0,
+                Width = 1,
+                Height = 1,
+                Stride = 4,
+                CenterX = 0,
+                CenterY = 0,
+                FrameRate = 1,
+                PixelFormat = EditorArtPreviewPixelFormat.Bgra32,
+                PixelData = [0x10, 0x20, 0x30, 0xFF],
+            };
+        }
     }
 
     private static int[] GetScriptIds(IReadOnlyList<ObjectProperty> properties) =>
