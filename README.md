@@ -11,7 +11,7 @@ Span-based, low-allocation, UI-agnostic library APIs — usable from console too
 
 ⭐ Please star this project if you find it useful. ⭐
 
-[Packages](#packages) · [Quick Example](#quick-example) · [Example Catalogue](docs/examples.md) · [Editor Implementation Targets](docs/EditorImplementationTargets.md) · [Editor SDK Roadmap](docs/EditorSdkRoadmap.md) · [Public API](docs/PublicApi.md)
+[Packages](#packages) · [Quick Example](#quick-example) · [NuGet Publishing](docs/NuGetPublishing.md) · [Example Catalogue](docs/examples.md) · [Editor Implementation Targets](docs/EditorImplementationTargets.md) · [Editor SDK Roadmap](docs/EditorSdkRoadmap.md) · [Public API](docs/PublicApi.md)
 
 ---
 
@@ -30,6 +30,8 @@ Span-based, low-allocation, UI-agnostic library APIs — usable from console too
 | `ArcNET.Editor` | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Editor?label=NuGet)](https://www.nuget.org/packages/ArcNET.Editor) | Unified editor workspace/session loading for real installs or loose content plus optional saves (`EditorWorkspaceLoader`), parsed asset catalog plus loose-vs-DAT provenance (`EditorWorkspace.Assets`), load diagnostics for skipped archives/assets (`EditorWorkspace.LoadReport`), cross-file workspace validation findings including install-aware proto display-name coverage plus dialog-local authoring checks (`EditorWorkspace.Validation`), map/sector/message/proto/script/dialog/art index queries including asset-path dependency summaries, sector summaries, sector environment-scheme lookups, lightweight map projection lookup plus normalized preview flags and density bands, multi-asset script/dialog definition lookup, script attachment summaries, dialog-node graph summaries (`EditorWorkspace.Index`), graph-aware dialog composition plus transactional dialog editing and flow insertion helpers, typed script condition/action and operand composition, and local dialog/script validation helpers (`DialogBuilder`, `DialogEditor`, `ScriptBuilder`, `DialogValidator`, `ScriptBuilder.Validate()`, `ScriptValidator`), save-game editing pipeline (`LoadedSave`, `SaveGameEditor`, `SaveGameLoader`, `SaveGameWriter`), and fluent builders for authoring workflows | 🚧 WIP |
 
 All packages target `net10.0` and are AOT / trim compatible. Runtime dependencies are intentionally small; the shared non-BCL package currently used across the core libraries is `Bia.ValueBuffers` for low-allocation buffer building.
+
+Package versions are now explicit per library via `src/ArcNET.PackageVersions.props`. Use `dotnet Build.cs package-version ArcNET.Core` to inspect the current version, then tag `ArcNET.Core-v<that version>` to publish that package. See [docs/NuGetPublishing.md](docs/NuGetPublishing.md) for the local pack and CI publish flow.
 
 The NuGet packages are already consumable, but the overall SDK is still under active construction toward the full modular editor goal described in [docs/EditorSdkRoadmap.md](docs/EditorSdkRoadmap.md). For the concrete near-term build order, use [docs/EditorImplementationTargets.md](docs/EditorImplementationTargets.md).
 
@@ -110,19 +112,24 @@ dotnet tool restore
 dotnet build ArcNET.Build.slnx -c Release
 ```
 
+## NuGet Packaging
+
+```shell
+dotnet Build.cs list-packages
+dotnet Build.cs package-version ArcNET.Core
+dotnet Build.cs pack
+dotnet Build.cs pack ArcNET.Core
+```
+
+Tagging `ArcNET.<Package>-v<semver>` publishes only that package via GitHub Actions. The full release contract is documented in [docs/NuGetPublishing.md](docs/NuGetPublishing.md).
+
 ## Testing
 
 TUnit tests use the Microsoft Testing Platform runner:
 
 ```shell
-dotnet run --project src/Core/ArcNET.Core.Tests -c Release
-dotnet run --project src/GameObjects/ArcNET.GameObjects.Tests -c Release
-dotnet run --project src/Formats/ArcNET.Formats.Tests -c Release
-dotnet run --project src/GameData/ArcNET.GameData.Tests -c Release
-dotnet run --project src/Archive/ArcNET.Archive.Tests -c Release
-dotnet run --project src/Patch/ArcNET.Patch.Tests -c Release
-dotnet run --project src/BinaryPatch/ArcNET.BinaryPatch.Tests -c Release
-dotnet run --project src/Editor/ArcNET.Editor.Tests -c Release
+dotnet Build.cs test
+dotnet dotnet-coverage collect "dotnet run --project src/Core/ArcNET.Core.Tests -c Release" --output artifacts/TestResults/ArcNET.Core.Tests.coverage.cobertura.xml --output-format cobertura
 ```
 
 ## Formatting

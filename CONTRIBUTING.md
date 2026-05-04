@@ -5,14 +5,12 @@ Thank you for considering contributing!
 ## How to Contribute
 
 1. Fork the repository and create a feature branch from `main`.
-2. Run `dotnet tool restore` to install local tools (CSharpier).
+2. Run `dotnet tool restore` to install local tools (CSharpier and dotnet-coverage).
 3. Ensure your code passes all checks:
    ```shell
-   dotnet build -c Release
-   dotnet test
-   dotnet csharpier check .
-   dotnet format style --verify-no-changes
-   dotnet format analyzers --verify-no-changes
+   dotnet Build.cs build
+   dotnet Build.cs test
+   dotnet Build.cs format-check
    ```
 4. Open a Pull Request against `main` with a clear description of the change.
 
