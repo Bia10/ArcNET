@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using ArcNET.Core;
@@ -17,6 +18,8 @@ public sealed class EditorWorkspaceSession
     private const int SectorTileAxisLength = 64;
     private const int SectorRoofAxisLength = 16;
     private const int ScriptDescriptionDiskLength = 40;
+    private const EditorArtResolverBindingStrategy DefaultRenderableArtBindingStrategy =
+        EditorArtResolverBindingStrategy.ArcanumMessageTables;
 
     private readonly Dictionary<string, DialogEditor> _dialogEditors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ScriptEditor> _scriptEditors = new(StringComparer.OrdinalIgnoreCase);
@@ -754,7 +757,7 @@ public sealed class EditorWorkspaceSession
             MapViewStateId = mapViewState.Id,
             MapName = mapViewState.MapName,
             ToolState = toolState,
-            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState, DefaultRenderableArtBindingStrategy),
         };
     }
 
@@ -762,21 +765,22 @@ public sealed class EditorWorkspaceSession
     /// Returns one terrain palette browser summary for the tracked map view using the current
     /// tracked palette asset when present, or the map's default <c>map.prp</c> asset path otherwise.
     /// </summary>
-    public EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(string mapViewStateId)
-    {
-        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
-        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
-        var mapPropertiesAssetPath = ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState);
-        return new EditorMapTerrainPaletteSummary
-        {
-            MapViewStateId = mapViewState.Id,
-            MapName = mapViewState.MapName,
-            ToolState = toolState,
-            MapPropertiesAssetPath = mapPropertiesAssetPath,
-            Entries = Workspace.GetTerrainPalette(mapPropertiesAssetPath),
-            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
-        };
-    }
+    public EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(string mapViewStateId) =>
+        GetTrackedTerrainPaletteSummary(mapViewStateId, DefaultRenderableArtBindingStrategy);
+
+    /// <summary>
+    /// Returns one terrain palette browser summary for the tracked map view asynchronously using the default ART binding strategy.
+    /// </summary>
+    public Task<EditorMapTerrainPaletteSummary> GetTrackedTerrainPaletteSummaryAsync(
+        string mapViewStateId,
+        CancellationToken cancellationToken = default
+    ) =>
+        GetTrackedTerrainPaletteSummaryAsync(
+            mapViewStateId,
+            DefaultRenderableArtBindingStrategy,
+            null,
+            cancellationToken
+        );
 
     /// <summary>
     /// Returns one terrain palette browser summary for the tracked map view enriched with optional
@@ -799,6 +803,51 @@ public sealed class EditorWorkspaceSession
             MapPropertiesAssetPath = mapPropertiesAssetPath,
             Entries = Workspace.GetTerrainPalette(mapPropertiesAssetPath, artBindingStrategy, artPreviewOptions),
             SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState, artBindingStrategy, artPreviewOptions),
+        };
+    }
+
+    /// <summary>
+    /// Returns one terrain palette browser summary for the tracked map view asynchronously enriched with optional ART binding and preview payloads.
+    /// </summary>
+    public async Task<EditorMapTerrainPaletteSummary> GetTrackedTerrainPaletteSummaryAsync(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions? artPreviewOptions = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        var mapPropertiesAssetPath = ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState);
+        var entries = await Workspace
+            .GetTerrainPaletteAsync(mapPropertiesAssetPath, artBindingStrategy, artPreviewOptions, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return new EditorMapTerrainPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            MapPropertiesAssetPath = mapPropertiesAssetPath,
+            Entries = entries,
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState, artBindingStrategy, artPreviewOptions),
+        };
+    }
+
+    private EditorMapTerrainPaletteSummary CreateTrackedShellTerrainPaletteSummary(string mapViewStateId)
+    {
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapTerrainToolState(mapViewState.WorldEdit.Terrain);
+        var mapPropertiesAssetPath = ResolveTrackedTerrainPaletteAssetPath(mapViewState, toolState);
+        return new EditorMapTerrainPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            MapPropertiesAssetPath = mapPropertiesAssetPath,
+            Entries = [],
+            SelectedEntry = Workspace.FindTerrainPaletteEntry(toolState),
         };
     }
 
@@ -913,16 +962,57 @@ public sealed class EditorWorkspaceSession
     public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
         string mapViewStateId,
         string? searchText = null,
-        string? category = null
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false
+    ) =>
+        GetTrackedObjectPaletteSummary(
+            mapViewStateId,
+            DefaultRenderableArtBindingStrategy,
+            searchText,
+            category,
+            includeFullPaletteWhenSearchIsEmpty
+        );
+
+    /// <summary>
+    /// Returns one object palette browser summary for the tracked map view asynchronously using the default ART binding strategy.
+    /// </summary>
+    public Task<EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(
+        string mapViewStateId,
+        string? searchText = null,
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false,
+        CancellationToken cancellationToken = default
+    ) =>
+        GetTrackedObjectPaletteSummaryAsync(
+            mapViewStateId,
+            DefaultRenderableArtBindingStrategy,
+            searchText,
+            category,
+            includeFullPaletteWhenSearchIsEmpty,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Returns one object palette browser summary for the tracked map view using the supplied ART binding strategy.
+    /// </summary>
+    public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        string? searchText = null,
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false
     )
     {
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
         var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
         var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
         var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
-        var browseEntries = effectiveSearchText is null
-            ? Workspace.GetObjectPalette()
-            : Workspace.SearchObjectPalette(effectiveSearchText);
+        var browseEntries = ResolveTrackedObjectPaletteBrowseEntries(
+            toolState,
+            effectiveSearchText,
+            artBindingStrategy,
+            includeFullPaletteWhenSearchIsEmpty
+        );
         var availableCategories = browseEntries
             .Select(static entry => entry.Category)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -944,22 +1034,30 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
-    /// Returns one object palette browser summary for the tracked map view using the supplied ART binding strategy.
+    /// Returns one object palette browser summary for the tracked map view asynchronously using the supplied ART binding strategy.
     /// </summary>
-    public EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(
+    public async Task<EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(
         string mapViewStateId,
         EditorArtResolverBindingStrategy artBindingStrategy,
         string? searchText = null,
-        string? category = null
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false,
+        CancellationToken cancellationToken = default
     )
     {
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
         var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
         var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
         var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
-        var browseEntries = effectiveSearchText is null
-            ? Workspace.GetObjectPalette(artBindingStrategy)
-            : Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy);
+        var browseEntries = await ResolveTrackedObjectPaletteBrowseEntriesAsync(
+                toolState,
+                effectiveSearchText,
+                artBindingStrategy,
+                includeFullPaletteWhenSearchIsEmpty,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         var availableCategories = browseEntries
             .Select(static entry => entry.Category)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -988,7 +1086,8 @@ public sealed class EditorWorkspaceSession
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions,
         string? searchText = null,
-        string? category = null
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false
     )
     {
         ArgumentNullException.ThrowIfNull(artPreviewOptions);
@@ -997,9 +1096,13 @@ public sealed class EditorWorkspaceSession
         var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
         var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
         var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
-        var browseEntries = effectiveSearchText is null
-            ? Workspace.GetObjectPalette(artBindingStrategy, artPreviewOptions)
-            : Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy, artPreviewOptions);
+        var browseEntries = ResolveTrackedObjectPaletteBrowseEntries(
+            toolState,
+            effectiveSearchText,
+            artBindingStrategy,
+            artPreviewOptions,
+            includeFullPaletteWhenSearchIsEmpty
+        );
         var availableCategories = browseEntries
             .Select(static entry => entry.Category)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1021,6 +1124,201 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one object palette browser summary for the tracked map view asynchronously enriched with ART preview payloads.
+    /// </summary>
+    public async Task<EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(
+        string mapViewStateId,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions,
+        string? searchText = null,
+        string? category = null,
+        bool includeFullPaletteWhenSearchIsEmpty = false,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var toolState = NormalizeProjectMapObjectPlacementToolState(mapViewState.WorldEdit.ObjectPlacement);
+        var effectiveSearchText = NormalizeOptionalText(searchText) ?? toolState.PaletteSearchText;
+        var effectiveCategory = NormalizeOptionalText(category) ?? toolState.PaletteCategory;
+        var browseEntries = await ResolveTrackedObjectPaletteBrowseEntriesAsync(
+                toolState,
+                effectiveSearchText,
+                artBindingStrategy,
+                artPreviewOptions,
+                includeFullPaletteWhenSearchIsEmpty,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var availableCategories = browseEntries
+            .Select(static entry => entry.Category)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var filteredEntries = FilterObjectPaletteEntriesByCategory(browseEntries, effectiveCategory);
+
+        return new EditorMapObjectPaletteSummary
+        {
+            MapViewStateId = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ToolState = toolState,
+            SearchText = effectiveSearchText,
+            Category = effectiveCategory,
+            AvailableCategories = availableCategories,
+            Entries = filteredEntries,
+            SelectedEntry = ResolveTrackedObjectPaletteSelectedEntry(filteredEntries, toolState),
+        };
+    }
+
+    private IReadOnlyList<EditorObjectPaletteEntry> ResolveTrackedObjectPaletteBrowseEntries(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        bool includeFullPaletteWhenSearchIsEmpty
+    )
+    {
+        if (effectiveSearchText is not null)
+            return Workspace.SearchObjectPalette(effectiveSearchText);
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+            return Workspace.GetObjectPalette();
+
+        return ResolveTrackedObjectPaletteSelectedEntry(toolState) is { } selectedEntry ? [selectedEntry] : [];
+    }
+
+    private async Task<IReadOnlyList<EditorObjectPaletteEntry>> ResolveTrackedObjectPaletteBrowseEntriesAsync(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        bool includeFullPaletteWhenSearchIsEmpty,
+        CancellationToken cancellationToken
+    )
+    {
+        if (effectiveSearchText is not null)
+            return await Workspace
+                .SearchObjectPaletteAsync(effectiveSearchText, cancellationToken)
+                .ConfigureAwait(false);
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+            return await Workspace.GetObjectPaletteAsync(cancellationToken).ConfigureAwait(false);
+
+        return ResolveTrackedObjectPaletteSelectedEntry(toolState) is { } selectedEntry ? [selectedEntry] : [];
+    }
+
+    private IReadOnlyList<EditorObjectPaletteEntry> ResolveTrackedObjectPaletteBrowseEntries(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        bool includeFullPaletteWhenSearchIsEmpty
+    )
+    {
+        if (effectiveSearchText is not null)
+            return Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy);
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+            return Workspace.GetObjectPalette(artBindingStrategy);
+
+        return ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy) is { } selectedEntry
+            ? [selectedEntry]
+            : [];
+    }
+
+    private async Task<IReadOnlyList<EditorObjectPaletteEntry>> ResolveTrackedObjectPaletteBrowseEntriesAsync(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        bool includeFullPaletteWhenSearchIsEmpty,
+        CancellationToken cancellationToken
+    )
+    {
+        if (effectiveSearchText is not null)
+        {
+            return await Workspace
+                .SearchObjectPaletteAsync(effectiveSearchText, artBindingStrategy, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+            return await Workspace.GetObjectPaletteAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
+
+        return ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy) is { } selectedEntry
+            ? [selectedEntry]
+            : [];
+    }
+
+    private IReadOnlyList<EditorObjectPaletteEntry> ResolveTrackedObjectPaletteBrowseEntries(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions,
+        bool includeFullPaletteWhenSearchIsEmpty
+    )
+    {
+        if (effectiveSearchText is not null)
+            return Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy, artPreviewOptions);
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+            return Workspace.GetObjectPalette(artBindingStrategy, artPreviewOptions);
+
+        return
+            ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy, artPreviewOptions)
+                is { } selectedEntry
+            ? [selectedEntry]
+            : [];
+    }
+
+    private async Task<IReadOnlyList<EditorObjectPaletteEntry>> ResolveTrackedObjectPaletteBrowseEntriesAsync(
+        EditorProjectMapObjectPlacementToolState toolState,
+        string? effectiveSearchText,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions,
+        bool includeFullPaletteWhenSearchIsEmpty,
+        CancellationToken cancellationToken
+    )
+    {
+        if (effectiveSearchText is not null)
+        {
+            return await Workspace
+                .SearchObjectPaletteAsync(effectiveSearchText, artBindingStrategy, artPreviewOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (includeFullPaletteWhenSearchIsEmpty)
+        {
+            return await Workspace
+                .GetObjectPaletteAsync(artBindingStrategy, artPreviewOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return
+            ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy, artPreviewOptions)
+                is { } selectedEntry
+            ? [selectedEntry]
+            : [];
+    }
+
+    private EditorObjectPaletteEntry? ResolveTrackedObjectPaletteSelectedEntry(
+        EditorProjectMapObjectPlacementToolState toolState
+    ) => toolState.SelectedPaletteProtoNumber is int protoNumber ? Workspace.FindObjectPaletteEntry(protoNumber) : null;
+
+    private EditorObjectPaletteEntry? ResolveTrackedObjectPaletteSelectedEntry(
+        EditorProjectMapObjectPlacementToolState toolState,
+        EditorArtResolverBindingStrategy artBindingStrategy
+    ) =>
+        toolState.SelectedPaletteProtoNumber is int protoNumber
+            ? Workspace.FindObjectPaletteEntry(protoNumber, artBindingStrategy)
+            : null;
+
+    private EditorObjectPaletteEntry? ResolveTrackedObjectPaletteSelectedEntry(
+        EditorProjectMapObjectPlacementToolState toolState,
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        EditorArtPreviewOptions artPreviewOptions
+    ) =>
+        toolState.SelectedPaletteProtoNumber is int protoNumber
+            ? Workspace.FindObjectPaletteEntry(protoNumber, artBindingStrategy, artPreviewOptions)
+            : null;
+
+    /// <summary>
     /// Returns one selected-object summary for the tracked map view using the current staged scene preview.
     /// </summary>
     public EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(string mapViewStateId)
@@ -1028,6 +1326,20 @@ public sealed class EditorWorkspaceSession
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
         var selection = mapViewState.Selection;
+        var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
+        if (explicitSelectedObjectIds.Count == 0)
+        {
+            return new EditorMapObjectSelectionSummary
+            {
+                MapViewStateId = mapViewState.Id,
+                MapName = mapViewState.MapName,
+                Selection = selection,
+                SelectedObjects = [],
+                MissingObjectIds = [],
+                SectorAssetPaths = [],
+            };
+        }
+
         IReadOnlyList<EditorMapObjectPreview> selectedObjects;
         IReadOnlyList<string> sectorAssetPaths;
 
@@ -1035,7 +1347,7 @@ public sealed class EditorWorkspaceSession
         {
             var scenePreview = effectiveWorkspace.CreateMapScenePreview(
                 mapViewState.MapName,
-                EditorArtResolverBindingStrategy.Conservative
+                effectiveWorkspace.ResolveMapRenderArt
             );
             selectedObjects = ResolveSelectedObjectPreviews(scenePreview, selection);
             sectorAssetPaths = selectedObjects
@@ -1053,7 +1365,6 @@ public sealed class EditorWorkspaceSession
                 selectedObjects.Count == 0 || selection.SectorAssetPath is null ? [] : [selection.SectorAssetPath];
         }
 
-        var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
         var missingObjectIds = explicitSelectedObjectIds
             .Where(selectedObjectId => selectedObjects.All(candidate => candidate.ObjectId != selectedObjectId))
             .ToArray();
@@ -2403,12 +2714,18 @@ public sealed class EditorWorkspaceSession
     public EditorMapFloorRenderPreview CreateMapFloorRenderPreview(
         EditorProjectMapViewState mapViewState,
         EditorMapFloorRenderRequest? renderRequest = null
+    ) => CreateMapFloorRenderPreviewCore(mapViewState, renderRequest, CancellationToken.None);
+
+    private EditorMapFloorRenderPreview CreateMapFloorRenderPreviewCore(
+        EditorProjectMapViewState mapViewState,
+        EditorMapFloorRenderRequest? renderRequest,
+        CancellationToken cancellationToken
     )
     {
         var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
         var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState);
         var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
-        return EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest);
+        return EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest, cancellationToken);
     }
 
     /// <summary>
@@ -2472,8 +2789,12 @@ public sealed class EditorWorkspaceSession
         var defaultMap =
             Workspace.ResolveDefaultMap()
             ?? throw new InvalidOperationException("This workspace has no indexed maps to resolve as a default map.");
-        var scenePreview = CreateEffectiveMapScenePreview(defaultMap.MapName);
-        var camera = CreateCenteredTileCamera(scenePreview);
+        var projection =
+            Workspace.Index.FindMapProjection(defaultMap.MapName)
+            ?? throw new InvalidOperationException(
+                $"No indexed map projection matched '{defaultMap.MapName}' for the default map view state."
+            );
+        var camera = CreateCenteredTileCamera(projection);
 
         return NormalizeProjectMapViewState(
             new EditorProjectMapViewState
@@ -2496,13 +2817,36 @@ public sealed class EditorWorkspaceSession
     public EditorMapWorldEditScene CreateMapWorldEditScene(
         EditorProjectMapViewState mapViewState,
         EditorMapWorldEditSceneRequest? request = null
+    ) => CreateMapWorldEditSceneCore(mapViewState, request, CancellationToken.None);
+
+    /// <summary>
+    /// Builds one bundled host-facing world-edit scene from a typed map-view state asynchronously.
+    /// </summary>
+    public Task<EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(
+        EditorProjectMapViewState mapViewState,
+        EditorMapWorldEditSceneRequest? request = null,
+        CancellationToken cancellationToken = default
+    ) => Task.Run(() => CreateMapWorldEditSceneCore(mapViewState, request, cancellationToken), cancellationToken);
+
+    private EditorMapWorldEditScene CreateMapWorldEditSceneCore(
+        EditorProjectMapViewState mapViewState,
+        EditorMapWorldEditSceneRequest? request,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
-        var sceneRender = CreateMapFloorRenderPreview(normalizedMapViewState, request?.RenderRequest);
+        cancellationToken.ThrowIfCancellationRequested();
+        var sceneRender = CreateMapFloorRenderPreviewCore(
+            normalizedMapViewState,
+            request?.RenderRequest,
+            cancellationToken
+        );
+        cancellationToken.ThrowIfCancellationRequested();
         var placementPreview = request?.PlacementRequest is { } placementRequest
             ? PreviewSectorObjectPalettePlacement(normalizedMapViewState, placementRequest, request.RenderRequest)
             : null;
+        cancellationToken.ThrowIfCancellationRequested();
         var viewportState =
             request?.Viewport
             ?? EditorMapSceneRenderSpaceMath.CreateViewportState(sceneRender, normalizedMapViewState.Camera);
@@ -2512,16 +2856,18 @@ public sealed class EditorWorkspaceSession
             request?.ViewportHeight ?? sceneRender.HeightPixels,
             viewportState
         );
+        cancellationToken.ThrowIfCancellationRequested();
         var effectiveArtResolver =
-            request?.ArtResolver ?? Workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
-        var spriteSource =
-            request?.SpriteSource
-            ?? (
-                effectiveArtResolver.BindingCount > 0
-                    ? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver)
-                    : null
-            );
-        var paintableScene = EditorMapPaintableSceneBuilder.Build(sceneRender, placementPreview, spriteSource);
+            request?.ArtResolver ?? Workspace.CreateArtResolver(DefaultRenderableArtBindingStrategy, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var spriteSource = request?.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
+        cancellationToken.ThrowIfCancellationRequested();
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            placementPreview,
+            spriteSource,
+            cancellationToken
+        );
 
         return new EditorMapWorldEditScene
         {
@@ -2543,6 +2889,19 @@ public sealed class EditorWorkspaceSession
     ) => CreateMapWorldEditScene(ResolveTrackedMapViewState(mapViewStateId), request);
 
     /// <summary>
+    /// Builds one bundled host-facing world-edit scene from one tracked typed map-view state identifier asynchronously.
+    /// </summary>
+    public Task<EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(
+        string mapViewStateId,
+        EditorMapWorldEditSceneRequest? request = null,
+        CancellationToken cancellationToken = default
+    ) =>
+        Task.Run(
+            () => CreateMapWorldEditSceneCore(ResolveTrackedMapViewState(mapViewStateId), request, cancellationToken),
+            cancellationToken
+        );
+
+    /// <summary>
     /// Builds one bundled host-facing world-edit scene for the workspace default map.
     /// The returned scene can be used by hosts as a first-load bootstrap surface.
     /// </summary>
@@ -2553,6 +2912,20 @@ public sealed class EditorWorkspaceSession
     ) => CreateMapWorldEditScene(CreateDefaultMapViewState(id, viewId), request);
 
     /// <summary>
+    /// Builds one bundled host-facing world-edit scene for the workspace default map asynchronously.
+    /// </summary>
+    public Task<EditorMapWorldEditScene> CreateDefaultMapWorldEditSceneAsync(
+        string id = "default-map",
+        string? viewId = null,
+        EditorMapWorldEditSceneRequest? request = null,
+        CancellationToken cancellationToken = default
+    ) =>
+        Task.Run(
+            () => CreateMapWorldEditSceneCore(CreateDefaultMapViewState(id, viewId), request, cancellationToken),
+            cancellationToken
+        );
+
+    /// <summary>
     /// Creates one opinionated tracked world-edit shell for the supplied map view.
     /// The shell bundles a parity-style scene/view preset, tracked terrain/object browser state,
     /// tracked object selection state, and one optional live tracked placement preview.
@@ -2560,26 +2933,227 @@ public sealed class EditorWorkspaceSession
     public EditorMapWorldEditShell CreateTrackedMapWorldEditShell(
         string mapViewStateId,
         EditorMapWorldEditShellRequest? request = null
+    ) => CreateTrackedMapWorldEditShellCore(mapViewStateId, request, CancellationToken.None);
+
+    /// <summary>
+    /// Creates one opinionated tracked world-edit shell for the supplied map view asynchronously.
+    /// </summary>
+    public Task<EditorMapWorldEditShell> CreateTrackedMapWorldEditShellAsync(
+        string mapViewStateId,
+        EditorMapWorldEditShellRequest? request = null,
+        CancellationToken cancellationToken = default,
+        IProgress<EditorMapWorldEditComposeProgress>? progress = null
+    ) =>
+        Task.Run(
+            async () =>
+            {
+                var progressReporter = new ComposeProgressReporter(progress);
+                progressReporter.Report("Resolving tracked map view", 0.04f);
+
+                cancellationToken.ThrowIfCancellationRequested();
+                var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+                var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
+                var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
+
+                progressReporter.Report("Preparing shell render assets", 0.14f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var effectiveArtResolver =
+                    effectiveRequest.ArtResolver
+                    ?? await Workspace
+                        .CreateArtResolverAsync(DefaultRenderableArtBindingStrategy, cancellationToken)
+                        .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                var effectiveSpriteSource =
+                    effectiveRequest.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
+
+                progressReporter.Report("Building world-edit scene", 0.48f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var scene = CreateMapWorldEditSceneCore(
+                    mapViewState,
+                    new EditorMapWorldEditSceneRequest
+                    {
+                        RenderRequest = renderRequest,
+                        ViewportWidth = effectiveRequest.ViewportWidth,
+                        ViewportHeight = effectiveRequest.ViewportHeight,
+                        ArtResolver = effectiveArtResolver,
+                        SpriteSource = effectiveSpriteSource,
+                    },
+                    cancellationToken
+                );
+
+                progressReporter.Report("Resolving object placement summary", 0.60f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
+
+                progressReporter.Report("Resolving tracked selection", 0.70f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
+                var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
+
+                progressReporter.Report("Resolving object palette", 0.82f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var objectPalette = await GetTrackedObjectPaletteSummaryAsync(
+                        mapViewStateId,
+                        DefaultRenderableArtBindingStrategy,
+                        effectiveRequest.ObjectPaletteSearchText,
+                        effectiveRequest.ObjectPaletteCategory,
+                        effectiveRequest.IncludeFullObjectPaletteBrowse,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+
+                progressReporter.Report("Resolving inspector summaries", 0.92f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
+                var objectInspectorFlags = CreateTrackedObjectInspectorFlagsSummary(objectInspector);
+                var objectInspectorScriptAttachments = CreateTrackedObjectInspectorScriptAttachmentsSummary(
+                    objectInspector
+                );
+                var objectInspectorCritterProgression = CreateTrackedObjectInspectorCritterProgressionSummary(
+                    objectInspector
+                );
+                var objectInspectorLight = CreateTrackedObjectInspectorLightSummary(objectInspector);
+                var objectInspectorGenerator = CreateTrackedObjectInspectorGeneratorSummary(objectInspector);
+                var objectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(objectInspector);
+
+                progressReporter.Report("Building tracked placement preview", 0.97f);
+                cancellationToken.ThrowIfCancellationRequested();
+                var trackedPlacementPreview =
+                    effectiveRequest.IncludeTrackedPlacementPreview && objectPlacementTool.CanPreviewOrApply
+                        ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
+                        : null;
+                var trackedPlacementPaintableScene = trackedPlacementPreview is not null
+                    ? EditorMapPaintableSceneBuilder.Build(
+                        scene.SceneRender,
+                        trackedPlacementPreview,
+                        effectiveSpriteSource,
+                        cancellationToken
+                    )
+                    : null;
+
+                progressReporter.Report("Finalizing tracked shell", 1f);
+                cancellationToken.ThrowIfCancellationRequested();
+                return new EditorMapWorldEditShell
+                {
+                    MapViewStateId = mapViewState.Id,
+                    MapName = mapViewState.MapName,
+                    ActiveTool = mapViewState.WorldEdit.ActiveTool,
+                    ViewMode = renderRequest.ViewMode,
+                    RenderRequest = renderRequest,
+                    Scene = scene,
+                    TrackedPlacementPreview = trackedPlacementPreview,
+                    TrackedPlacementPaintableScene = trackedPlacementPaintableScene,
+                    TerrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
+                    TerrainPalette = CreateTrackedShellTerrainPaletteSummary(mapViewStateId),
+                    ObjectPlacementTool = objectPlacementTool,
+                    ObjectPalette = objectPalette,
+                    ObjectSelection = objectSelection,
+                    ObjectInspectorState = objectInspectorState,
+                    ObjectInspector = objectInspector,
+                    ObjectInspectorFlags = objectInspectorFlags,
+                    ObjectInspectorScriptAttachments = objectInspectorScriptAttachments,
+                    ObjectInspectorCritterProgression = objectInspectorCritterProgression,
+                    ObjectInspectorLight = objectInspectorLight,
+                    ObjectInspectorGenerator = objectInspectorGenerator,
+                    ObjectInspectorBlending = objectInspectorBlending,
+                };
+            },
+            cancellationToken
+        );
+
+    private sealed class ComposeProgressReporter(IProgress<EditorMapWorldEditComposeProgress>? progress)
+    {
+        private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+        private string? _currentActivity;
+        private TimeSpan _currentActivityStart = TimeSpan.Zero;
+        private string? _dominantActivity;
+        private TimeSpan _dominantElapsed = TimeSpan.Zero;
+
+        public void Report(string activity, float progressValue)
+        {
+            var elapsed = _stopwatch.Elapsed;
+            var isSameActivity = string.Equals(_currentActivity, activity, StringComparison.Ordinal);
+            if (!isSameActivity && _currentActivity is not null)
+            {
+                var currentElapsed = elapsed - _currentActivityStart;
+                if (currentElapsed > _dominantElapsed)
+                {
+                    _dominantElapsed = currentElapsed;
+                    _dominantActivity = _currentActivity;
+                }
+            }
+
+            if (!isSameActivity)
+            {
+                _currentActivity = activity;
+                _currentActivityStart = elapsed;
+            }
+
+            var stageElapsed = elapsed - _currentActivityStart;
+            progress?.Report(
+                new EditorMapWorldEditComposeProgress
+                {
+                    Activity = activity,
+                    Progress = progressValue,
+                    Elapsed = elapsed,
+                    StageElapsed = stageElapsed,
+                    DominantActivity = _dominantActivity,
+                    DominantElapsed = _dominantElapsed == TimeSpan.Zero ? null : _dominantElapsed,
+                }
+            );
+        }
+    }
+
+    private EditorMapWorldEditShell CreateTrackedMapWorldEditShellCore(
+        string mapViewStateId,
+        EditorMapWorldEditShellRequest? request,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
         var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
         var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
-        var scene = CreateMapWorldEditScene(
-            mapViewStateId,
+        cancellationToken.ThrowIfCancellationRequested();
+        var effectiveArtResolver =
+            effectiveRequest.ArtResolver
+            ?? Workspace.CreateArtResolver(DefaultRenderableArtBindingStrategy, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var effectiveSpriteSource =
+            effectiveRequest.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
+        cancellationToken.ThrowIfCancellationRequested();
+        var scene = CreateMapWorldEditSceneCore(
+            mapViewState,
             new EditorMapWorldEditSceneRequest
             {
                 RenderRequest = renderRequest,
                 ViewportWidth = effectiveRequest.ViewportWidth,
                 ViewportHeight = effectiveRequest.ViewportHeight,
-                ArtResolver = effectiveRequest.ArtResolver,
-                SpriteSource = effectiveRequest.SpriteSource,
-            }
+                ArtResolver = effectiveArtResolver,
+                SpriteSource = effectiveSpriteSource,
+            },
+            cancellationToken
         );
+        cancellationToken.ThrowIfCancellationRequested();
         var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
+        cancellationToken.ThrowIfCancellationRequested();
         var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
         var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
         var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
+        var trackedPlacementPreview =
+            effectiveRequest.IncludeTrackedPlacementPreview && objectPlacementTool.CanPreviewOrApply
+                ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
+                : null;
+        cancellationToken.ThrowIfCancellationRequested();
+        var trackedPlacementPaintableScene = trackedPlacementPreview is not null
+            ? EditorMapPaintableSceneBuilder.Build(
+                scene.SceneRender,
+                trackedPlacementPreview,
+                effectiveSpriteSource,
+                cancellationToken
+            )
+            : null;
+        cancellationToken.ThrowIfCancellationRequested();
 
         return new EditorMapWorldEditShell
         {
@@ -2589,17 +3163,16 @@ public sealed class EditorWorkspaceSession
             ViewMode = renderRequest.ViewMode,
             RenderRequest = renderRequest,
             Scene = scene,
-            TrackedPlacementPreview =
-                effectiveRequest.IncludeTrackedPlacementPreview && objectPlacementTool.CanPreviewOrApply
-                    ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
-                    : null,
+            TrackedPlacementPreview = trackedPlacementPreview,
+            TrackedPlacementPaintableScene = trackedPlacementPaintableScene,
             TerrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
-            TerrainPalette = GetTrackedTerrainPaletteSummary(mapViewStateId),
+            TerrainPalette = CreateTrackedShellTerrainPaletteSummary(mapViewStateId),
             ObjectPlacementTool = objectPlacementTool,
             ObjectPalette = GetTrackedObjectPaletteSummary(
                 mapViewStateId,
                 effectiveRequest.ObjectPaletteSearchText,
-                effectiveRequest.ObjectPaletteCategory
+                effectiveRequest.ObjectPaletteCategory,
+                effectiveRequest.IncludeFullObjectPaletteBrowse
             ),
             ObjectSelection = objectSelection,
             ObjectInspectorState = objectInspectorState,
@@ -4789,7 +5362,7 @@ public sealed class EditorWorkspaceSession
     private EditorMapScenePreview CreateEffectiveMapScenePreview(string mapName)
     {
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
-        return effectiveWorkspace.CreateMapScenePreview(mapName, EditorArtResolverBindingStrategy.Conservative);
+        return effectiveWorkspace.CreateMapScenePreview(mapName, effectiveWorkspace.ResolveMapRenderArt);
     }
 
     private EditorMapScenePreview CreateEffectiveMapScenePreview(EditorProjectMapViewState mapViewState)
@@ -4818,7 +5391,6 @@ public sealed class EditorWorkspaceSession
         var projection =
             effectiveWorkspace.Index.FindMapProjection(mapName)
             ?? throw new InvalidOperationException($"No indexed map projection matched '{mapName}'.");
-        var artResolver = effectiveWorkspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
         var sectorsByAssetPath = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var sectorProjection in projection.Sectors)
@@ -4839,7 +5411,11 @@ public sealed class EditorWorkspaceSession
                 : sector;
         }
 
-        return EditorMapScenePreviewBuilder.Build(projection, sectorsByAssetPath, artResolver.FindArt);
+        return EditorMapScenePreviewBuilder.Build(
+            projection,
+            sectorsByAssetPath,
+            effectiveWorkspace.ResolveMapRenderArt
+        );
     }
 
     private static Sector CreateSceneFallbackSectorWithoutSelectedObject(
@@ -4874,22 +5450,41 @@ public sealed class EditorWorkspaceSession
         };
     }
 
-    private static EditorProjectMapCameraState CreateCenteredTileCamera(EditorMapScenePreview scenePreview)
+    private static EditorProjectMapCameraState CreateCenteredTileCamera(EditorMapProjection projection)
     {
-        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(projection);
 
-        if (scenePreview.Sectors.Count == 0)
+        if (projection.Sectors.Count == 0)
             return new EditorProjectMapCameraState();
 
-        var sectorTileWidth = scenePreview.Sectors[0].TileWidth;
-        var sectorTileHeight = scenePreview.Sectors[0].TileHeight;
-        if (sectorTileWidth <= 0 || sectorTileHeight <= 0)
-            return new EditorProjectMapCameraState();
+        var denseCenterTileX = (projection.Width * SectorTileAxisLength) / 2d;
+        var denseCenterTileY = (projection.Height * SectorTileAxisLength) / 2d;
+        var closestPositionedSector = projection
+            .Sectors.Select(sector =>
+            {
+                var centerTileX = (sector.LocalX * SectorTileAxisLength) + (SectorTileAxisLength / 2d);
+                var centerTileY = (sector.LocalY * SectorTileAxisLength) + (SectorTileAxisLength / 2d);
+                var deltaX = centerTileX - denseCenterTileX;
+                var deltaY = centerTileY - denseCenterTileY;
+
+                return new
+                {
+                    centerTileX,
+                    centerTileY,
+                    sector.LocalX,
+                    sector.LocalY,
+                    DistanceSquared = (deltaX * deltaX) + (deltaY * deltaY),
+                };
+            })
+            .OrderBy(static sector => sector.DistanceSquared)
+            .ThenBy(static sector => sector.LocalY)
+            .ThenBy(static sector => sector.LocalX)
+            .First();
 
         return new EditorProjectMapCameraState
         {
-            CenterTileX = (scenePreview.Width * sectorTileWidth) / 2d,
-            CenterTileY = (scenePreview.Height * sectorTileHeight) / 2d,
+            CenterTileX = closestPositionedSector.centerTileX,
+            CenterTileY = closestPositionedSector.centerTileY,
             Zoom = 1d,
         };
     }
@@ -4978,7 +5573,7 @@ public sealed class EditorWorkspaceSession
         if (sectorHitGroups.Count == 0 || requests.Count == 0 || scenePreview.Sectors.Count == 0)
             return [];
 
-        var artResolver = Workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+        var artResolver = Workspace.CreateArtResolver(DefaultRenderableArtBindingStrategy);
         var tileWidth = scenePreview.Sectors[0].TileWidth;
         var tileHeight = scenePreview.Sectors[0].TileHeight;
         var mapTileHeight = checked(scenePreview.Height * tileHeight);

@@ -43,6 +43,12 @@ public sealed class EditorMapWorldEditShellRequest
     public string? ObjectPaletteCategory { get; init; }
 
     /// <summary>
+    /// Indicates whether the object palette should be fully browsed when no search text is supplied.
+    /// Hosts should keep this false for automatic refreshes and set it only for an explicit browse action.
+    /// </summary>
+    public bool IncludeFullObjectPaletteBrowse { get; init; }
+
+    /// <summary>
     /// Indicates whether the tracked object-placement tool should also be previewed as one live shell overlay when possible.
     /// </summary>
     public bool IncludeTrackedPlacementPreview { get; init; } = true;
@@ -88,6 +94,12 @@ public sealed class EditorMapWorldEditShell
     /// Optional tracked object-placement preview overlay when the tracked tool can currently preview or apply.
     /// </summary>
     public EditorMapPlacementPreview? TrackedPlacementPreview { get; init; }
+
+    /// <summary>
+    /// Optional host-ready paintable scene derived from <see cref="TrackedPlacementPreview"/>.
+    /// Hosts can render this directly instead of rebuilding the preview queue during paint.
+    /// </summary>
+    public EditorMapPaintableScene? TrackedPlacementPaintableScene { get; init; }
 
     /// <summary>
     /// Tracked terrain tool summary for the shell.
