@@ -199,6 +199,26 @@ public class EditorWorkspaceLoaderTests
         };
     }
 
+    private static ProtoData MakeWallProto(int protoNumber)
+    {
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        var mob = new MobDataBuilder(ObjectType.Wall, objectId, protoId).Build();
+        return new ProtoData
+        {
+            Header = new GameObjectHeader
+            {
+                Version = mob.Header.Version,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                GameObjectType = mob.Header.GameObjectType,
+                PropCollectionItems = 0,
+                Bitmap = [.. mob.Header.Bitmap],
+            },
+            Properties = [.. mob.Properties],
+        };
+    }
+
     private static Sector MakeSector(params MobData[] objects) => MakeSector(0, -1, -1, objects);
 
     private static Sector MakeSector(
@@ -450,6 +470,7 @@ public class EditorWorkspaceLoaderTests
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var asset = workspace.Assets.Find("art/critters/barbarian.art");
+            var storedArt = workspace.GameData.Arts[0];
             var art = workspace.FindArt("art/critters/barbarian.art");
             var preview = workspace.CreateArtPreview("art/critters/barbarian.art");
 
@@ -458,7 +479,10 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(asset).IsNotNull();
             await Assert.That(asset!.SourceKind).IsEqualTo(EditorAssetSourceKind.LooseFile);
             await Assert.That(asset.SourcePath).IsEqualTo(artPath);
+            await Assert.That(storedArt.IsMetadataOnly).IsTrue();
+            await Assert.That(storedArt.Frames[0][0].Pixels.Length).IsEqualTo(0);
             await Assert.That(art).IsNotNull();
+            await Assert.That(art!.IsMetadataOnly).IsFalse();
             await Assert.That(art!.FrameRate).IsEqualTo(12u);
             await Assert.That(preview.FrameRate).IsEqualTo(12u);
             await Assert.That(preview.Frames.Count).IsEqualTo(1);
@@ -747,6 +771,1027 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_BindsSceneryProtoArtIds()
+    {
+        const int protoNumber = 1001;
+        var artId = new ArtId(0x4000C3C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "scenery"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(15000, "blood.ART")] },
+                Path.Combine(contentDir, "art", "scenery", "scenery.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "scenery", "blood.ART"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var paletteEntry = workspace.FindObjectPaletteEntry(
+                protoNumber,
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+            var resolvedAssetPath = artResolver.FindAssetPath(artId);
+
+            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
+            await Assert.That(resolvedAssetPath).IsEqualTo("art/scenery/blood.ART");
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.ArtAssetPath).IsEqualTo("art/scenery/blood.ART");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_BindsEyeCandyArtIds()
+    {
+        var foregroundArtId = new ArtId(0xA0080000u);
+        var backgroundArtId = new ArtId(0xA0080040u);
+        var underlayArtId = new ArtId(0xA0080080u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "eye_candy"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "blood")] },
+                Path.Combine(contentDir, "art", "eye_candy", "eye_candy.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "eye_candy", "blood_F.art")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "eye_candy", "blood_B.art")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "eye_candy", "blood_U.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+
+            await Assert.That(artResolver.FindAssetPath(foregroundArtId)).IsEqualTo("art/eye_candy/blood_F.art");
+            await Assert.That(artResolver.FindAssetPath(backgroundArtId)).IsEqualTo("art/eye_candy/blood_B.art");
+            await Assert.That(artResolver.FindAssetPath(underlayArtId)).IsEqualTo("art/eye_candy/blood_U.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesEyeCandyArtIdsUsingCeFallbackNormalization()
+    {
+        var artId = new ArtId(0xA0180000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "eye_candy"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(3, "bdecapblood"), new MessageEntry(4, "decapblood")] },
+                Path.Combine(contentDir, "art", "eye_candy", "eye_candy.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "eye_candy", "decapblood_U.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var resolvedAssetPath = artResolver.FindAssetPath(artId);
+            var roofSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.Roof }
+            );
+
+            await Assert.That(resolvedAssetPath).IsEqualTo("art/eye_candy/decapblood_U.art");
+            await Assert.That(roofSprite).IsNotNull();
+            await Assert.That(roofSprite!.AssetPath).IsEqualTo("art/eye_candy/decapblood_U.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_BindsItemProtoArtIds()
+    {
+        const int protoNumber = 1001;
+        var artId = new ArtId(0x60040042u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "item"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1024, "sword.art")] },
+                Path.Combine(contentDir, "art", "item", "item_ground.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "item", "sword.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var paletteEntry = workspace.FindObjectPaletteEntry(
+                protoNumber,
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
+            await Assert.That(artResolver.FindAssetPath(artId)).IsEqualTo("art/item/sword.art");
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.ArtAssetPath).IsEqualTo("art/item/sword.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_BindsContainerProtoArtIds()
+    {
+        const int protoNumber = 1001;
+        var artId = new ArtId(0x70080040u);
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "container"));
+
+        try
+        {
+            var mob = new MobDataBuilder(ObjectType.Container, objectId, protoId)
+                .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value))
+                .Build();
+            var proto = new ProtoData
+            {
+                Header = new GameObjectHeader
+                {
+                    Version = mob.Header.Version,
+                    ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                    ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                    GameObjectType = mob.Header.GameObjectType,
+                    PropCollectionItems = 0,
+                    Bitmap = [.. mob.Header.Bitmap],
+                },
+                Properties = [.. mob.Properties],
+            };
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(2048, "crate.art")] },
+                Path.Combine(contentDir, "art", "container", "container.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "container", "crate.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var paletteEntry = workspace.FindObjectPaletteEntry(
+                protoNumber,
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
+            await Assert.That(artResolver.FindAssetPath(artId)).IsEqualTo("art/container/crate.art");
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.ArtAssetPath).IsEqualTo("art/container/crate.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_BindsWallArtIdsUsingWallStructures()
+    {
+        var interiorArtId = new ArtId(0x11E03811u);
+        var exteriorArtId = new ArtId(0x11E56B00u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "TIN0"), new MessageEntry(1, "TOU1")] },
+                Path.Combine(contentDir, "art", "wall", "wallname.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "1020"), new MessageEntry(1, "1021")] },
+                Path.Combine(contentDir, "art", "wall", "wallproto.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(30, "TIN0 TOU0 nul nul")] },
+                Path.Combine(contentDir, "art", "wall", "structure.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "wall", "TINbseU0.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "wall", "TOUd3lU3.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+
+            await Assert.That(artResolver.FindAssetPath(interiorArtId)).IsEqualTo("art/wall/TINbseU0.art");
+            await Assert.That(artResolver.FindAssetPath(exteriorArtId)).IsEqualTo("art/wall/TOUd3lU3.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectPaletteEntry_WithArcanumMessageTablesStrategy_UsesWallProtoFallbackWhenCurrentArtIdMissing()
+    {
+        const int protoNumber = 1021;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeWallProto(protoNumber), Path.Combine(contentDir, "proto", "001021 - Wall.pro"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "TOU1")] },
+                Path.Combine(contentDir, "art", "wall", "wallname.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "1021")] },
+                Path.Combine(contentDir, "art", "wall", "wallproto.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "wall", "TOUbseU0.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var paletteEntry = workspace.FindObjectPaletteEntry(
+                protoNumber,
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.CurrentArtId).IsNull();
+            await Assert.That(paletteEntry.ArtAssetPath).IsEqualTo("art/wall/TOUbseU0.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsUnambiguousSectorArtIds()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 0x111C0,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "KerghanFloor2.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var palette = workspace.GetTerrainPaletteForMap(
+                "map01",
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(palette.Count).IsEqualTo(1);
+            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x111C0u));
+            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_SkipsAmbiguousSectorArtIds()
+    {
+        var artId = new ArtId(0x000000C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "light"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 0xC0,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "Facade0")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "Light0")] },
+                Path.Combine(contentDir, "art", "light", "light.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "facade", "Facade0.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "light", "Light0.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+
+            await Assert.That(artResolver.FindAssetPath(artId)).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_WithInstallOverlayOptions_LoadsModuleArtBeneathLooseContent()
+    {
+        var rootDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var contentDir = Path.Combine(rootDir, "content");
+        var gameDir = Path.Combine(rootDir, "Arcanum");
+        var moduleDir = Path.Combine(gameDir, "modules", "Arcanum");
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(moduleDir, "art", "facade"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 0x111C0,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
+                Path.Combine(moduleDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(moduleDir, "art", "facade", "KerghanFloor2.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                new EditorWorkspaceLoadOptions { GameDirectory = gameDir, ModuleName = "Arcanum" }
+            );
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                new ArtId(0x000111C0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(workspace.GameDirectory).IsEqualTo(gameDir);
+            await Assert.That(workspace.Module).IsNotNull();
+            await Assert.That(workspace.Module!.ModuleName).IsEqualTo("Arcanum");
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+        }
+        finally
+        {
+            if (Directory.Exists(rootDir))
+                Directory.Delete(rootDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesRenderItemKindToResolveAmbiguousSectorArtIds()
+    {
+        var artId = new ArtId(0x000000C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "roof"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "drt0")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(0, "BR1")] },
+                Path.Combine(contentDir, "art", "roof", "roofname.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drt0.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "roof", "BR1.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var roofSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.Roof }
+            );
+
+            await Assert.That(artResolver.FindAssetPath(artId)).IsNull();
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drt0.art");
+            await Assert.That(floorSprite.RenderItemKind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+            await Assert.That(roofSprite).IsNotNull();
+            await Assert.That(roofSprite!.AssetPath).IsEqualTo("art/roof/BR1.art");
+            await Assert.That(roofSprite.RenderItemKind).IsEqualTo(EditorMapRenderQueueItemKind.Roof);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesFallBackToFacadeWhenTileEntryMissing()
+    {
+        var artId = new ArtId(0x000111C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "KerghanFloor2.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_DecodesFlaggedSectorFloorArtIdsUsingMaskedMessageIndex()
+    {
+        var artId = new ArtId(0x004105C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(261, "VendiSideWalk_RC")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "VendiSideWalk_RC.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/VendiSideWalk_RC.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_RoofTilesDoNotFallBackToFacadeWhenRoofEntryMissing()
+    {
+        var artId = new ArtId(0x000111C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "KerghanFloor2.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var roofSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.Roof }
+            );
+
+            await Assert.That(roofSprite).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromExactMessageIndex()
+    {
+        var artId = new ArtId(0x00019180u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drtrck1a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromOffsetMessageIndex()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var firstVariant = spriteSource.Resolve(
+                new ArtId(0x00018180u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var secondVariant = spriteSource.Resolve(
+                new ArtId(0x000181C0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var thirdVariant = spriteSource.Resolve(
+                new ArtId(0x000181C1u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(firstVariant).IsNotNull();
+            await Assert.That(firstVariant!.AssetPath).IsEqualTo("art/tile/drtrck1a.art");
+            await Assert.That(secondVariant).IsNotNull();
+            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/drtrck1b.art");
+            await Assert.That(thirdVariant).IsNotNull();
+            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/drtrck2a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsWithZeroLowByteVariant()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(513, "desert")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                new ArtId(0x00820100u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/desert1a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsWithHighByteSectorFlags()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(513, "desert")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var firstVariant = spriteSource.Resolve(
+                new ArtId(0x01020100u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var secondVariant = spriteSource.Resolve(
+                new ArtId(0x010201C0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(firstVariant).IsNotNull();
+            await Assert.That(firstVariant!.AssetPath).IsEqualTo("art/tile/desert1a.art");
+            await Assert.That(secondVariant).IsNotNull();
+            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/desert1b.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromNegativeOffsetMessageIndex()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(433, "DrtVDR")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var secondVariant = spriteSource.Resolve(
+                new ArtId(0x0001E1C0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var thirdVariant = spriteSource.Resolve(
+                new ArtId(0x0001E1C1u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(secondVariant).IsNotNull();
+            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR1b.art");
+            await Assert.That(thirdVariant).IsNotNull();
+            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR2a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromRepeatedNegativeOffsetMessageIndex()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(433, "DrtVDR")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var secondVariant = spriteSource.Resolve(
+                new ArtId(0x000211C0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var thirdVariant = spriteSource.Resolve(
+                new ArtId(0x000211C1u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(secondVariant).IsNotNull();
+            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR1b.art");
+            await Assert.That(thirdVariant).IsNotNull();
+            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR2a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesFloorArtIdsFromRepeatedNegativeOffsetFacadeMessageIndex()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(347, "IronClanEntrance")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "IronClanEntrance.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                new ArtId(0x000F3BC0u),
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/IronClanEntrance.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesFacadeFloorArtIdsFromFacadeArtType()
+    {
+        var artId = new ArtId(0xB0A61000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(83, "BlackRootInteriorFloor")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "BlackRootInteriorFloor.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var resolvedAssetPath = artResolver.FindAssetPath(artId);
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(resolvedAssetPath).IsEqualTo("art/facade/BlackRootInteriorFloor.art");
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/BlackRootInteriorFloor.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesFacadeFloorArtIdsWhenFacadeNameContainsSpaces()
+    {
+        var artId = new ArtId(0xB3C81801u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(228, "Tulla Pad")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "Tulla Pad.ART")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var resolvedAssetPath = artResolver.FindAssetPath(artId);
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(resolvedAssetPath).IsEqualTo("art/facade/Tulla Pad.art");
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/Tulla Pad.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsTileSectorArtIds()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 0x19180,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var palette = workspace.GetTerrainPaletteForMap(
+                "map01",
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(palette.Count).IsEqualTo(1);
+            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x00019180u));
+            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/drtrck.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsOffsetTileFamilySectorArtIds()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MapProperties mapProperties = new()
+            {
+                ArtId = 0x18180,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var palette = workspace.GetTerrainPaletteForMap(
+                "map01",
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+
+            await Assert.That(palette.Count).IsEqualTo(1);
+            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x00018180u));
+            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/drtrck1a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_GetTerrainPalette_ReturnsEntriesDerivedFromMapPropertiesAndSupportsConservativeArtBinding()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -771,8 +1816,18 @@ public class EditorWorkspaceLoaderTests
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
 
             var palette = workspace.GetTerrainPaletteForMap("map01", EditorArtResolverBindingStrategy.Conservative);
+            var asyncPalette = await workspace.GetTerrainPaletteForMapAsync(
+                "map01",
+                EditorArtResolverBindingStrategy.Conservative
+            );
+            var asyncSearch = await workspace.SearchTerrainPaletteAsync(
+                "203",
+                EditorArtResolverBindingStrategy.Conservative
+            );
 
             await Assert.That(palette.Count).IsEqualTo(4);
+            await Assert.That(asyncPalette.Count).IsEqualTo(palette.Count);
+            await Assert.That(asyncSearch.Count).IsEqualTo(1);
             await Assert.That(palette[0].PaletteX).IsEqualTo(0UL);
             await Assert.That(palette[0].PaletteY).IsEqualTo(0UL);
             await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(200u));
@@ -781,6 +1836,9 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(palette[3].PaletteY).IsEqualTo(1UL);
             await Assert.That(palette[3].ArtId).IsEqualTo(new ArtId(203u));
             await Assert.That(palette[3].ArtAssetPath).IsEqualTo("art/ground/203.art");
+            await Assert.That(asyncPalette[0].ArtId).IsEqualTo(palette[0].ArtId);
+            await Assert.That(asyncPalette[3].ArtAssetPath).IsEqualTo(palette[3].ArtAssetPath);
+            await Assert.That(asyncSearch[0].ArtAssetPath).IsEqualTo("art/ground/203.art");
         }
         finally
         {
@@ -1813,6 +2871,13 @@ public class EditorWorkspaceLoaderTests
             var groupSearch = workspace.SearchObjectPalette("items", artResolver);
             var artSearch = workspace.SearchObjectPalette("barbarian.art", artResolver);
             var previewSearch = workspace.SearchObjectPalette("Grouped palette proto", artResolver, previewOptions);
+            var asyncPalette = await workspace.GetObjectPaletteAsync(artResolver, previewOptions);
+            var asyncGroupSearch = await workspace.SearchObjectPaletteAsync("items", artResolver);
+            var asyncPreviewSearch = await workspace.SearchObjectPaletteAsync(
+                "Grouped palette proto",
+                artResolver,
+                previewOptions
+            );
 
             await Assert.That(entry).IsNotNull();
             await Assert.That(entry!.Category).IsEqualTo(nameof(ObjectType.Pc));
@@ -1837,6 +2902,13 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(previewSearch.Count).IsEqualTo(1);
             await Assert.That(previewSearch[0].ArtDetail).IsNotNull();
             await Assert.That(previewSearch[0].ArtPreview).IsNotNull();
+            await Assert.That(asyncPalette.Count).IsEqualTo(1);
+            await Assert.That(asyncPalette[0].ArtDetail).IsNotNull();
+            await Assert.That(asyncPalette[0].ArtPreview).IsNotNull();
+            await Assert.That(asyncGroupSearch.Count).IsEqualTo(groupSearch.Count);
+            await Assert.That(asyncGroupSearch[0].ProtoNumber).IsEqualTo(groupSearch[0].ProtoNumber);
+            await Assert.That(asyncPreviewSearch.Count).IsEqualTo(previewSearch.Count);
+            await Assert.That(asyncPreviewSearch[0].ArtPreview).IsNotNull();
         }
         finally
         {
@@ -2770,6 +3842,8 @@ public class EditorWorkspaceLoaderTests
 
             var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(gameDir);
             var asset = workspace.Assets.Find("art/critters/barbarian.art");
+            var storedArt = workspace.GameData.Arts[0];
+            var art = workspace.FindArt("art/critters/barbarian.art");
             var preview = workspace.CreateArtPreview("art/critters/barbarian.art");
 
             await Assert.That(workspace.GameData.Arts.Count).IsEqualTo(1);
@@ -2777,9 +3851,59 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(asset!.SourceKind).IsEqualTo(EditorAssetSourceKind.DatArchive);
             await Assert.That(asset.SourcePath).IsEqualTo(archivePath);
             await Assert.That(asset.SourceEntryPath).IsEqualTo("art/critters/barbarian.art");
+            await Assert.That(storedArt.IsMetadataOnly).IsTrue();
+            await Assert.That(storedArt.Frames[0][0].Pixels.Length).IsEqualTo(0);
+            await Assert.That(art).IsNotNull();
+            await Assert.That(art!.IsMetadataOnly).IsFalse();
             await Assert.That(preview.FrameRate).IsEqualTo(15u);
             await Assert.That(preview.Frames.Count).IsEqualTo(1);
             await Assert.That(preview.Frames[0].PixelData.SequenceEqual(new byte[] { 3, 2, 1, 255 })).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task GameInstallContentLoader_LoadAsync_ReusesArchiveAcrossEntryReads()
+    {
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(gameDir);
+        Directory.CreateDirectory(Path.Combine(gameDir, "modules"));
+
+        try
+        {
+            var archivePath = Path.Combine(gameDir, "modules", "Arcanum.dat");
+            var gameMes = new MesFile { Entries = [new MessageEntry(1, "One")] };
+            var itemsMes = new MesFile { Entries = [new MessageEntry(2, "Two")] };
+            var descriptionMes = new MesFile { Entries = [new MessageEntry(3, "Three")] };
+            await WriteDatAsync(
+                archivePath,
+                new Dictionary<string, byte[]>
+                {
+                    ["mes\\game.mes"] = MessageFormat.WriteToArray(in gameMes),
+                    ["mes\\items.mes"] = MessageFormat.WriteToArray(in itemsMes),
+                    ["mes\\description.mes"] = MessageFormat.WriteToArray(in descriptionMes),
+                }
+            );
+
+            var openCount = 0;
+            DatArchive CountingOpen(string path)
+            {
+                Interlocked.Increment(ref openCount);
+                return DatArchive.Open(path);
+            }
+
+            var (gameData, assetCatalog, loadReport) = await GameInstallContentLoader.LoadAsync(
+                gameDir,
+                archiveOpener: CountingOpen
+            );
+
+            await Assert.That(gameData.Messages.Count).IsEqualTo(3);
+            await Assert.That(assetCatalog.Find("mes/game.mes")).IsNotNull();
+            await Assert.That(loadReport.SkippedArchiveCandidates.Count).IsEqualTo(0);
+            await Assert.That(openCount).IsEqualTo(2);
         }
         finally
         {
@@ -2981,6 +4105,118 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task ModuleInstallContentLoader_LoadAsync_ReusesArchiveAcrossEntryReads()
+    {
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var modulesDir = Path.Combine(gameDir, "modules");
+        var moduleDir = Path.Combine(modulesDir, "Arcanum");
+        Directory.CreateDirectory(moduleDir);
+
+        try
+        {
+            var archivePath = Path.Combine(modulesDir, "Arcanum.dat");
+            var gameMes = new MesFile { Entries = [new MessageEntry(1, "One")] };
+            var itemsMes = new MesFile { Entries = [new MessageEntry(2, "Two")] };
+            var descriptionMes = new MesFile { Entries = [new MessageEntry(3, "Three")] };
+            await WriteDatAsync(
+                archivePath,
+                new Dictionary<string, byte[]>
+                {
+                    ["mes\\game.mes"] = MessageFormat.WriteToArray(in gameMes),
+                    ["mes\\items.mes"] = MessageFormat.WriteToArray(in itemsMes),
+                    ["mes\\description.mes"] = MessageFormat.WriteToArray(in descriptionMes),
+                }
+            );
+
+            var openCount = 0;
+            DatArchive CountingOpen(string path)
+            {
+                Interlocked.Increment(ref openCount);
+                return DatArchive.Open(path);
+            }
+
+            var (gameData, assetCatalog, loadReport, archivePaths) = await ModuleInstallContentLoader.LoadAsync(
+                moduleDir,
+                archiveOpener: CountingOpen
+            );
+
+            await Assert.That(gameData.Messages.Count).IsEqualTo(3);
+            await Assert.That(assetCatalog.Find("mes/game.mes")).IsNotNull();
+            await Assert.That(loadReport.SkippedArchiveCandidates.Count).IsEqualTo(0);
+            await Assert.That(archivePaths.Count).IsEqualTo(1);
+            await Assert.That(openCount).IsEqualTo(2);
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadFromGameInstallAsync_WithModuleName_OverlaysBaseInstallAssetsBeforeModuleContent()
+    {
+        const int protoNumber = 1001;
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var modulesDir = Path.Combine(gameDir, "modules");
+        var moduleDir = Path.Combine(modulesDir, "Arcanum");
+        Directory.CreateDirectory(Path.Combine(moduleDir, "maps", "map01"));
+
+        try
+        {
+            var artFile = MakeArtFile(frameRate: 12);
+            await WriteDatAsync(
+                Path.Combine(gameDir, "base.dat"),
+                new Dictionary<string, byte[]>
+                {
+                    ["proto\\001001 - Test.pro"] = ProtoFormat.WriteToArray(
+                        WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u))
+                    ),
+                    ["mes\\description.mes"] = MessageFormat.WriteToArray(
+                        new MesFile { Entries = [new MessageEntry(protoNumber, "Base install palette proto")] }
+                    ),
+                    ["art\\critters\\barbarian.art"] = ArtFormat.WriteToArray(in artFile),
+                }
+            );
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector()).SetTile(0, 0, 100u).Build(),
+                Path.Combine(moduleDir, "maps", "map01", "0.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+                gameDir,
+                new EditorWorkspaceLoadOptions { ModuleName = "Arcanum" }
+            );
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(new ArtId(100u), "art/critters/barbarian.art");
+            var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber, artResolver);
+            var session = workspace.CreateSession();
+            var worldScene = session.CreateDefaultMapWorldEditScene(
+                request: new EditorMapWorldEditSceneRequest
+                {
+                    RenderRequest = new EditorMapFloorRenderRequest
+                    {
+                        ViewMode = EditorMapSceneViewMode.Isometric,
+                        TileWidthPixels = 64d,
+                        TileHeightPixels = 32d,
+                    },
+                    ArtResolver = artResolver,
+                }
+            );
+
+            await Assert.That(workspace.ResolveDefaultMap()!.MapName).IsEqualTo("map01");
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.DisplayName).IsEqualTo("Base install palette proto");
+            await Assert.That(workspace.SearchObjectPalette("Base install").Count).IsEqualTo(1);
+            await Assert.That(worldScene.SpriteCoverage.IsComplete).IsTrue();
+            await Assert.That(worldScene.PaintableScene.Items.Any(item => item.Sprite is not null)).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadFromModuleDirectoryAsync_LoadsSiblingArchivesAndCapturesModuleProjectReference()
     {
         const int protoNumber = 1001;
@@ -3017,6 +4253,41 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(project.Workspace.Kind).IsEqualTo(EditorProjectWorkspaceKind.GameInstall);
             await Assert.That(project.Workspace.RootPath).IsEqualTo(gameDir);
             await Assert.That(project.Workspace.ModuleName).IsEqualTo("Arcanum");
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_WithModuleOverlayAndMatchingContentDirectory_ReusesInstallBackedContentRoot()
+    {
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var modulesDir = Path.Combine(gameDir, "modules");
+        var moduleDir = Path.Combine(modulesDir, "Arcanum");
+        Directory.CreateDirectory(moduleDir);
+        var progressUpdates = new List<EditorWorkspaceLoadProgress>();
+
+        try
+        {
+            var mes = new MesFile { Entries = [new MessageEntry(1, "Module root")] };
+            await WriteDatAsync(
+                Path.Combine(modulesDir, "Arcanum.dat"),
+                new Dictionary<string, byte[]> { ["mes\\game.mes"] = MessageFormat.WriteToArray(in mes) }
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(
+                moduleDir,
+                new EditorWorkspaceLoadOptions { GameDirectory = gameDir, ModuleName = "Arcanum" },
+                loadProgress: new Progress<EditorWorkspaceLoadProgress>(progressUpdates.Add)
+            );
+
+            await Assert.That(workspace.ContentDirectory).IsEqualTo(moduleDir);
+            await Assert.That(workspace.Module).IsNotNull();
+            await Assert
+                .That(progressUpdates.Any(static update => update.Activity == "Reusing install-backed content root"))
+                .IsTrue();
         }
         finally
         {

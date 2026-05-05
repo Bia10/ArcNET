@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor.Tests;
@@ -63,6 +63,39 @@ public sealed class EditorMapSceneRenderSpaceMathTests
         await Assert.That(selection!.SectorAssetPath).IsEqualTo("maps/map01/sector_1.sec");
         await Assert.That(selection.Tile).IsEqualTo(new Location(1, 0));
         await Assert.That(selection.ObjectId).IsEqualTo(hit.ObjectHits[0].ObjectId);
+    }
+
+    [Test]
+    public async Task TopDownProjection_RoundTripsInvertedMapY()
+    {
+        var sceneRender = CreateTopDownSceneRender();
+        var renderPoint = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(sceneRender, 0d, 1d);
+        var tilePoint = EditorMapSceneRenderSpaceMath.UnprojectMapTile(sceneRender, renderPoint.X, renderPoint.Y);
+        var viewportState = EditorMapSceneRenderSpaceMath.CreateViewportState(
+            sceneRender,
+            new EditorProjectMapCameraState
+            {
+                CenterTileX = 0d,
+                CenterTileY = 1d,
+                Zoom = 1d,
+            }
+        );
+        var layout = EditorMapSceneRenderSpaceMath.CreateViewportLayout(
+            sceneRender,
+            viewportWidth: 128d,
+            viewportHeight: 96d,
+            viewportState
+        );
+        var hit = EditorMapSceneRenderSpaceMath.HitTestScene(sceneRender, layout, viewportX: 64d, viewportY: 48d);
+
+        await Assert.That(renderPoint.X).IsEqualTo(16d);
+        await Assert.That(renderPoint.Y).IsEqualTo(16d);
+        await Assert.That(tilePoint.MapTileX).IsEqualTo(0d);
+        await Assert.That(tilePoint.MapTileY).IsEqualTo(1d);
+        await Assert.That(hit).IsNotNull();
+        await Assert.That(hit!.MapTileX).IsEqualTo(0);
+        await Assert.That(hit.MapTileY).IsEqualTo(1);
+        await Assert.That(hit.Tile).IsEqualTo(new Location(0, 1));
     }
 
     private static EditorMapFloorRenderPreview CreateIsometricSceneRender()
@@ -131,4 +164,50 @@ public sealed class EditorMapSceneRenderSpaceMathTests
             RenderQueue = [],
         };
     }
+
+    private static EditorMapFloorRenderPreview CreateTopDownSceneRender() =>
+        new()
+        {
+            MapName = "map01",
+            ViewMode = EditorMapSceneViewMode.TopDown,
+            TileWidthPixels = 32d,
+            TileHeightPixels = 32d,
+            WidthPixels = 32d,
+            HeightPixels = 64d,
+            Tiles =
+            [
+                new EditorMapFloorTileRenderItem
+                {
+                    SectorAssetPath = "maps/map01/sector_1.sec",
+                    MapTileX = 0,
+                    MapTileY = 0,
+                    Tile = new Location(0, 0),
+                    ArtId = new ArtId(100u),
+                    IsBlocked = false,
+                    HasLight = false,
+                    HasScript = false,
+                    DrawOrder = 1,
+                    CenterX = 16d,
+                    CenterY = 48d,
+                },
+                new EditorMapFloorTileRenderItem
+                {
+                    SectorAssetPath = "maps/map01/sector_1.sec",
+                    MapTileX = 0,
+                    MapTileY = 1,
+                    Tile = new Location(0, 1),
+                    ArtId = new ArtId(101u),
+                    IsBlocked = false,
+                    HasLight = false,
+                    HasScript = false,
+                    DrawOrder = 0,
+                    CenterX = 16d,
+                    CenterY = 16d,
+                },
+            ],
+            Objects = [],
+            Overlays = [],
+            Roofs = [],
+            RenderQueue = [],
+        };
 }

@@ -439,6 +439,48 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task Build_IgnoresInvalidRoofSentinelArtIds()
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[(63 * 64) + 0] = 100u;
+
+        var roofArtIds = new uint[16 * 16];
+        roofArtIds[(15 * 16) + 0] = uint.MaxValue;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_a.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.HasRoofs | EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = tileArtIds,
+                    RoofArtIds = roofArtIds,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Roofs.Count).IsEqualTo(0);
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(1);
+        await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+    }
+
+    [Test]
     public async Task Build_WithPreviewState_ComposesObjectRoofAndOverlayVisibility()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 77, Guid.NewGuid());
