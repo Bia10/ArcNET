@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -7,6 +7,13 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class EditorMapRenderSpriteRequest
 {
+    /// <summary>
+    /// Optional render-queue kind that is requesting the sprite.
+    /// Hosts can use this to disambiguate low Arcanum terrain art ids whose backing asset category
+    /// depends on whether the item is a floor tile or a roof tile.
+    /// </summary>
+    public EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
+
     /// <summary>
     /// Zero-based ART rotation index to resolve.
     /// </summary>
@@ -25,6 +32,7 @@ public sealed class EditorMapRenderSprite
 {
     public required ArtId ArtId { get; init; }
     public required string AssetPath { get; init; }
+    public EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
     public required int RotationIndex { get; init; }
     public required int FrameIndex { get; init; }
     public required int Width { get; init; }
@@ -46,6 +54,11 @@ public interface IEditorMapRenderSpriteSource
     /// Resolves one paintable ART frame for <paramref name="artId"/>, or returns <see langword="null"/> when no binding exists.
     /// </summary>
     EditorMapRenderSprite? Resolve(ArtId artId, EditorMapRenderSpriteRequest? request = null);
+
+    /// <summary>
+    /// Checks whether <paramref name="artId"/> can resolve without forcing full frame materialization when the source supports a cheaper probe.
+    /// </summary>
+    bool CanResolve(ArtId artId, EditorMapRenderSpriteRequest? request = null) => Resolve(artId, request) is not null;
 }
 
 /// <summary>
@@ -57,8 +70,10 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     private readonly EditorWorkspace _workspace;
     private readonly EditorArtResolver _artResolver;
     private readonly EditorArtPreviewOptions _previewOptions;
-    private readonly Dictionary<(ArtId ArtId, int RotationIndex, int FrameIndex), EditorMapRenderSprite?> _cache =
-        new();
+    private readonly Dictionary<
+        (ArtId ArtId, EditorMapRenderQueueItemKind? RenderItemKind, int RotationIndex, int FrameIndex),
+        EditorMapRenderSprite?
+    > _cache = new();
 
     public EditorWorkspaceMapRenderSpriteSource(
         EditorWorkspace workspace,
@@ -86,7 +101,12 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             return null;
 
         var effectiveRequest = request ?? new EditorMapRenderSpriteRequest();
-        var cacheKey = (artId, effectiveRequest.RotationIndex, effectiveRequest.FrameIndex);
+        var cacheKey = (
+            artId,
+            effectiveRequest.RenderItemKind,
+            effectiveRequest.RotationIndex,
+            effectiveRequest.FrameIndex
+        );
         if (_cache.TryGetValue(cacheKey, out var cached))
             return cached;
 
@@ -95,12 +115,77 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         return resolved;
     }
 
+    /// <inheritdoc />
+    public bool CanResolve(ArtId artId, EditorMapRenderSpriteRequest? request = null)
+    {
+        if (artId.Value == 0)
+            return false;
+
+        var effectiveRequest = request ?? new EditorMapRenderSpriteRequest();
+        var cacheKey = (
+            artId,
+            effectiveRequest.RenderItemKind,
+            effectiveRequest.RotationIndex,
+            effectiveRequest.FrameIndex
+        );
+        if (_cache.TryGetValue(cacheKey, out var cached))
+            return cached is not null;
+
+        return TryResolveAssetPath(artId, effectiveRequest) is not null;
+    }
+
     private EditorMapRenderSprite? ResolveCore(ArtId artId, EditorMapRenderSpriteRequest request)
     {
+        var assetPath = TryResolveAssetPath(artId, request);
+        if (assetPath is null)
+            return null;
+
+        return CreateResolvedSprite(artId, request, assetPath);
+    }
+
+    private string? TryResolveAssetPath(ArtId artId, EditorMapRenderSpriteRequest request)
+    {
+        if (
+            request.RenderItemKind is EditorMapRenderQueueItemKind.FloorTile or EditorMapRenderQueueItemKind.Roof
+            && IsSectorArtId(artId.Value)
+        )
+        {
+            if (_workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var renderItemAssetPath))
+                return renderItemAssetPath;
+
+            var lowSectorFallbackAssetPath = _artResolver.FindAssetPath(artId);
+            if (
+                string.IsNullOrWhiteSpace(lowSectorFallbackAssetPath)
+                || IsSectorArtFamilyAssetPath(lowSectorFallbackAssetPath)
+            )
+                return null;
+
+            return lowSectorFallbackAssetPath;
+        }
+
         var assetPath = _artResolver.FindAssetPath(artId);
+        if (
+            string.IsNullOrWhiteSpace(assetPath)
+            && _workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var hintedAssetPath)
+        )
+        {
+            assetPath = hintedAssetPath;
+        }
+
         if (string.IsNullOrWhiteSpace(assetPath))
             return null;
 
+        return assetPath;
+    }
+
+    private static bool IsSectorArtId(uint artIdValue) => (artIdValue & 0xF0000000u) == 0u;
+
+    private EditorMapRenderSprite? CreateResolvedSprite(
+        ArtId artId,
+        EditorMapRenderSpriteRequest request,
+        string assetPath
+    )
+    {
         var preview = _workspace.CreateArtPreview(assetPath, _previewOptions);
         var frame = preview.Frames.FirstOrDefault(candidate =>
             candidate.RotationIndex == request.RotationIndex && candidate.FrameIndex == request.FrameIndex
@@ -112,6 +197,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         {
             ArtId = artId,
             AssetPath = assetPath,
+            RenderItemKind = request.RenderItemKind,
             RotationIndex = frame.RotationIndex,
             FrameIndex = frame.FrameIndex,
             Width = frame.Width,
@@ -124,4 +210,12 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             PixelData = frame.PixelData,
         };
     }
+
+    private static bool IsSectorArtFamilyAssetPath(string assetPath) =>
+        assetPath.StartsWith("art/tile/", StringComparison.OrdinalIgnoreCase)
+        || assetPath.StartsWith("art/facade/", StringComparison.OrdinalIgnoreCase)
+        || assetPath.StartsWith("art/roof/", StringComparison.OrdinalIgnoreCase)
+        || assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
+        || assetPath.StartsWith("art/light/", StringComparison.OrdinalIgnoreCase)
+        || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase);
 }

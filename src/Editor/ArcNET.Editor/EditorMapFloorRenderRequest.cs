@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Host-neutral request for projecting render-ready floor tiles from one scene preview.
@@ -86,12 +86,14 @@ public sealed class EditorMapFloorRenderRequest
                 ViewMode = EditorMapSceneViewMode.Isometric,
                 TileWidthPixels = 64d,
                 TileHeightPixels = 32d,
+                IncludeEmptyTiles = true,
             },
             EditorMapSceneViewMode.TopDown => new EditorMapFloorRenderRequest
             {
                 ViewMode = EditorMapSceneViewMode.TopDown,
                 TileWidthPixels = 32d,
                 TileHeightPixels = 32d,
+                IncludeEmptyTiles = true,
             },
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };

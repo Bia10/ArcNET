@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -156,7 +156,7 @@ public static class EditorMapSceneRenderSpaceMath
         {
             EditorMapSceneViewMode.TopDown => new EditorMapRenderPoint(
                 sampleTile.CenterX + ((mapTileX - sampleTile.MapTileX) * sceneRender.TileWidthPixels),
-                sampleTile.CenterY + ((mapTileY - sampleTile.MapTileY) * sceneRender.TileHeightPixels)
+                sampleTile.CenterY - ((mapTileY - sampleTile.MapTileY) * sceneRender.TileHeightPixels)
             ),
             EditorMapSceneViewMode.Isometric => new EditorMapRenderPoint(
                 sampleTile.CenterX
@@ -192,7 +192,7 @@ public static class EditorMapSceneRenderSpaceMath
         {
             EditorMapSceneViewMode.TopDown => new EditorMapTilePoint(
                 sampleTile.MapTileX + ((renderX - sampleTile.CenterX) / sceneRender.TileWidthPixels),
-                sampleTile.MapTileY + ((renderY - sampleTile.CenterY) / sceneRender.TileHeightPixels)
+                sampleTile.MapTileY - ((renderY - sampleTile.CenterY) / sceneRender.TileHeightPixels)
             ),
             EditorMapSceneViewMode.Isometric => UnprojectIsometricMapTile(sceneRender, sampleTile, renderX, renderY),
             _ => throw new ArgumentOutOfRangeException(

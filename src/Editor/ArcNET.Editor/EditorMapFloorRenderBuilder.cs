@@ -68,7 +68,8 @@ public static class EditorMapFloorRenderBuilder
     /// </summary>
     public static EditorMapFloorRenderPreview Build(
         EditorMapScenePreview scenePreview,
-        EditorMapFloorRenderRequest? request = null
+        EditorMapFloorRenderRequest? request = null,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(scenePreview);
@@ -120,6 +121,7 @@ public static class EditorMapFloorRenderBuilder
                 .ThenBy(static sector => sector.LocalX)
         )
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var lightTileIndices = sector
                 .Lights.Select(static light => GetTileIndex(light.TileX, light.TileY))
                 .ToHashSet();
@@ -127,6 +129,7 @@ public static class EditorMapFloorRenderBuilder
 
             for (var tileY = 0; tileY < sectorTileHeight; tileY++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 for (var tileX = 0; tileX < sectorTileWidth; tileX++)
                 {
                     var tileArtId = sector.GetTileArtId(tileX, tileY);
@@ -230,6 +233,7 @@ public static class EditorMapFloorRenderBuilder
 
             for (var objectIndex = 0; objectIndex < sector.Objects.Count; objectIndex++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var obj = sector.Objects[objectIndex];
                 if (obj.Location is not { } location)
                     continue;
@@ -282,10 +286,11 @@ public static class EditorMapFloorRenderBuilder
 
             for (var roofY = 0; roofY < sector.RoofHeight; roofY++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 for (var roofX = 0; roofX < sector.RoofWidth; roofX++)
                 {
                     var roofArtId = sector.GetRoofArtId(roofX, roofY);
-                    if (roofArtId is null or 0u)
+                    if (roofArtId is null or 0u or uint.MaxValue)
                         continue;
 
                     var mapTileX = checked((sector.LocalX * sectorTileWidth) + (roofX * 4));
@@ -356,6 +361,7 @@ public static class EditorMapFloorRenderBuilder
 
         var offsetX = -minLeft;
         var offsetY = -minTop;
+        cancellationToken.ThrowIfCancellationRequested();
         var orderedTiles = rawTiles
             .OrderBy(static tile => tile.DrawOrder)
             .ThenBy(static tile => tile.MapTileX)
@@ -453,6 +459,7 @@ public static class EditorMapFloorRenderBuilder
             orderedRoofs,
             roofs
         );
+        cancellationToken.ThrowIfCancellationRequested();
 
         return new EditorMapFloorRenderPreview
         {
