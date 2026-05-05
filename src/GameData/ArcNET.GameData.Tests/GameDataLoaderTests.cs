@@ -226,6 +226,64 @@ public class GameDataLoaderTests
     }
 
     [Test]
+    public async Task LoadFromEntriesAsync_AllowsMoreInFlightLoadsThanParseWorkers()
+    {
+        var parseParallelism = Math.Clamp(Environment.ProcessorCount, 4, 16);
+        var targetConcurrentLoads = parseParallelism + 1;
+        var bytes = Encoding.UTF8.GetBytes("{1}{Alpha}\n");
+        var enoughLoadsStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseLoads = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var currentLoads = 0;
+        var entryCount = targetConcurrentLoads * 2;
+
+        var entries = Enumerable
+            .Range(0, entryCount)
+            .Select(index => new GameDataLoadEntry(
+                FileFormat.Message,
+                $"mes/game{index}.mes",
+                async cancellationToken =>
+                {
+                    var concurrentLoads = Interlocked.Increment(ref currentLoads);
+                    if (concurrentLoads >= targetConcurrentLoads)
+                        enoughLoadsStarted.TrySetResult(true);
+
+                    try
+                    {
+                        await releaseLoads.Task.WaitAsync(cancellationToken);
+                        return bytes;
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref currentLoads);
+                    }
+                }
+            ))
+            .ToArray();
+
+        var loadTask = GameDataLoader.LoadFromEntriesAsync(entries);
+        await enoughLoadsStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseLoads.TrySetResult(true);
+
+        var result = await loadTask;
+        await Assert.That(result.Store.Messages.Count).IsEqualTo(entryCount);
+    }
+
+    [Test]
+    public async Task LoadFromEntriesAsync_KnownParseFailure_IsReportedWithoutDiscardingValidEntries()
+    {
+        var result = await GameDataLoader.LoadFromEntriesAsync([
+            GameDataLoadEntry.FromMemory(FileFormat.Message, "mes/game.mes", Encoding.UTF8.GetBytes("{10}{Alpha}\n")),
+            GameDataLoadEntry.FromMemory(FileFormat.Sector, "maps/map01/00000000.sec", ReadOnlyMemory<byte>.Empty),
+        ]);
+
+        await Assert.That(result.Store.Messages.Count).IsEqualTo(1);
+        await Assert.That(result.Store.Messages[0].Text).IsEqualTo("Alpha");
+        await Assert.That(result.Failures.Count).IsEqualTo(1);
+        await Assert.That(result.Failures[0].SourcePath).IsEqualTo("maps/map01/00000000.sec");
+        await Assert.That(result.Failures[0].Format).IsEqualTo(FileFormat.Sector);
+    }
+
+    [Test]
     public async Task LoadFromDirectoryAsync_NonExistentDir_Throws()
     {
         await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
@@ -362,6 +420,8 @@ public class GameDataLoaderTests
 
         await Assert.That(store.Arts.Count).IsEqualTo(1);
         await Assert.That(store.Arts[0].FrameRate).IsEqualTo(12u);
+        await Assert.That(store.Arts[0].IsMetadataOnly).IsTrue();
+        await Assert.That(store.Arts[0].Frames[0][0].Pixels.Length).IsEqualTo(0);
         await Assert.That(store.ArtsBySource.ContainsKey("art/critters/barbarian.art")).IsTrue();
     }
 }

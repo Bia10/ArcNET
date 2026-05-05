@@ -174,6 +174,96 @@ public sealed class GameDataStore
     /// <summary>Raised when an object is added or mutated via <see cref="MarkDirty"/>.</summary>
     public event EventHandler<GameObjectGuid>? ObjectChanged;
 
+    /// <summary>
+    /// Creates one new store by overlaying source-tracked entries from <paramref name="overlayStore"/>
+    /// on top of <paramref name="baseStore"/>.
+    /// When both stores contain the same source path, the overlay entries win.
+    /// </summary>
+    public static GameDataStore Overlay(GameDataStore baseStore, GameDataStore overlayStore)
+    {
+        ArgumentNullException.ThrowIfNull(baseStore);
+        ArgumentNullException.ThrowIfNull(overlayStore);
+
+        var result = new GameDataStore();
+
+        OverlayEntries(
+            result,
+            baseStore._messagesBySource,
+            overlayStore._messagesBySource,
+            static (store, entry, path) => store.AddMessage(entry, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._sectorsBySource,
+            overlayStore._sectorsBySource,
+            static (store, sector, path) => store.AddSector(sector, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._protosBySource,
+            overlayStore._protosBySource,
+            static (store, proto, path) =>
+            {
+                store.AddProto(proto, path);
+                store.AddObject(proto.Header);
+            }
+        );
+        OverlayEntries(
+            result,
+            baseStore._mobsBySource,
+            overlayStore._mobsBySource,
+            static (store, mob, path) =>
+            {
+                store.AddMob(mob, path);
+                store.AddObject(mob.Header);
+            }
+        );
+        OverlayEntries(
+            result,
+            baseStore._artsBySource,
+            overlayStore._artsBySource,
+            static (store, art, path) => store.AddArt(art, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._jumpFilesBySource,
+            overlayStore._jumpFilesBySource,
+            static (store, jumpFile, path) => store.AddJumpFile(jumpFile, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._mapPropertiesBySource,
+            overlayStore._mapPropertiesBySource,
+            static (store, properties, path) => store.AddMapProperties(properties, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._scriptsBySource,
+            overlayStore._scriptsBySource,
+            static (store, script, path) => store.AddScript(script, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._dialogsBySource,
+            overlayStore._dialogsBySource,
+            static (store, dialog, path) => store.AddDialog(dialog, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._terrainsBySource,
+            overlayStore._terrainsBySource,
+            static (store, terrain, path) => store.AddTerrain(terrain, path)
+        );
+        OverlayEntries(
+            result,
+            baseStore._facadeWalksBySource,
+            overlayStore._facadeWalksBySource,
+            static (store, facadeWalk, path) => store.AddFacadeWalk(facadeWalk, path)
+        );
+
+        return result;
+    }
+
     /// <summary>Adds an object header to the store and invalidates the GUID index.</summary>
     public void AddObject(GameObjectHeader header)
     {
@@ -322,6 +412,36 @@ public sealed class GameDataStore
             return;
         GetOrCreate(_facadeWalksBySource, sourcePath).Add(facadeWalk);
         _facadeWalksBySourceView = null;
+    }
+
+    private static void OverlayEntries<T>(
+        GameDataStore target,
+        IReadOnlyDictionary<string, List<T>> baseEntriesBySource,
+        IReadOnlyDictionary<string, List<T>> overlayEntriesBySource,
+        Action<GameDataStore, T, string> addEntry
+    )
+    {
+        foreach (var pair in baseEntriesBySource.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (overlayEntriesBySource.ContainsKey(pair.Key))
+                continue;
+
+            AddEntries(target, pair.Key, pair.Value, addEntry);
+        }
+
+        foreach (var pair in overlayEntriesBySource.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            AddEntries(target, pair.Key, pair.Value, addEntry);
+    }
+
+    private static void AddEntries<T>(
+        GameDataStore target,
+        string sourcePath,
+        IReadOnlyList<T> entries,
+        Action<GameDataStore, T, string> addEntry
+    )
+    {
+        for (var index = 0; index < entries.Count; index++)
+            addEntry(target, entries[index], sourcePath);
     }
 
     /// <summary>

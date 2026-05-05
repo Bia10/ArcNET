@@ -1,4 +1,5 @@
-﻿using ArcNET.Formats;
+﻿using System.Threading.Channels;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.GameData;
@@ -9,71 +10,95 @@ namespace ArcNET.GameData;
 /// </summary>
 public static class GameDataLoader
 {
-    private delegate void MemoryLoadHandler(GameDataStore store, ReadOnlyMemory<byte> memory, string sourcePath);
+    private delegate Action<GameDataStore>? MemoryLoadHandler(ReadOnlyMemory<byte> memory, string sourcePath);
+    private const int MaxParseParallelism = 16;
+    private const int MinParseParallelism = 4;
+    private const int MaxReadParallelism = 64;
+    private const int MinReadParallelism = 8;
+    private const int MaxLoadedEntryBufferSize = 64;
 
     private static readonly IReadOnlyDictionary<FileFormat, MemoryLoadHandler> s_memoryLoadHandlers = new Dictionary<
         FileFormat,
         MemoryLoadHandler
     >
     {
-        [FileFormat.Message] = static (store, memory, sourcePath) =>
+        [FileFormat.Message] = static (memory, sourcePath) =>
         {
             var mesFile = MessageFormat.ParseMemory(memory);
             var normalizedPath = NormalizeSourcePath(sourcePath);
-            foreach (var entry in mesFile.Entries)
-                store.AddMessage(entry, normalizedPath);
+            return store =>
+            {
+                foreach (var entry in mesFile.Entries)
+                    store.AddMessage(entry, normalizedPath);
+            };
         },
-        [FileFormat.Sector] = static (store, memory, sourcePath) =>
+        [FileFormat.Sector] = static (memory, sourcePath) =>
         {
             var sector = SectorFormat.ParseMemory(memory);
-            store.AddSector(sector, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddSector(sector, normalizedPath);
         },
-        [FileFormat.Proto] = static (store, memory, sourcePath) =>
+        [FileFormat.Proto] = static (memory, sourcePath) =>
         {
             var proto = ProtoFormat.ParseMemory(memory);
-            store.AddProto(proto, NormalizeSourcePath(sourcePath));
-            store.AddObject(proto.Header);
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store =>
+            {
+                store.AddProto(proto, normalizedPath);
+                store.AddObject(proto.Header);
+            };
         },
-        [FileFormat.Mob] = static (store, memory, sourcePath) =>
+        [FileFormat.Mob] = static (memory, sourcePath) =>
         {
             var mob = MobFormat.ParseMemory(memory);
-            store.AddMob(mob, NormalizeSourcePath(sourcePath));
-            store.AddObject(mob.Header);
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store =>
+            {
+                store.AddMob(mob, normalizedPath);
+                store.AddObject(mob.Header);
+            };
         },
-        [FileFormat.Art] = static (store, memory, sourcePath) =>
+        [FileFormat.Art] = static (memory, sourcePath) =>
         {
-            var art = ArtFormat.ParseMemory(memory);
-            store.AddArt(art, NormalizeSourcePath(sourcePath));
+            var art = ArtFormat.ParseMetadataMemory(memory);
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddArt(art, normalizedPath);
         },
-        [FileFormat.Jmp] = static (store, memory, sourcePath) =>
+        [FileFormat.Jmp] = static (memory, sourcePath) =>
         {
             var jumpFile = JmpFormat.ParseMemory(memory);
-            store.AddJumpFile(jumpFile, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddJumpFile(jumpFile, normalizedPath);
         },
-        [FileFormat.MapProperties] = static (store, memory, sourcePath) =>
+        [FileFormat.MapProperties] = static (memory, sourcePath) =>
         {
             var properties = MapPropertiesFormat.ParseMemory(memory);
-            store.AddMapProperties(properties, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddMapProperties(properties, normalizedPath);
         },
-        [FileFormat.Script] = static (store, memory, sourcePath) =>
+        [FileFormat.Script] = static (memory, sourcePath) =>
         {
             var script = ScriptFormat.ParseMemory(memory);
-            store.AddScript(script, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddScript(script, normalizedPath);
         },
-        [FileFormat.Dialog] = static (store, memory, sourcePath) =>
+        [FileFormat.Dialog] = static (memory, sourcePath) =>
         {
             var dialog = DialogFormat.ParseMemory(memory);
-            store.AddDialog(dialog, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddDialog(dialog, normalizedPath);
         },
-        [FileFormat.Terrain] = static (store, memory, sourcePath) =>
+        [FileFormat.Terrain] = static (memory, sourcePath) =>
         {
             var terrain = TerrainFormat.ParseMemory(memory);
-            store.AddTerrain(terrain, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddTerrain(terrain, normalizedPath);
         },
-        [FileFormat.FacadeWalk] = static (store, memory, sourcePath) =>
+        [FileFormat.FacadeWalk] = static (memory, sourcePath) =>
         {
             var facadeWalk = FacWalkFormat.ParseMemory(memory);
-            store.AddFacadeWalk(facadeWalk, NormalizeSourcePath(sourcePath));
+            var normalizedPath = NormalizeSourcePath(sourcePath);
+            return store => store.AddFacadeWalk(facadeWalk, normalizedPath);
         },
     };
 
@@ -135,14 +160,19 @@ public static class GameDataLoader
     public static async Task<GameDataStore> LoadFromDirectoryAsync(
         string dirPath,
         IProgress<float>? progress = null,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        IProgress<GameDataLoadProgress>? loadProgress = null
     )
     {
         if (!Directory.Exists(dirPath))
             throw new DirectoryNotFoundException($"Directory not found: {dirPath}");
 
+        loadProgress?.Report(new GameDataLoadProgress("Discovering game data files", 0f));
         var files = await Task.Run(() => DiscoverFiles(dirPath), ct).ConfigureAwait(false);
-        return await LoadFromDiscoveredFilesAsync(dirPath, files, progress, ct).ConfigureAwait(false);
+        var result = await LoadFromEntriesAsync(CreateFileEntries(dirPath, files), progress, ct, loadProgress)
+            .ConfigureAwait(false);
+        ThrowIfFailures(result.Failures);
+        return result.Store;
     }
 
     /// <summary>
@@ -152,28 +182,42 @@ public static class GameDataLoader
     public static async Task<GameDataStore> LoadFromMemoryAsync(
         IReadOnlyDictionary<string, ReadOnlyMemory<byte>> files,
         IProgress<float>? progress = null,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        IProgress<GameDataLoadProgress>? loadProgress = null
     )
     {
         ArgumentNullException.ThrowIfNull(files);
 
-        var store = new GameDataStore();
-        var entries = files.ToList();
-        var total = entries.Count;
+        var entries = files
+            .Select(static pair =>
+            {
+                var format = FileFormatExtensions.FromPath(pair.Key);
+                format = ResolveFacadeWalkFormat(format, Path.GetFileName(pair.Key));
+                return GameDataLoadEntry.FromMemory(format, pair.Key, pair.Value);
+            })
+            .ToArray();
 
-        for (var i = 0; i < total; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var (name, memory) = (entries[i].Key, entries[i].Value);
-            var format = FileFormatExtensions.FromPath(name);
+        var result = await LoadFromEntriesAsync(entries, progress, ct, loadProgress).ConfigureAwait(false);
+        ThrowIfFailures(result.Failures);
+        return result.Store;
+    }
 
-            format = ResolveFacadeWalkFormat(format, Path.GetFileName(name));
+    /// <summary>
+    /// Loads game data from caller-supplied content entries.
+    /// Known parse failures are returned in <see cref="GameDataLoadResult.Failures"/> so callers can
+    /// decide whether to skip those assets or fail the whole load.
+    /// </summary>
+    public static async Task<GameDataLoadResult> LoadFromEntriesAsync(
+        IReadOnlyList<GameDataLoadEntry> entries,
+        IProgress<float>? progress = null,
+        CancellationToken ct = default,
+        IProgress<GameDataLoadProgress>? loadProgress = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(entries);
 
-            await LoadEntryFromMemoryAsync(store, format, memory, name, ct).ConfigureAwait(false);
-            progress?.Report((i + 1f) / total);
-        }
-
-        return store;
+        var parsedEntries = await ParseEntriesAsync(entries, progress, ct, loadProgress).ConfigureAwait(false);
+        return ApplyParsedEntries(parsedEntries);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -188,58 +232,202 @@ public static class GameDataLoader
             ? FileFormat.FacadeWalk
             : current;
 
-    private static async Task<GameDataStore> LoadFromDiscoveredFilesAsync(
+    private static IReadOnlyList<GameDataLoadEntry> CreateFileEntries(
         string rootDir,
-        IReadOnlyDictionary<FileFormat, IReadOnlyList<string>> files,
+        IReadOnlyDictionary<FileFormat, IReadOnlyList<string>> files
+    ) =>
+        files
+            .SelectMany(static pair => pair.Value.Select(path => new FileLoadEntry(pair.Key, path)))
+            .Select(entry =>
+                GameDataLoadEntry.FromFile(entry.Format, Path.GetRelativePath(rootDir, entry.Path), entry.Path)
+            )
+            .ToArray();
+
+    private static async Task<ParsedLoadEntry[]> ParseEntriesAsync(
+        IReadOnlyList<GameDataLoadEntry> entries,
         IProgress<float>? progress,
-        CancellationToken ct
+        CancellationToken ct,
+        IProgress<GameDataLoadProgress>? loadProgress
     )
     {
-        var store = new GameDataStore();
-
-        // Count total files for progress reporting
-        var total = files.Values.Sum(l => l.Count);
-        var done = 0;
-
-        foreach (var (format, paths) in files)
+        var parsedEntries = new ParsedLoadEntry[entries.Count];
+        if (entries.Count == 0)
         {
-            foreach (var path in paths)
-            {
-                ct.ThrowIfCancellationRequested();
-                await LoadEntryFromFileAsync(store, format, rootDir, path, ct).ConfigureAwait(false);
-                progress?.Report(++done / (float)total);
-            }
+            loadProgress?.Report(new GameDataLoadProgress("Parsing game data assets", 1f, 0, 0));
+            return parsedEntries;
         }
 
-        return store;
+        loadProgress?.Report(new GameDataLoadProgress("Parsing game data assets", 0f, 0, entries.Count));
+
+        var parseParallelism = GetParseParallelism();
+        var readParallelism = GetReadParallelism(parseParallelism);
+        var loadedEntryChannel = Channel.CreateBounded<LoadedEntry>(
+            new BoundedChannelOptions(GetLoadedEntryBufferSize(parseParallelism))
+            {
+                SingleWriter = false,
+                SingleReader = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                AllowSynchronousContinuations = false,
+            }
+        );
+        var completedCount = 0;
+
+        var parseWorkers = Enumerable
+            .Range(0, parseParallelism)
+            .Select(_ =>
+                ConsumeLoadedEntriesAsync(
+                    loadedEntryChannel.Reader,
+                    parsedEntries,
+                    () =>
+                    {
+                        var completedEntries = Interlocked.Increment(ref completedCount);
+                        var parseProgress = completedEntries / (float)entries.Count;
+                        progress?.Report(parseProgress);
+                        loadProgress?.Report(
+                            new GameDataLoadProgress(
+                                "Parsing game data assets",
+                                parseProgress,
+                                completedEntries,
+                                entries.Count
+                            )
+                        );
+                    },
+                    ct
+                )
+            )
+            .ToArray();
+
+        Exception? loadFailure = null;
+        try
+        {
+            await Parallel
+                .ForEachAsync(
+                    Enumerable.Range(0, entries.Count),
+                    new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = readParallelism },
+                    async (index, cancellationToken) =>
+                    {
+                        var entry = entries[index];
+                        var memory = await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false);
+                        await loadedEntryChannel
+                            .Writer.WriteAsync(new LoadedEntry(index, entry, memory), cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                )
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            loadFailure = ex;
+        }
+        finally
+        {
+            loadedEntryChannel.Writer.TryComplete(loadFailure);
+        }
+
+        await Task.WhenAll(parseWorkers).ConfigureAwait(false);
+
+        return parsedEntries;
     }
 
-    private static async Task LoadEntryFromFileAsync(
-        GameDataStore store,
-        FileFormat format,
-        string rootDir,
-        string path,
+    private static async Task ConsumeLoadedEntriesAsync(
+        ChannelReader<LoadedEntry> reader,
+        ParsedLoadEntry[] parsedEntries,
+        Action onParsed,
         CancellationToken ct
     )
     {
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
-        var relativePath = Path.GetRelativePath(rootDir, path);
-        await LoadEntryFromMemoryAsync(store, format, bytes, relativePath, ct).ConfigureAwait(false);
+        await foreach (var loadedEntry in reader.ReadAllAsync(ct).ConfigureAwait(false))
+        {
+            parsedEntries[loadedEntry.Index] = ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory);
+            onParsed();
+        }
     }
 
-    private static Task LoadEntryFromMemoryAsync(
-        GameDataStore store,
+    private static ParsedLoadEntry ParseLoadedEntry(GameDataLoadEntry entry, ReadOnlyMemory<byte> memory)
+    {
+        try
+        {
+            return new ParsedLoadEntry(
+                entry.SourcePath,
+                entry.Format,
+                ParseEntryFromMemory(entry.Format, memory, entry.SourcePath),
+                null
+            );
+        }
+        catch (Exception ex) when (IsSkippableAssetParseFailure(ex))
+        {
+            return new ParsedLoadEntry(entry.SourcePath, entry.Format, null, ex.Message);
+        }
+    }
+
+    private static int GetParseParallelism() =>
+        Math.Clamp(Environment.ProcessorCount, MinParseParallelism, MaxParseParallelism);
+
+    private static int GetReadParallelism(int parseParallelism) =>
+        Math.Clamp(parseParallelism * 4, MinReadParallelism, MaxReadParallelism);
+
+    private static int GetLoadedEntryBufferSize(int parseParallelism) =>
+        Math.Clamp(parseParallelism * 4, MinReadParallelism, MaxLoadedEntryBufferSize);
+
+    private static Action<GameDataStore>? ParseEntryFromMemory(
         FileFormat format,
         ReadOnlyMemory<byte> memory,
-        string sourcePath,
-        CancellationToken ct
+        string sourcePath
     )
     {
         if (!s_memoryLoadHandlers.TryGetValue(format, out var handler))
-            return Task.CompletedTask;
+            return null;
 
-        return Task.Run(() => handler(store, memory, sourcePath), ct);
+        return handler(memory, sourcePath);
     }
+
+    private static GameDataLoadResult ApplyParsedEntries(IReadOnlyList<ParsedLoadEntry> parsedEntries)
+    {
+        var store = new GameDataStore();
+        List<GameDataLoadFailure>? failures = null;
+        for (var index = 0; index < parsedEntries.Count; index++)
+        {
+            var parsedEntry = parsedEntries[index];
+            parsedEntry.ApplyAction?.Invoke(store);
+            if (parsedEntry.FailureReason is null)
+                continue;
+
+            failures ??= [];
+            failures.Add(
+                new GameDataLoadFailure(parsedEntry.SourcePath, parsedEntry.Format, parsedEntry.FailureReason)
+            );
+        }
+
+        return new GameDataLoadResult(store, failures ?? []);
+    }
+
+    private static void ThrowIfFailures(IReadOnlyList<GameDataLoadFailure> failures)
+    {
+        if (failures.Count == 0)
+            return;
+
+        var firstFailure = failures[0];
+        var additionalFailureCount = failures.Count - 1;
+        throw new InvalidDataException(
+            additionalFailureCount == 0
+                ? $"Failed to parse '{firstFailure.SourcePath}': {firstFailure.Reason}"
+                : $"Failed to parse '{firstFailure.SourcePath}': {firstFailure.Reason} ({additionalFailureCount} additional failure(s) omitted)."
+        );
+    }
+
+    private static bool IsSkippableAssetParseFailure(Exception exception) =>
+        exception is ArgumentOutOfRangeException or InvalidDataException;
+
+    private readonly record struct LoadedEntry(int Index, GameDataLoadEntry Entry, ReadOnlyMemory<byte> Memory);
+
+    private readonly record struct FileLoadEntry(FileFormat Format, string Path);
+
+    private readonly record struct ParsedLoadEntry(
+        string SourcePath,
+        FileFormat Format,
+        Action<GameDataStore>? ApplyAction,
+        string? FailureReason
+    );
 
     private static string NormalizeSourcePath(string sourcePath) =>
         sourcePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
