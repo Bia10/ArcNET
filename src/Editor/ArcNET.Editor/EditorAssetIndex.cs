@@ -247,6 +247,11 @@ public sealed class EditorAssetIndex
         _data.ArtReferencesById.TryGetValue(artId, out var references) ? references : [];
 
     /// <summary>
+    /// Returns all distinct ART identifiers referenced by indexed game-data assets.
+    /// </summary>
+    public IReadOnlyCollection<uint> GetReferencedArtIds() => _data.ArtReferencesById.Keys.ToArray();
+
+    /// <summary>
     /// Returns the indexed jump-file detail for one asset path, or <see langword="null"/>
     /// when the asset was not indexed as a jump file.
     /// </summary>

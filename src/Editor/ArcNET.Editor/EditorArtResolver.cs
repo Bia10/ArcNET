@@ -10,18 +10,31 @@ namespace ArcNET.Editor;
 public sealed class EditorArtResolver
 {
     private readonly EditorWorkspace _workspace;
+    private readonly EditorArtResolverBindingStrategy _bindingStrategy;
+    private readonly object _bindingGate = new();
     private readonly Dictionary<ArtId, string> _assetPathsByArtId = new();
 
-    internal EditorArtResolver(EditorWorkspace workspace)
+    internal EditorArtResolver(
+        EditorWorkspace workspace,
+        EditorArtResolverBindingStrategy bindingStrategy = EditorArtResolverBindingStrategy.None
+    )
     {
         ArgumentNullException.ThrowIfNull(workspace);
         _workspace = workspace;
+        _bindingStrategy = bindingStrategy;
     }
 
     /// <summary>
     /// Number of explicit <see cref="ArtId"/> bindings currently registered on this resolver.
     /// </summary>
-    public int BindingCount => _assetPathsByArtId.Count;
+    public int BindingCount
+    {
+        get
+        {
+            lock (_bindingGate)
+                return _assetPathsByArtId.Count;
+        }
+    }
 
     /// <summary>
     /// Registers one explicit binding from <paramref name="artId"/> to a loaded ART asset path.
@@ -37,10 +50,11 @@ public sealed class EditorArtResolver
         ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
 
         var normalizedPath = NormalizeAssetPath(assetPath);
-        if (_workspace.FindArt(normalizedPath) is null)
+        if (!_workspace.HasLoadedArtAsset(normalizedPath))
             throw new InvalidOperationException($"No loaded ART asset matched '{normalizedPath}'.");
 
-        _assetPathsByArtId[artId] = normalizedPath;
+        lock (_bindingGate)
+            _assetPathsByArtId[artId] = normalizedPath;
     }
 
     /// <summary>
@@ -57,8 +71,26 @@ public sealed class EditorArtResolver
     /// <summary>
     /// Returns the bound asset path for <paramref name="artId"/>, or <see langword="null"/> when no binding exists.
     /// </summary>
-    public string? FindAssetPath(ArtId artId) =>
-        _assetPathsByArtId.TryGetValue(artId, out var assetPath) ? assetPath : null;
+    public string? FindAssetPath(ArtId artId)
+    {
+        lock (_bindingGate)
+        {
+            if (_assetPathsByArtId.TryGetValue(artId, out var cachedAssetPath))
+                return cachedAssetPath;
+        }
+
+        if (!_workspace.TryResolveArtAssetPath(artId, _bindingStrategy, out var resolvedAssetPath))
+            return null;
+
+        lock (_bindingGate)
+        {
+            if (_assetPathsByArtId.TryGetValue(artId, out var cachedAssetPath))
+                return cachedAssetPath;
+
+            _assetPathsByArtId[artId] = resolvedAssetPath;
+            return resolvedAssetPath;
+        }
+    }
 
     /// <summary>
     /// Returns the loaded ART asset bound to <paramref name="artId"/>, or <see langword="null"/> when no binding exists.
