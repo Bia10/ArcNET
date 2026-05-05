@@ -26,27 +26,40 @@ internal static class GameInstallContentLoader
         GameDataStore GameData,
         EditorAssetCatalog AssetCatalog,
         EditorWorkspaceLoadReport LoadReport
-    )> LoadAsync(string gameDir, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
+    )> LoadAsync(
+        string gameDir,
+        IProgress<float>? progress = null,
+        CancellationToken cancellationToken = default,
+        IProgress<EditorAssetLoadProgress>? assetProgress = null,
+        IProgress<GameDataLoadProgress>? gameDataProgress = null,
+        Func<string, DatArchive>? archiveOpener = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDir);
         if (!Directory.Exists(gameDir))
             throw new DirectoryNotFoundException($"Game directory not found: {gameDir}");
 
-        var installFiles = await Task.Run(
-                () => ReadInstallFiles(gameDir, progress, cancellationToken),
-                cancellationToken
+        archiveOpener ??= DatArchive.Open;
+
+        using var installFiles = await ReadInstallFilesAsync(
+                gameDir,
+                progress,
+                cancellationToken,
+                assetProgress,
+                archiveOpener
             )
             .ConfigureAwait(false);
 
-        RemoveUnparseableAssets(installFiles);
-
-        var gameData = await GameDataLoader
-            .LoadFromMemoryAsync(
-                installFiles.Files,
+        var loadResult = await GameDataLoader
+            .LoadFromEntriesAsync(
+                [.. installFiles.LoadEntries.Values],
                 CreateWeightedProgress(progress, ArchiveReadProgressWeight, 1f - ArchiveReadProgressWeight),
-                cancellationToken
+                cancellationToken,
+                gameDataProgress
             )
             .ConfigureAwait(false);
+        AppendSkippedAssets(installFiles, loadResult.Failures);
+        var gameData = loadResult.Store;
 
         var assetCatalog = EditorAssetCatalogBuilder.CreateForInstall(gameData, installFiles.AssetSources);
         return (
@@ -60,14 +73,16 @@ internal static class GameInstallContentLoader
         );
     }
 
-    private static InstallFileSet ReadInstallFiles(
+    private static async Task<InstallFileSet> ReadInstallFilesAsync(
         string gameDir,
         IProgress<float>? progress,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        IProgress<EditorAssetLoadProgress>? assetProgress,
+        Func<string, DatArchive> archiveOpener
     )
     {
         var files = new InstallFileSet();
-        var archiveDiscovery = DiscoverArchivePaths(gameDir);
+        var archiveDiscovery = DiscoverArchivePaths(gameDir, archiveOpener);
         files.SkippedArchiveCandidates.AddRange(archiveDiscovery.SkippedArchiveCandidates);
 
         var archivePaths = archiveDiscovery.ArchivePaths;
@@ -83,27 +98,32 @@ internal static class GameInstallContentLoader
             );
         }
 
-        var completedSources = 0;
+        assetProgress?.Report(
+            new EditorAssetLoadProgress("Loading install asset sources", 0f, 0, totalSources, "sources")
+        );
+
+        var sourceTasks = new List<Task<InstallOverlaySource>>(totalSources);
         foreach (var archivePath in archivePaths)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            OverlayArchive(files, archivePath, cancellationToken);
-            completedSources++;
-            progress?.Report(completedSources / (float)totalSources * ArchiveReadProgressWeight);
+            sourceTasks.Add(LoadArchiveAsync(archivePath, archiveOpener, cancellationToken));
         }
 
         if (hasLooseDirectory)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            OverlayLooseFiles(files, looseDataDirectory, cancellationToken);
-            completedSources++;
-            progress?.Report(completedSources / (float)totalSources * ArchiveReadProgressWeight);
+            sourceTasks.Add(LoadLooseFilesAsync(looseDataDirectory, cancellationToken));
         }
+
+        var overlaySources = await LoadSourcesAsync(sourceTasks, totalSources, progress, assetProgress)
+            .ConfigureAwait(false);
+        foreach (var overlaySource in overlaySources)
+            ApplyOverlay(files, overlaySource);
 
         return files;
     }
 
-    private static ArchiveDiscoveryResult DiscoverArchivePaths(string gameDir)
+    private static ArchiveDiscoveryResult DiscoverArchivePaths(string gameDir, Func<string, DatArchive> archiveOpener)
     {
         var paths = new List<string>();
         var archivePaths = new List<string>();
@@ -120,7 +140,7 @@ internal static class GameInstallContentLoader
 
         foreach (var path in paths)
         {
-            if (TryAcceptArchiveCandidate(path, out var skipReason))
+            if (TryAcceptArchiveCandidate(path, archiveOpener, out var skipReason))
             {
                 archivePaths.Add(path);
                 continue;
@@ -138,11 +158,18 @@ internal static class GameInstallContentLoader
             .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    private static bool TryAcceptArchiveCandidate(string archivePath, out string? skipReason)
+    private static bool TryAcceptArchiveCandidate(string archivePath, out string? skipReason) =>
+        TryAcceptArchiveCandidate(archivePath, DatArchive.Open, out skipReason);
+
+    private static bool TryAcceptArchiveCandidate(
+        string archivePath,
+        Func<string, DatArchive> archiveOpener,
+        out string? skipReason
+    )
     {
         try
         {
-            using var archive = DatArchive.Open(archivePath);
+            using var archive = archiveOpener(archivePath);
             skipReason = null;
             return true;
         }
@@ -158,45 +185,79 @@ internal static class GameInstallContentLoader
         }
     }
 
-    private static void OverlayArchive(InstallFileSet files, string archivePath, CancellationToken cancellationToken)
-    {
-        using var archive = DatArchive.Open(archivePath);
-        foreach (var entry in archive.Entries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+    private static Task<InstallOverlaySource> LoadArchiveAsync(
+        string archivePath,
+        Func<string, DatArchive> archiveOpener,
+        CancellationToken cancellationToken
+    ) => Task.Run(() => ReadArchive(archivePath, archiveOpener, cancellationToken), cancellationToken);
 
-            if (!IsSupportedFormat(entry.Path))
-                continue;
-
-            var assetPath = NormalizeVirtualPath(entry.Path);
-            files.Files[assetPath] = archive.GetEntryData(entry.Path);
-            files.AssetSources[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
-        }
-    }
-
-    private static void OverlayLooseFiles(
-        InstallFileSet files,
-        string looseDataDirectory,
+    private static InstallOverlaySource ReadArchive(
+        string archivePath,
+        Func<string, DatArchive> archiveOpener,
         CancellationToken cancellationToken
     )
     {
+        var overlay = new InstallOverlaySource();
+        var archive = archiveOpener(archivePath);
+        try
+        {
+            overlay.Archive = archive;
+            foreach (var entry in archive.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var format = ResolveSupportedFormat(entry.Path);
+                if (!IsSupportedFormat(format))
+                    continue;
+
+                var assetPath = NormalizeVirtualPath(entry.Path);
+                var archiveEntryPath = entry.Path;
+                overlay.LoadEntries[assetPath] = new GameDataLoadEntry(
+                    format,
+                    assetPath,
+                    ct => Task.FromResult(LoadArchiveEntry(archive, archiveEntryPath, ct))
+                );
+                overlay.AssetSources[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
+            }
+
+            return overlay;
+        }
+        catch
+        {
+            archive.Dispose();
+            throw;
+        }
+    }
+
+    private static Task<InstallOverlaySource> LoadLooseFilesAsync(
+        string looseDataDirectory,
+        CancellationToken cancellationToken
+    ) => Task.Run(() => ReadLooseFiles(looseDataDirectory, cancellationToken), cancellationToken);
+
+    private static InstallOverlaySource ReadLooseFiles(string looseDataDirectory, CancellationToken cancellationToken)
+    {
+        var overlay = new InstallOverlaySource();
         foreach (var filePath in Directory.EnumerateFiles(looseDataDirectory, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!IsSupportedFormat(filePath))
+            var format = ResolveSupportedFormat(filePath);
+            if (!IsSupportedFormat(format))
                 continue;
 
             var relativePath = Path.GetRelativePath(looseDataDirectory, filePath);
             var assetPath = NormalizeVirtualPath(relativePath);
-            files.Files[assetPath] = File.ReadAllBytes(filePath);
-            files.AssetSources[assetPath] = (EditorAssetSourceKind.LooseFile, filePath, null);
+            overlay.LoadEntries[assetPath] = GameDataLoadEntry.FromFile(format, assetPath, filePath);
+            overlay.AssetSources[assetPath] = (EditorAssetSourceKind.LooseFile, filePath, null);
         }
+
+        return overlay;
     }
 
-    private static bool IsSupportedFormat(string path)
+    private static bool IsSupportedFormat(string path) => IsSupportedFormat(ResolveSupportedFormat(path));
+
+    private static bool IsSupportedFormat(FileFormat format)
     {
-        var format = ResolveSupportedFormat(path);
         foreach (var supportedFormat in s_supportedFormats)
         {
             if (format == supportedFormat)
@@ -218,111 +279,92 @@ internal static class GameInstallContentLoader
             : FileFormat.Unknown;
     }
 
-    private static void RemoveUnparseableAssets(InstallFileSet installFiles)
+    private static void AppendSkippedAssets(InstallFileSet installFiles, IReadOnlyList<GameDataLoadFailure> failures)
     {
-        List<(string AssetPath, string Reason)>? invalidAssets = null;
-
-        foreach (var (assetPath, data) in installFiles.Files)
+        foreach (var failure in failures)
         {
-            if (TryParseAsset(assetPath, data, out var failureReason))
-                continue;
-
-            invalidAssets ??= [];
-            invalidAssets.Add((assetPath, failureReason!));
-        }
-
-        if (invalidAssets is null)
-            return;
-
-        foreach (var (assetPath, reason) in invalidAssets)
-        {
+            var assetPath = failure.SourcePath;
             if (installFiles.AssetSources.TryGetValue(assetPath, out var source))
             {
                 installFiles.SkippedAssets.Add(
                     new EditorSkippedAsset
                     {
                         AssetPath = assetPath,
-                        Format = ResolveSupportedFormat(assetPath),
+                        Format = failure.Format,
                         SourceKind = source.SourceKind,
                         SourcePath = source.SourcePath,
                         SourceEntryPath = source.SourceEntryPath,
-                        Reason = reason,
+                        Reason = failure.Reason,
                     }
                 );
             }
 
-            installFiles.Files.Remove(assetPath);
+            installFiles.LoadEntries.Remove(assetPath);
             installFiles.AssetSources.Remove(assetPath);
         }
     }
 
-    private static bool TryParseAsset(string assetPath, ReadOnlyMemory<byte> data, out string? failureReason)
+    private static async Task<InstallOverlaySource[]> LoadSourcesAsync(
+        IReadOnlyList<Task<InstallOverlaySource>> sourceTasks,
+        int totalSources,
+        IProgress<float>? progress,
+        IProgress<EditorAssetLoadProgress>? assetProgress
+    )
     {
-        try
+        if (sourceTasks.Count == 0)
         {
-            switch (ResolveSupportedFormat(assetPath))
+            assetProgress?.Report(new EditorAssetLoadProgress("Loading install asset sources", 1f, 0, 0, "sources"));
+            return [];
+        }
+
+        var completedSources = 0;
+        var trackedTasks = sourceTasks
+            .Select(async sourceTask =>
             {
-                case FileFormat.Message:
-                    MessageFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Sector:
-                    SectorFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Proto:
-                    ProtoFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Mob:
-                    MobFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Art:
-                    ArtFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Jmp:
-                    JmpFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.MapProperties:
-                    MapPropertiesFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Script:
-                    ScriptFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Dialog:
-                    DialogFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.Terrain:
-                    TerrainFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                case FileFormat.FacadeWalk:
-                    FacWalkFormat.ParseMemory(data);
-                    failureReason = null;
-                    return true;
-                default:
-                    failureReason = null;
-                    return false;
-            }
-        }
-        catch (Exception ex) when (IsSkippableAssetParseFailure(ex))
-        {
-            failureReason = ex.Message;
-            return false;
-        }
+                var overlaySource = await sourceTask.ConfigureAwait(false);
+                var completedCount = Interlocked.Increment(ref completedSources);
+                var sourceProgress = completedCount / (float)totalSources;
+                progress?.Report(sourceProgress * ArchiveReadProgressWeight);
+                assetProgress?.Report(
+                    new EditorAssetLoadProgress(
+                        "Loading install asset sources",
+                        sourceProgress,
+                        completedCount,
+                        totalSources,
+                        "sources"
+                    )
+                );
+                return overlaySource;
+            })
+            .ToArray();
+
+        return await Task.WhenAll(trackedTasks).ConfigureAwait(false);
+    }
+
+    private static void ApplyOverlay(InstallFileSet files, InstallOverlaySource overlaySource)
+    {
+        if (overlaySource.Archive is not null)
+            files.Archives.Add(overlaySource.Archive);
+
+        foreach (var (assetPath, loadEntry) in overlaySource.LoadEntries)
+            files.LoadEntries[assetPath] = loadEntry;
+
+        foreach (var (assetPath, source) in overlaySource.AssetSources)
+            files.AssetSources[assetPath] = source;
+    }
+
+    private static ReadOnlyMemory<byte> LoadArchiveEntry(
+        DatArchive archive,
+        string archiveEntryPath,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return archive.GetEntryData(archiveEntryPath);
     }
 
     private static bool IsUnsupportedArchiveFormat(InvalidDataException exception) =>
         exception.Message.StartsWith("Unsupported DAT magic ", StringComparison.Ordinal);
-
-    private static bool IsSkippableAssetParseFailure(Exception exception) =>
-        exception is ArgumentOutOfRangeException or InvalidDataException;
 
     private static string NormalizeVirtualPath(string path) =>
         path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
@@ -335,13 +377,33 @@ internal static class GameInstallContentLoader
         return new Progress<float>(value => progress.Report(offset + value * span));
     }
 
-    private sealed class InstallFileSet
+    private sealed class InstallFileSet : IDisposable
     {
-        public Dictionary<string, ReadOnlyMemory<byte>> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, GameDataLoadEntry> LoadEntries { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<DatArchive> Archives { get; } = [];
 
         public List<EditorSkippedArchiveCandidate> SkippedArchiveCandidates { get; } = [];
 
         public List<EditorSkippedAsset> SkippedAssets { get; } = [];
+
+        public Dictionary<
+            string,
+            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
+        > AssetSources { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void Dispose()
+        {
+            foreach (var archive in Archives)
+                archive.Dispose();
+        }
+    }
+
+    private sealed class InstallOverlaySource
+    {
+        public Dictionary<string, GameDataLoadEntry> LoadEntries { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public DatArchive? Archive { get; set; }
 
         public Dictionary<
             string,
