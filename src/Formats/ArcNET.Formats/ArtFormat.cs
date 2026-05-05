@@ -100,6 +100,12 @@ public sealed class ArtFile
     public required ArtFrame[][] Frames { get; init; }
 
     /// <summary>
+    /// <see langword="true"/> when this instance only contains header/palette metadata and omits decoded frame pixels.
+    /// Such instances are intended for indexing and discovery, not direct preview rendering.
+    /// </summary>
+    public bool IsMetadataOnly { get; init; }
+
+    /// <summary>
     /// Number of rotation directions encoded in this file.
     /// 1 when <see cref="ArtFlags.Static"/> is set; 8 otherwise.
     /// </summary>
@@ -118,7 +124,15 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
     private const int RawHeaderSize = 132;
 
     /// <inheritdoc/>
-    public static ArtFile Parse(scoped ref SpanReader reader)
+    public static ArtFile Parse(scoped ref SpanReader reader) => ParseCore(ref reader, decodePixels: true);
+
+    /// <summary>
+    /// Parses one ART file but retains only metadata needed for indexing and discovery.
+    /// Frame headers and palette tables are preserved; frame pixel buffers are skipped.
+    /// </summary>
+    public static ArtFile ParseMetadata(scoped ref SpanReader reader) => ParseCore(ref reader, decodePixels: false);
+
+    private static ArtFile ParseCore(scoped ref SpanReader reader, bool decodePixels)
     {
         // ── ArtHeader (132 bytes) ──────────────────────────────────────────
         var flags = (ArtFlags)reader.ReadUInt32();
@@ -175,7 +189,7 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
             for (var f = 0; f < (int)frameCount; f++)
             {
                 var hdr = frameHeaders[r * (int)frameCount + f];
-                var pixels = DecodePixels(ref reader, hdr);
+                var pixels = decodePixels ? DecodePixels(ref reader, hdr) : SkipPixels(ref reader, hdr);
                 frames[r][f] = new ArtFrame { Header = hdr, Pixels = pixels };
             }
         }
@@ -192,7 +206,14 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
             PaletteIds = paletteIds,
             Palettes = palettes,
             Frames = frames,
+            IsMetadataOnly = !decodePixels,
         };
+    }
+
+    private static byte[] SkipPixels(ref SpanReader reader, ArtFrameHeader hdr)
+    {
+        reader.Skip((int)hdr.DataSize);
+        return [];
     }
 
     private static byte[] DecodePixels(ref SpanReader reader, ArtFrameHeader hdr)
@@ -240,6 +261,15 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
 
     /// <inheritdoc/>
     public static ArtFile ParseMemory(ReadOnlyMemory<byte> memory) => FormatIo.ParseMemory<ArtFormat, ArtFile>(memory);
+
+    /// <summary>
+    /// Parses one ART file from memory but retains only metadata needed for indexing and discovery.
+    /// </summary>
+    public static ArtFile ParseMetadataMemory(ReadOnlyMemory<byte> memory)
+    {
+        var reader = new SpanReader(memory.Span);
+        return ParseMetadata(ref reader);
+    }
 
     /// <inheritdoc/>
     public static ArtFile ParseFile(string path) => FormatIo.ParseFile<ArtFormat, ArtFile>(path);
