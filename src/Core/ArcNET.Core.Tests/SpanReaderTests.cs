@@ -34,4 +34,10 @@ public class SpanReaderTests
         await Assert.That(position).IsEqualTo(4);
         await Assert.That(remaining).IsEqualTo(4);
     }
+
+    [Test]
+    public void ReadByte_WhenReaderIsEmpty_ThrowsInvalidDataException()
+    {
+        Assert.Throws<InvalidDataException>(() => new SpanReader([]).ReadByte());
+    }
 }

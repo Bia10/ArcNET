@@ -87,16 +87,8 @@ public class PrimitiveRoundTripTests
             _ = r.ReadByte();
         }
 
-        var threw = false;
-        try
-        {
-            ReadFromEmpty();
-        }
-        catch (IndexOutOfRangeException)
-        {
-            threw = true;
-        }
-        await Assert.That(threw).IsTrue();
+        var exception = Assert.Throws<InvalidDataException>(ReadFromEmpty);
+        await Assert.That(exception.Message).Contains("Unexpected end of data");
     }
 
     [Test]
