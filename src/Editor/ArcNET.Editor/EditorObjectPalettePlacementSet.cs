@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Reusable palette-driven placement set that stamps multiple configured object presets per target tile.

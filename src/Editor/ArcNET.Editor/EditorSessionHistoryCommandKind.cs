@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// High-level applied-history command exposed by <see cref="EditorWorkspaceSession"/>.

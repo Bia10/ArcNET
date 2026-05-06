@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 

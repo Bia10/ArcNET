@@ -1,4 +1,4 @@
-using ArcNET.Formats;
+﻿using ArcNET.Formats;
 using static ArcNET.Editor.ScriptValidationIssue;
 
 namespace ArcNET.Editor;

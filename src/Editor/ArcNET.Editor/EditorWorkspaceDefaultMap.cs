@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// How one workspace default-map resolution was chosen.

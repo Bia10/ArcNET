@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// One host-facing staged transaction currently tracked by <see cref="EditorWorkspaceSession"/>.

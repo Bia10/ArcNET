@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted host-neutral editor-project metadata for reopening a workspace and restoring UI state.

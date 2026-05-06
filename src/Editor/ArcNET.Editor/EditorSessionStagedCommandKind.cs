@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// High-level staged command action exposed by <see cref="EditorWorkspaceSession"/>.

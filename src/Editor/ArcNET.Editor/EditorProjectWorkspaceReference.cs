@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted workspace input that can reopen an <see cref="EditorWorkspace"/>.

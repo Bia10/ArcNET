@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Discriminator for one tile-semantic overlay projected into the normalized scene render space.

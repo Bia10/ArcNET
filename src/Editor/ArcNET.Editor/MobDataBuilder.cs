@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;

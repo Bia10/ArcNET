@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// High-level change categories surfaced by <see cref="EditorWorkspaceSession"/>.

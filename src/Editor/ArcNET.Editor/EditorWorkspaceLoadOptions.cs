@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Optional inputs for <see cref="EditorWorkspaceLoader"/>.

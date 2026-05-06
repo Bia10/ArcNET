@@ -1,4 +1,4 @@
-using ArcNET.Core;
+﻿using ArcNET.Core;
 using ArcNET.Formats;
 using static ArcNET.Editor.EditorWorkspaceValidationIssue;
 

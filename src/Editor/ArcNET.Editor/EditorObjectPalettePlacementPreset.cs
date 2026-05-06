@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Named prefab-like object placement preset that can be applied through the existing placement-set pipeline.

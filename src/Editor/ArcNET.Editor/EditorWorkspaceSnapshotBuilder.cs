@@ -1,4 +1,4 @@
-using ArcNET.GameData;
+﻿using ArcNET.GameData;
 
 namespace ArcNET.Editor;
 

@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Stable machine-readable rules reported by <see cref="ScriptValidator"/>.
