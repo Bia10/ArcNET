@@ -46,7 +46,7 @@ public sealed class EditorWorkspace
     > _cachedObjectPaletteEntriesByProto = [];
     private static readonly char[] s_eyeCandyTypeCodes = ['F', 'B', 'U'];
     private static readonly char[] s_critterGenderCodes = ['F', 'M', 'X'];
-    private static readonly char[] s_ceTileEdgeCodes =
+    private static readonly char[] s_tileEdgeCodes =
     [
         '0',
         '6',
@@ -65,26 +65,8 @@ public sealed class EditorWorkspace
         '1',
         '0',
     ];
-    private static readonly int[] s_ceTileEdgeDecodeWhenFlagsClear =
-    [
-        0,
-        1,
-        8,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        3,
-        10,
-        11,
-        6,
-        7,
-        14,
-        15,
-    ];
-    private static readonly int[] s_ceTileEdgeDecodeWhenFlagsSet =
+    private static readonly int[] s_tileEdgeDecodeWhenFlagsClear = [0, 1, 8, 3, 4, 5, 6, 7, 8, 3, 10, 11, 6, 7, 14, 15];
+    private static readonly int[] s_tileEdgeDecodeWhenFlagsSet =
     [
         0,
         1,
@@ -2349,7 +2331,7 @@ public sealed class EditorWorkspace
             switch (renderItemKind)
             {
                 case EditorMapRenderQueueItemKind.FloorTile:
-                    if (TryResolveCeTileArtAssetPath(artId, out assetPath))
+                    if (TryResolveTileArtAssetPath(artId, out assetPath))
                         return true;
                     return TryResolveMessageTableArtAssetPath(
                         "art/facade/facadename.mes",
@@ -2407,7 +2389,7 @@ public sealed class EditorWorkspace
         }
 
         if (IsSectorArtId(artIdValue))
-            return TryResolveCeTileArtAssetPath(new ArtId(artIdValue), out assetPath);
+            return TryResolveTileArtAssetPath(new ArtId(artIdValue), out assetPath);
 
         assetPath = string.Empty;
         return false;
@@ -2755,20 +2737,20 @@ public sealed class EditorWorkspace
 
     private void AddTileMessageTableArtCandidate(HashSet<string> candidateAssetPaths, ArtId artId)
     {
-        if (TryResolveCeTileArtAssetPath(artId, out var assetPath))
+        if (TryResolveTileArtAssetPath(artId, out var assetPath))
             candidateAssetPaths.Add(assetPath);
     }
 
-    private bool TryResolveCeTileArtAssetPath(ArtId artId, out string assetPath)
+    private bool TryResolveTileArtAssetPath(ArtId artId, out string assetPath)
     {
         assetPath = string.Empty;
-        if (!TryBuildCeTileArtAssetPath(artId.Value, out var candidateAssetPath))
+        if (!TryBuildTileArtAssetPath(artId.Value, out var candidateAssetPath))
             return false;
 
         if (TryResolveCandidateArtAssetPath(candidateAssetPath, out assetPath))
             return true;
 
-        if (!TryBuildAlternateCeTileArtAssetPath(artId.Value, out var alternateCandidateAssetPath))
+        if (!TryBuildAlternateTileArtAssetPath(artId.Value, out var alternateCandidateAssetPath))
             return false;
 
         if (string.Equals(candidateAssetPath, alternateCandidateAssetPath, StringComparison.OrdinalIgnoreCase))
@@ -2777,17 +2759,17 @@ public sealed class EditorWorkspace
         return TryResolveCandidateArtAssetPath(alternateCandidateAssetPath, out assetPath);
     }
 
-    private bool TryBuildCeTileArtAssetPath(uint artIdValue, out string assetPath)
+    private bool TryBuildTileArtAssetPath(uint artIdValue, out string assetPath)
     {
-        return TryBuildCeTileArtAssetPath(artIdValue, useAlternateEdgeTable: false, out assetPath);
+        return TryBuildTileArtAssetPath(artIdValue, useAlternateEdgeTable: false, out assetPath);
     }
 
-    private bool TryBuildAlternateCeTileArtAssetPath(uint artIdValue, out string assetPath)
+    private bool TryBuildAlternateTileArtAssetPath(uint artIdValue, out string assetPath)
     {
-        return TryBuildCeTileArtAssetPath(artIdValue, useAlternateEdgeTable: true, out assetPath);
+        return TryBuildTileArtAssetPath(artIdValue, useAlternateEdgeTable: true, out assetPath);
     }
 
-    private bool TryBuildCeTileArtAssetPath(uint artIdValue, bool useAlternateEdgeTable, out string assetPath)
+    private bool TryBuildTileArtAssetPath(uint artIdValue, bool useAlternateEdgeTable, out string assetPath)
     {
         assetPath = string.Empty;
         var lookupData = GetOrCreateTileNameLookupData();
@@ -2795,14 +2777,14 @@ public sealed class EditorWorkspace
             return false;
 
         if (
-            !TryGetCeTileName(
+            !TryGetTileName(
                 lookupData,
                 DecodeTileArtNum1(artIdValue),
                 DecodeTileArtType(artIdValue),
                 DecodeTileArtFlippable1(artIdValue),
                 out var name1
             )
-            || !TryGetCeTileName(
+            || !TryGetTileName(
                 lookupData,
                 DecodeTileArtNum2(artIdValue),
                 DecodeTileArtType(artIdValue),
@@ -2814,7 +2796,7 @@ public sealed class EditorWorkspace
             return false;
         }
 
-        assetPath = BuildCeTileArtAssetPath(
+        assetPath = BuildTileArtAssetPath(
             lookupData,
             name1,
             name2,
@@ -2824,7 +2806,7 @@ public sealed class EditorWorkspace
         return true;
     }
 
-    private static bool TryGetCeTileName(
+    private static bool TryGetTileName(
         TileNameLookupData lookupData,
         int number,
         int type,
@@ -2851,7 +2833,7 @@ public sealed class EditorWorkspace
         return true;
     }
 
-    private static string BuildCeTileArtAssetPath(
+    private static string BuildTileArtAssetPath(
         TileNameLookupData lookupData,
         string name1,
         string name2,
@@ -2862,24 +2844,24 @@ public sealed class EditorWorkspace
         if (frame >= 8)
             frame -= 8;
 
-        var edgeCode = s_ceTileEdgeCodes[edge];
+        var edgeCode = s_tileEdgeCodes[edge];
         var frameCode = (char)('a' + frame);
 
         if (edge == 15 || string.Equals(name1, name2, StringComparison.OrdinalIgnoreCase))
             return NormalizeAssetPath($"art/tile/{name1}bse{edgeCode}{frameCode}.art");
 
         if (edge == 0)
-            return NormalizeAssetPath($"art/tile/{name2}bse{s_ceTileEdgeCodes[0]}{frameCode}.art");
+            return NormalizeAssetPath($"art/tile/{name2}bse{s_tileEdgeCodes[0]}{frameCode}.art");
 
         if (!lookupData.OutdoorOrderByName.TryGetValue(name1, out var name1Order))
             return NormalizeAssetPath($"art/tile/{name1}bse{edgeCode}{frameCode}.art");
 
         if (!lookupData.OutdoorOrderByName.TryGetValue(name2, out var name2Order))
-            return NormalizeAssetPath($"art/tile/{name2}bse{s_ceTileEdgeCodes[15 - edge]}{frameCode}.art");
+            return NormalizeAssetPath($"art/tile/{name2}bse{s_tileEdgeCodes[15 - edge]}{frameCode}.art");
 
         return name1Order < name2Order
             ? NormalizeAssetPath($"art/tile/{name1}{name2}{edgeCode}{frameCode}.art")
-            : NormalizeAssetPath($"art/tile/{name2}{name1}{s_ceTileEdgeCodes[15 - edge]}{frameCode}.art");
+            : NormalizeAssetPath($"art/tile/{name2}{name1}{s_tileEdgeCodes[15 - edge]}{frameCode}.art");
     }
 
     private bool TryResolveMessageTableArtAssetPath(
@@ -3418,10 +3400,10 @@ public sealed class EditorWorkspace
         var rawEdge = DecodeTileArtRawEdge(artIdValue);
         return (IsTileArtMirrored(artIdValue), useAlternateEdgeTable) switch
         {
-            (true, false) => s_ceTileEdgeDecodeWhenFlagsSet[rawEdge],
-            (true, true) => s_ceTileEdgeDecodeWhenFlagsClear[rawEdge],
-            (false, false) => s_ceTileEdgeDecodeWhenFlagsClear[rawEdge],
-            _ => s_ceTileEdgeDecodeWhenFlagsSet[rawEdge],
+            (true, false) => s_tileEdgeDecodeWhenFlagsSet[rawEdge],
+            (true, true) => s_tileEdgeDecodeWhenFlagsClear[rawEdge],
+            (false, false) => s_tileEdgeDecodeWhenFlagsClear[rawEdge],
+            _ => s_tileEdgeDecodeWhenFlagsSet[rawEdge],
         };
     }
 
@@ -3434,7 +3416,7 @@ public sealed class EditorWorkspace
         var rawEdge = DecodeTileArtRawEdge(artIdValue);
         if (
             IsTileArtMirrored(artIdValue)
-            && s_ceTileEdgeDecodeWhenFlagsSet[rawEdge] == s_ceTileEdgeDecodeWhenFlagsClear[rawEdge]
+            && s_tileEdgeDecodeWhenFlagsSet[rawEdge] == s_tileEdgeDecodeWhenFlagsClear[rawEdge]
         )
         {
             frame += 8;
@@ -3524,10 +3506,10 @@ public sealed class EditorWorkspace
         if (
             string.IsNullOrWhiteSpace(artAssetPath)
             && IsSectorArtId(artIdValue)
-            && TryResolveCeTileArtAssetPath(artId, out var ceTileAssetPath)
+            && TryResolveTileArtAssetPath(artId, out var tileAssetPath)
         )
         {
-            artAssetPath = ceTileAssetPath;
+            artAssetPath = tileAssetPath;
         }
         var artDetail = !string.IsNullOrWhiteSpace(artAssetPath) ? Index.FindArtDetail(artAssetPath) : null;
         var artPreview =
