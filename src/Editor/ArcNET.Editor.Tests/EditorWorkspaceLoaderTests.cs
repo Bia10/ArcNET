@@ -1104,8 +1104,8 @@ public class EditorWorkspaceLoaderTests
                 EditorArtResolverBindingStrategy.ArcanumMessageTables
             );
 
-            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
             await Assert.That(artResolver.FindAssetPath(artId)).IsEqualTo("art/item/sword.art");
+            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
             await Assert.That(paletteEntry).IsNotNull();
             await Assert.That(paletteEntry!.ArtAssetPath).IsEqualTo("art/item/sword.art");
         }
@@ -1161,8 +1161,8 @@ public class EditorWorkspaceLoaderTests
                 EditorArtResolverBindingStrategy.ArcanumMessageTables
             );
 
-            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
             await Assert.That(artResolver.FindAssetPath(artId)).IsEqualTo("art/container/crate.art");
+            await Assert.That(artResolver.BindingCount).IsEqualTo(1);
             await Assert.That(paletteEntry).IsNotNull();
             await Assert.That(paletteEntry!.ArtAssetPath).IsEqualTo("art/container/crate.art");
         }
@@ -1237,7 +1237,7 @@ public class EditorWorkspaceLoaderTests
             );
 
             await Assert.That(paletteEntry).IsNotNull();
-            await Assert.That(paletteEntry!.CurrentArtId).IsNull();
+            await Assert.That(paletteEntry!.CurrentArtId).IsEqualTo(new ArtId(0x10100000u));
             await Assert.That(paletteEntry.ArtAssetPath).IsEqualTo("art/wall/TOUbseU0.art");
         }
         finally
@@ -1432,7 +1432,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesDoNotFallBackToFacadeWhenTileEntryMissing()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesSectorArtIdUsesFacadeArtWhenPresent()
     {
         var artId = new ArtId(0x000111C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1459,7 +1459,8 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNull();
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
         }
         finally
         {
@@ -1468,7 +1469,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_FlaggedTileArtIdsDoNotUseFacadeMessageIndexFallback()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FlaggedTileArtIdsUseFacadeMessageIndexWhenPresent()
     {
         var artId = new ArtId(0x004105C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1495,7 +1496,8 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNull();
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/VendiSideWalk_RC.art");
         }
         finally
         {
@@ -4470,7 +4472,7 @@ public class EditorWorkspaceLoaderTests
             var workspace = await EditorWorkspaceLoader.LoadAsync(
                 moduleDir,
                 new EditorWorkspaceLoadOptions { GameDirectory = gameDir, ModuleName = "Arcanum" },
-                loadProgress: new Progress<EditorWorkspaceLoadProgress>(progressUpdates.Add)
+                loadProgress: new SyncProgress<EditorWorkspaceLoadProgress>(progressUpdates.Add)
             );
 
             await Assert.That(workspace.ContentDirectory).IsEqualTo(moduleDir);
@@ -4562,5 +4564,10 @@ public class EditorWorkspaceLoaderTests
         };
 
         await Assert.That(() => workspace.CreateSaveEditor()).Throws<InvalidOperationException>();
+    }
+
+    private sealed class SyncProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        public void Report(T value) => callback(value);
     }
 }

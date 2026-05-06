@@ -2346,11 +2346,17 @@ public sealed class EditorWorkspace
     {
         if (IsSectorArtId(artId.Value))
         {
-            var messageIndex = DecodeSectorArtMessageIndex(artId.Value);
             switch (renderItemKind)
             {
                 case EditorMapRenderQueueItemKind.FloorTile:
-                    return TryResolveCeTileArtAssetPath(artId, out assetPath);
+                    if (TryResolveCeTileArtAssetPath(artId, out assetPath))
+                        return true;
+                    return TryResolveMessageTableArtAssetPath(
+                        "art/facade/facadename.mes",
+                        DecodeSectorArtMessageIndex(artId.Value),
+                        "art/facade",
+                        out assetPath
+                    );
                 case EditorMapRenderQueueItemKind.Roof:
                     assetPath = string.Empty;
                     return false;
@@ -3517,10 +3523,11 @@ public sealed class EditorWorkspace
         var artAssetPath = artResolver?.FindAssetPath(artId);
         if (
             string.IsNullOrWhiteSpace(artAssetPath)
-            && TryResolveMapRenderArtAssetPath(artId, EditorMapRenderQueueItemKind.FloorTile, out var floorArtAssetPath)
+            && IsSectorArtId(artIdValue)
+            && TryResolveCeTileArtAssetPath(artId, out var ceTileAssetPath)
         )
         {
-            artAssetPath = floorArtAssetPath;
+            artAssetPath = ceTileAssetPath;
         }
         var artDetail = !string.IsNullOrWhiteSpace(artAssetPath) ? Index.FindArtDetail(artAssetPath) : null;
         var artPreview =
