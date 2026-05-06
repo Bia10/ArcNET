@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -72,4 +72,14 @@ public sealed class EditorMapObjectRenderItem
     /// Returns <see langword="true"/> when the object is anchored directly to the tile grid.
     /// </summary>
     public required bool IsTileGridSnapped { get; init; }
+
+    /// <summary>
+    /// Primary rotation copied from the source object preview.
+    /// </summary>
+    public required float Rotation { get; init; }
+
+    /// <summary>
+    /// Pitch rotation copied from the source object preview.
+    /// </summary>
+    public required float RotationPitch { get; init; }
 }

@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -27,6 +27,12 @@ public sealed class EditorMapObjectPreview
     /// Current art identifier.
     /// </summary>
     public required ArtId CurrentArtId { get; init; }
+
+    /// <summary>
+    /// Backing asset path for this object when the scene preview can resolve it.
+    /// Sector-embedded objects use their parent sector asset path; loose map mobs use their mob asset path.
+    /// </summary>
+    public string? SourceAssetPath { get; init; }
 
     /// <summary>
     /// Map-tile location when present on the loaded object.

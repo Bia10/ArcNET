@@ -17,8 +17,8 @@ public sealed class EditorArtPreviewOptions
     public EditorArtPreviewPixelFormat PixelFormat { get; init; } = EditorArtPreviewPixelFormat.Rgba32;
 
     /// <summary>
-    /// When <see langword="true"/>, output rows are flipped so the packed pixel data is top-to-bottom.
-    /// When <see langword="false"/>, output preserves the native bottom-to-top ART row order.
+    /// When <see langword="true"/>, output rows are flipped relative to the native ART row order.
+    /// When <see langword="false"/>, output preserves the native CE-compatible top-to-bottom row order.
     /// </summary>
-    public bool FlipVertically { get; init; } = true;
+    public bool FlipVertically { get; init; }
 }
