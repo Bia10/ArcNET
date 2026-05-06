@@ -41,7 +41,7 @@ internal static class EditorSectorProjectionBuilder
             IReadOnlyList<EditorMapSectorProjection> projectedSectors =
                 positionedSectors.Count == 0
                     ? []
-                    : BuildDenseProjection(positionedSectors)
+                    : BuildMapCoordinateProjection(positionedSectors, minSectorX, minSectorY)
                         .OrderBy(static sector => sector.LocalY)
                         .ThenBy(static sector => sector.LocalX)
                         .ThenBy(static sector => sector.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
@@ -67,24 +67,14 @@ internal static class EditorSectorProjectionBuilder
         return projectionsByName;
     }
 
-    private static IReadOnlyList<EditorMapSectorProjection> BuildDenseProjection(
-        IReadOnlyList<(EditorSectorSummary Sector, SectorCoordinates Coordinates)> positionedSectors
+    private static IReadOnlyList<EditorMapSectorProjection> BuildMapCoordinateProjection(
+        IReadOnlyList<(EditorSectorSummary Sector, SectorCoordinates Coordinates)> positionedSectors,
+        int minSectorX,
+        int minSectorY
     )
     {
         var maxObjectCount = positionedSectors.Max(static sector => sector.Sector.ObjectCount);
         var maxBlockedTileCount = positionedSectors.Max(static sector => sector.Sector.BlockedTileCount);
-        var xAxis = positionedSectors
-            .Select(static sector => sector.Coordinates.X)
-            .Distinct()
-            .OrderBy(static value => value)
-            .Select(static (value, index) => (value, index))
-            .ToDictionary(pair => pair.value, pair => pair.index);
-        var yAxis = positionedSectors
-            .Select(static sector => sector.Coordinates.Y)
-            .Distinct()
-            .OrderBy(static value => value)
-            .Select(static (value, index) => (value, index))
-            .ToDictionary(pair => pair.value, pair => pair.index);
 
         return positionedSectors
             .Select(position => new EditorMapSectorProjection
@@ -92,8 +82,8 @@ internal static class EditorSectorProjectionBuilder
                 Sector = position.Sector,
                 SectorX = position.Coordinates.X,
                 SectorY = position.Coordinates.Y,
-                LocalX = xAxis[position.Coordinates.X],
-                LocalY = yAxis[position.Coordinates.Y],
+                LocalX = checked(position.Coordinates.X - minSectorX),
+                LocalY = checked(position.Coordinates.Y - minSectorY),
                 ObjectDensityBand = GetDensityBand(position.Sector.ObjectCount, maxObjectCount),
                 BlockedTileDensityBand = GetDensityBand(position.Sector.BlockedTileCount, maxBlockedTileCount),
             })

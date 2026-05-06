@@ -33,10 +33,10 @@ public sealed class EditorProjectMapPreviewState
     /// <summary>
     /// Indicates whether blocked tiles are highlighted in the scene preview.
     /// </summary>
-    public bool ShowBlockedTiles { get; init; } = true;
+    public bool ShowBlockedTiles { get; init; }
 
     /// <summary>
     /// Indicates whether sector and tile scripts are highlighted in the scene preview.
     /// </summary>
-    public bool ShowScripts { get; init; } = true;
+    public bool ShowScripts { get; init; }
 }

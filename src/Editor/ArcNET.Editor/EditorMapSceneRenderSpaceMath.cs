@@ -155,15 +155,15 @@ public static class EditorMapSceneRenderSpaceMath
         return sceneRender.ViewMode switch
         {
             EditorMapSceneViewMode.TopDown => new EditorMapRenderPoint(
-                sampleTile.CenterX + ((mapTileX - sampleTile.MapTileX) * sceneRender.TileWidthPixels),
-                sampleTile.CenterY - ((mapTileY - sampleTile.MapTileY) * sceneRender.TileHeightPixels)
+                sampleTile.CenterX - ((mapTileX - sampleTile.MapTileX) * sceneRender.TileWidthPixels),
+                sampleTile.CenterY + ((mapTileY - sampleTile.MapTileY) * sceneRender.TileHeightPixels)
             ),
             EditorMapSceneViewMode.Isometric => new EditorMapRenderPoint(
                 sampleTile.CenterX
-                    + ((mapTileX - sampleTile.MapTileX) + (mapTileY - sampleTile.MapTileY))
+                    + ((mapTileY - sampleTile.MapTileY) - (mapTileX - sampleTile.MapTileX))
                         * (sceneRender.TileWidthPixels / 2d),
                 sampleTile.CenterY
-                    + ((mapTileX - sampleTile.MapTileX) - (mapTileY - sampleTile.MapTileY))
+                    + ((mapTileX - sampleTile.MapTileX) + (mapTileY - sampleTile.MapTileY))
                         * (sceneRender.TileHeightPixels / 2d)
             ),
             _ => throw new ArgumentOutOfRangeException(
@@ -191,8 +191,8 @@ public static class EditorMapSceneRenderSpaceMath
         return sceneRender.ViewMode switch
         {
             EditorMapSceneViewMode.TopDown => new EditorMapTilePoint(
-                sampleTile.MapTileX + ((renderX - sampleTile.CenterX) / sceneRender.TileWidthPixels),
-                sampleTile.MapTileY - ((renderY - sampleTile.CenterY) / sceneRender.TileHeightPixels)
+                sampleTile.MapTileX - ((renderX - sampleTile.CenterX) / sceneRender.TileWidthPixels),
+                sampleTile.MapTileY + ((renderY - sampleTile.CenterY) / sceneRender.TileHeightPixels)
             ),
             EditorMapSceneViewMode.Isometric => UnprojectIsometricMapTile(sceneRender, sampleTile, renderX, renderY),
             _ => throw new ArgumentOutOfRangeException(
@@ -327,8 +327,8 @@ public static class EditorMapSceneRenderSpaceMath
     {
         var normalizedX = (renderX - sampleTile.CenterX) / (sceneRender.TileWidthPixels / 2d);
         var normalizedY = (renderY - sampleTile.CenterY) / (sceneRender.TileHeightPixels / 2d);
-        var deltaX = (normalizedX + normalizedY) / 2d;
-        var deltaY = (normalizedX - normalizedY) / 2d;
+        var deltaX = (normalizedY - normalizedX) / 2d;
+        var deltaY = (normalizedY + normalizedX) / 2d;
 
         return new EditorMapTilePoint(sampleTile.MapTileX + deltaX, sampleTile.MapTileY + deltaY);
     }
