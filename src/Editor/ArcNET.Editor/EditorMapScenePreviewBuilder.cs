@@ -11,6 +11,11 @@ public static class EditorMapScenePreviewBuilder
 {
     private const int TileGridWidth = 64;
     private const int RoofGridWidth = 16;
+    private const uint ArtTypeMask = 0xF0000000u;
+    private const uint CritterArtType = 0x90000000u;
+    private const uint MonsterArtType = 0xC0000000u;
+    private const uint UniqueNpcArtType = 0xD0000000u;
+    private const int ArtIdRotationShift = 11;
 
     /// <summary>
     /// Builds a map scene preview from a projected map and the loaded sectors that back its asset paths.
@@ -18,7 +23,14 @@ public static class EditorMapScenePreviewBuilder
     public static EditorMapScenePreview Build(
         EditorMapProjection projection,
         IReadOnlyDictionary<string, Sector> sectorsByAssetPath
-    ) => Build(projection, sectorsByAssetPath, artResolver: null);
+    ) =>
+        Build(
+            projection,
+            sectorsByAssetPath,
+            artResolver: null,
+            currentArtIdFallbackResolver: null,
+            mapMobsByAssetPath: null
+        );
 
     /// <summary>
     /// Builds a map scene preview from a projected map and the loaded sectors that back its asset paths.
@@ -29,12 +41,42 @@ public static class EditorMapScenePreviewBuilder
         EditorMapProjection projection,
         IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
         Func<ArtId, ArtFile?>? artResolver
+    ) =>
+        Build(
+            projection,
+            sectorsByAssetPath,
+            artResolver,
+            currentArtIdFallbackResolver: null,
+            mapMobsByAssetPath: null
+        );
+
+    /// <summary>
+    /// Builds a map scene preview from a projected map and the loaded sectors that back its asset paths.
+    /// When <paramref name="artResolver"/> is provided, placed objects also receive conservative sprite-bounds metadata
+    /// derived from the resolved ART frames.
+    /// When <paramref name="currentArtIdFallbackResolver"/> is provided, scene objects may derive their current ART
+    /// from external metadata such as the backing proto when the live mob omits one.
+    /// </summary>
+    internal static EditorMapScenePreview Build(
+        EditorMapProjection projection,
+        IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
+        Func<ArtId, ArtFile?>? artResolver,
+        Func<MobData, ArtId?>? currentArtIdFallbackResolver,
+        IReadOnlyDictionary<string, IReadOnlyList<MobData>>? mapMobsByAssetPath
     )
     {
         ArgumentNullException.ThrowIfNull(projection);
         ArgumentNullException.ThrowIfNull(sectorsByAssetPath);
 
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache = artResolver is null ? null : new();
+        var extraObjectsBySectorAssetPath = BuildMapMobObjectPreviews(
+            projection,
+            sectorsByAssetPath,
+            mapMobsByAssetPath,
+            artResolver,
+            spriteBoundsCache,
+            currentArtIdFallbackResolver
+        );
         var sectors = new List<EditorMapSectorScenePreview>(projection.Sectors.Count);
         foreach (var sectorProjection in projection.Sectors)
         {
@@ -45,7 +87,18 @@ public static class EditorMapScenePreviewBuilder
                 );
             }
 
-            sectors.Add(BuildSector(sectorProjection, sector, artResolver, spriteBoundsCache));
+            sectors.Add(
+                BuildSector(
+                    sectorProjection,
+                    sector,
+                    artResolver,
+                    spriteBoundsCache,
+                    currentArtIdFallbackResolver,
+                    extraObjectsBySectorAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var extraObjects)
+                        ? extraObjects
+                        : null
+                )
+            );
         }
 
         return new EditorMapScenePreview
@@ -96,6 +149,23 @@ public static class EditorMapScenePreviewBuilder
         Sector sector,
         Func<ArtId, ArtFile?>? artResolver,
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache
+    ) =>
+        BuildSector(
+            sectorProjection,
+            sector,
+            artResolver,
+            spriteBoundsCache,
+            currentArtIdFallbackResolver: null,
+            extraObjects: null
+        );
+
+    private static EditorMapSectorScenePreview BuildSector(
+        EditorMapSectorProjection sectorProjection,
+        Sector sector,
+        Func<ArtId, ArtFile?>? artResolver,
+        Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
+        Func<MobData, ArtId?>? currentArtIdFallbackResolver,
+        IReadOnlyList<EditorMapObjectPreview>? extraObjects
     )
     {
         ArgumentNullException.ThrowIfNull(sectorProjection);
@@ -116,8 +186,177 @@ public static class EditorMapScenePreviewBuilder
             BlockMask = [.. sector.BlockMask],
             Lights = [.. sector.Lights.Select(BuildLight)],
             TileScripts = [.. sector.TileScripts.Select(BuildTileScript)],
-            Objects = [.. sector.Objects.Select(mob => BuildObject(mob, artResolver, spriteBoundsCache))],
+            Objects =
+            [
+                .. sector.Objects.Select(mob =>
+                    BuildObject(
+                        mob,
+                        artResolver,
+                        spriteBoundsCache,
+                        currentArtIdFallbackResolver,
+                        locationOverride: null,
+                        sourceAssetPath: sectorProjection.Asset.AssetPath
+                    )
+                ),
+                .. (extraObjects ?? []),
+            ],
         };
+    }
+
+    private static Dictionary<string, List<EditorMapObjectPreview>> BuildMapMobObjectPreviews(
+        EditorMapProjection projection,
+        IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
+        IReadOnlyDictionary<string, IReadOnlyList<MobData>>? mapMobsByAssetPath,
+        Func<ArtId, ArtFile?>? artResolver,
+        Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
+        Func<MobData, ArtId?>? currentArtIdFallbackResolver
+    )
+    {
+        var previewsBySectorAssetPath = new Dictionary<string, List<EditorMapObjectPreview>>(
+            StringComparer.OrdinalIgnoreCase
+        );
+        if (mapMobsByAssetPath is null || mapMobsByAssetPath.Count == 0)
+            return previewsBySectorAssetPath;
+
+        var sectorProjectionByCoordinates = projection.Sectors.ToDictionary(static sectorProjection =>
+            (sectorProjection.SectorX, sectorProjection.SectorY)
+        );
+        var sectorObjectGuids = CollectSectorObjectGuids(sectorsByAssetPath);
+        var containedObjectGuids = CollectContainedObjectGuids(mapMobsByAssetPath);
+
+        foreach (var (assetPath, mobs) in mapMobsByAssetPath)
+        {
+            foreach (var mob in mobs)
+            {
+                if (ShouldSkipMapMob(mob, sectorObjectGuids, containedObjectGuids))
+                    continue;
+
+                if (
+                    !TryProjectMapMobLocation(
+                        mob,
+                        sectorProjectionByCoordinates,
+                        out var sectorProjection,
+                        out var location
+                    )
+                )
+                    continue;
+
+                if (!previewsBySectorAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var previews))
+                {
+                    previews = [];
+                    previewsBySectorAssetPath[sectorProjection.Asset.AssetPath] = previews;
+                }
+
+                previews.Add(
+                    BuildObject(mob, artResolver, spriteBoundsCache, currentArtIdFallbackResolver, location, assetPath)
+                );
+            }
+        }
+
+        return previewsBySectorAssetPath;
+    }
+
+    private static HashSet<Guid> CollectSectorObjectGuids(IReadOnlyDictionary<string, Sector> sectorsByAssetPath)
+    {
+        var guids = new HashSet<Guid>();
+        foreach (var sector in sectorsByAssetPath.Values)
+        {
+            foreach (var mob in sector.Objects)
+            {
+                if (mob.Header.ObjectId.OidType == GameObjectGuid.OidTypeGuid)
+                    guids.Add(mob.Header.ObjectId.Id);
+            }
+        }
+
+        return guids;
+    }
+
+    private static HashSet<Guid> CollectContainedObjectGuids(
+        IReadOnlyDictionary<string, IReadOnlyList<MobData>> mapMobsByAssetPath
+    )
+    {
+        var guids = new HashSet<Guid>();
+        foreach (var mobs in mapMobsByAssetPath.Values)
+        {
+            foreach (var mob in mobs)
+            {
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.ObjFContainerInventoryListIdx), guids);
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.ObjFCritterInventoryListIdx), guids);
+            }
+        }
+
+        return guids;
+    }
+
+    private static void AddContainedObjectGuids(ObjectProperty? property, ISet<Guid> guids)
+    {
+        if (property is null || property.ParseNote is not null)
+            return;
+
+        try
+        {
+            foreach (var (oidType, _, id) in property.GetObjectIdArrayFull())
+            {
+                if (oidType == GameObjectGuid.OidTypeGuid)
+                    guids.Add(id);
+            }
+        }
+        catch (InvalidOperationException) { }
+    }
+
+    private static bool ShouldSkipMapMob(
+        MobData mob,
+        IReadOnlySet<Guid> sectorObjectGuids,
+        IReadOnlySet<Guid> containedObjectGuids
+    )
+    {
+        if (mob.Header.ObjectId.OidType != GameObjectGuid.OidTypeGuid)
+            return false;
+
+        var objectGuid = mob.Header.ObjectId.Id;
+        return sectorObjectGuids.Contains(objectGuid) || containedObjectGuids.Contains(objectGuid);
+    }
+
+    private static bool TryProjectMapMobLocation(
+        MobData mob,
+        IReadOnlyDictionary<(int SectorX, int SectorY), EditorMapSectorProjection> sectorProjectionByCoordinates,
+        out EditorMapSectorProjection sectorProjection,
+        out Location location
+    )
+    {
+        sectorProjection = null!;
+        location = default;
+
+        var property = mob.GetProperty(ObjectField.ObjFLocation);
+        if (property is null || property.ParseNote is not null)
+            return false;
+
+        var (mapTileX, mapTileY) = property.GetLocation();
+        var sectorX = FloorDivide(mapTileX, TileGridWidth);
+        var sectorY = FloorDivide(mapTileY, TileGridWidth);
+        if (!sectorProjectionByCoordinates.TryGetValue((sectorX, sectorY), out var resolvedSectorProjection))
+            return false;
+
+        sectorProjection = resolvedSectorProjection;
+
+        location = new Location(
+            checked((short)PositiveModulo(mapTileX, TileGridWidth)),
+            checked((short)PositiveModulo(mapTileY, TileGridWidth))
+        );
+        return true;
+    }
+
+    private static int FloorDivide(int value, int divisor)
+    {
+        var quotient = value / divisor;
+        var remainder = value % divisor;
+        return remainder < 0 ? quotient - 1 : quotient;
+    }
+
+    private static int PositiveModulo(int value, int divisor)
+    {
+        var remainder = value % divisor;
+        return remainder < 0 ? remainder + divisor : remainder;
     }
 
     private static EditorMapLightPreview BuildLight(SectorLight light) =>
@@ -154,16 +393,26 @@ public static class EditorMapScenePreviewBuilder
     private static EditorMapObjectPreview BuildObject(
         MobData mob,
         Func<ArtId, ArtFile?>? artResolver,
-        Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache
+        Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
+        Func<MobData, ArtId?>? currentArtIdFallbackResolver = null,
+        Location? locationOverride = null,
+        string? sourceAssetPath = null
     )
     {
         var currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFCurrentAid);
-        var location = GetPreviewLocation(mob.GetProperty(ObjectField.ObjFLocation));
+        if (currentArtId.Value == 0 && currentArtIdFallbackResolver is not null)
+        {
+            var fallbackArtId = currentArtIdFallbackResolver(mob);
+            if (fallbackArtId is { } resolvedArtId && resolvedArtId.Value != 0u)
+                currentArtId = resolvedArtId;
+        }
+
+        var location = locationOverride ?? GetPreviewLocation(mob.GetProperty(ObjectField.ObjFLocation));
         var offsetX = GetInt32OrDefault(mob, ObjectField.ObjFOffsetX);
         var offsetY = GetInt32OrDefault(mob, ObjectField.ObjFOffsetY);
         var offsetZ = GetFloatOrDefault(mob, ObjectField.ObjFOffsetZ);
         var collisionHeight = GetFloatOrDefault(mob, ObjectField.ObjFHeight);
-        var rotation = GetFloatOrDefault(mob, ObjectField.ObjFPadIas1);
+        var rotation = GetRotationOrDefault(mob, currentArtId);
         var rotationPitch = GetFloatOrDefault(mob, ObjectField.ObjFRotationPitch);
 
         return new EditorMapObjectPreview
@@ -172,6 +421,7 @@ public static class EditorMapScenePreviewBuilder
             ProtoId = mob.Header.ProtoId,
             ObjectType = mob.Header.GameObjectType,
             CurrentArtId = currentArtId,
+            SourceAssetPath = sourceAssetPath,
             Location = location,
             OffsetX = offsetX,
             OffsetY = offsetY,
@@ -188,6 +438,22 @@ public static class EditorMapScenePreviewBuilder
 
     private static float GetFloatOrDefault(MobData mob, ObjectField field) =>
         mob.GetProperty(field) is { ParseNote: null } property ? property.GetFloat() : 0f;
+
+    private static float GetRotationOrDefault(MobData mob, ArtId currentArtId)
+    {
+        if (mob.GetProperty(ObjectField.ObjFPadIas1) is { ParseNote: null } property)
+            return property.GetFloat();
+
+        return GetCritterFamilyRotationFromArtId(currentArtId);
+    }
+
+    private static float GetCritterFamilyRotationFromArtId(ArtId currentArtId)
+    {
+        var artType = currentArtId.Value & ArtTypeMask;
+        return artType is CritterArtType or MonsterArtType or UniqueNpcArtType
+            ? (currentArtId.Value >> ArtIdRotationShift) & 0x7u
+            : 0f;
+    }
 
     private static ArtId GetArtIdOrDefault(MobData mob, ObjectField field) =>
         mob.GetProperty(field) is { ParseNote: null } property
