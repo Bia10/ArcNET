@@ -6,6 +6,50 @@ namespace ArcNET.Editor.Tests;
 public sealed class EditorMapFloorRenderBuilderTests
 {
     [Test]
+    public async Task Build_DoesNotOverflowDrawOrderForLargeSparseIsometricMap()
+    {
+        const int localSectorX = 19_999;
+        const int localSectorY = 19_999;
+
+        var scenePreview = new EditorMapScenePreview
+        {
+            MapName = "map01",
+            Width = localSectorX + 1,
+            Height = localSectorY + 1,
+            UnpositionedSectorCount = 0,
+            Sectors =
+            [
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/999.sec",
+                    SectorX = localSectorX,
+                    SectorY = localSectorY,
+                    LocalX = localSectorX,
+                    LocalY = localSectorY,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = CreateSparseMapTileArtIds(),
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [],
+                },
+            ],
+        };
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            EditorMapFloorRenderRequest.CreateWorldEditPreset()
+        );
+
+        await Assert.That(preview.Tiles.Count).IsEqualTo(4096);
+        await Assert.That(preview.Tiles[0].DrawOrder).IsEqualTo(0);
+        await Assert.That(preview.Tiles[^1].DrawOrder).IsEqualTo(preview.Tiles.Count - 1);
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(4096);
+    }
+
+    [Test]
     public async Task Build_Isometric_ProjectsTilesInStableDrawOrderWithNormalizedBounds()
     {
         var tileArtIds = new uint[64 * 64];
@@ -70,31 +114,34 @@ public sealed class EditorMapFloorRenderBuilderTests
         );
 
         await Assert.That(preview.ViewMode).IsEqualTo(EditorMapSceneViewMode.Isometric);
-        await Assert.That(preview.WidthPixels).IsEqualTo(128d);
-        await Assert.That(preview.HeightPixels).IsEqualTo(48d);
+        await Assert.That(preview.WidthPixels).IsEqualTo(96d);
+        await Assert.That(preview.HeightPixels).IsEqualTo(64d);
         await Assert.That(preview.Tiles.Count).IsEqualTo(3);
 
         await Assert.That(preview.Tiles[0].MapTileX).IsEqualTo(0);
-        await Assert.That(preview.Tiles[0].MapTileY).IsEqualTo(63);
-        await Assert.That(preview.Tiles[0].ArtId).IsEqualTo(new ArtId(100u));
-        await Assert.That(preview.Tiles[0].CenterX).IsEqualTo(64d);
+        await Assert.That(preview.Tiles[0].MapTileY).IsEqualTo(62);
+        await Assert.That(preview.Tiles[0].ArtId).IsEqualTo(new ArtId(200u));
+        await Assert.That(preview.Tiles[0].CenterX).IsEqualTo(32d);
         await Assert.That(preview.Tiles[0].CenterY).IsEqualTo(16d);
-        await Assert.That(preview.Tiles[0].IsBlocked).IsTrue();
-        await Assert.That(preview.Tiles[0].HasLight).IsTrue();
+        await Assert.That(preview.Tiles[0].RoofCell).IsEqualTo(new Location(0, 15));
+        await Assert.That(preview.Tiles[0].IsBlocked).IsFalse();
+        await Assert.That(preview.Tiles[0].HasLight).IsFalse();
         await Assert.That(preview.Tiles[0].HasScript).IsFalse();
 
         await Assert.That(preview.Tiles[1].MapTileX).IsEqualTo(0);
-        await Assert.That(preview.Tiles[1].MapTileY).IsEqualTo(62);
-        await Assert.That(preview.Tiles[1].ArtId).IsEqualTo(new ArtId(200u));
-        await Assert.That(preview.Tiles[1].CenterX).IsEqualTo(32d);
+        await Assert.That(preview.Tiles[1].MapTileY).IsEqualTo(63);
+        await Assert.That(preview.Tiles[1].ArtId).IsEqualTo(new ArtId(100u));
+        await Assert.That(preview.Tiles[1].CenterX).IsEqualTo(64d);
         await Assert.That(preview.Tiles[1].CenterY).IsEqualTo(32d);
-        await Assert.That(preview.Tiles[1].RoofCell).IsEqualTo(new Location(0, 15));
+        await Assert.That(preview.Tiles[1].IsBlocked).IsTrue();
+        await Assert.That(preview.Tiles[1].HasLight).IsTrue();
+        await Assert.That(preview.Tiles[1].HasScript).IsFalse();
 
         await Assert.That(preview.Tiles[2].MapTileX).IsEqualTo(1);
         await Assert.That(preview.Tiles[2].MapTileY).IsEqualTo(63);
         await Assert.That(preview.Tiles[2].ArtId).IsEqualTo(new ArtId(300u));
-        await Assert.That(preview.Tiles[2].CenterX).IsEqualTo(96d);
-        await Assert.That(preview.Tiles[2].CenterY).IsEqualTo(32d);
+        await Assert.That(preview.Tiles[2].CenterX).IsEqualTo(32d);
+        await Assert.That(preview.Tiles[2].CenterY).IsEqualTo(48d);
         await Assert.That(preview.Tiles[2].HasLight).IsFalse();
         await Assert.That(preview.Tiles[2].HasScript).IsTrue();
 
@@ -103,7 +150,7 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Overlays[0].MapTileX).IsEqualTo(0);
         await Assert.That(preview.Overlays[0].MapTileY).IsEqualTo(63);
         await Assert.That(preview.Overlays[0].CenterX).IsEqualTo(64d);
-        await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(16d);
+        await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(32d);
         await Assert.That(preview.Overlays[0].SuggestedTintColor).IsEqualTo(0x88CC6666u);
 
         await Assert.That(preview.Overlays[1].Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
@@ -114,18 +161,61 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Overlays[2].Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
         await Assert.That(preview.Overlays[2].MapTileX).IsEqualTo(1);
         await Assert.That(preview.Overlays[2].MapTileY).IsEqualTo(63);
-        await Assert.That(preview.Overlays[2].CenterX).IsEqualTo(96d);
-        await Assert.That(preview.Overlays[2].CenterY).IsEqualTo(32d);
+        await Assert.That(preview.Overlays[2].CenterX).IsEqualTo(32d);
+        await Assert.That(preview.Overlays[2].CenterY).IsEqualTo(48d);
         await Assert.That(preview.Overlays[2].SuggestedTintColor).IsEqualTo(0x88996CCCu);
 
         await Assert.That(preview.RenderQueue.Count).IsEqualTo(6);
         await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
-        await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
-        await Assert.That(preview.RenderQueue[1].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+        await Assert.That(preview.RenderQueue[0].Tile?.ArtId).IsEqualTo(new ArtId(200u));
+        await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+        await Assert.That(preview.RenderQueue[1].Tile?.ArtId).IsEqualTo(new ArtId(100u));
         await Assert.That(preview.RenderQueue[2].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
-        await Assert.That(preview.RenderQueue[2].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
+        await Assert.That(preview.RenderQueue[2].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+        await Assert.That(preview.RenderQueue[3].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
+        await Assert.That(preview.RenderQueue[3].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
+        await Assert.That(preview.RenderQueue[4].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+        await Assert.That(preview.RenderQueue[4].Tile?.ArtId).IsEqualTo(new ArtId(300u));
         await Assert.That(preview.RenderQueue[5].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
         await Assert.That(preview.RenderQueue[5].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
+    }
+
+    [Test]
+    public async Task Build_Isometric_MatchesCeLocationDeltasAcrossSectorBoundaries()
+    {
+        var originSectorTiles = new uint[64 * 64];
+        originSectorTiles[(63 * 64) + 63] = 100u;
+        var eastSectorTiles = new uint[64 * 64];
+        eastSectorTiles[(63 * 64) + 0] = 200u;
+        var southSectorTiles = new uint[64 * 64];
+        southSectorTiles[63] = 300u;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                CreateSectorScenePreview("maps/map01/0_0.sec", localX: 0, localY: 0, tileArtIds: originSectorTiles),
+                CreateSectorScenePreview("maps/map01/1_0.sec", localX: 1, localY: 0, tileArtIds: eastSectorTiles),
+                CreateSectorScenePreview("maps/map01/0_1.sec", localX: 0, localY: 1, tileArtIds: southSectorTiles)
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        var origin = preview.Tiles.Single(tile => tile.ArtId == new ArtId(100u));
+        var plusX = preview.Tiles.Single(tile => tile.ArtId == new ArtId(200u));
+        var plusY = preview.Tiles.Single(tile => tile.ArtId == new ArtId(300u));
+
+        await Assert.That(plusX.MapTileX - origin.MapTileX).IsEqualTo(1);
+        await Assert.That(plusX.MapTileY - origin.MapTileY).IsEqualTo(0);
+        await Assert.That(plusX.CenterX - origin.CenterX).IsEqualTo(-32d);
+        await Assert.That(plusX.CenterY - origin.CenterY).IsEqualTo(16d);
+        await Assert.That(plusY.MapTileX - origin.MapTileX).IsEqualTo(0);
+        await Assert.That(plusY.MapTileY - origin.MapTileY).IsEqualTo(1);
+        await Assert.That(plusY.CenterX - origin.CenterX).IsEqualTo(32d);
+        await Assert.That(plusY.CenterY - origin.CenterY).IsEqualTo(16d);
     }
 
     [Test]
@@ -183,8 +273,8 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(densePreview.Tiles.Count).IsEqualTo(64 * 64);
         await Assert.That(densePreview.WidthPixels).IsEqualTo(2048d);
         await Assert.That(densePreview.HeightPixels).IsEqualTo(2048d);
-        await Assert.That(densePreview.Tiles[0].MapTileY).IsEqualTo(63);
-        await Assert.That(densePreview.Tiles[^1].MapTileY).IsEqualTo(0);
+        await Assert.That(densePreview.Tiles[0].MapTileY).IsEqualTo(0);
+        await Assert.That(densePreview.Tiles[^1].MapTileY).IsEqualTo(63);
     }
 
     [Test]
@@ -257,6 +347,13 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Objects[0].AnchorY).IsEqualTo(12d);
         await Assert.That(preview.Objects[0].IsTileGridSnapped).IsFalse();
         await Assert.That(preview.Objects[0].SpriteBounds).IsNotNull();
+    }
+
+    private static uint[] CreateSparseMapTileArtIds()
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[0] = 1u;
+        return tileArtIds;
     }
 
     [Test]
@@ -389,6 +486,67 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue.Count).IsEqualTo(3);
         await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(shorterObjectId);
         await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(tallerObjectId);
+    }
+
+    [Test]
+    public async Task Build_Isometric_UsesCeWallRotationOrderForSameTileWalls()
+    {
+        var earlierWallId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 399, Guid.NewGuid());
+        var laterWallId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 499, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateSingleTileObjectScene(
+                CreateObjectPreview(laterWallId, protoId, ObjectType.Wall, CreateWallArtId(rotation: 2)),
+                CreateObjectPreview(earlierWallId, protoId, ObjectType.Wall, CreateWallArtId(rotation: 0))
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].ObjectId).IsEqualTo(earlierWallId);
+        await Assert.That(preview.Objects[1].ObjectId).IsEqualTo(laterWallId);
+        await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(earlierWallId);
+        await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(laterWallId);
+    }
+
+    [Test]
+    public async Task Build_Isometric_UsesCeWallOrderingAgainstSameTileScenery()
+    {
+        var wallId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 599, Guid.NewGuid());
+        var sceneryId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 699, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateSingleTileObjectScene(
+                CreateObjectPreview(wallId, protoId, ObjectType.Wall, CreateWallArtId(rotation: 2)),
+                CreateObjectPreview(
+                    sceneryId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x406003C0u),
+                    offsetX: -15,
+                    offsetY: 3
+                )
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].ObjectId).IsEqualTo(sceneryId);
+        await Assert.That(preview.Objects[1].ObjectId).IsEqualTo(wallId);
+        await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(sceneryId);
+        await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(wallId);
     }
 
     [Test]
@@ -585,6 +743,84 @@ public sealed class EditorMapFloorRenderBuilderTests
             UnpositionedSectorCount = 0,
             Sectors = sectors,
         };
+
+    private static EditorMapSectorScenePreview CreateSectorScenePreview(
+        string assetPath,
+        int localX,
+        int localY,
+        uint[] tileArtIds
+    ) =>
+        new()
+        {
+            AssetPath = assetPath,
+            SectorX = localX,
+            SectorY = localY,
+            LocalX = localX,
+            LocalY = localY,
+            PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+            ObjectDensityBand = EditorMapSectorDensityBand.None,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            TileArtIds = tileArtIds,
+            RoofArtIds = null,
+            BlockMask = new uint[128],
+            Lights = [],
+            TileScripts = [],
+            Objects = [],
+        };
+
+    private static EditorMapScenePreview CreateSingleTileObjectScene(params EditorMapObjectPreview[] objects) =>
+        CreateScenePreview(
+            new EditorMapSectorScenePreview
+            {
+                AssetPath = "maps/map01/sector_a.sec",
+                SectorX = 0,
+                SectorY = 0,
+                LocalX = 0,
+                LocalY = 0,
+                PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                TileArtIds = CreateSingleTileMapTileArtIds(),
+                RoofArtIds = null,
+                BlockMask = new uint[128],
+                Lights = [],
+                TileScripts = [],
+                Objects = objects,
+            }
+        );
+
+    private static EditorMapObjectPreview CreateObjectPreview(
+        GameObjectGuid objectId,
+        GameObjectGuid protoId,
+        ObjectType objectType,
+        ArtId currentArtId,
+        int offsetX = 0,
+        int offsetY = 0,
+        float offsetZ = 0f,
+        float collisionHeight = 0f
+    ) =>
+        new()
+        {
+            ObjectId = objectId,
+            ProtoId = protoId,
+            ObjectType = objectType,
+            CurrentArtId = currentArtId,
+            Location = new Location(0, 63),
+            OffsetX = offsetX,
+            OffsetY = offsetY,
+            OffsetZ = offsetZ,
+            CollisionHeight = collisionHeight,
+            RotationPitch = 0f,
+        };
+
+    private static uint[] CreateSingleTileMapTileArtIds()
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[63 * 64] = 100u;
+        return tileArtIds;
+    }
+
+    private static ArtId CreateWallArtId(int rotation) => new(0x10000000u | ((uint)(rotation & 0x7) << 11));
 
     private static uint[] CreateBlockMask(params (int TileX, int TileY)[] blockedTiles)
     {

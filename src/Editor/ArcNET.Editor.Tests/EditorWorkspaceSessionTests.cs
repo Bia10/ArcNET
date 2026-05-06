@@ -6625,6 +6625,96 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task SectorObjectHelpers_WallPalettePlacement_SynthesizesCurrentAidForGhostAndCommit()
+    {
+        const int protoNumber = 1021;
+        var expectedWallArtId = new ArtId(0x10100000u);
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeWallProto(protoNumber), Path.Combine(contentDir, "proto", "001021 - Wall.pro"));
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "TOU1")] },
+                Path.Combine(contentDir, "art", "wall", "wallname.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "1021")] },
+                Path.Combine(contentDir, "art", "wall", "wallproto.mes")
+            );
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(1, "TOU1 TOU1 nul nul")] },
+                Path.Combine(contentDir, "art", "wall", "structure.mes")
+            );
+            ArtFormat.WriteToFile(
+                CreateArtFile(width: 2, height: 2, pixels: [1, 1, 1, 1]),
+                Path.Combine(contentDir, "art", "wall", "TOUbseU0.art")
+            );
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector()).SetTile(6, 6, 200u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var paletteEntry = workspace.FindObjectPaletteEntry(
+                protoNumber,
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+            var scenePreview = workspace.CreateMapScenePreview("map01");
+            var session = workspace.CreateSession();
+            var selection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(6, 6),
+            };
+
+            await Assert.That(paletteEntry).IsNotNull();
+            await Assert.That(paletteEntry!.CurrentArtId).IsEqualTo(expectedWallArtId);
+            await Assert.That(paletteEntry.ArtAssetPath).IsEqualTo("art/wall/TOUbseU0.art");
+
+            var preview = session.PreviewSectorObjectPalettePlacement(
+                scenePreview,
+                selection,
+                paletteEntry.CreatePlacementRequest()
+            );
+            var createdObjects = session.ApplySectorObjectPalettePlacement(
+                scenePreview,
+                selection,
+                paletteEntry.CreatePlacementRequest()
+            );
+
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Objects[0].CurrentArtId).IsEqualTo(expectedWallArtId);
+            await Assert.That(preview.Objects[0].SpriteBounds).IsNotNull();
+            await Assert.That(createdObjects.Count).IsEqualTo(1);
+            await Assert
+                .That(createdObjects[0].GetProperty(ObjectField.ObjFCurrentAid)!.GetInt32())
+                .IsEqualTo(unchecked((int)expectedWallArtId.Value));
+
+            var updatedWorkspace = session.BeginChangeGroup("Place wall object").ApplyPendingChanges();
+            var updatedPreview = updatedWorkspace.CreateMapScenePreview(
+                "map01",
+                EditorArtResolverBindingStrategy.ArcanumMessageTables
+            );
+            var placedObject = updatedPreview.Sectors.Single().Objects.Single();
+
+            await Assert.That(placedObject.CurrentArtId).IsEqualTo(expectedWallArtId);
+            await Assert.That(placedObject.SpriteBounds).IsNotNull();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewRenderHelpers_CreateMapFloorRenderPreview_UsesPreviewFlagsAndPendingSectorState()
     {
         const int protoNumber = 1001;
@@ -6969,7 +7059,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            await Assert.That(scene.PaintableScene.Items.Any(item => item.Sprite is not null)).IsTrue();
+            await Assert.That(scene.PaintableScene.Items.Any(item => item.SpriteReference is not null)).IsTrue();
             await Assert.That(scene.SpriteCoverage.ResolvedArtIds).Contains(new ArtId(200u));
         }
         finally
@@ -7085,14 +7175,15 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(
                     worldScene.PaintableScene.Items.Any(item =>
-                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.Sprite is not null
+                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.SpriteReference is not null
                     )
                 )
                 .IsTrue();
             await Assert
                 .That(
                     worldScene.PaintableScene.Items.Any(item =>
-                        item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject && item.Sprite is not null
+                        item.Kind == EditorMapRenderQueueItemKind.PlacementPreviewObject
+                        && item.SpriteReference is not null
                     )
                 )
                 .IsTrue();
@@ -7520,6 +7611,63 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(updatedSector).IsNotNull();
             await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_ApplyTrackedObjectPlacementTool_UsesProvidedTileSelection()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var session = (await EditorWorkspaceLoader.LoadAsync(contentDir)).CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(9, 10),
+                    },
+                }
+            );
+            _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber);
+
+            var createdObjects = session.ApplyTrackedObjectPlacementTool(
+                "map-view-1",
+                new EditorProjectMapSelectionState { SectorAssetPath = sectorAssetPath, Tile = new Location(11, 12) }
+            );
+
+            await Assert.That(createdObjects.Count).IsEqualTo(1);
+            await Assert
+                .That(createdObjects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((11, 12));
+
+            var updatedWorkspace = session.BeginChangeGroup("Apply clicked tracked object tool").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+            await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
+            await Assert
+                .That(updatedSector.Objects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .IsEqualTo((11, 12));
         }
         finally
         {
@@ -8149,6 +8297,72 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(generatorPane.UnavailableReason)
                 .IsEqualTo("Generator settings only apply to Npc targets.");
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_GetTrackedObjectInspectorFlagsSummary_ResolvesNullIdWallBySelectedTile()
+    {
+        const int protoNumber = 1021;
+        const ulong sectorKey = 101334386389UL;
+        const int selectedWallFlags = 111;
+        const int otherWallFlags = 222;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var nullObjectId = new GameObjectGuid(GameObjectGuid.OidTypeNull, 0, 0, Guid.Empty);
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeWallProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001021 - InspectorWall.pro")
+            );
+
+            var selectedWall = new MobDataBuilder(ObjectType.Wall, nullObjectId, MakeProtoId(protoNumber))
+                .WithLocation(5, 6)
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFWallFlags, selectedWallFlags))
+                .Build();
+            var otherWall = new MobDataBuilder(ObjectType.Wall, nullObjectId, MakeProtoId(protoNumber))
+                .WithLocation(8, 9)
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFWallFlags, otherWallFlags))
+                .Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(selectedWall, otherWall),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = nullObjectId,
+                    },
+                }
+            );
+
+            var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
+            var flagsSummary = session.GetTrackedObjectInspectorFlagsSummary("map-view-1");
+
+            await Assert.That(inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert.That(inspector.SelectedObject).IsNotNull();
+            await Assert.That(inspector.SelectedObject!.Location).IsEqualTo(new Location(5, 6));
+            await Assert.That(flagsSummary.WallFlags).IsEqualTo(selectedWallFlags);
         }
         finally
         {
@@ -9208,6 +9422,237 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_SkipsTrackedPlacementPreviewOutsidePlacementMode()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 5d,
+                        CenterTileY = 6d,
+                        Zoom = 1.5d,
+                    },
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.None,
+                    },
+                }
+            );
+            _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0.5f, activateTool: false);
+
+            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+
+            await Assert.That(shell.ActiveTool).IsEqualTo(EditorProjectMapWorldEditActiveTool.None);
+            await Assert.That(shell.ObjectPlacementTool.CanPreviewOrApply).IsTrue();
+            await Assert.That(shell.HasTrackedPlacementPreview).IsFalse();
+            await Assert.That(shell.TrackedPlacementPreview).IsNull();
+            await Assert.That(shell.TrackedPlacementPaintableScene).IsNull();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_BuildsOverlayOnlyPlacementPaintableScene()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 5d,
+                        CenterTileY = 6d,
+                        Zoom = 1.5d,
+                    },
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                    },
+                }
+            );
+            _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0f, activateTool: true);
+
+            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+
+            await Assert.That(shell.HasTrackedPlacementPreview).IsTrue();
+            await Assert.That(shell.TrackedPlacementPreview).IsNotNull();
+            await Assert.That(shell.TrackedPlacementPaintableScene).IsNotNull();
+            await Assert
+                .That(shell.TrackedPlacementPreview!.RenderQueue.Count)
+                .IsGreaterThan(shell.TrackedPlacementPreview.Objects.Count);
+            await Assert
+                .That(
+                    shell.TrackedPlacementPaintableScene!.Items.All(static item =>
+                        item.Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject
+                    )
+                )
+                .IsTrue();
+            await Assert
+                .That(shell.TrackedPlacementPaintableScene.Items.Count)
+                .IsEqualTo(shell.TrackedPlacementPreview.Objects.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_PreviewTrackedObjectPlacementToolOverlay_UsesExistingSceneRenderQueue()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var selection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(5, 6),
+            };
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 5d,
+                        CenterTileY = 6d,
+                        Zoom = 1.5d,
+                    },
+                    Selection = selection,
+                }
+            );
+            _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0f, activateTool: true);
+
+            var shell = session.CreateTrackedMapWorldEditShell(
+                "map-view-1",
+                new EditorMapWorldEditShellRequest { IncludeTrackedPlacementPreview = false }
+            );
+            var preview = session.PreviewTrackedObjectPlacementToolOverlay(
+                "map-view-1",
+                selection,
+                shell.Scene.SceneRender,
+                shell.RenderRequest
+            );
+
+            await Assert.That(shell.TrackedPlacementPreview).IsNull();
+            await Assert.That(preview.Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.RenderQueue.Count).IsEqualTo(preview.Objects.Count);
+            await Assert
+                .That(
+                    preview.RenderQueue.All(static item =>
+                        item.Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject
+                    )
+                )
+                .IsTrue();
+            await Assert.That(preview.RenderQueue.Count).IsLessThan(shell.Scene.SceneRender.RenderQueue.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_UsesCustomSpriteSource()
     {
         const int protoNumber = 1001;
@@ -9259,18 +9704,13 @@ public sealed class EditorWorkspaceSessionTests
                 new EditorMapWorldEditShellRequest { SpriteSource = spriteSource }
             );
 
-            await Assert.That(spriteSource.ResolvedArtIds.Count).IsGreaterThan(0);
+            await Assert.That(spriteSource.ResolvedArtIds).IsEmpty();
+            await Assert.That(spriteSource.MetricCheckedArtIds.Count).IsGreaterThan(0);
             await Assert.That(spriteSource.CoverageCheckedArtIds.Count).IsGreaterThan(0);
             await Assert
-                .That(
-                    shell.Scene.PaintableScene.Items.Any(item =>
-                        item.Sprite is { PixelFormat: EditorArtPreviewPixelFormat.Bgra32 }
-                    )
-                )
+                .That(shell.Scene.PaintableScene.Items.Any(item => item.SpriteReference is { ArtId.Value: not 0u }))
                 .IsTrue();
-            await Assert
-                .That(spriteSource.ResolvedArtIds.Count)
-                .IsEqualTo(shell.Scene.PaintableScene.Items.Count(static item => item.Sprite is not null));
+            await Assert.That(shell.Scene.PaintableScene.Items.All(static item => item.Sprite is null)).IsTrue();
         }
         finally
         {
@@ -9327,14 +9767,14 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(
                     shell.Scene.PaintableScene.Items.Any(item =>
-                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.Sprite is not null
+                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.SpriteReference is not null
                     )
                 )
                 .IsTrue();
             await Assert
                 .That(
                     asyncShell.Scene.PaintableScene.Items.Any(item =>
-                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.Sprite is not null
+                        item.Kind == EditorMapRenderQueueItemKind.FloorTile && item.SpriteReference is not null
                     )
                 )
                 .IsTrue();
@@ -9469,6 +9909,104 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_FocusMapTarget_OpensLooseMapMobAndCentersResolvedPlacement()
+    {
+        const int protoNumber = 1001;
+        const ulong map01SectorKey = 0UL;
+        const ulong map02SectorKey = (1UL << 26) + 1UL;
+        const int worldTileX = 82;
+        const int worldTileY = 109;
+        var map02SectorAssetPath = $"maps/map02/{map02SectorKey}.sec";
+        var mapMobAssetPath = "maps/map02/G_target.mob";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map02"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeNpcProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties map01Properties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in map01Properties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            MapProperties map02Properties = new()
+            {
+                ArtId = 201,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in map02Properties, Path.Combine(contentDir, "maps", "map02", "map.prp"));
+
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector()).SetTile(5, 5, 200u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{map01SectorKey}.sec")
+            );
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector()).SetTile(18, 45, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map02", $"{map02SectorKey}.sec")
+            );
+
+            var placedMobId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+            var placedMob = new MobDataBuilder(ObjectType.Container, placedMobId, MakeProtoId(protoNumber))
+                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, worldTileX, worldTileY))
+                .Build();
+            MobFormat.WriteToFile(placedMob, Path.Combine(contentDir, "maps", "map02", "G_target.mob"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 5d,
+                        CenterTileY = 5d,
+                        Zoom = 1.25d,
+                    },
+                }
+            );
+
+            var target = session.FocusMapTarget("map-view-1", mapMobAssetPath);
+            var updatedMapViewState = session.GetMapViewStates().Single(state => state.Id == "map-view-1");
+
+            await Assert.That(target.MapName).IsEqualTo("map02");
+            await Assert.That(target.SectorAssetPath).IsEqualTo(map02SectorAssetPath);
+            await Assert.That(target.Tile).IsEqualTo(new Location(18, 45));
+            await Assert.That(target.CenterTileX).IsEqualTo(18d);
+            await Assert.That(target.CenterTileY).IsEqualTo(45d);
+            await Assert.That(target.ObjectId).IsEqualTo(placedMobId);
+            await Assert.That(target.FocusAssetPath).IsEqualTo(mapMobAssetPath);
+            await Assert.That(target.SourceAssetPath).IsEqualTo(mapMobAssetPath);
+            await Assert.That(target.MatchCount).IsEqualTo(1);
+            await Assert.That(updatedMapViewState.MapName).IsEqualTo("map02");
+            await Assert.That(updatedMapViewState.Camera.CenterTileX).IsEqualTo(18d);
+            await Assert.That(updatedMapViewState.Camera.CenterTileY).IsEqualTo(45d);
+            await Assert.That(updatedMapViewState.Camera.Zoom).IsEqualTo(1.25d);
+            await Assert.That(updatedMapViewState.Selection.SectorAssetPath).IsEqualTo(map02SectorAssetPath);
+            await Assert.That(updatedMapViewState.Selection.Tile).IsEqualTo(new Location(18, 45));
+            await Assert.That(updatedMapViewState.Selection.ObjectId).IsEqualTo(placedMobId);
+            await Assert.That(session.ActiveAssetPath).IsEqualTo(mapMobAssetPath);
+            await Assert.That(session.GetOpenAssets().Any(asset => asset.AssetPath == mapMobAssetPath)).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_PreservesSelectionAndInspectorState_WhenSelectedObjectCarriesFollowerArrayField()
     {
         const int protoNumber = 1001;
@@ -9551,6 +10089,77 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(shell.ObjectInspectorFlags.Inspector.TargetKind)
                 .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateTrackedMapWorldEditShell_ToleratesMalformedCritterProgressionArrays()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeNpcProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 1,
+                LimitY = 1,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 42, Guid.NewGuid());
+            var selectedObject = WithProperties(
+                new CharacterBuilder(ObjectType.Npc, selectedObjectId, MakeProtoId(protoNumber))
+                    .WithHitPoints(80)
+                    .Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 5, 6),
+                new ObjectProperty { Field = ObjectField.ObjFCritterStatBaseIdx, RawBytes = [1, 2, 3, 4] },
+                new ObjectProperty { Field = ObjectField.ObjFCritterBasicSkillIdx, RawBytes = [5, 6, 7, 8] }
+            );
+
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = selectedObjectId,
+                    },
+                }
+            );
+
+            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+
+            await Assert
+                .That(shell.ObjectInspector.TargetKind)
+                .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert.That(shell.ObjectInspectorCritterProgression.IsCritterTarget).IsTrue();
+            await Assert.That(shell.ObjectInspectorCritterProgression.Level).IsEqualTo(0);
+            await Assert.That(shell.ObjectInspectorCritterProgression.SkillBow).IsEqualTo(0);
         }
         finally
         {
@@ -11428,6 +12037,26 @@ public sealed class EditorWorkspaceSessionTests
         };
     }
 
+    private static ProtoData MakeWallProto(int protoNumber)
+    {
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        var mob = new MobDataBuilder(ObjectType.Wall, objectId, protoId).Build();
+        return new ProtoData
+        {
+            Header = new GameObjectHeader
+            {
+                Version = mob.Header.Version,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = objectId,
+                GameObjectType = mob.Header.GameObjectType,
+                PropCollectionItems = 0,
+                Bitmap = [.. mob.Header.Bitmap],
+            },
+            Properties = [.. mob.Properties],
+        };
+    }
+
     private static ProtoData MakeNpcProto(int protoNumber)
     {
         var mob = MakeNpc(protoNumber);
@@ -11653,6 +12282,7 @@ public sealed class EditorWorkspaceSessionTests
     private sealed class TestSpriteSource : IEditorMapRenderSpriteSource
     {
         public List<ArtId> ResolvedArtIds { get; } = [];
+        public List<ArtId> MetricCheckedArtIds { get; } = [];
         public List<ArtId> CoverageCheckedArtIds { get; } = [];
 
         public bool CanResolve(ArtId artId, EditorMapRenderSpriteRequest? request = null)
@@ -11662,6 +12292,21 @@ public sealed class EditorWorkspaceSessionTests
 
             CoverageCheckedArtIds.Add(artId);
             return true;
+        }
+
+        public EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArtId artId, EditorMapRenderSpriteRequest? request = null)
+        {
+            if (artId.Value == 0)
+                return null;
+
+            MetricCheckedArtIds.Add(artId);
+            return new EditorMapRenderSpriteMetrics
+            {
+                Width = 1,
+                Height = 1,
+                CenterX = 0,
+                CenterY = 0,
+            };
         }
 
         public EditorMapRenderSprite? Resolve(ArtId artId, EditorMapRenderSpriteRequest? request = null)

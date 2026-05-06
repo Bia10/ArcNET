@@ -54,7 +54,7 @@ public class EditorArtPreviewBuilderTests
     }
 
     [Test]
-    public async Task Build_ConvertsPaletteIndexedPixelsToRgbaAndFlipsRows()
+    public async Task Build_ConvertsPaletteIndexedPixelsToRgbaUsingNativeCeRowOrder()
     {
         var art = CreateArtFile(2, 2, [1, 2, 3, 0], frameRate: 8, actionFrame: 1);
 
@@ -74,13 +74,13 @@ public class EditorArtPreviewBuilderTests
         await Assert.That(frame.Stride).IsEqualTo(8);
         await Assert
             .That(
-                frame.PixelData.SequenceEqual(new byte[] { 0, 0, 255, 255, 0, 0, 0, 0, 255, 0, 0, 255, 0, 255, 0, 255 })
+                frame.PixelData.SequenceEqual(new byte[] { 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 0, 0, 0, 0 })
             )
             .IsTrue();
     }
 
     [Test]
-    public async Task BuildFrame_FlipVerticallyFalse_PreservesNativeRowOrder()
+    public async Task BuildFrame_FlipVerticallyTrue_InvertsNativeRowOrder()
     {
         var art = CreateArtFile(2, 2, [1, 2, 3, 0]);
 
@@ -88,12 +88,12 @@ public class EditorArtPreviewBuilderTests
             art,
             0,
             0,
-            new EditorArtPreviewOptions { FlipVertically = false }
+            new EditorArtPreviewOptions { FlipVertically = true }
         );
 
         await Assert
             .That(
-                frame.PixelData.SequenceEqual(new byte[] { 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 0, 0, 0, 0 })
+                frame.PixelData.SequenceEqual(new byte[] { 0, 0, 255, 255, 0, 0, 0, 0, 255, 0, 0, 255, 0, 255, 0, 255 })
             )
             .IsTrue();
     }

@@ -60,7 +60,14 @@ public class EditorWorkspaceLoaderTests
         return palette;
     }
 
-    private static ArtFile MakeArtFile(uint frameRate = 8, byte paletteIndex = 1) =>
+    private static ArtFile MakeArtFile(
+        uint frameRate = 8,
+        byte paletteIndex = 1,
+        int width = 1,
+        int height = 1,
+        int centerX = 0,
+        int centerY = 0
+    ) =>
         new()
         {
             Flags = ArtFlags.Static,
@@ -74,7 +81,21 @@ public class EditorWorkspaceLoaderTests
             Palettes = [CreateArtPalette(), null, null, null],
             Frames =
             [
-                [new ArtFrame { Header = new ArtFrameHeader(1u, 1u, 1u, 0, 0, 0, 0), Pixels = [paletteIndex] }],
+                [
+                    new ArtFrame
+                    {
+                        Header = new ArtFrameHeader(
+                            (uint)width,
+                            (uint)height,
+                            (uint)(width * height),
+                            centerX,
+                            centerY,
+                            0,
+                            0
+                        ),
+                        Pixels = Enumerable.Repeat(paletteIndex, checked(width * height)).ToArray(),
+                    },
+                ],
             ],
         };
 
@@ -487,6 +508,172 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(preview.FrameRate).IsEqualTo(12u);
             await Assert.That(preview.Frames.Count).IsEqualTo(1);
             await Assert.That(preview.Frames[0].PixelData.SequenceEqual(new byte[] { 3, 2, 1, 255 })).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindArt_EvictsLeastRecentlyUsedFullArtsWhenCacheBudgetIsExceeded()
+    {
+        const int artCount = 20;
+        const int width = 2048;
+        const int height = 2048;
+        const long maxRetainedBytes = 64L * 1024L * 1024L;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "bulk"));
+
+        try
+        {
+            for (var artIndex = 0; artIndex < artCount; artIndex++)
+            {
+                ArtFormat.WriteToFile(
+                    MakeArtFile(frameRate: 12, paletteIndex: 1, width: width, height: height),
+                    Path.Combine(contentDir, "art", "bulk", $"art{artIndex:D2}.art")
+                );
+            }
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var firstArt = workspace.FindArt("art/bulk/art00.art");
+            await Assert.That(firstArt).IsNotNull();
+
+            for (var artIndex = 1; artIndex < artCount; artIndex++)
+                _ = workspace.FindArt($"art/bulk/art{artIndex:D2}.art");
+
+            var firstArtReloaded = workspace.FindArt("art/bulk/art00.art");
+
+            await Assert.That(firstArtReloaded).IsNotNull();
+            await Assert.That(object.ReferenceEquals(firstArt, firstArtReloaded)).IsFalse();
+            await Assert.That(workspace.LoadedArtCacheEntryCount).IsLessThan(artCount);
+            await Assert.That(workspace.LoadedArtCacheRetainedBytes).IsLessThanOrEqualTo(maxRetainedBytes);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_EvictsLeastRecentlyUsedFramesWhenCacheBudgetIsExceeded()
+    {
+        const int artCount = 10;
+        const int width = 2048;
+        const int height = 2048;
+        const long maxRetainedBytes = 64L * 1024L * 1024L;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "bulk"));
+
+        try
+        {
+            for (var artIndex = 0; artIndex < artCount; artIndex++)
+            {
+                ArtFormat.WriteToFile(
+                    MakeArtFile(frameRate: 12, paletteIndex: 1, width: width, height: height),
+                    Path.Combine(contentDir, "art", "bulk", $"art{artIndex:D2}.art")
+                );
+            }
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            for (var artIndex = 0; artIndex < artCount; artIndex++)
+                artResolver.Bind(new ArtId((uint)(artIndex + 1)), $"art/bulk/art{artIndex:D2}.art");
+
+            var firstSprite = spriteSource.Resolve(new ArtId(1u), new EditorMapRenderSpriteRequest());
+
+            await Assert.That(firstSprite).IsNotNull();
+
+            for (var artIndex = 1; artIndex < artCount; artIndex++)
+                await Assert
+                    .That(spriteSource.Resolve(new ArtId((uint)(artIndex + 1)), new EditorMapRenderSpriteRequest()))
+                    .IsNotNull();
+
+            var firstResolvedSprite = spriteSource.Resolve(new ArtId(1u), new EditorMapRenderSpriteRequest());
+
+            await Assert.That(firstResolvedSprite).IsNotNull();
+            await Assert.That(object.ReferenceEquals(firstSprite, firstResolvedSprite)).IsFalse();
+            await Assert.That(spriteSource.CachedFrameCount).IsLessThanOrEqualTo(artCount);
+            await Assert.That(spriteSource.CachedFrameRetainedBytes).IsLessThanOrEqualTo(maxRetainedBytes);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_AppliesCeWallHotspotAdjustment()
+    {
+        var artId = new ArtId(1u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12, width: 10, height: 20, centerX: 12, centerY: 34),
+                Path.Combine(contentDir, "art", "wall", "testwall.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/wall/testwall.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var northWallSprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+            var northWallMetrics = spriteSource.GetSpriteMetrics(
+                artId,
+                new EditorMapRenderSpriteRequest { RotationIndex = 0 }
+            );
+            var eastWallSprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest { RotationIndex = 2 });
+
+            await Assert.That(northWallSprite).IsNotNull();
+            await Assert.That(northWallMetrics).IsNotNull();
+            await Assert.That(eastWallSprite).IsNotNull();
+            await Assert.That(northWallSprite!.CenterX).IsEqualTo(-28);
+            await Assert.That(northWallSprite.CenterY).IsEqualTo(54);
+            await Assert.That(northWallMetrics!.CenterX).IsEqualTo(-28);
+            await Assert.That(northWallMetrics.CenterY).IsEqualTo(54);
+            await Assert.That(eastWallSprite!.CenterX).IsEqualTo(12);
+            await Assert.That(eastWallSprite.CenterY).IsEqualTo(34);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesWallArtIdRotationForHotspotAdjustmentWhenRequestRotationDefaultsToZero()
+    {
+        var artId = new ArtId(0x10001000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12, width: 10, height: 20, centerX: 12, centerY: 34),
+                Path.Combine(contentDir, "art", "wall", "testwall.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/wall/testwall.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+            var metrics = spriteSource.GetSpriteMetrics(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+
+            await Assert.That(sprite).IsNotNull();
+            await Assert.That(metrics).IsNotNull();
+            await Assert.That(sprite.CenterX).IsEqualTo(12);
+            await Assert.That(sprite.CenterY).IsEqualTo(34);
+            await Assert.That(metrics!.CenterX).IsEqualTo(12);
+            await Assert.That(metrics.CenterY).IsEqualTo(34);
         }
         finally
         {
@@ -1060,7 +1247,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsUnambiguousSectorArtIds()
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_DoesNotBindFacadeFallbackForTileArtIds()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
@@ -1094,7 +1281,7 @@ public class EditorWorkspaceLoaderTests
 
             await Assert.That(palette.Count).IsEqualTo(1);
             await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x111C0u));
-            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+            await Assert.That(palette[0].ArtAssetPath).IsNull();
         }
         finally
         {
@@ -1199,9 +1386,9 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesRenderItemKindToResolveAmbiguousSectorArtIds()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_TileArtIdsRemainTileBoundWhenRoofMessageEntriesExist()
     {
-        var artId = new ArtId(0x000000C0u);
+        var artId = new ArtId(0x000001C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "roof"));
@@ -1213,10 +1400,10 @@ public class EditorWorkspaceLoaderTests
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(0, "BR1")] },
+                new MesFile { Entries = [new MessageEntry(1, "BR1")] },
                 Path.Combine(contentDir, "art", "roof", "roofname.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drt0.art"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drt0bse0a.art"));
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "roof", "BR1.art"));
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
@@ -1232,13 +1419,11 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.Roof }
             );
 
-            await Assert.That(artResolver.FindAssetPath(artId)).IsNull();
+            await Assert.That(artResolver.FindAssetPath(artId)).IsEqualTo("art/tile/drt0bse0a.art");
             await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drt0.art");
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drt0bse0a.art");
             await Assert.That(floorSprite.RenderItemKind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
-            await Assert.That(roofSprite).IsNotNull();
-            await Assert.That(roofSprite!.AssetPath).IsEqualTo("art/roof/BR1.art");
-            await Assert.That(roofSprite.RenderItemKind).IsEqualTo(EditorMapRenderQueueItemKind.Roof);
+            await Assert.That(roofSprite).IsNull();
         }
         finally
         {
@@ -1247,7 +1432,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesFallBackToFacadeWhenTileEntryMissing()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesDoNotFallBackToFacadeWhenTileEntryMissing()
     {
         var artId = new ArtId(0x000111C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1274,8 +1459,7 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+            await Assert.That(floorSprite).IsNull();
         }
         finally
         {
@@ -1284,7 +1468,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_DecodesFlaggedSectorFloorArtIdsUsingMaskedMessageIndex()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FlaggedTileArtIdsDoNotUseFacadeMessageIndexFallback()
     {
         var artId = new ArtId(0x004105C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1311,8 +1495,7 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/VendiSideWalk_RC.art");
+            await Assert.That(floorSprite).IsNull();
         }
         finally
         {
@@ -1357,21 +1540,22 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromExactMessageIndex()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesCeTileArtIdsUsingTileNameEntries()
     {
-        var artId = new ArtId(0x00019180u);
+        var artId = new ArtId(0x000161C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
 
         try
         {
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                new MesFile { Entries = [new MessageEntry(0, "grass"), new MessageEntry(1, "dirt")] },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassdirt2a.art")
+            );
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var spriteSource = workspace.CreateMapRenderSpriteSource(
@@ -1384,7 +1568,7 @@ public class EditorWorkspaceLoaderTests
             );
 
             await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drtrck1a.art");
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/grassdirt2a.art");
         }
         finally
         {
@@ -1393,67 +1577,22 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromOffsetMessageIndex()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesCeMirroredTileEdgeDecode()
     {
+        var artId = new ArtId(0x000121C1u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
 
         try
         {
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                new MesFile { Entries = [new MessageEntry(0, "grass"), new MessageEntry(1, "dirt")] },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
-
-            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
-            var spriteSource = workspace.CreateMapRenderSpriteSource(
-                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassdirtba.art")
             );
-
-            var firstVariant = spriteSource.Resolve(
-                new ArtId(0x00018180u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-            var secondVariant = spriteSource.Resolve(
-                new ArtId(0x000181C0u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-            var thirdVariant = spriteSource.Resolve(
-                new ArtId(0x000181C1u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-
-            await Assert.That(firstVariant).IsNotNull();
-            await Assert.That(firstVariant!.AssetPath).IsEqualTo("art/tile/drtrck1a.art");
-            await Assert.That(secondVariant).IsNotNull();
-            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/drtrck1b.art");
-            await Assert.That(thirdVariant).IsNotNull();
-            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/drtrck2a.art");
-        }
-        finally
-        {
-            Directory.Delete(contentDir, recursive: true);
-        }
-    }
-
-    [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsWithZeroLowByteVariant()
-    {
-        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
-
-        try
-        {
-            MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(513, "desert")] },
-                Path.Combine(contentDir, "art", "tile", "tilename.mes")
-            );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert2a.art"));
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var spriteSource = workspace.CreateMapRenderSpriteSource(
@@ -1461,12 +1600,12 @@ public class EditorWorkspaceLoaderTests
             );
 
             var floorSprite = spriteSource.Resolve(
-                new ArtId(0x00820100u),
+                artId,
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
             await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/desert1a.art");
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/grassdirtba.art");
         }
         finally
         {
@@ -1475,39 +1614,35 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsWithHighByteSectorFlags()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FallsBackToAlternateMirroredCeTileEdgeFamilyWhenPrimaryCandidateMissing()
     {
+        var artId = new ArtId(0x000131C1u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
 
         try
         {
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(513, "desert")] },
+                new MesFile { Entries = [new MessageEntry(0, "grass"), new MessageEntry(1, "dirt")] },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "desert2a.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassdirt4a.art")
+            );
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var spriteSource = workspace.CreateMapRenderSpriteSource(
                 workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
             );
 
-            var firstVariant = spriteSource.Resolve(
-                new ArtId(0x01020100u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-            var secondVariant = spriteSource.Resolve(
-                new ArtId(0x010201C0u),
+            var floorSprite = spriteSource.Resolve(
+                artId,
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(firstVariant).IsNotNull();
-            await Assert.That(firstVariant!.AssetPath).IsEqualTo("art/tile/desert1a.art");
-            await Assert.That(secondVariant).IsNotNull();
-            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/desert1b.art");
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/grassdirt4a.art");
         }
         finally
         {
@@ -1516,39 +1651,43 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromNegativeOffsetMessageIndex()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FallsBackToAlternateNonMirroredCeTileEdgeFamilyWhenPrimaryCandidateMissing()
     {
+        var artId = new ArtId(0x0001C980u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
 
         try
         {
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(433, "DrtVDR")] },
+                new MesFile
+                {
+                    Entries =
+                    [
+                        new MessageEntry(0, "grass"),
+                        new MessageEntry(100, "dirt"),
+                        new MessageEntry(101, "stone"),
+                    ],
+                },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR2a.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassstonede.art")
+            );
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var spriteSource = workspace.CreateMapRenderSpriteSource(
                 workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
             );
 
-            var secondVariant = spriteSource.Resolve(
-                new ArtId(0x0001E1C0u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-            var thirdVariant = spriteSource.Resolve(
-                new ArtId(0x0001E1C1u),
+            var floorSprite = spriteSource.Resolve(
+                artId,
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(secondVariant).IsNotNull();
-            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR1b.art");
-            await Assert.That(thirdVariant).IsNotNull();
-            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR2a.art");
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/grassstonede.art");
         }
         finally
         {
@@ -1557,48 +1696,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesTileFamilyFloorArtIdsFromRepeatedNegativeOffsetMessageIndex()
-    {
-        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
-
-        try
-        {
-            MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(433, "DrtVDR")] },
-                Path.Combine(contentDir, "art", "tile", "tilename.mes")
-            );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "DrtVDR2a.art"));
-
-            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
-            var spriteSource = workspace.CreateMapRenderSpriteSource(
-                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
-            );
-
-            var secondVariant = spriteSource.Resolve(
-                new ArtId(0x000211C0u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-            var thirdVariant = spriteSource.Resolve(
-                new ArtId(0x000211C1u),
-                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
-            );
-
-            await Assert.That(secondVariant).IsNotNull();
-            await Assert.That(secondVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR1b.art");
-            await Assert.That(thirdVariant).IsNotNull();
-            await Assert.That(thirdVariant!.AssetPath).IsEqualTo("art/tile/DrtVDR2a.art");
-        }
-        finally
-        {
-            Directory.Delete(contentDir, recursive: true);
-        }
-    }
-
-    [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesFloorArtIdsFromRepeatedNegativeOffsetFacadeMessageIndex()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesDoNotFallBackToFacadeMessageIndexHeuristics()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
@@ -1624,8 +1722,7 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/IronClanEntrance.art");
+            await Assert.That(floorSprite).IsNull();
         }
         finally
         {
@@ -1710,7 +1807,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsTileSectorArtIds()
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsCeTileArtIds()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
@@ -1720,17 +1817,20 @@ public class EditorWorkspaceLoaderTests
         {
             MapProperties mapProperties = new()
             {
-                ArtId = 0x19180,
+                ArtId = 0x161C0,
                 Unused = 0,
                 LimitX = 1,
                 LimitY = 1,
             };
             MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                new MesFile { Entries = [new MessageEntry(0, "grass"), new MessageEntry(1, "dirt")] },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassdirt2a.art")
+            );
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
 
@@ -1740,8 +1840,8 @@ public class EditorWorkspaceLoaderTests
             );
 
             await Assert.That(palette.Count).IsEqualTo(1);
-            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x00019180u));
-            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/drtrck.art");
+            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x000161C0u));
+            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/grassdirt2a.art");
         }
         finally
         {
@@ -1750,7 +1850,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsOffsetTileFamilySectorArtIds()
+    public async Task LoadAsync_GetTerrainPalette_WithArcanumMessageTablesStrategy_BindsCeMirroredTileArtIds()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
@@ -1760,19 +1860,20 @@ public class EditorWorkspaceLoaderTests
         {
             MapProperties mapProperties = new()
             {
-                ArtId = 0x18180,
+                ArtId = 0x121C1,
                 Unused = 0,
                 LimitX = 1,
                 LimitY = 1,
             };
             MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(401, "drtrck")] },
+                new MesFile { Entries = [new MessageEntry(0, "grass"), new MessageEntry(1, "dirt")] },
                 Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1a.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck1b.art"));
-            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "drtrck2a.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "grassdirtba.art")
+            );
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
 
@@ -1782,8 +1883,8 @@ public class EditorWorkspaceLoaderTests
             );
 
             await Assert.That(palette.Count).IsEqualTo(1);
-            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x00018180u));
-            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/drtrck1a.art");
+            await Assert.That(palette[0].ArtId).IsEqualTo(new ArtId(0x000121C1u));
+            await Assert.That(palette[0].ArtAssetPath).IsEqualTo("art/tile/grassdirtba.art");
         }
         finally
         {
@@ -3478,6 +3579,95 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateMapScenePreview_UsesProtoCurrentArtIdWhenSceneMobOmitsOne()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var artId = new ArtId(200u);
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
+            SectorFormat.WriteToFile(
+                MakeSector(new CharacterBuilder(ObjectType.Npc, objectId, protoId).WithHitPoints(80).Build()),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+
+            var preview = workspace.CreateMapScenePreview("map01", artResolver);
+
+            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId).IsEqualTo(artId);
+            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_MergesTopLevelMapMobsIntoProjectedSectorAndSkipsContainedInventoryMobs()
+    {
+        const int sectorX = 970;
+        const int sectorY = 1025;
+        const int localTileX = 5;
+        const int localTileY = 6;
+        var sectorKey = ((ulong)sectorY << 26) | (uint)sectorX;
+        var globalTileX = (sectorX * 64) + localTileX;
+        var globalTileY = (sectorY * 64) + localTileY;
+        var npcProtoId = MakeProtoId(2001);
+        var itemProtoId = MakeProtoId(2002);
+        var npcObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2001, Guid.NewGuid());
+        var itemObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2002, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            var topLevelNpc = new CharacterBuilder(ObjectType.Npc, npcObjectId, npcProtoId)
+                .WithLocation(globalTileX, globalTileY)
+                .WithInventory([itemObjectId.Id])
+                .Build();
+            var containedItem = WithProperties(
+                new MobDataBuilder(ObjectType.Food, itemObjectId, itemProtoId).Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, globalTileX, globalTileY)
+            );
+
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+            MobFormat.WriteToFile(topLevelNpc, Path.Combine(contentDir, "maps", "map01", "G_test_npc.mob"));
+            MobFormat.WriteToFile(containedItem, Path.Combine(contentDir, "maps", "map01", "G_test_item.mob"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects[0].ObjectId).IsEqualTo(npcObjectId);
+            await Assert.That(preview.Sectors[0].Objects[0].ObjectType).IsEqualTo(ObjectType.Npc);
+            await Assert.That(preview.Sectors[0].Objects[0].Location).IsEqualTo(new Location(localTileX, localTileY));
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_IgnoresMalformedScriptReferenceProperties()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -4096,7 +4286,7 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(worldScene.MapName).IsEqualTo("map01");
             await Assert.That(worldScene.SceneRender.Tiles.Count).IsEqualTo(1);
             await Assert.That(worldScene.SpriteCoverage.IsComplete).IsTrue();
-            await Assert.That(worldScene.PaintableScene.Items.Any(item => item.Sprite is not null)).IsTrue();
+            await Assert.That(worldScene.PaintableScene.Items.Any(item => item.SpriteReference is not null)).IsTrue();
         }
         finally
         {
@@ -4208,7 +4398,7 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(paletteEntry!.DisplayName).IsEqualTo("Base install palette proto");
             await Assert.That(workspace.SearchObjectPalette("Base install").Count).IsEqualTo(1);
             await Assert.That(worldScene.SpriteCoverage.IsComplete).IsTrue();
-            await Assert.That(worldScene.PaintableScene.Items.Any(item => item.Sprite is not null)).IsTrue();
+            await Assert.That(worldScene.PaintableScene.Items.Any(item => item.SpriteReference is not null)).IsTrue();
         }
         finally
         {

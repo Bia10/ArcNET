@@ -273,6 +273,22 @@ public sealed class EditorMapScenePreviewBuilderTests
         await Assert.That(preview.CollisionHeight).IsEqualTo(6.5f);
     }
 
+    [Test]
+    public async Task BuildObjectPreview_UsesEmbeddedCritterFacing_WhenLegacyRotationFieldIsMissing()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 4, Guid.NewGuid());
+        var critterArtId = new ArtId(0x90002000u);
+        var mob = CreateEmptyMob(ObjectType.Npc, objectId, MakeProtoId(1))
+            .WithProperty(
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)critterArtId.Value))
+            );
+
+        var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);
+
+        await Assert.That(preview.CurrentArtId).IsEqualTo(critterArtId);
+        await Assert.That(preview.Rotation).IsEqualTo(4f);
+    }
+
     private static MobData CreateEmptyMob(ObjectType objectType, GameObjectGuid objectId, GameObjectGuid protoId) =>
         new()
         {

@@ -66,7 +66,7 @@ public sealed class EditorMapSceneRenderSpaceMathTests
     }
 
     [Test]
-    public async Task TopDownProjection_RoundTripsInvertedMapY()
+    public async Task TopDownProjection_RoundTripsCeMapY()
     {
         var sceneRender = CreateTopDownSceneRender();
         var renderPoint = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(sceneRender, 0d, 1d);
@@ -89,7 +89,7 @@ public sealed class EditorMapSceneRenderSpaceMathTests
         var hit = EditorMapSceneRenderSpaceMath.HitTestScene(sceneRender, layout, viewportX: 64d, viewportY: 48d);
 
         await Assert.That(renderPoint.X).IsEqualTo(16d);
-        await Assert.That(renderPoint.Y).IsEqualTo(16d);
+        await Assert.That(renderPoint.Y).IsEqualTo(48d);
         await Assert.That(tilePoint.MapTileX).IsEqualTo(0d);
         await Assert.That(tilePoint.MapTileY).IsEqualTo(1d);
         await Assert.That(hit).IsNotNull();
@@ -137,7 +137,7 @@ public sealed class EditorMapSceneRenderSpaceMathTests
                     HasLight = false,
                     HasScript = false,
                     DrawOrder = 1,
-                    CenterX = 96d,
+                    CenterX = 32d,
                     CenterY = 32d,
                 },
             ],
@@ -154,9 +154,11 @@ public sealed class EditorMapSceneRenderSpaceMathTests
                     MapTileY = 0,
                     Tile = new Location(1, 0),
                     DrawOrder = 2,
-                    AnchorX = 96d,
+                    AnchorX = 32d,
                     AnchorY = 32d,
                     IsTileGridSnapped = true,
+                    Rotation = 0f,
+                    RotationPitch = 0f,
                 },
             ],
             Overlays = [],
@@ -188,7 +190,7 @@ public sealed class EditorMapSceneRenderSpaceMathTests
                     HasScript = false,
                     DrawOrder = 1,
                     CenterX = 16d,
-                    CenterY = 48d,
+                    CenterY = 16d,
                 },
                 new EditorMapFloorTileRenderItem
                 {
@@ -202,7 +204,7 @@ public sealed class EditorMapSceneRenderSpaceMathTests
                     HasScript = false,
                     DrawOrder = 0,
                     CenterX = 16d,
-                    CenterY = 16d,
+                    CenterY = 48d,
                 },
             ],
             Objects = [],
