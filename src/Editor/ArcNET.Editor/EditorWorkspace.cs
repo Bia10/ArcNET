@@ -23,11 +23,107 @@ namespace ArcNET.Editor;
 /// </remarks>
 public sealed class EditorWorkspace
 {
+    private const long DefaultMaxLoadedArtRetainedBytes = 64L * 1024L * 1024L;
+    private const int DefaultMaxLoadedArtEntryCount = 256;
     private readonly object _artBindingCacheGate = new();
+    private readonly object _loadedArtCacheGate = new();
+    private readonly object _objectPaletteCacheGate = new();
     private readonly ConcurrentDictionary<string, Lazy<ArtFile?>> _loadedArtsByPath = new(
         StringComparer.OrdinalIgnoreCase
     );
+    private readonly RetainedCacheBudget<string> _loadedArtCacheBudget = new(
+        StringComparer.OrdinalIgnoreCase,
+        DefaultMaxLoadedArtRetainedBytes,
+        DefaultMaxLoadedArtEntryCount
+    );
+    private readonly Dictionary<
+        ObjectPaletteCacheKey,
+        IReadOnlyList<EditorObjectPaletteEntry>
+    > _cachedObjectPaletteEntries = [];
+    private readonly Dictionary<
+        SelectedObjectPaletteEntryCacheKey,
+        EditorObjectPaletteEntry?
+    > _cachedObjectPaletteEntriesByProto = [];
     private static readonly char[] s_eyeCandyTypeCodes = ['F', 'B', 'U'];
+    private static readonly char[] s_critterGenderCodes = ['F', 'M', 'X'];
+    private static readonly char[] s_ceTileEdgeCodes =
+    [
+        '0',
+        '6',
+        'b',
+        '4',
+        '8',
+        '9',
+        '2',
+        '3',
+        '7',
+        'e',
+        'a',
+        '5',
+        'd',
+        'c',
+        '1',
+        '0',
+    ];
+    private static readonly int[] s_ceTileEdgeDecodeWhenFlagsClear =
+    [
+        0,
+        1,
+        8,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        3,
+        10,
+        11,
+        6,
+        7,
+        14,
+        15,
+    ];
+    private static readonly int[] s_ceTileEdgeDecodeWhenFlagsSet =
+    [
+        0,
+        1,
+        2,
+        9,
+        4,
+        5,
+        12,
+        13,
+        2,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+    ];
+    private static readonly string[] s_critterBodyTypeCodes = ["HM", "DF", "GH", "HG", "EF"];
+    private static readonly string[] s_critterArmorTypeCodes = ["UW", "V1", "LA", "CM", "PM", "RB", "PC", "BN", "CD"];
+    private static readonly char[] s_critterShieldCodes = ['X', 'S'];
+    private static readonly char[] s_critterWeaponTypeCodes =
+    [
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'X',
+        'Y',
+        'N',
+        'Z',
+    ];
     private static readonly string[] s_wallPieceSuffixes =
     [
         "bse",
@@ -77,10 +173,33 @@ public sealed class EditorWorkspace
         "p5c",
         "p5r",
     ];
+    private const uint WallArtTypeMask = 0x10000000u;
+    private const int CritterBodyTypeHuman = 0;
+    private const int CritterBodyTypeDwarf = 1;
+    private const int CritterBodyTypeHalfling = 2;
+    private const int CritterBodyTypeElf = 4;
+    private const int CritterGenderFemale = 0;
+    private const int CritterGenderMale = 1;
+    private const int CritterArmorTypePlate = 4;
+    private const int CritterArmorTypePlateClassic = 6;
+    private const int CritterWeaponTypeUnarmed = 1;
+    private const int CritterWeaponTypeSword = 3;
+    private const int CritterWeaponTypeTwoHandedSword = 7;
+    private const int CritterAnimationWalk = 1;
+    private const int CritterAnimationStealthWalk = 3;
+    private const int CritterAnimationConcealFidget = 5;
+    private const int CritterAnimationRun = 6;
+    private const int CritterAnimationSeveredLeg = 19;
+    private const int CritterAnimationStunned = 23;
+    private const int CritterAnimationExplode = 24;
+    private const int ItemTypeArmor = 2;
+    private const int ItemArmorCoverageTorso = 0;
     private IReadOnlyDictionary<uint, string>? _conservativeArtBindings;
+    private readonly ConcurrentDictionary<string, IReadOnlyDictionary<int, string>> _messageEntriesByIndexByAssetPath =
+        new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>>? _directMessageTableArtAssetPaths;
     private IReadOnlyDictionary<int, IReadOnlyDictionary<int, string>>? _eyeCandyArtAssetPathsByMessageIndex;
-    private IReadOnlyDictionary<int, IReadOnlyList<string>>? _tileFamilyArtAssetPathsByMessageIndex;
+    private TileNameLookupData? _tileNameLookupData;
     private WallArtLookupData? _wallArtLookupData;
 
     /// <summary>
@@ -152,6 +271,30 @@ public sealed class EditorWorkspace
     /// Save slot name used when <see cref="Save"/> was loaded.
     /// </summary>
     public string? SaveSlotName { get; init; }
+
+    /// <summary>
+    /// Total number of full ART payloads currently retained by the workspace ART cache.
+    /// </summary>
+    public int LoadedArtCacheEntryCount
+    {
+        get
+        {
+            lock (_loadedArtCacheGate)
+                return _loadedArtCacheBudget.EntryCount;
+        }
+    }
+
+    /// <summary>
+    /// Approximate retained bytes currently held by the workspace ART cache.
+    /// </summary>
+    public long LoadedArtCacheRetainedBytes
+    {
+        get
+        {
+            lock (_loadedArtCacheGate)
+                return _loadedArtCacheBudget.RetainedBytes;
+        }
+    }
 
     /// <summary>
     /// Returns <see langword="true"/> when this workspace includes a loaded save slot.
@@ -580,7 +723,7 @@ public sealed class EditorWorkspace
     public EditorObjectPaletteEntry? FindObjectPaletteEntry(
         int protoNumber,
         EditorArtResolverBindingStrategy artBindingStrategy
-    ) => FindObjectPaletteEntry(protoNumber, CreateArtResolver(artBindingStrategy));
+    ) => GetOrCreateCachedObjectPaletteEntry(protoNumber, artBindingStrategy);
 
     /// <summary>
     /// Looks up one proto-backed object palette entry by proto number and resolves ART binding,
@@ -675,7 +818,7 @@ public sealed class EditorWorkspace
     /// </summary>
     public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
         EditorArtResolverBindingStrategy artBindingStrategy
-    ) => GetObjectPalette(CreateArtResolver(artBindingStrategy));
+    ) => GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, searchText: null);
 
     /// <summary>
     /// Returns all loaded proto-backed object palette entries in stable browser order asynchronously using one workspace-created resolver seeded with the supplied strategy.
@@ -685,9 +828,11 @@ public sealed class EditorWorkspace
         CancellationToken cancellationToken = default
     )
     {
-        var artResolver = await CreateArtResolverAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, searchText: null, out var cachedEntries))
+            return cachedEntries;
+
         cancellationToken.ThrowIfCancellationRequested();
-        return await GetObjectPaletteAsync(artResolver, cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => GetObjectPalette(artBindingStrategy), cancellationToken).ConfigureAwait(false);
     }
 
     private EditorObjectInspectorScriptReference? CreateObjectInspectorScriptReference(int scriptId)
@@ -827,7 +972,11 @@ public sealed class EditorWorkspace
     public IReadOnlyList<EditorObjectPaletteEntry> SearchObjectPalette(
         string text,
         EditorArtResolverBindingStrategy artBindingStrategy
-    ) => SearchObjectPalette(text, CreateArtResolver(artBindingStrategy));
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        return GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, text.Trim());
+    }
 
     /// <summary>
     /// Returns proto-backed object palette entries asynchronously using one workspace-created resolver seeded with the supplied strategy.
@@ -839,9 +988,12 @@ public sealed class EditorWorkspace
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        var artResolver = await CreateArtResolverAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, text.Trim(), out var cachedEntries))
+            return cachedEntries;
+
         cancellationToken.ThrowIfCancellationRequested();
-        return await SearchObjectPaletteAsync(text, artResolver, cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => SearchObjectPalette(text, artBindingStrategy), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1031,13 +1183,13 @@ public sealed class EditorWorkspace
         if (asset is not { Format: FileFormat.Art })
             return null;
 
-        if (GameData.ArtsBySource.TryGetValue(normalizedPath, out var arts) && arts.FirstOrDefault() is { } art)
+        if (GameData.ArtsBySource.TryGetValue(normalizedPath, out var arts) && arts.FirstOrDefault() is { } storedArt)
         {
-            if (!art.IsMetadataOnly)
-                return art;
+            if (!storedArt.IsMetadataOnly)
+                return storedArt;
         }
 
-        return _loadedArtsByPath
+        var loadedArt = _loadedArtsByPath
             .GetOrAdd(
                 normalizedPath,
                 static (path, workspace) =>
@@ -1045,6 +1197,9 @@ public sealed class EditorWorkspace
                 this
             )
             .Value;
+
+        TrackLoadedArt(normalizedPath, loadedArt);
+        return loadedArt;
     }
 
     internal bool HasLoadedArtAsset(string assetPath)
@@ -1067,6 +1222,43 @@ public sealed class EditorWorkspace
                 $"Unsupported ART asset source kind '{asset.SourceKind}' for '{asset.AssetPath}'."
             ),
         };
+    }
+
+    private void TrackLoadedArt(string assetPath, ArtFile? art)
+    {
+        lock (_loadedArtCacheGate)
+        {
+            if (art is null)
+            {
+                _loadedArtCacheBudget.TryTouch(assetPath);
+                return;
+            }
+
+            var evictedPaths = _loadedArtCacheBudget.Register(assetPath, EstimateRetainedBytes(art));
+            for (var index = 0; index < evictedPaths.Count; index++)
+                _loadedArtsByPath.TryRemove(evictedPaths[index], out _);
+        }
+    }
+
+    private static long EstimateRetainedBytes(ArtFile art)
+    {
+        ArgumentNullException.ThrowIfNull(art);
+
+        long retainedBytes = 0L;
+        for (var paletteIndex = 0; paletteIndex < art.Palettes.Length; paletteIndex++)
+        {
+            if (art.Palettes[paletteIndex] is { } palette)
+                retainedBytes += palette.Length * 4L;
+        }
+
+        for (var rotationIndex = 0; rotationIndex < art.Frames.Length; rotationIndex++)
+        {
+            var rotationFrames = art.Frames[rotationIndex];
+            for (var frameIndex = 0; frameIndex < rotationFrames.Length; frameIndex++)
+                retainedBytes += rotationFrames[frameIndex].Pixels.Length;
+        }
+
+        return Math.Max(retainedBytes, 1L);
     }
 
     private ArtFile LoadArtFromArchive(EditorAssetEntry asset)
@@ -1435,6 +1627,76 @@ public sealed class EditorWorkspace
             .ToArray();
     }
 
+    private bool TryGetCachedObjectPaletteEntries(
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        string? searchText,
+        out IReadOnlyList<EditorObjectPaletteEntry> entries
+    )
+    {
+        lock (_objectPaletteCacheGate)
+        {
+            if (
+                _cachedObjectPaletteEntries.TryGetValue(
+                    new ObjectPaletteCacheKey(artBindingStrategy, NormalizeObjectPaletteSearchCacheKey(searchText)),
+                    out var cachedEntries
+                )
+            )
+            {
+                entries = cachedEntries;
+                return true;
+            }
+
+            entries = [];
+            return false;
+        }
+    }
+
+    private IReadOnlyList<EditorObjectPaletteEntry> GetOrCreateCachedObjectPaletteEntries(
+        EditorArtResolverBindingStrategy artBindingStrategy,
+        string? searchText
+    )
+    {
+        var cacheKey = new ObjectPaletteCacheKey(artBindingStrategy, NormalizeObjectPaletteSearchCacheKey(searchText));
+
+        lock (_objectPaletteCacheGate)
+        {
+            if (_cachedObjectPaletteEntries.TryGetValue(cacheKey, out var cachedEntries))
+                return cachedEntries;
+
+            var entries = BuildObjectPaletteEntries(
+                CreateArtResolver(artBindingStrategy),
+                artPreviewOptions: null,
+                NormalizeObjectPaletteSearchText(searchText),
+                CancellationToken.None
+            );
+            _cachedObjectPaletteEntries.Add(cacheKey, entries);
+            return entries;
+        }
+    }
+
+    private EditorObjectPaletteEntry? GetOrCreateCachedObjectPaletteEntry(
+        int protoNumber,
+        EditorArtResolverBindingStrategy artBindingStrategy
+    )
+    {
+        var cacheKey = new SelectedObjectPaletteEntryCacheKey(protoNumber, artBindingStrategy);
+        lock (_objectPaletteCacheGate)
+        {
+            if (_cachedObjectPaletteEntriesByProto.TryGetValue(cacheKey, out var cachedEntry))
+                return cachedEntry;
+
+            var entry = FindObjectPaletteEntry(protoNumber, CreateArtResolver(artBindingStrategy));
+            _cachedObjectPaletteEntriesByProto.Add(cacheKey, entry);
+            return entry;
+        }
+    }
+
+    private static string? NormalizeObjectPaletteSearchText(string? searchText) =>
+        string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
+
+    private static string? NormalizeObjectPaletteSearchCacheKey(string? searchText) =>
+        string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim().ToUpperInvariant();
+
     /// <summary>
     /// Looks up one terrain palette entry by source map-properties asset path and palette coordinates.
     /// Returns <see langword="null"/> when the asset was not loaded or the coordinates are outside the palette bounds.
@@ -1619,7 +1881,44 @@ public sealed class EditorWorkspace
             sectorsByAssetPath[sectorProjection.Asset.AssetPath] = sector;
         }
 
-        return EditorMapScenePreviewBuilder.Build(projection, sectorsByAssetPath, artResolver);
+        return EditorMapScenePreviewBuilder.Build(
+            projection,
+            sectorsByAssetPath,
+            artResolver,
+            ResolveSceneObjectCurrentArtIdFallback,
+            GetMapSceneMobAssets(mapName)
+        );
+    }
+
+    internal IReadOnlyDictionary<string, IReadOnlyList<MobData>> GetMapSceneMobAssets(string mapName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+
+        var mobsByAssetPath = new Dictionary<string, IReadOnlyList<MobData>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var asset in Index.FindMapAssets(mapName))
+        {
+            if (asset.Format != FileFormat.Mob)
+                continue;
+
+            if (GameData.MobsBySource.TryGetValue(asset.AssetPath, out var mobs) && mobs.Count > 0)
+                mobsByAssetPath[asset.AssetPath] = mobs;
+        }
+
+        return mobsByAssetPath;
+    }
+
+    internal ArtId? ResolveSceneObjectCurrentArtIdForScene(MobData mob) => ResolveSceneObjectCurrentArtIdFallback(mob);
+
+    private ArtId? ResolveSceneObjectCurrentArtIdFallback(MobData mob)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+
+        var protoNumber = mob.Header.ProtoId.GetProtoNumber();
+        return
+            protoNumber is int resolvedProtoNumber
+            && TryResolveProtoCurrentArtId(resolvedProtoNumber, out var currentArtId)
+            ? currentArtId
+            : null;
     }
 
     /// <summary>
@@ -1758,18 +2057,14 @@ public sealed class EditorWorkspace
         }
     }
 
-    private IReadOnlyDictionary<int, IReadOnlyList<string>> GetOrCreateTileFamilyArtAssetPathsByMessageIndex(
-        CancellationToken cancellationToken = default
-    )
+    private TileNameLookupData GetOrCreateTileNameLookupData(CancellationToken cancellationToken = default)
     {
-        if (_tileFamilyArtAssetPathsByMessageIndex is not null)
-            return _tileFamilyArtAssetPathsByMessageIndex;
+        if (_tileNameLookupData is not null)
+            return _tileNameLookupData;
 
         lock (_artBindingCacheGate)
         {
-            return _tileFamilyArtAssetPathsByMessageIndex ??= BuildTileFamilyArtAssetPathsByMessageIndex(
-                cancellationToken
-            );
+            return _tileNameLookupData ??= BuildTileNameLookupData(cancellationToken);
         }
     }
 
@@ -1809,19 +2104,34 @@ public sealed class EditorWorkspace
                 "art/scenery",
                 cancellationToken
             ),
+            ["art/interface/interface.mes"] = BuildDirectMessageTableArtAssetPathMap(
+                "art/interface/interface.mes",
+                "art/interface",
+                cancellationToken
+            ),
             ["art/item/item_ground.mes"] = BuildDirectMessageTableArtAssetPathMap(
                 "art/item/item_ground.mes",
+                "art/item",
+                cancellationToken
+            ),
+            ["art/item/item_inven.mes"] = BuildDirectMessageTableArtAssetPathMap(
+                "art/item/item_inven.mes",
+                "art/item",
+                cancellationToken
+            ),
+            ["art/item/item_paper.mes"] = BuildDirectMessageTableArtAssetPathMap(
+                "art/item/item_paper.mes",
+                "art/item",
+                cancellationToken
+            ),
+            ["art/item/item_schematic.mes"] = BuildDirectMessageTableArtAssetPathMap(
+                "art/item/item_schematic.mes",
                 "art/item",
                 cancellationToken
             ),
             ["art/container/container.mes"] = BuildDirectMessageTableArtAssetPathMap(
                 "art/container/container.mes",
                 "art/container",
-                cancellationToken
-            ),
-            ["art/tile/tilename.mes"] = BuildDirectMessageTableArtAssetPathMap(
-                "art/tile/tilename.mes",
-                "art/tile",
                 cancellationToken
             ),
             ["art/facade/facadename.mes"] = BuildDirectMessageTableArtAssetPathMap(
@@ -1870,6 +2180,7 @@ public sealed class EditorWorkspace
         }
 
         var defaultPaletteArtAssetPathsByProtoNumber = new Dictionary<int, string>();
+        var defaultPaletteArtIdsByProtoNumber = new Dictionary<int, ArtId>();
         var wallNameFile = FindMessageFile("art/wall/wallname.mes");
         var wallProtoFile = FindMessageFile("art/wall/wallproto.mes");
         if (wallNameFile is not null && wallProtoFile is not null)
@@ -1906,6 +2217,7 @@ public sealed class EditorWorkspace
                     !protoNumbersByIndex.TryGetValue(protoLookupIndex, out var protoNumber)
                     || protoNumber <= 0
                     || defaultPaletteArtAssetPathsByProtoNumber.ContainsKey(protoNumber)
+                    || !TryCreateDefaultWallArtId(protoLookupIndex, out var defaultArtId)
                     || !TryBuildWallArtAssetPath(baseName, 0, 0, 0, out var assetPath)
                 )
                 {
@@ -1913,37 +2225,75 @@ public sealed class EditorWorkspace
                 }
 
                 defaultPaletteArtAssetPathsByProtoNumber[protoNumber] = assetPath;
+                defaultPaletteArtIdsByProtoNumber[protoNumber] = defaultArtId;
             }
         }
 
-        return new WallArtLookupData(structuresByIndex, defaultPaletteArtAssetPathsByProtoNumber);
+        return new WallArtLookupData(
+            structuresByIndex,
+            defaultPaletteArtAssetPathsByProtoNumber,
+            defaultPaletteArtIdsByProtoNumber
+        );
     }
 
-    private IReadOnlyDictionary<int, IReadOnlyList<string>> BuildTileFamilyArtAssetPathsByMessageIndex(
-        CancellationToken cancellationToken = default
-    )
+    private TileNameLookupData BuildTileNameLookupData(CancellationToken cancellationToken = default)
     {
         var messageFile = FindMessageFile("art/tile/tilename.mes");
         if (messageFile is null)
-            return new Dictionary<int, IReadOnlyList<string>>();
+            return TileNameLookupData.Empty;
 
-        var orderedTileArtAssetPaths = Assets
-            .FindByFormat(FileFormat.Art)
-            .Select(static asset => asset.AssetPath)
-            .Where(path => path.StartsWith("art/tile/", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var orderedEntries = messageFile.Entries.OrderBy(static entry => entry.Index).ToArray();
+        List<string> outdoorFlippableNames = [];
+        List<string> outdoorNonFlippableNames = [];
+        List<string> indoorFlippableNames = [];
+        List<string> indoorNonFlippableNames = [];
 
-        var assetPathsByMessageIndex = new Dictionary<int, IReadOnlyList<string>>();
-        for (var entryIndex = 0; entryIndex < messageFile.Entries.Count; entryIndex++)
+        for (var entryIndex = 0; entryIndex < orderedEntries.Length; entryIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var entry = messageFile.Entries[entryIndex];
-            if (TryResolveTileFamilyArtAssetPaths(entry.Text, orderedTileArtAssetPaths, out var assetPaths))
-                assetPathsByMessageIndex[entry.Index] = assetPaths;
+            var entry = orderedEntries[entryIndex];
+            if (entry.Index is < 0 or >= 400)
+                continue;
+
+            var tileName = TryNormalizeTileNameEntry(entry.Text);
+            if (string.IsNullOrWhiteSpace(tileName))
+                continue;
+
+            switch (entry.Index)
+            {
+                case < 100:
+                    outdoorFlippableNames.Add(tileName);
+                    break;
+                case < 200:
+                    outdoorNonFlippableNames.Add(tileName);
+                    break;
+                case < 300:
+                    indoorFlippableNames.Add(tileName);
+                    break;
+                default:
+                    indoorNonFlippableNames.Add(tileName);
+                    break;
+            }
         }
 
-        return assetPathsByMessageIndex;
+        Dictionary<string, int> outdoorOrderByName = new(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < outdoorFlippableNames.Count; index++)
+        {
+            outdoorOrderByName.TryAdd(outdoorFlippableNames[index], index);
+        }
+
+        for (var index = 0; index < outdoorNonFlippableNames.Count; index++)
+        {
+            outdoorOrderByName.TryAdd(outdoorNonFlippableNames[index], outdoorFlippableNames.Count + index);
+        }
+
+        return new TileNameLookupData(
+            outdoorFlippableNames,
+            outdoorNonFlippableNames,
+            indoorFlippableNames,
+            indoorNonFlippableNames,
+            outdoorOrderByName
+        );
     }
 
     private IReadOnlyDictionary<int, string> BuildDirectMessageTableArtAssetPathMap(
@@ -2000,34 +2350,10 @@ public sealed class EditorWorkspace
             switch (renderItemKind)
             {
                 case EditorMapRenderQueueItemKind.FloorTile:
-                    foreach (var candidateMessageIndex in EnumerateSectorFloorMessageIndices(messageIndex))
-                    {
-                        if (TryResolveTileMessageTableArtAssetPath(artId, candidateMessageIndex, out assetPath))
-                            return true;
-                    }
-
-                    foreach (var candidateMessageIndex in EnumerateSectorFloorMessageIndices(messageIndex))
-                    {
-                        if (
-                            TryResolveMessageTableArtAssetPath(
-                                "art/facade/facadename.mes",
-                                candidateMessageIndex,
-                                "art/facade",
-                                out assetPath
-                            )
-                        )
-                            return true;
-                    }
-
+                    return TryResolveCeTileArtAssetPath(artId, out assetPath);
+                case EditorMapRenderQueueItemKind.Roof:
                     assetPath = string.Empty;
                     return false;
-                case EditorMapRenderQueueItemKind.Roof:
-                    return TryResolveMessageTableArtAssetPath(
-                        "art/roof/roofname.mes",
-                        messageIndex,
-                        "art/roof",
-                        out assetPath
-                    );
             }
         }
 
@@ -2047,40 +2373,247 @@ public sealed class EditorWorkspace
         {
             case 0x10000000u:
                 return TryResolveWallArtAssetPath(artIdValue, out assetPath);
+            case 0x20000000u:
+                return TryResolveCritterArtAssetPath(artIdValue, out assetPath);
+            case 0x30000000u:
+                return TryResolvePortalArtAssetPath(artIdValue, out assetPath);
             case 0x40000000u:
                 return TryResolveSceneryArtAssetPath(artIdValue, out assetPath);
+            case 0x50000000u:
+                return TryResolveInterfaceArtAssetPath(artIdValue, out assetPath);
+            case 0x60000000u:
+                return TryResolveItemArtAssetPath(artIdValue, out assetPath);
+            case 0x70000000u:
+                return TryResolveContainerArtAssetPath(artIdValue, out assetPath);
+            case 0x90000000u:
+                return TryResolveLightArtAssetPath(artIdValue, out assetPath);
             case 0xA0000000u:
-                return TryResolveEyeCandyArtAssetPath(artIdValue, out assetPath);
+                return TryResolveRoofArtAssetPath(artIdValue, out assetPath)
+                    || TryResolveEyeCandyArtAssetPath(artIdValue, out assetPath);
             case 0xB0000000u:
                 return TryResolveFacadeArtAssetPath(artIdValue, out assetPath);
-            case 0x60000000u:
-                return TryResolveMessageTableArtAssetPath(
-                    "art/item/item_ground.mes",
-                    DecodeBigEndianArtMessageIndex(artIdValue),
-                    "art/item",
-                    out assetPath
-                );
-            case 0x70000000u:
-                return TryResolveMessageTableArtAssetPath(
-                    "art/container/container.mes",
-                    DecodeBigEndianArtMessageIndex(artIdValue),
-                    "art/container",
-                    out assetPath
-                );
+            case 0xC0000000u:
+                return TryResolveMonsterArtAssetPath(artIdValue, out assetPath);
+            case 0xD0000000u:
+                return TryResolveUniqueNpcArtAssetPath(artIdValue, out assetPath);
+            case 0xE0000000u:
+                return TryResolveEyeCandyArtAssetPath(artIdValue, out assetPath);
         }
 
         if (IsSectorArtId(artIdValue))
-            return TryResolveUnambiguousSectorArtAssetPath(artIdValue, out assetPath);
+            return TryResolveCeTileArtAssetPath(new ArtId(artIdValue), out assetPath);
 
         assetPath = string.Empty;
         return false;
     }
 
-    private bool TryResolveSceneryArtAssetPath(uint artIdValue, out string assetPath)
+    private bool TryResolveCritterArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        assetPath = string.Empty;
+
+        var bodyType = DecodeCritterBodyType(artIdValue);
+        var gender = DecodeCritterGender(artIdValue);
+        var armorType = DecodeCritterArmorType(artIdValue);
+        var shield = DecodeCritterShield(artIdValue);
+        var weapon = DecodeCritterWeapon(artIdValue);
+        var animation = DecodeCritterAnimation(artIdValue);
+
+        NormalizeCritterArtParts(ref bodyType, ref gender, ref armorType, ref shield, ref weapon, animation);
+
+        if (!IsValidCritterBodyType(bodyType) || !IsValidCritterArmorType(armorType) || !IsValidCritterWeapon(weapon))
+            return false;
+
+        var bodyTypeCode = s_critterBodyTypeCodes[bodyType];
+        var genderCode = s_critterGenderCodes[gender];
+        var armorTypeCode = s_critterArmorTypeCodes[armorType];
+        if (armorType is CritterArmorTypePlate or CritterArmorTypePlateClassic)
+            genderCode = s_critterGenderCodes[2];
+
+        if (animation == CritterAnimationExplode)
+        {
+            armorTypeCode = "XX";
+            genderCode = s_critterGenderCodes[2];
+        }
+
+        return TryResolveCandidateArtAssetPath(
+            $"art/critter/{bodyTypeCode}{genderCode}/{bodyTypeCode}{genderCode}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
+            out assetPath
+        );
+    }
+
+    private bool TryResolvePortalArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        var messageIndex = DecodePortalArtMessageIndex(artIdValue);
+        if (!TryResolveMessageTableArtAssetPath("art/portal/portal.mes", messageIndex, "art/portal", out assetPath))
+            return false;
+
+        if ((artIdValue & 0x200u) == 0u)
+            return true;
+
+        var damagedAssetPath =
+            assetPath.Length > 6
+                ? assetPath.Remove(assetPath.Length - 6, 1).Insert(assetPath.Length - 6, "D")
+                : assetPath;
+        if (TryResolveCandidateArtAssetPath(damagedAssetPath, out var resolvedDamagedAssetPath))
+        {
+            assetPath = resolvedDamagedAssetPath;
+            return true;
+        }
+
+        return true;
+    }
+
+    private bool TryResolveInterfaceArtAssetPath(uint artIdValue, out string assetPath)
     {
         return TryResolveMessageTableArtAssetPath(
+            "art/interface/interface.mes",
+            DecodeInterfaceArtMessageIndex(artIdValue),
+            "art/interface",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveItemArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        if (
+            TryResolveMessageTableArtAssetPath(
+                DecodeItemArtMessageTableAssetPath(artIdValue),
+                DecodeItemArtMessageIndex(artIdValue),
+                "art/item",
+                out assetPath
+            )
+        )
+        {
+            return true;
+        }
+
+        return TryResolveMessageTableArtAssetPath(
+            "art/item/item_ground.mes",
+            DecodeBigEndianArtMessageIndex(artIdValue),
+            "art/item",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveContainerArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        if (
+            TryResolveMessageTableArtAssetPath(
+                "art/container/container.mes",
+                DecodeContainerArtMessageIndex(artIdValue),
+                "art/container",
+                out assetPath
+            )
+        )
+        {
+            return true;
+        }
+
+        return TryResolveMessageTableArtAssetPath(
+            "art/container/container.mes",
+            DecodeBigEndianArtMessageIndex(artIdValue),
+            "art/container",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveLightArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        if (
+            TryResolveMessageTableArtAssetPath(
+                "art/light/light.mes",
+                DecodeDefaultArtMessageIndex(artIdValue),
+                "art/light",
+                out assetPath
+            )
+        )
+        {
+            return true;
+        }
+
+        return TryResolveMessageTableArtAssetPath(
+            "art/light/light.mes",
+            DecodeBigEndianArtMessageIndex(artIdValue),
+            "art/light",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveRoofArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        return TryResolveMessageTableArtAssetPath(
+            "art/roof/roofname.mes",
+            DecodeDefaultArtMessageIndex(artIdValue),
+            "art/roof",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveMonsterArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        assetPath = string.Empty;
+
+        var species = DecodeMonsterSpecies(artIdValue);
+        if (!TryGetMessageEntryText("art/monster/monster.mes", species, out var monsterName))
+            return false;
+
+        var armorType = DecodeMonsterArmorType(artIdValue);
+        var shield = DecodeCritterShield(artIdValue);
+        var weapon = DecodeCritterWeapon(artIdValue);
+        var animation = DecodeCritterAnimation(artIdValue);
+
+        NormalizeMonsterArtParts(ref armorType, ref shield, ref weapon, animation);
+
+        if (!IsValidCritterArmorType(armorType) || !IsValidCritterWeapon(weapon))
+            return false;
+
+        var armorTypeCode = animation == CritterAnimationExplode ? "XX" : s_critterArmorTypeCodes[armorType];
+        return TryResolveCandidateArtAssetPath(
+            $"art/monster/{monsterName}/{monsterName}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveUniqueNpcArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        assetPath = string.Empty;
+
+        var number = DecodeUniqueNpcNumber(artIdValue);
+        if (!TryGetMessageEntryText("art/unique_npc/unique_npc.mes", number, out var uniqueNpcName))
+            return false;
+
+        var shield = DecodeCritterShield(artIdValue);
+        var weapon = DecodeCritterWeapon(artIdValue);
+        var animation = DecodeCritterAnimation(artIdValue);
+
+        NormalizeUniqueNpcArtParts(ref shield, ref weapon, animation);
+
+        if (!IsValidCritterWeapon(weapon))
+            return false;
+
+        return TryResolveCandidateArtAssetPath(
+            $"art/unique_npc/{uniqueNpcName}/{uniqueNpcName}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
+            out assetPath
+        );
+    }
+
+    private bool TryResolveSceneryArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        if (
+            TryResolveMessageTableArtAssetPath(
+                "art/scenery/scenery.mes",
+                DecodeSceneryArtMessageIndex(artIdValue),
+                "art/scenery",
+                out assetPath
+            )
+        )
+        {
+            return true;
+        }
+
+        return TryResolveMessageTableArtAssetPath(
             "art/scenery/scenery.mes",
-            DecodeSceneryArtMessageIndex(artIdValue),
+            DecodeBigEndianArtMessageIndex(artIdValue),
             "art/scenery",
             out assetPath
         );
@@ -2163,12 +2696,30 @@ public sealed class EditorWorkspace
         return false;
     }
 
+    internal bool TryResolveWallProtoCurrentArtId(int protoNumber, out ArtId artId)
+    {
+        artId = default;
+        if (protoNumber <= 0)
+            return false;
+
+        if (
+            GetOrCreateWallArtLookupData()
+                .DefaultPaletteArtIdsByProtoNumber.TryGetValue(protoNumber, out var resolvedArtId)
+        )
+        {
+            artId = resolvedArtId;
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryResolveUnambiguousSectorArtAssetPath(uint artIdValue, out string assetPath)
     {
         var messageIndex = DecodeSectorArtMessageIndex(artIdValue);
         var candidateAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        AddTileMessageTableArtCandidate(candidateAssetPaths, new ArtId(artIdValue), messageIndex);
+        AddTileMessageTableArtCandidate(candidateAssetPaths, new ArtId(artIdValue));
         AddMessageTableArtCandidate(candidateAssetPaths, "art/facade/facadename.mes", messageIndex, "art/facade");
         AddMessageTableArtCandidate(candidateAssetPaths, "art/roof/roofname.mes", messageIndex, "art/roof");
         AddMessageTableArtCandidate(candidateAssetPaths, "art/wall/wallname.mes", messageIndex, "art/wall");
@@ -2196,35 +2747,133 @@ public sealed class EditorWorkspace
             candidateAssetPaths.Add(assetPath);
     }
 
-    private void AddTileMessageTableArtCandidate(HashSet<string> candidateAssetPaths, ArtId artId, int messageIndex)
+    private void AddTileMessageTableArtCandidate(HashSet<string> candidateAssetPaths, ArtId artId)
     {
-        foreach (var candidateMessageIndex in EnumerateSectorFloorMessageIndices(messageIndex))
-        {
-            if (TryResolveTileMessageTableArtAssetPath(artId, candidateMessageIndex, out var assetPath))
-                candidateAssetPaths.Add(assetPath);
-        }
+        if (TryResolveCeTileArtAssetPath(artId, out var assetPath))
+            candidateAssetPaths.Add(assetPath);
     }
 
-    private bool TryResolveTileMessageTableArtAssetPath(ArtId artId, int messageIndex, out string assetPath)
-    {
-        if (TryResolveMessageTableArtAssetPath("art/tile/tilename.mes", messageIndex, "art/tile", out assetPath))
-            return true;
-
-        return TryResolveTileFamilyArtAssetPath(artId, messageIndex, out assetPath);
-    }
-
-    private bool TryResolveTileFamilyArtAssetPath(ArtId artId, int messageIndex, out string assetPath)
+    private bool TryResolveCeTileArtAssetPath(ArtId artId, out string assetPath)
     {
         assetPath = string.Empty;
-        if (!TryGetTileFamilyVariantIndex(artId.Value, out var variantIndex))
+        if (!TryBuildCeTileArtAssetPath(artId.Value, out var candidateAssetPath))
             return false;
 
-        var assetPathsByMessageIndex = GetOrCreateTileFamilyArtAssetPathsByMessageIndex();
-        if (!assetPathsByMessageIndex.TryGetValue(messageIndex, out var assetPaths) || assetPaths.Count == 0)
+        if (TryResolveCandidateArtAssetPath(candidateAssetPath, out assetPath))
+            return true;
+
+        if (!TryBuildAlternateCeTileArtAssetPath(artId.Value, out var alternateCandidateAssetPath))
             return false;
 
-        assetPath = assetPaths[Math.Min(variantIndex, assetPaths.Count - 1)];
+        if (string.Equals(candidateAssetPath, alternateCandidateAssetPath, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return TryResolveCandidateArtAssetPath(alternateCandidateAssetPath, out assetPath);
+    }
+
+    private bool TryBuildCeTileArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        return TryBuildCeTileArtAssetPath(artIdValue, useAlternateEdgeTable: false, out assetPath);
+    }
+
+    private bool TryBuildAlternateCeTileArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        return TryBuildCeTileArtAssetPath(artIdValue, useAlternateEdgeTable: true, out assetPath);
+    }
+
+    private bool TryBuildCeTileArtAssetPath(uint artIdValue, bool useAlternateEdgeTable, out string assetPath)
+    {
+        assetPath = string.Empty;
+        var lookupData = GetOrCreateTileNameLookupData();
+        if (!lookupData.HasNames)
+            return false;
+
+        if (
+            !TryGetCeTileName(
+                lookupData,
+                DecodeTileArtNum1(artIdValue),
+                DecodeTileArtType(artIdValue),
+                DecodeTileArtFlippable1(artIdValue),
+                out var name1
+            )
+            || !TryGetCeTileName(
+                lookupData,
+                DecodeTileArtNum2(artIdValue),
+                DecodeTileArtType(artIdValue),
+                DecodeTileArtFlippable2(artIdValue),
+                out var name2
+            )
+        )
+        {
+            return false;
+        }
+
+        assetPath = BuildCeTileArtAssetPath(
+            lookupData,
+            name1,
+            name2,
+            DecodeTileArtEdge(artIdValue, useAlternateEdgeTable),
+            DecodeTileArtFrame(artIdValue, useAlternateEdgeTable)
+        );
         return true;
+    }
+
+    private static bool TryGetCeTileName(
+        TileNameLookupData lookupData,
+        int number,
+        int type,
+        int flippable,
+        out string name
+    )
+    {
+        IReadOnlyList<string> tileNames =
+            type != 0
+                ? flippable != 0
+                    ? lookupData.OutdoorFlippableNames
+                    : lookupData.OutdoorNonFlippableNames
+                : flippable != 0
+                    ? lookupData.IndoorFlippableNames
+                    : lookupData.IndoorNonFlippableNames;
+
+        if ((uint)number >= (uint)tileNames.Count)
+        {
+            name = string.Empty;
+            return false;
+        }
+
+        name = tileNames[number];
+        return true;
+    }
+
+    private static string BuildCeTileArtAssetPath(
+        TileNameLookupData lookupData,
+        string name1,
+        string name2,
+        int edge,
+        int frame
+    )
+    {
+        if (frame >= 8)
+            frame -= 8;
+
+        var edgeCode = s_ceTileEdgeCodes[edge];
+        var frameCode = (char)('a' + frame);
+
+        if (edge == 15 || string.Equals(name1, name2, StringComparison.OrdinalIgnoreCase))
+            return NormalizeAssetPath($"art/tile/{name1}bse{edgeCode}{frameCode}.art");
+
+        if (edge == 0)
+            return NormalizeAssetPath($"art/tile/{name2}bse{s_ceTileEdgeCodes[0]}{frameCode}.art");
+
+        if (!lookupData.OutdoorOrderByName.TryGetValue(name1, out var name1Order))
+            return NormalizeAssetPath($"art/tile/{name1}bse{edgeCode}{frameCode}.art");
+
+        if (!lookupData.OutdoorOrderByName.TryGetValue(name2, out var name2Order))
+            return NormalizeAssetPath($"art/tile/{name2}bse{s_ceTileEdgeCodes[15 - edge]}{frameCode}.art");
+
+        return name1Order < name2Order
+            ? NormalizeAssetPath($"art/tile/{name1}{name2}{edgeCode}{frameCode}.art")
+            : NormalizeAssetPath($"art/tile/{name2}{name1}{s_ceTileEdgeCodes[15 - edge]}{frameCode}.art");
     }
 
     private bool TryResolveMessageTableArtAssetPath(
@@ -2245,6 +2894,51 @@ public sealed class EditorWorkspace
             return true;
         }
         return false;
+    }
+
+    private bool TryGetMessageEntryText(string messageAssetPath, int messageIndex, out string entryText)
+    {
+        var entriesByIndex = _messageEntriesByIndexByAssetPath.GetOrAdd(
+            NormalizeAssetPath(messageAssetPath),
+            BuildMessageEntriesByIndex
+        );
+        if (entriesByIndex.TryGetValue(messageIndex, out var text) && !string.IsNullOrWhiteSpace(text))
+        {
+            entryText = text.Trim();
+            return true;
+        }
+
+        entryText = string.Empty;
+        return false;
+    }
+
+    private IReadOnlyDictionary<int, string> BuildMessageEntriesByIndex(string messageAssetPath)
+    {
+        var messageFile = FindMessageFile(messageAssetPath);
+        if (messageFile is null)
+            return new Dictionary<int, string>();
+
+        var entriesByIndex = new Dictionary<int, string>();
+        foreach (var entry in messageFile.Entries)
+        {
+            if (!entriesByIndex.ContainsKey(entry.Index))
+                entriesByIndex[entry.Index] = entry.Text;
+        }
+
+        return entriesByIndex;
+    }
+
+    private bool TryResolveCandidateArtAssetPath(string candidateAssetPath, out string assetPath)
+    {
+        var normalizedAssetPath = NormalizeAssetPath(candidateAssetPath);
+        if (Assets.Find(normalizedAssetPath) is not { Format: FileFormat.Art })
+        {
+            assetPath = string.Empty;
+            return false;
+        }
+
+        assetPath = normalizedAssetPath;
+        return true;
     }
 
     private bool TryResolveMessageEntryArtAssetPath(string entryText, string assetRootPath, out string assetPath)
@@ -2277,28 +2971,6 @@ public sealed class EditorWorkspace
 
         assetPath = string.Empty;
         return false;
-    }
-
-    private bool TryResolveTileFamilyArtAssetPaths(
-        string? entryText,
-        IReadOnlyList<string> orderedTileArtAssetPaths,
-        out IReadOnlyList<string> assetPaths
-    )
-    {
-        assetPaths = [];
-
-        var token = TryGetFirstMessageToken(entryText);
-        if (!TryNormalizeTileFamilyToken(token, out var normalizedToken))
-            return false;
-
-        var familyPrefix = NormalizeAssetPath($"art/tile/{normalizedToken}");
-        assetPaths =
-        [
-            .. orderedTileArtAssetPaths.Where(path =>
-                path.StartsWith(familyPrefix, StringComparison.OrdinalIgnoreCase)
-            ),
-        ];
-        return assetPaths.Count > 0;
     }
 
     private static string? TryGetFirstMessageToken(string? text)
@@ -2345,6 +3017,20 @@ public sealed class EditorWorkspace
         return true;
     }
 
+    private static string? TryNormalizeTileNameEntry(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var trimmed = text.Trim();
+        var slashIndex = trimmed.IndexOf('/');
+        if (slashIndex >= 0)
+            trimmed = trimmed[..slashIndex].TrimEnd();
+
+        var token = TryGetFirstMessageToken(trimmed);
+        return string.IsNullOrWhiteSpace(token) ? null : token;
+    }
+
     private bool TryResolveEyeCandyArtAssetPaths(
         string? entryText,
         out IReadOnlyDictionary<int, string> assetPathsByType
@@ -2371,28 +3057,6 @@ public sealed class EditorWorkspace
 
         assetPathsByType = resolvedAssetPathsByType;
         return true;
-    }
-
-    private static bool TryGetTileFamilyVariantIndex(uint artIdValue, out int variantIndex)
-    {
-        switch (artIdValue & 0xFFu)
-        {
-            case 0x00u:
-                variantIndex = 0;
-                return true;
-            case 0x80u:
-                variantIndex = 0;
-                return true;
-            case 0xC0u:
-                variantIndex = 1;
-                return true;
-            case 0xC1u:
-                variantIndex = 2;
-                return true;
-            default:
-                variantIndex = 0;
-                return false;
-        }
     }
 
     private bool TryBuildWallArtAssetPath(string baseName, int piece, int damage, int variation, out string assetPath)
@@ -2483,6 +3147,81 @@ public sealed class EditorWorkspace
 
     private static int DecodeWallArtDamage(uint artIdValue) => checked((int)(artIdValue & 0x480u));
 
+    private static int DecodeCritterAnimation(uint artIdValue) => checked((int)((artIdValue >> 6) & 0x1Fu));
+
+    private static int DecodeCritterShield(uint artIdValue) => checked((int)((artIdValue >> 19) & 1u));
+
+    private static int DecodeCritterArmorType(uint artIdValue) => checked((int)((artIdValue >> 20) & 0xFu));
+
+    private static int DecodeCritterBodyType(uint artIdValue) => checked((int)((artIdValue >> 24) & 0x7u));
+
+    private static int DecodeCritterGender(uint artIdValue) => checked((int)((artIdValue >> 27) & 1u));
+
+    private static int DecodeCritterWeapon(uint artIdValue) => checked((int)(artIdValue & 0xFu));
+
+    private static int DecodeMonsterArmorType(uint artIdValue) => checked((int)((artIdValue >> 20) & 0x7u));
+
+    private static int DecodeMonsterSpecies(uint artIdValue) => checked((int)((artIdValue >> 23) & 0x1Fu));
+
+    private static int DecodeUniqueNpcNumber(uint artIdValue) => checked((int)((artIdValue >> 20) & 0xFFu));
+
+    private static int DecodePortalArtMessageIndex(uint artIdValue)
+    {
+        var number = DecodeDefaultArtMessageIndex(artIdValue);
+        var type = (int)((artIdValue >> 10) & 1u);
+        return type == 0 ? checked(number + 1001) : number;
+    }
+
+    private static int DecodeDefaultArtMessageIndex(uint artIdValue) => checked((int)((artIdValue >> 19) & 0x1FFu));
+
+    private static int DecodeInterfaceArtMessageIndex(uint artIdValue) => checked((int)((artIdValue >> 16) & 0xFFFu));
+
+    private static int DecodeItemArtMessageIndex(uint artIdValue)
+    {
+        var number = checked((int)((artIdValue >> 17) & 0x7FFu));
+        var subtype = checked((int)((artIdValue >> 6) & 0xFu));
+        var type = checked((int)(artIdValue & 0xFu));
+        var messageIndex = checked(number + (20 * (subtype + (50 * type))));
+
+        if (type == ItemTypeArmor)
+        {
+            var armorCoverage = checked((int)((artIdValue >> 14) & 0x7u));
+            if (armorCoverage != ItemArmorCoverageTorso)
+                messageIndex = checked(messageIndex + (20 * ((5 * armorCoverage) + 10)));
+        }
+
+        return messageIndex;
+    }
+
+    private static string DecodeItemArtMessageTableAssetPath(uint artIdValue)
+    {
+        var disposition = checked((int)((artIdValue >> 12) & 0x3u));
+        return disposition switch
+        {
+            0 => "art/item/item_ground.mes",
+            2 => "art/item/item_paper.mes",
+            3 => "art/item/item_schematic.mes",
+            _ => "art/item/item_inven.mes",
+        };
+    }
+
+    private static int DecodeContainerArtMessageIndex(uint artIdValue)
+    {
+        var number = DecodeDefaultArtMessageIndex(artIdValue);
+        var type = checked((int)((artIdValue >> 6) & 0x1Fu));
+        return checked((1000 * type) + number);
+    }
+
+    private static bool TryCreateDefaultWallArtId(int structureIndex, out ArtId artId)
+    {
+        artId = default;
+        if ((uint)structureIndex > 0xFFu)
+            return false;
+
+        artId = new ArtId(WallArtTypeMask | ((uint)structureIndex << 20));
+        return true;
+    }
+
     private static void NormalizeWallDamageAndPiece(int rotation, ref int piece, ref int damage)
     {
         if (rotation is 2 or 3 or 6 or 7)
@@ -2532,6 +3271,106 @@ public sealed class EditorWorkspace
     private static int DecodeBigEndianArtMessageIndex(uint artIdValue) =>
         checked((int)((artIdValue & 0x00FFFF00u) >> 8));
 
+    private static bool IsValidCritterBodyType(int bodyType) => (uint)bodyType < (uint)s_critterBodyTypeCodes.Length;
+
+    private static bool IsValidCritterArmorType(int armorType) =>
+        (uint)armorType < (uint)s_critterArmorTypeCodes.Length;
+
+    private static bool IsValidCritterWeapon(int weapon) => (uint)weapon < (uint)s_critterWeaponTypeCodes.Length;
+
+    private static void NormalizeCritterArtParts(
+        ref int bodyType,
+        ref int gender,
+        ref int armorType,
+        ref int shield,
+        ref int weapon,
+        int animation
+    )
+    {
+        if (bodyType == CritterBodyTypeElf && gender == CritterGenderFemale)
+            bodyType = CritterBodyTypeHuman;
+
+        if (armorType is CritterArmorTypePlate or CritterArmorTypePlateClassic)
+        {
+            gender = CritterGenderMale;
+            if (bodyType == CritterBodyTypeElf)
+                bodyType = CritterBodyTypeHuman;
+            else if (bodyType == CritterBodyTypeHalfling)
+                bodyType = CritterBodyTypeDwarf;
+        }
+
+        if (animation == CritterAnimationExplode)
+        {
+            armorType = 0;
+            shield = 0;
+            weapon = 0;
+            gender = CritterGenderFemale;
+            return;
+        }
+
+        NormalizeAnimatedCritterEquipment(ref shield, ref weapon, animation);
+    }
+
+    private static void NormalizeMonsterArtParts(ref int armorType, ref int shield, ref int weapon, int animation)
+    {
+        if (animation == CritterAnimationExplode)
+        {
+            armorType = 0;
+            shield = 0;
+            weapon = 0;
+            return;
+        }
+
+        NormalizeAnimatedCritterEquipment(ref shield, ref weapon, animation);
+    }
+
+    private static void NormalizeUniqueNpcArtParts(ref int shield, ref int weapon, int animation)
+    {
+        if (animation == CritterAnimationExplode)
+        {
+            shield = 0;
+            weapon = 0;
+            return;
+        }
+
+        NormalizeAnimatedCritterEquipment(ref shield, ref weapon, animation);
+    }
+
+    private static void NormalizeAnimatedCritterEquipment(ref int shield, ref int weapon, int animation)
+    {
+        if (animation == CritterAnimationStunned)
+        {
+            weapon = CritterWeaponTypeUnarmed;
+            shield = 0;
+            return;
+        }
+
+        if (
+            weapon == CritterWeaponTypeUnarmed
+            && animation is CritterAnimationStealthWalk or CritterAnimationConcealFidget
+        )
+        {
+            weapon = 0;
+        }
+        else if (animation is >= CritterAnimationRun and <= CritterAnimationSeveredLeg)
+        {
+            weapon = 0;
+            shield = 0;
+        }
+        else if (animation == CritterAnimationWalk)
+        {
+            shield = 0;
+        }
+    }
+
+    private static char GetCritterWeaponCode(int weapon, int shield)
+    {
+        var codeIndex = weapon == CritterWeaponTypeTwoHandedSword && shield == 1 ? CritterWeaponTypeSword : weapon;
+        return s_critterWeaponTypeCodes[codeIndex];
+    }
+
+    private static char GetAnimationCode(int animation) => checked((char)('a' + animation));
+
     private static int DecodeFacadeArtMessageIndex(uint artIdValue)
     {
         var number = (int)((artIdValue >> 17) & 0xFFu);
@@ -2555,6 +3394,50 @@ public sealed class EditorWorkspace
     private static bool IsSectorArtId(uint artIdValue) => (artIdValue & 0xF0000000u) == 0u;
 
     private static int DecodeSectorArtMessageIndex(uint artIdValue) => checked((int)((artIdValue & 0x003FFF00u) >> 8));
+
+    private static int DecodeTileArtNum1(uint artIdValue) => checked((int)((artIdValue >> 22) & 0x3Fu));
+
+    private static int DecodeTileArtNum2(uint artIdValue) => checked((int)((artIdValue >> 16) & 0x3Fu));
+
+    private static int DecodeTileArtType(uint artIdValue) => checked((int)((artIdValue >> 8) & 1u));
+
+    private static int DecodeTileArtFlippable1(uint artIdValue) => checked((int)((artIdValue >> 7) & 1u));
+
+    private static int DecodeTileArtFlippable2(uint artIdValue) => checked((int)((artIdValue >> 6) & 1u));
+
+    private static int DecodeTileArtRawEdge(uint artIdValue) => checked((int)((artIdValue >> 12) & 0xFu));
+
+    private static int DecodeTileArtEdge(uint artIdValue, bool useAlternateEdgeTable = false)
+    {
+        var rawEdge = DecodeTileArtRawEdge(artIdValue);
+        return (IsTileArtMirrored(artIdValue), useAlternateEdgeTable) switch
+        {
+            (true, false) => s_ceTileEdgeDecodeWhenFlagsSet[rawEdge],
+            (true, true) => s_ceTileEdgeDecodeWhenFlagsClear[rawEdge],
+            (false, false) => s_ceTileEdgeDecodeWhenFlagsClear[rawEdge],
+            _ => s_ceTileEdgeDecodeWhenFlagsSet[rawEdge],
+        };
+    }
+
+    private static int DecodeTileArtFrame(uint artIdValue, bool useAlternateEdgeTable = false)
+    {
+        var frame = checked((int)((artIdValue >> 9) & 0x7u));
+        if (useAlternateEdgeTable)
+            return frame;
+
+        var rawEdge = DecodeTileArtRawEdge(artIdValue);
+        if (
+            IsTileArtMirrored(artIdValue)
+            && s_ceTileEdgeDecodeWhenFlagsSet[rawEdge] == s_ceTileEdgeDecodeWhenFlagsClear[rawEdge]
+        )
+        {
+            frame += 8;
+        }
+
+        return frame;
+    }
+
+    private static bool IsTileArtMirrored(uint artIdValue) => (artIdValue & 1u) != 0u;
 
     private static IEnumerable<int> EnumerateSectorFloorMessageIndices(int messageIndex)
     {
@@ -2701,12 +3584,16 @@ public sealed class EditorWorkspace
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(proto);
 
-        var currentArtId = TryGetArtId(proto, ObjectField.ObjFCurrentAid);
+        var isWallProto = proto.Header.GameObjectType is ObjectType.Wall;
+        ArtId? currentArtId = TryResolveProtoCurrentArtId(proto, protoNumber, out var resolvedCurrentArtId)
+            ? resolvedCurrentArtId
+            : null;
+
         var artAssetPath =
             currentArtId.HasValue && artResolver is not null ? artResolver.FindAssetPath(currentArtId.Value) : null;
         if (
             string.IsNullOrWhiteSpace(artAssetPath)
-            && proto.Header.GameObjectType is ObjectType.Wall
+            && isWallProto
             && TryResolveWallProtoArtAssetPath(protoNumber, out var wallArtAssetPath)
         )
         {
@@ -2733,6 +3620,45 @@ public sealed class EditorWorkspace
             ArtDetail = artDetail,
             ArtPreview = artPreview,
         };
+    }
+
+    private bool TryResolveProtoCurrentArtId(int protoNumber, out ArtId currentArtId)
+    {
+        currentArtId = default;
+        if (protoNumber <= 0)
+            return false;
+
+        var asset = Index.FindProtoDefinition(protoNumber);
+        if (asset is null)
+            return false;
+
+        var proto = FindProto(asset.AssetPath);
+        return proto is not null && TryResolveProtoCurrentArtId(proto, protoNumber, out currentArtId);
+    }
+
+    private bool TryResolveProtoCurrentArtId(ProtoData proto, int protoNumber, out ArtId currentArtId)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+
+        currentArtId = default;
+        var resolvedCurrentArtId = TryGetArtId(proto, ObjectField.ObjFCurrentAid);
+        if (resolvedCurrentArtId is { } protoArtId && protoArtId.Value == 0u)
+            resolvedCurrentArtId = null;
+
+        if (
+            !resolvedCurrentArtId.HasValue
+            && proto.Header.GameObjectType is ObjectType.Wall
+            && TryResolveWallProtoCurrentArtId(protoNumber, out var wallArtId)
+        )
+        {
+            resolvedCurrentArtId = wallArtId;
+        }
+
+        if (resolvedCurrentArtId is not { } finalArtId || finalArtId.Value == 0u)
+            return false;
+
+        currentArtId = finalArtId;
+        return true;
     }
 
     private string? ResolveProtoDisplayName(int protoNumber)
@@ -2822,16 +3748,57 @@ public sealed class EditorWorkspace
 
     private sealed class WallArtLookupData(
         IReadOnlyDictionary<int, WallStructureArtSides> structuresByIndex,
-        IReadOnlyDictionary<int, string> defaultPaletteArtAssetPathsByProtoNumber
+        IReadOnlyDictionary<int, string> defaultPaletteArtAssetPathsByProtoNumber,
+        IReadOnlyDictionary<int, ArtId> defaultPaletteArtIdsByProtoNumber
     )
     {
         public IReadOnlyDictionary<int, WallStructureArtSides> StructuresByIndex { get; } = structuresByIndex;
 
         public IReadOnlyDictionary<int, string> DefaultPaletteArtAssetPathsByProtoNumber { get; } =
             defaultPaletteArtAssetPathsByProtoNumber;
+
+        public IReadOnlyDictionary<int, ArtId> DefaultPaletteArtIdsByProtoNumber { get; } =
+            defaultPaletteArtIdsByProtoNumber;
+    }
+
+    private sealed class TileNameLookupData(
+        IReadOnlyList<string> outdoorFlippableNames,
+        IReadOnlyList<string> outdoorNonFlippableNames,
+        IReadOnlyList<string> indoorFlippableNames,
+        IReadOnlyList<string> indoorNonFlippableNames,
+        IReadOnlyDictionary<string, int> outdoorOrderByName
+    )
+    {
+        public static TileNameLookupData Empty { get; } = new([], [], [], [], new Dictionary<string, int>());
+
+        public IReadOnlyList<string> OutdoorFlippableNames { get; } = outdoorFlippableNames;
+
+        public IReadOnlyList<string> OutdoorNonFlippableNames { get; } = outdoorNonFlippableNames;
+
+        public IReadOnlyList<string> IndoorFlippableNames { get; } = indoorFlippableNames;
+
+        public IReadOnlyList<string> IndoorNonFlippableNames { get; } = indoorNonFlippableNames;
+
+        public IReadOnlyDictionary<string, int> OutdoorOrderByName { get; } = outdoorOrderByName;
+
+        public bool HasNames =>
+            OutdoorFlippableNames.Count > 0
+            || OutdoorNonFlippableNames.Count > 0
+            || IndoorFlippableNames.Count > 0
+            || IndoorNonFlippableNames.Count > 0;
     }
 
     private readonly record struct WallStructureArtSides(string InteriorBaseName, string ExteriorBaseName);
+
+    private readonly record struct ObjectPaletteCacheKey(
+        EditorArtResolverBindingStrategy ArtBindingStrategy,
+        string? SearchText
+    );
+
+    private readonly record struct SelectedObjectPaletteEntryCacheKey(
+        int ProtoNumber,
+        EditorArtResolverBindingStrategy ArtBindingStrategy
+    );
 
     private static bool ObjectPaletteEntryMatches(EditorObjectPaletteEntry entry, string searchText) =>
         entry
