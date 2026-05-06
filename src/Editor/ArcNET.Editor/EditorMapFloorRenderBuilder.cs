@@ -17,7 +17,7 @@ public static class EditorMapFloorRenderBuilder
         bool IsBlocked,
         bool HasLight,
         bool HasScript,
-        int DrawOrder,
+        long DrawOrder,
         double CenterX,
         double CenterY
     );
@@ -45,11 +45,16 @@ public static class EditorMapFloorRenderBuilder
         int MapTileY,
         Location Tile,
         double SortKey,
+        int TileOrderSecondary,
+        int TypeSortPriority,
+        double TieBreakerSortKey,
         int PreviewOrder,
         double AnchorX,
         double AnchorY,
         EditorMapObjectSpriteBounds? SpriteBounds,
-        bool IsTileGridSnapped
+        bool IsTileGridSnapped,
+        float Rotation,
+        float RotationPitch
     );
 
     private sealed record RawRoofRenderItem(
@@ -101,8 +106,6 @@ public static class EditorMapFloorRenderBuilder
             throw new InvalidOperationException("Scene preview sectors must expose positive tile dimensions.");
 
         var mapTileWidth = checked(scenePreview.Width * sectorTileWidth);
-        var mapTileHeight = checked(scenePreview.Height * sectorTileHeight);
-        var maxMapTileY = mapTileHeight - 1;
         var halfTileWidth = request.TileWidthPixels / 2d;
         var halfTileHeight = request.TileHeightPixels / 2d;
 
@@ -139,14 +142,13 @@ public static class EditorMapFloorRenderBuilder
                     var mapTileX = checked((sector.LocalX * sectorTileWidth) + tileX);
                     var mapTileY = checked((sector.LocalY * sectorTileHeight) + tileY);
                     var tileIndex = GetTileIndex(tileX, tileY);
-                    var adjustedMapTileY = maxMapTileY - mapTileY;
-                    var drawOrder = GetDrawOrder(request.ViewMode, mapTileWidth, mapTileX, adjustedMapTileY);
+                    var drawOrder = GetDrawOrder(request.ViewMode, mapTileWidth, mapTileX, mapTileY);
                     var (centerX, centerY) = ProjectTileCenter(
                         request.ViewMode,
                         request.TileWidthPixels,
                         request.TileHeightPixels,
                         mapTileX,
-                        adjustedMapTileY
+                        mapTileY
                     );
 
                     minLeft = Math.Min(minLeft, centerX - halfTileWidth);
@@ -240,14 +242,13 @@ public static class EditorMapFloorRenderBuilder
 
                 var mapTileX = checked((sector.LocalX * sectorTileWidth) + location.X);
                 var mapTileY = checked((sector.LocalY * sectorTileHeight) + location.Y);
-                var adjustedMapTileY = maxMapTileY - mapTileY;
-                var baseTileDrawOrder = GetDrawOrder(request.ViewMode, mapTileWidth, mapTileX, adjustedMapTileY);
+                var baseTileDrawOrder = GetDrawOrder(request.ViewMode, mapTileWidth, mapTileX, mapTileY);
                 var (tileCenterX, tileCenterY) = ProjectTileCenter(
                     request.ViewMode,
                     request.TileWidthPixels,
                     request.TileHeightPixels,
                     mapTileX,
-                    adjustedMapTileY
+                    mapTileY
                 );
                 var (anchorX, anchorY) = ProjectObjectAnchor(tileCenterX, tileCenterY, obj);
 
@@ -261,6 +262,8 @@ public static class EditorMapFloorRenderBuilder
                     ref maxBottom
                 );
 
+                var (tileOrderPrimary, tileOrderSecondary) = GetObjectTileOrderComponents(obj);
+
                 rawObjects.Add(
                     new RawObjectRenderItem(
                         SectorAssetPath: sector.AssetPath,
@@ -271,12 +274,17 @@ public static class EditorMapFloorRenderBuilder
                         MapTileX: mapTileX,
                         MapTileY: mapTileY,
                         Tile: location,
-                        SortKey: GetObjectSortKey(baseTileDrawOrder, obj),
+                        SortKey: GetObjectSortKey(baseTileDrawOrder, tileOrderPrimary),
+                        TileOrderSecondary: tileOrderSecondary,
+                        TypeSortPriority: GetObjectTypeSortPriority(obj.ObjectType),
+                        TieBreakerSortKey: GetObjectTieBreakerSortKey(obj),
                         PreviewOrder: objectIndex,
                         AnchorX: anchorX,
                         AnchorY: anchorY,
                         SpriteBounds: obj.SpriteBounds,
-                        IsTileGridSnapped: obj.IsTileGridSnapped
+                        IsTileGridSnapped: obj.IsTileGridSnapped,
+                        Rotation: obj.Rotation,
+                        RotationPitch: obj.RotationPitch
                     )
                 );
             }
@@ -295,22 +303,15 @@ public static class EditorMapFloorRenderBuilder
 
                     var mapTileX = checked((sector.LocalX * sectorTileWidth) + (roofX * 4));
                     var mapTileY = checked((sector.LocalY * sectorTileHeight) + (roofY * 4));
-                    var adjustedRoofTopMapTileY = maxMapTileY - (mapTileY + 3);
                     var sortMapTileX = mapTileX + 3;
                     var sortMapTileY = mapTileY + 3;
-                    var adjustedSortMapTileY = maxMapTileY - sortMapTileY;
-                    var baseDrawOrder = GetDrawOrder(
-                        request.ViewMode,
-                        mapTileWidth,
-                        sortMapTileX,
-                        adjustedSortMapTileY
-                    );
+                    var baseDrawOrder = GetDrawOrder(request.ViewMode, mapTileWidth, sortMapTileX, sortMapTileY);
                     var (anchorX, anchorY) = ProjectRoofAnchor(
                         request.ViewMode,
                         request.TileWidthPixels,
                         request.TileHeightPixels,
                         mapTileX,
-                        adjustedRoofTopMapTileY
+                        mapTileY
                     );
 
                     ExpandRoofBounds(
@@ -367,23 +368,29 @@ public static class EditorMapFloorRenderBuilder
             .ThenBy(static tile => tile.MapTileX)
             .ToArray();
         var tiles = orderedTiles
-            .Select(tile => new EditorMapFloorTileRenderItem
-            {
-                SectorAssetPath = tile.SectorAssetPath,
-                MapTileX = tile.MapTileX,
-                MapTileY = tile.MapTileY,
-                Tile = tile.Tile,
-                ArtId = tile.ArtId,
-                IsBlocked = tile.IsBlocked,
-                HasLight = tile.HasLight,
-                HasScript = tile.HasScript,
-                DrawOrder = tile.DrawOrder,
-                CenterX = tile.CenterX + offsetX,
-                CenterY = tile.CenterY + offsetY,
-            })
+            .Select(
+                (tile, index) =>
+                    new EditorMapFloorTileRenderItem
+                    {
+                        SectorAssetPath = tile.SectorAssetPath,
+                        MapTileX = tile.MapTileX,
+                        MapTileY = tile.MapTileY,
+                        Tile = tile.Tile,
+                        ArtId = tile.ArtId,
+                        IsBlocked = tile.IsBlocked,
+                        HasLight = tile.HasLight,
+                        HasScript = tile.HasScript,
+                        DrawOrder = index,
+                        CenterX = tile.CenterX + offsetX,
+                        CenterY = tile.CenterY + offsetY,
+                    }
+            )
             .ToArray();
         var orderedObjects = rawObjects
             .OrderBy(static obj => obj.SortKey)
+            .ThenBy(static obj => obj.TileOrderSecondary)
+            .ThenBy(static obj => obj.TypeSortPriority)
+            .ThenBy(static obj => obj.TieBreakerSortKey)
             .ThenBy(static obj => obj.MapTileX)
             .ThenBy(static obj => obj.PreviewOrder)
             .ToArray();
@@ -405,6 +412,8 @@ public static class EditorMapFloorRenderBuilder
                         AnchorY = obj.AnchorY + offsetY,
                         SpriteBounds = obj.SpriteBounds,
                         IsTileGridSnapped = obj.IsTileGridSnapped,
+                        Rotation = obj.Rotation,
+                        RotationPitch = obj.RotationPitch,
                     }
             )
             .ToArray();
@@ -485,16 +494,11 @@ public static class EditorMapFloorRenderBuilder
         EditorMapObjectPreview objectPreview
     ) => (tileCenterX + objectPreview.OffsetX, tileCenterY + objectPreview.OffsetY - objectPreview.OffsetZ);
 
-    internal static int GetDrawOrder(
-        EditorMapSceneViewMode viewMode,
-        int mapTileWidth,
-        int mapTileX,
-        int adjustedMapTileY
-    ) =>
+    internal static long GetDrawOrder(EditorMapSceneViewMode viewMode, int mapTileWidth, int mapTileX, int mapTileY) =>
         viewMode switch
         {
-            EditorMapSceneViewMode.TopDown => checked((adjustedMapTileY * mapTileWidth) + mapTileX),
-            EditorMapSceneViewMode.Isometric => checked((((adjustedMapTileY + mapTileX) * mapTileWidth) + mapTileX)),
+            EditorMapSceneViewMode.TopDown => checked((((long)mapTileY * mapTileWidth) + mapTileX)),
+            EditorMapSceneViewMode.Isometric => checked((((long)mapTileY + mapTileX) * mapTileWidth) + mapTileX),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
 
@@ -503,35 +507,66 @@ public static class EditorMapFloorRenderBuilder
         double tileWidthPixels,
         double tileHeightPixels,
         int mapTileX,
-        int adjustedMapTileY
+        int mapTileY
     )
     {
         return viewMode switch
         {
             EditorMapSceneViewMode.TopDown => (
-                (mapTileX * tileWidthPixels) + (tileWidthPixels / 2d),
-                (adjustedMapTileY * tileHeightPixels) + (tileHeightPixels / 2d)
+                (-mapTileX * tileWidthPixels) + (tileWidthPixels / 2d),
+                (mapTileY * tileHeightPixels) + (tileHeightPixels / 2d)
             ),
             EditorMapSceneViewMode.Isometric => (
-                (mapTileX - adjustedMapTileY) * (tileWidthPixels / 2d),
-                (mapTileX + adjustedMapTileY) * (tileHeightPixels / 2d)
+                (mapTileY - mapTileX) * (tileWidthPixels / 2d),
+                ((mapTileX + mapTileY) * (tileHeightPixels / 2d)) + (tileHeightPixels / 2d)
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
     }
 
-    internal static double GetObjectSortKey(int baseTileDrawOrder, EditorMapObjectPreview objectPreview) =>
-        (baseTileDrawOrder * 4096d)
-        + objectPreview.OffsetY
-        - objectPreview.OffsetZ
+    internal static double GetObjectSortKey(long baseTileDrawOrder, EditorMapObjectPreview objectPreview)
+    {
+        var (tileOrderPrimary, _) = GetObjectTileOrderComponents(objectPreview);
+        return GetObjectSortKey(baseTileDrawOrder, tileOrderPrimary);
+    }
+
+    internal static (int Primary, int Secondary) GetObjectTileOrderComponents(EditorMapObjectPreview objectPreview)
+    {
+        var (offsetX, offsetY) = GetObjectTileOrderOffsets(objectPreview);
+        var horizontal = (offsetX - 40) / 2;
+        var vertical = 2 * (offsetY / 2);
+        return (Primary: horizontal + vertical, Secondary: vertical - horizontal);
+    }
+
+    internal static double GetObjectTieBreakerSortKey(EditorMapObjectPreview objectPreview) =>
+        -objectPreview.OffsetZ
         + (objectPreview.SpriteBounds?.MaxFrameCenterY ?? 0)
         + ((objectPreview.SpriteBounds?.MaxFrameHeight ?? 0) / 4096d)
         + (objectPreview.CollisionHeight / 16777216d);
 
-    internal static double GetTileOverlaySortKey(int tileDrawOrder, EditorMapTileOverlayKind kind) =>
+    private static double GetObjectSortKey(long baseTileDrawOrder, int tileOrderPrimary) =>
+        (baseTileDrawOrder * 4096d) + 2048d + tileOrderPrimary;
+
+    private static (int OffsetX, int OffsetY) GetObjectTileOrderOffsets(EditorMapObjectPreview objectPreview) =>
+        UsesCeWallPortalOrdering(objectPreview.ObjectType)
+            ? (0, GetCeWallPortalOrderingOffsetY(objectPreview.CurrentArtId))
+            : (objectPreview.OffsetX, objectPreview.OffsetY);
+
+    private static bool UsesCeWallPortalOrdering(ObjectType objectType) =>
+        objectType is ObjectType.Wall or ObjectType.Portal;
+
+    private static int GetCeWallPortalOrderingOffsetY(ArtId artId)
+    {
+        var rotationIndex = (int)((artId.Value >> 11) & 0x7u);
+        return rotationIndex is > 1 and < 6 ? 19 : -20;
+    }
+
+    private static int GetObjectTypeSortPriority(ObjectType objectType) => objectType is ObjectType.Portal ? 1 : 0;
+
+    internal static double GetTileOverlaySortKey(long tileDrawOrder, EditorMapTileOverlayKind kind) =>
         (tileDrawOrder * 4096d) + 1024d + (int)kind;
 
-    internal static double GetRoofSortKey(int baseTileDrawOrder) => (baseTileDrawOrder * 4096d) + 3072d;
+    internal static double GetRoofSortKey(long baseTileDrawOrder) => (baseTileDrawOrder * 4096d) + 3072d;
 
     internal static double GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind kind) =>
         kind switch
@@ -586,15 +621,18 @@ public static class EditorMapFloorRenderBuilder
         double tileWidthPixels,
         double tileHeightPixels,
         int mapTileX,
-        int adjustedTopMapTileY
+        int topMapTileY
     )
     {
         return viewMode switch
         {
-            EditorMapSceneViewMode.TopDown => (mapTileX * tileWidthPixels, adjustedTopMapTileY * tileHeightPixels),
-            EditorMapSceneViewMode.Isometric => (
-                (mapTileX - adjustedTopMapTileY) * (tileWidthPixels / 2d),
-                (mapTileX + adjustedTopMapTileY + 3d) * (tileHeightPixels / 2d)
+            EditorMapSceneViewMode.TopDown => (-mapTileX * tileWidthPixels, topMapTileY * tileHeightPixels),
+            EditorMapSceneViewMode.Isometric => ProjectTileCenter(
+                viewMode,
+                tileWidthPixels,
+                tileHeightPixels,
+                mapTileX,
+                checked(topMapTileY + 3)
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
