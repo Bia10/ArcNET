@@ -129,6 +129,9 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         ArgumentNullException.ThrowIfNull(inspector);
         ArgumentNullException.ThrowIfNull(properties);
 
+        if (inspector.TargetObjectType is not ObjectType.Pc and not ObjectType.Npc)
+            return new EditorObjectInspectorCritterProgressionSummary { Inspector = inspector };
+
         var baseStats = ReadInt32Array(properties, ObjectField.ObjFCritterStatBaseIdx);
         var basicSkills = ReadInt32Array(properties, ObjectField.ObjFCritterBasicSkillIdx);
         var techSkills = ReadInt32Array(properties, ObjectField.ObjFCritterTechSkillIdx);
@@ -200,7 +203,16 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         {
             var property = properties[propertyIndex];
             if (property.Field == field)
-                return property.GetInt32();
+            {
+                try
+                {
+                    return property.GetInt32();
+                }
+                catch (InvalidOperationException)
+                {
+                    return 0;
+                }
+            }
         }
 
         return 0;
@@ -212,7 +224,16 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         {
             var property = properties[propertyIndex];
             if (property.Field == field)
-                return property.GetInt32Array();
+            {
+                try
+                {
+                    return property.GetInt32Array();
+                }
+                catch (InvalidOperationException)
+                {
+                    return [];
+                }
+            }
         }
 
         return [];
