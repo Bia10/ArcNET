@@ -99,6 +99,53 @@ public class EditorWorkspaceLoaderTests
             ],
         };
 
+    private static ArtFile MakeRotatedArtFile(params int[] centerXs) =>
+        new()
+        {
+            Flags = 0,
+            FrameRate = 8,
+            ActionFrame = 0,
+            FrameCount = 1,
+            DataSizes = new uint[8],
+            PaletteData1 = new uint[8],
+            PaletteData2 = new uint[8],
+            PaletteIds = [1, 0, 0, 0],
+            Palettes = [CreateArtPalette(), null, null, null],
+            Frames =
+            [
+                .. centerXs.Select(centerX =>
+                    new[]
+                    {
+                        new ArtFrame { Header = new ArtFrameHeader(1, 1, 1, centerX, 34, 0, 0), Pixels = [1] },
+                    }
+                ),
+            ],
+        };
+
+    private static ArtFile MakeMultiFrameArtFile(params int[] centerXs) =>
+        new()
+        {
+            Flags = ArtFlags.Static,
+            FrameRate = 8,
+            ActionFrame = 0,
+            FrameCount = checked((uint)centerXs.Length),
+            DataSizes = new uint[8],
+            PaletteData1 = new uint[8],
+            PaletteData2 = new uint[8],
+            PaletteIds = [1, 0, 0, 0],
+            Palettes = [CreateArtPalette(), null, null, null],
+            Frames =
+            [
+                [
+                    .. centerXs.Select(centerX => new ArtFrame
+                    {
+                        Header = new ArtFrameHeader(1, 1, 1, centerX, 34, 0, 0),
+                        Pixels = [1],
+                    }),
+                ],
+            ],
+        };
+
     private static ObjectProperty MakeScriptProperty(params int[] scriptIds) =>
         new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray([
             .. scriptIds.Select(scriptId => new ObjectPropertyScript(0u, 0u, scriptId)),
@@ -124,6 +171,9 @@ public class EditorWorkspaceLoaderTests
 
     private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
         new() { Field = field, RawBytes = [r, g, b] };
+
+    private static ushort MakeTerrainId(int baseTerrainType, int secondaryTerrainType, int edge, int variant) =>
+        (ushort)((baseTerrainType << 11) | (secondaryTerrainType << 6) | (edge << 2) | variant);
 
     private static MobData WithProperties(MobData mob, params ObjectProperty[] properties)
     {
@@ -225,6 +275,26 @@ public class EditorWorkspaceLoaderTests
         var protoId = MakeProtoId(protoNumber);
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
         var mob = new MobDataBuilder(ObjectType.Wall, objectId, protoId).Build();
+        return new ProtoData
+        {
+            Header = new GameObjectHeader
+            {
+                Version = mob.Header.Version,
+                ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                GameObjectType = mob.Header.GameObjectType,
+                PropCollectionItems = 0,
+                Bitmap = [.. mob.Header.Bitmap],
+            },
+            Properties = [.. mob.Properties],
+        };
+    }
+
+    private static ProtoData MakePortalProto(int protoNumber)
+    {
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+        var mob = new MobDataBuilder(ObjectType.Portal, objectId, protoId).Build();
         return new ProtoData
         {
             Header = new GameObjectHeader
@@ -682,6 +752,151 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesSceneryArtIdRotationWhenRequestRotationDefaultsToZero()
+    {
+        var artId = new ArtId(0x40001000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "scenery"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeRotatedArtFile(10, 20, 30, 40, 50, 60, 70, 80),
+                Path.Combine(contentDir, "art", "scenery", "testscenery.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/scenery/testscenery.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+            var metrics = spriteSource.GetSpriteMetrics(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+
+            await Assert.That(sprite).IsNotNull();
+            await Assert.That(metrics).IsNotNull();
+            await Assert.That(sprite!.RotationIndex).IsEqualTo(2);
+            await Assert.That(sprite.CenterX).IsEqualTo(30);
+            await Assert.That(metrics!.CenterX).IsEqualTo(30);
+            await Assert.That(metrics.CenterY).IsEqualTo(34);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesArtIdFrameWhenRequestFrameDefaultsToZero()
+    {
+        var artId = new ArtId(0x40009000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "scenery"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeMultiFrameArtFile(10, 20, 30, 40),
+                Path.Combine(contentDir, "art", "scenery", "testscenery.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/scenery/testscenery.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+            var metrics = spriteSource.GetSpriteMetrics(artId, new EditorMapRenderSpriteRequest { RotationIndex = 0 });
+
+            await Assert.That(sprite).IsNotNull();
+            await Assert.That(metrics).IsNotNull();
+            await Assert.That(sprite!.FrameIndex).IsEqualTo(2);
+            await Assert.That(sprite.CenterX).IsEqualTo(30);
+            await Assert.That(metrics!.FrameIndex).IsEqualTo(2);
+            await Assert.That(metrics.CenterX).IsEqualTo(30);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesFacadeArtIdFrameWhenRequestFrameDefaultsToZero()
+    {
+        var artId = new ArtId(0xB0000006u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeMultiFrameArtFile(10, 20, 30, 40),
+                Path.Combine(contentDir, "art", "facade", "testfacade.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/facade/testfacade.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(artId, new EditorMapRenderSpriteRequest());
+            var metrics = spriteSource.GetSpriteMetrics(artId, new EditorMapRenderSpriteRequest());
+
+            await Assert.That(sprite).IsNotNull();
+            await Assert.That(metrics).IsNotNull();
+            await Assert.That(sprite!.FrameIndex).IsEqualTo(3);
+            await Assert.That(sprite.CenterX).IsEqualTo(40);
+            await Assert.That(metrics!.FrameIndex).IsEqualTo(3);
+            await Assert.That(metrics.CenterX).IsEqualTo(40);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_DoesNotUseFacadeFallbackForAmbiguousSectorFloorTileArtIds()
+    {
+        var artId = new ArtId(0x111C0u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
+                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+            );
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "facade", "KerghanFloor2.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+            var metrics = spriteSource.GetSpriteMetrics(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(sprite).IsNull();
+            await Assert.That(metrics).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_LoadsAdditionalWorkspaceFormats_AndExposesDirectLookups()
     {
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -860,6 +1075,91 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
             await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds!.MaxFrameWidth).IsEqualTo(1);
             await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds!.MaxFrameHeight).IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_UsesObjFAidWhenCurrentArtIdIsMissing()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var artId = new ArtId(200u);
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
+            SectorFormat.WriteToFile(
+                MakeSector(
+                    new CharacterBuilder(ObjectType.Portal, objectId, protoId)
+                        .WithProperty(MakeArtProperty(ObjectField.ObjFAid, artId.Value))
+                        .Build()
+                ),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+
+            var preview = workspace.CreateMapScenePreview("map01", artResolver);
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId).IsEqualTo(artId);
+            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_UsesProtoObjFAidWhenMobArtIdsAreMissing()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var artId = new ArtId(200u);
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                WithProperties(MakePortalProto(protoNumber), MakeArtProperty(ObjectField.ObjFAid, artId.Value)),
+                Path.Combine(contentDir, "proto", "001001 - Portal.pro")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
+            SectorFormat.WriteToFile(
+                MakeSector(new CharacterBuilder(ObjectType.Portal, objectId, protoId).Build()),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+
+            var preview = workspace.CreateMapScenePreview("map01", artResolver);
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId).IsEqualTo(artId);
+            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
         }
         finally
         {
@@ -3613,6 +3913,130 @@ public class EditorWorkspaceLoaderTests
 
             await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId).IsEqualTo(artId);
             await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_DoesNotUseProtoCurrentArtIdWhenScenerySceneMobOmitsOne()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var artId = new ArtId(200u);
+        var protoId = MakeProtoId(protoNumber);
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art"));
+
+        try
+        {
+            var proto = new ProtoData
+            {
+                Header = new GameObjectHeader
+                {
+                    Version = 0x08,
+                    ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeBlocked, 0, 0, Guid.Empty),
+                    ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                    GameObjectType = ObjectType.Scenery,
+                    PropCollectionItems = 0,
+                    Bitmap = new byte[ObjectFieldBitmapSize.For(ObjectType.Scenery)],
+                },
+                Properties = [],
+            };
+            ProtoFormat.WriteToFile(
+                WithProperties(proto, MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                Path.Combine(contentDir, "proto", "001001 - Test.pro")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
+
+            var mob = WithProperties(
+                new MobDataBuilder(ObjectType.Scenery, objectId, protoId).Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 10, 11)
+            );
+            SectorFormat.WriteToFile(MakeSector(mob), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.Conservative);
+
+            var preview = workspace.CreateMapScenePreview("map01", artResolver);
+
+            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId.Value).IsEqualTo(0u);
+            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_ComposesTerrainBaseSectorTilesAndObjects()
+    {
+        const int terrainBaseType = 0;
+        const ulong sectorKey = 0UL;
+        const uint terrainTileArtId = 0x11223344u;
+        const uint terrainObjectArtId = 0x40100011u;
+        const uint mapObjectArtId = 0x40100022u;
+        var terrainProtoId = MakeProtoId(2001);
+        var mapProtoId = MakeProtoId(2002);
+        var terrainObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2001, Guid.NewGuid());
+        var mapObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2002, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "terrain", "grass"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "terrain"));
+
+        try
+        {
+            var terrainMessages = new MesFile { Entries = [new MessageEntry(terrainBaseType, "grass")] };
+            MessageFormat.WriteToFile(in terrainMessages, Path.Combine(contentDir, "terrain", "terrain.mes"));
+
+            var terrain = new TerrainData
+            {
+                Version = 1.2f,
+                BaseTerrainType = TerrainType.Grasslands,
+                Width = 1,
+                Height = 1,
+                Compressed = false,
+                Tiles = [MakeTerrainId(terrainBaseType, terrainBaseType, 15, 0)],
+            };
+            TerrainFormat.WriteToFile(in terrain, Path.Combine(contentDir, "maps", "map01", "terrain.tdf"));
+
+            var terrainObject = WithProperties(
+                new MobDataBuilder(ObjectType.Scenery, terrainObjectId, terrainProtoId).Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 2, 3),
+                MakeArtProperty(ObjectField.ObjFCurrentAid, terrainObjectArtId)
+            );
+            var terrainSector = MakeSector(terrainObject);
+            terrainSector.Tiles[0] = terrainTileArtId;
+            SectorFormat.WriteToFile(terrainSector, Path.Combine(contentDir, "terrain", "grass", "0.sec"));
+
+            var mapObject = WithProperties(
+                new MobDataBuilder(ObjectType.Scenery, mapObjectId, mapProtoId).Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 4, 5),
+                MakeArtProperty(ObjectField.ObjFCurrentAid, mapObjectArtId)
+            );
+            SectorFormat.WriteToFile(
+                MakeSector(mapObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].GetTileArtId(0, 0)).IsEqualTo(terrainTileArtId);
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(2);
+            await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == terrainObjectId)).IsTrue();
+            await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == mapObjectId)).IsTrue();
         }
         finally
         {

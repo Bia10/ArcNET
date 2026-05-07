@@ -9909,13 +9909,52 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateDefaultMapViewState_CentersDenseMapsOnPlacedObjects()
+    {
+        const int protoNumber = 14001;
+        const ulong sectorKey = 0UL;
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", $"{protoNumber:000000} - Test.pro")
+            );
+
+            var placedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(placedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var mapViewState = session.CreateDefaultMapViewState("map-view-1");
+
+            await Assert.That(mapViewState.Camera.CenterTileX).IsEqualTo(5d);
+            await Assert.That(mapViewState.Camera.CenterTileY).IsEqualTo(6d);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_FocusMapTarget_OpensLooseMapMobAndCentersResolvedPlacement()
     {
         const int protoNumber = 1001;
         const ulong map01SectorKey = 0UL;
-        const ulong map02SectorKey = (1UL << 26) + 1UL;
-        const int worldTileX = 82;
-        const int worldTileY = 109;
+        const int map02SectorX = 600;
+        const int map02SectorY = 700;
+        const ulong map02SectorKey = (ulong)map02SectorX + ((ulong)map02SectorY << 26);
+        const int worldTileX = (map02SectorX * 64) + 18;
+        const int worldTileY = (map02SectorY * 64) + 45;
         var map02SectorAssetPath = $"maps/map02/{map02SectorKey}.sec";
         var mapMobAssetPath = "maps/map02/G_target.mob";
 

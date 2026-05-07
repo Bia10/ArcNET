@@ -247,6 +247,193 @@ public sealed class EditorMapScenePreviewBuilderTests
     }
 
     [Test]
+    public async Task BuildSector_NormalizesAbsoluteSectorObjectLocationsToSectorLocalTiles()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 22, Guid.NewGuid());
+        var sectorProjection = new EditorMapSectorProjection
+        {
+            Sector = new EditorSectorSummary
+            {
+                Asset = new EditorAssetEntry
+                {
+                    AssetPath = "maps/map01/sector.sec",
+                    Format = FileFormat.Sector,
+                    ItemCount = 1,
+                    SourceKind = EditorAssetSourceKind.LooseFile,
+                    SourcePath = "test/sector.sec",
+                },
+                MapName = "map01",
+                ObjectCount = 1,
+                LightCount = 0,
+                TileScriptCount = 0,
+                SectorScriptId = null,
+                HasRoofs = false,
+                DistinctTileArtCount = 0,
+                BlockedTileCount = 0,
+                LightSchemeIndex = 0,
+                MusicSchemeIndex = -1,
+                AmbientSchemeIndex = -1,
+            },
+            SectorX = 20,
+            SectorY = 30,
+            LocalX = 1,
+            LocalY = 2,
+            ObjectDensityBand = EditorMapSectorDensityBand.Low,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+        };
+        var mob = CreateEmptyMob(ObjectType.Scenery, objectId, MakeProtoId(1))
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, (20 * 64) + 12, (30 * 64) + 34));
+        var sector = new Sector
+        {
+            Lights = [],
+            Tiles = new uint[4096],
+            HasRoofs = false,
+            Roofs = null,
+            SectorScript = null,
+            TileScripts = [],
+            TownmapInfo = 0,
+            AptitudeAdjustment = 0,
+            LightSchemeIdx = 0,
+            SoundList = SectorSoundList.Default,
+            BlockMask = new uint[128],
+            Objects = [mob],
+        };
+
+        var preview = EditorMapScenePreviewBuilder.BuildSector(sectorProjection, sector);
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(1);
+        await Assert.That(preview.Objects[0].Location).IsEqualTo(new Location(12, 34));
+    }
+
+    [Test]
+    public async Task BuildSector_NormalizesAbsoluteSectorObjectLocationsBeyondShortRangeToSectorLocalTiles()
+    {
+        const int sectorX = 600;
+        const int sectorY = 700;
+
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 23, Guid.NewGuid());
+        var sectorProjection = new EditorMapSectorProjection
+        {
+            Sector = new EditorSectorSummary
+            {
+                Asset = new EditorAssetEntry
+                {
+                    AssetPath = "maps/map01/sector.sec",
+                    Format = FileFormat.Sector,
+                    ItemCount = 1,
+                    SourceKind = EditorAssetSourceKind.LooseFile,
+                    SourcePath = "test/sector.sec",
+                },
+                MapName = "map01",
+                ObjectCount = 1,
+                LightCount = 0,
+                TileScriptCount = 0,
+                SectorScriptId = null,
+                HasRoofs = false,
+                DistinctTileArtCount = 0,
+                BlockedTileCount = 0,
+                LightSchemeIndex = 0,
+                MusicSchemeIndex = -1,
+                AmbientSchemeIndex = -1,
+            },
+            SectorX = sectorX,
+            SectorY = sectorY,
+            LocalX = sectorX,
+            LocalY = sectorY,
+            ObjectDensityBand = EditorMapSectorDensityBand.Low,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+        };
+        var mob = CreateEmptyMob(ObjectType.Scenery, objectId, MakeProtoId(1))
+            .WithProperty(
+                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, (sectorX * 64) + 12, (sectorY * 64) + 34)
+            );
+        var sector = new Sector
+        {
+            Lights = [],
+            Tiles = new uint[4096],
+            HasRoofs = false,
+            Roofs = null,
+            SectorScript = null,
+            TileScripts = [],
+            TownmapInfo = 0,
+            AptitudeAdjustment = 0,
+            LightSchemeIdx = 0,
+            SoundList = SectorSoundList.Default,
+            BlockMask = new uint[128],
+            Objects = [mob],
+        };
+
+        var preview = EditorMapScenePreviewBuilder.BuildSector(sectorProjection, sector);
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(1);
+        await Assert.That(preview.Objects[0].Location).IsEqualTo(new Location(12, 34));
+    }
+
+    [Test]
+    public async Task BuildSector_UsesBaseArtIdWhenCurrentArtIdIsMissing()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 21, Guid.NewGuid());
+        var artId = new ArtId(0x01020304u);
+        var mob = new CharacterBuilder(ObjectType.Portal, objectId, MakeProtoId(1))
+            .WithLocation(10, 11)
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFAid, unchecked((int)artId.Value)))
+            .Build();
+        var sector = new Sector
+        {
+            Lights = [],
+            Tiles = new uint[4096],
+            HasRoofs = false,
+            Roofs = null,
+            SectorScript = null,
+            TileScripts = [],
+            TownmapInfo = 0,
+            AptitudeAdjustment = 0,
+            LightSchemeIdx = 0,
+            SoundList = SectorSoundList.Default,
+            BlockMask = new uint[128],
+            Objects = [mob],
+        };
+
+        var preview = EditorMapScenePreviewBuilder.BuildSector(
+            new EditorMapSectorProjection
+            {
+                Sector = new EditorSectorSummary
+                {
+                    Asset = new EditorAssetEntry
+                    {
+                        AssetPath = "maps/map01/sector.sec",
+                        Format = FileFormat.Sector,
+                        ItemCount = 1,
+                        SourceKind = EditorAssetSourceKind.LooseFile,
+                        SourcePath = "test/sector.sec",
+                    },
+                    MapName = "map01",
+                    ObjectCount = 1,
+                    LightCount = 0,
+                    TileScriptCount = 0,
+                    SectorScriptId = null,
+                    HasRoofs = false,
+                    DistinctTileArtCount = 0,
+                    BlockedTileCount = 0,
+                    LightSchemeIndex = 0,
+                    MusicSchemeIndex = -1,
+                    AmbientSchemeIndex = -1,
+                },
+                SectorX = 20,
+                SectorY = 30,
+                LocalX = 1,
+                LocalY = 2,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            },
+            sector
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(1);
+        await Assert.That(preview.Objects[0].CurrentArtId).IsEqualTo(artId);
+    }
+
+    [Test]
     public async Task BuildObjectPreview_ProjectsNpcProperties_WhenNpcCarriesFollowerArrayField()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 3, Guid.NewGuid());

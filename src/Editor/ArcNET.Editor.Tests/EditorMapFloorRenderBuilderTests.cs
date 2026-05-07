@@ -219,6 +219,77 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task ProjectObjectAnchor_Isometric_ScalesCeOffsetsToCompressedRenderGrid()
+    {
+        var preview = new EditorMapObjectPreview
+        {
+            ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 33, Guid.NewGuid()),
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty),
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x40000000u),
+            OffsetX = 40,
+            OffsetY = 20,
+            OffsetZ = 10f,
+            RotationPitch = 0f,
+        };
+
+        var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+            EditorMapSceneViewMode.Isometric,
+            tileWidthPixels: 64d,
+            tileHeightPixels: 32d,
+            tileCenterX: 32d,
+            tileCenterY: 16d,
+            preview
+        );
+
+        await Assert.That(anchorX).IsEqualTo(64d);
+        await Assert.That(anchorY).IsEqualTo(32d);
+    }
+
+    [Test]
+    public async Task Build_Isometric_IgnoresOffsetZForSameTileObjectOrdering()
+    {
+        var firstObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 909, Guid.NewGuid());
+        var secondObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 910, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateSingleTileObjectScene(
+                CreateObjectPreview(
+                    firstObjectId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x40000000u),
+                    offsetX: 12,
+                    offsetY: 8,
+                    offsetZ: 48f
+                ),
+                CreateObjectPreview(
+                    secondObjectId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x40000000u),
+                    offsetX: 12,
+                    offsetY: 8,
+                    offsetZ: 0f
+                )
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].ObjectId).IsEqualTo(firstObjectId);
+        await Assert.That(preview.Objects[1].ObjectId).IsEqualTo(secondObjectId);
+        await Assert.That(preview.RenderQueue[1].Object?.ObjectId).IsEqualTo(firstObjectId);
+        await Assert.That(preview.RenderQueue[2].Object?.ObjectId).IsEqualTo(secondObjectId);
+    }
+
+    [Test]
     public async Task Build_TopDown_SkipsEmptyTilesUnlessExplicitlyRequested()
     {
         var tileArtIds = new uint[64 * 64];
@@ -550,6 +621,48 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task Build_Isometric_NormalizesWallBoundsUsingCeHotspotAdjustment()
+    {
+        var wallId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 799, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateSingleTileObjectScene(
+                new EditorMapObjectPreview
+                {
+                    ObjectId = wallId,
+                    ProtoId = protoId,
+                    ObjectType = ObjectType.Wall,
+                    CurrentArtId = CreateWallArtId(rotation: 0),
+                    Location = new Location(0, 63),
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    OffsetZ = 0f,
+                    CollisionHeight = 0f,
+                    SpriteBounds = new EditorMapObjectSpriteBounds
+                    {
+                        MaxFrameWidth = 40,
+                        MaxFrameHeight = 152,
+                        MaxFrameCenterX = 39,
+                        MaxFrameCenterY = 131,
+                    },
+                    RotationPitch = 0f,
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.HeightPixels).IsEqualTo(167d);
+        await Assert.That(preview.Objects).HasSingleItem();
+        await Assert.That(preview.Objects[0].AnchorY).IsEqualTo(151d);
+    }
+
+    [Test]
     public async Task Build_Isometric_ProjectsRoofCellsIntoUnifiedRenderQueue()
     {
         var tileArtIds = new uint[64 * 64];
@@ -594,6 +707,21 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue.Count).IsEqualTo(2);
         await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
         await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.Roof);
+    }
+
+    [Test]
+    public async Task ProjectRoofAnchor_Isometric_MatchesCeNormalizedRoofCellOffsets()
+    {
+        var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectRoofAnchor(
+            EditorMapSceneViewMode.Isometric,
+            tileWidthPixels: 64d,
+            tileHeightPixels: 32d,
+            mapTileX: 0,
+            topMapTileY: 60
+        );
+
+        await Assert.That(anchorX).IsEqualTo(1792d);
+        await Assert.That(anchorY).IsEqualTo(864d);
     }
 
     [Test]
