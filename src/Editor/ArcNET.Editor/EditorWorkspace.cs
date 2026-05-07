@@ -86,6 +86,25 @@ public sealed class EditorWorkspace
         14,
         15,
     ];
+    private static readonly long[] s_terrainTransitionSectorOffsets =
+    [
+        -1,
+        1,
+        (2L << 26) | 1,
+        (1L << 26) | 1,
+        (2L << 26) | 3,
+        0,
+        (2L << 26) | 2,
+        -1,
+        3,
+        2,
+        -1,
+        -1,
+        (1L << 26) | 3,
+        -1,
+        -1,
+        -1,
+    ];
     private static readonly string[] s_critterBodyTypeCodes = ["HM", "DF", "GH", "HG", "EF"];
     private static readonly string[] s_critterArmorTypeCodes = ["UW", "V1", "LA", "CM", "PM", "RB", "PC", "BN", "CD"];
     private static readonly char[] s_critterShieldCodes = ['X', 'S'];
@@ -1874,6 +1893,18 @@ public sealed class EditorWorkspace
             sectorsByAssetPath[sectorProjection.Asset.AssetPath] = sector;
         }
 
+        if (TryFindMapTerrain(mapName, out var terrain))
+        {
+            foreach (var sectorProjection in projection.Sectors)
+            {
+                if (!sectorsByAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var mapSector))
+                    continue;
+
+                if (TryCreateTerrainComposedSector(terrain, sectorProjection, mapSector, out var composedSector))
+                    sectorsByAssetPath[sectorProjection.Asset.AssetPath] = composedSector;
+            }
+        }
+
         return EditorMapScenePreviewBuilder.Build(
             projection,
             sectorsByAssetPath,
@@ -1902,9 +1933,212 @@ public sealed class EditorWorkspace
 
     internal ArtId? ResolveSceneObjectCurrentArtIdForScene(MobData mob) => ResolveSceneObjectCurrentArtIdFallback(mob);
 
+    private bool TryFindMapTerrain(string mapName, out TerrainData terrain)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+
+        foreach (var asset in Index.FindMapAssets(mapName))
+        {
+            if (asset.Format != FileFormat.Terrain)
+                continue;
+
+            var loadedTerrain = FindTerrain(asset.AssetPath);
+            if (loadedTerrain is null)
+                continue;
+
+            terrain = loadedTerrain;
+            return true;
+        }
+
+        terrain = null!;
+        return false;
+    }
+
+    private bool TryCreateTerrainComposedSector(
+        TerrainData terrain,
+        EditorMapSectorProjection sectorProjection,
+        Sector mapSector,
+        out Sector composedSector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+        ArgumentNullException.ThrowIfNull(sectorProjection);
+        ArgumentNullException.ThrowIfNull(mapSector);
+
+        composedSector = mapSector;
+        if (
+            !TryGetTerrainSectorAssetPath(
+                terrain,
+                sectorProjection.LocalX,
+                sectorProjection.LocalY,
+                out var terrainSectorAssetPath
+            )
+        )
+            return false;
+
+        var terrainSector = FindSector(terrainSectorAssetPath);
+        if (terrainSector is null)
+            return false;
+
+        composedSector = MergeTerrainBaseSector(terrainSector, mapSector);
+        return true;
+    }
+
+    private bool TryGetTerrainSectorAssetPath(TerrainData terrain, int sectorX, int sectorY, out string assetPath)
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+
+        assetPath = string.Empty;
+        if (sectorX < 0 || sectorY < 0 || sectorX >= terrain.Width || sectorY >= terrain.Height)
+            return false;
+
+        var terrainIndex = (int)((sectorY * terrain.Width) + sectorX);
+        if ((uint)terrainIndex >= (uint)terrain.Tiles.Length)
+            return false;
+
+        return TryResolveTerrainSectorAssetPath(terrain.Tiles[terrainIndex], out assetPath);
+    }
+
+    private bool TryResolveTerrainSectorAssetPath(ushort terrainId, out string assetPath)
+    {
+        assetPath = string.Empty;
+
+        var baseTerrainType = DecodeTerrainBaseType(terrainId);
+        var secondaryTerrainType = DecodeTerrainSecondaryType(terrainId);
+        var edge = DecodeTerrainEdge(terrainId);
+        if (
+            !TryGetMessageEntryText("terrain/terrain.mes", baseTerrainType, out var baseTerrainName)
+            || !TryGetMessageEntryText("terrain/terrain.mes", secondaryTerrainType, out var secondaryTerrainName)
+        )
+        {
+            return false;
+        }
+
+        if (baseTerrainType == secondaryTerrainType || edge == 0)
+        {
+            assetPath =
+                $"terrain/{baseTerrainName}/{GetTerrainSectorVariantOffset(DecodeTerrainVariant(terrainId))}.sec";
+            return true;
+        }
+
+        var sectorOffset = s_terrainTransitionSectorOffsets[edge];
+        if (sectorOffset != -1)
+        {
+            assetPath = $"terrain/{baseTerrainName} to {secondaryTerrainName}/{sectorOffset}.sec";
+            return true;
+        }
+
+        var reversedSectorOffset = s_terrainTransitionSectorOffsets[15 - edge];
+        if (reversedSectorOffset == -1)
+            return false;
+
+        assetPath = $"terrain/{secondaryTerrainName} to {baseTerrainName}/{reversedSectorOffset}.sec";
+        return true;
+    }
+
+    private static long GetTerrainSectorVariantOffset(int variant) => (variant % 2) + (((long)variant / 2) << 26);
+
+    private static int DecodeTerrainBaseType(ushort terrainId) => (terrainId >> 11) & 0x1F;
+
+    private static int DecodeTerrainSecondaryType(ushort terrainId) => (terrainId >> 6) & 0x1F;
+
+    private static int DecodeTerrainEdge(ushort terrainId) => (terrainId >> 2) & 0x0F;
+
+    private static int DecodeTerrainVariant(ushort terrainId) => terrainId & 0x03;
+
+    private static Sector MergeTerrainBaseSector(Sector terrainSector, Sector mapSector)
+    {
+        ArgumentNullException.ThrowIfNull(terrainSector);
+        ArgumentNullException.ThrowIfNull(mapSector);
+
+        return new Sector
+        {
+            Lights = mapSector.Lights,
+            Tiles = MergeTileArtIds(terrainSector.Tiles, mapSector.Tiles),
+            HasRoofs = mapSector.HasRoofs || terrainSector.HasRoofs,
+            Roofs = MergeRoofArtIds(terrainSector, mapSector),
+            SectorScript = mapSector.SectorScript,
+            TileScripts = mapSector.TileScripts,
+            TownmapInfo = mapSector.TownmapInfo,
+            AptitudeAdjustment = mapSector.AptitudeAdjustment,
+            LightSchemeIdx = mapSector.LightSchemeIdx,
+            SoundList = mapSector.SoundList,
+            BlockMask = MergeBlockMask(terrainSector.BlockMask, mapSector.BlockMask),
+            Objects = MergeTerrainObjects(terrainSector.Objects, mapSector.Objects),
+        };
+    }
+
+    private static uint[] MergeTileArtIds(uint[] terrainTiles, uint[] mapTiles)
+    {
+        if (terrainTiles.Length != mapTiles.Length)
+            return [.. mapTiles];
+
+        var mergedTiles = new uint[mapTiles.Length];
+        for (var index = 0; index < mapTiles.Length; index++)
+            mergedTiles[index] = mapTiles[index] != 0 ? mapTiles[index] : terrainTiles[index];
+
+        return mergedTiles;
+    }
+
+    private static uint[]? MergeRoofArtIds(Sector terrainSector, Sector mapSector)
+    {
+        if (!mapSector.HasRoofs && !terrainSector.HasRoofs)
+            return null;
+
+        if (mapSector.Roofs is null)
+            return terrainSector.Roofs is null ? null : [.. terrainSector.Roofs];
+
+        if (terrainSector.Roofs is null || terrainSector.Roofs.Length != mapSector.Roofs.Length)
+            return [.. mapSector.Roofs];
+
+        var mergedRoofs = new uint[mapSector.Roofs.Length];
+        for (var index = 0; index < mapSector.Roofs.Length; index++)
+            mergedRoofs[index] = mapSector.Roofs[index] != 0 ? mapSector.Roofs[index] : terrainSector.Roofs[index];
+
+        return mergedRoofs;
+    }
+
+    private static uint[] MergeBlockMask(uint[] terrainBlockMask, uint[] mapBlockMask)
+    {
+        if (terrainBlockMask.Length != mapBlockMask.Length)
+            return [.. mapBlockMask];
+
+        var mergedBlockMask = new uint[mapBlockMask.Length];
+        for (var index = 0; index < mapBlockMask.Length; index++)
+            mergedBlockMask[index] = terrainBlockMask[index] | mapBlockMask[index];
+
+        return mergedBlockMask;
+    }
+
+    private static IReadOnlyList<MobData> MergeTerrainObjects(
+        IReadOnlyList<MobData> terrainObjects,
+        IReadOnlyList<MobData> mapObjects
+    )
+    {
+        if (terrainObjects.Count == 0)
+            return mapObjects;
+
+        if (mapObjects.Count == 0)
+            return terrainObjects;
+
+        HashSet<GameObjectGuid> mapObjectIds = [.. mapObjects.Select(static mob => mob.Header.ObjectId)];
+        List<MobData> mergedObjects = [];
+        foreach (var mob in terrainObjects)
+        {
+            if (!mapObjectIds.Contains(mob.Header.ObjectId))
+                mergedObjects.Add(mob);
+        }
+
+        mergedObjects.AddRange(mapObjects);
+        return mergedObjects;
+    }
+
     private ArtId? ResolveSceneObjectCurrentArtIdFallback(MobData mob)
     {
         ArgumentNullException.ThrowIfNull(mob);
+
+        if (mob.Header.GameObjectType is ObjectType.Scenery)
+            return null;
 
         var protoNumber = mob.Header.ProtoId.GetProtoNumber();
         return
@@ -2342,14 +2576,7 @@ public sealed class EditorWorkspace
             switch (renderItemKind)
             {
                 case EditorMapRenderQueueItemKind.FloorTile:
-                    if (TryResolveTileArtAssetPath(artId, out assetPath))
-                        return true;
-                    return TryResolveMessageTableArtAssetPath(
-                        "art/facade/facadename.mes",
-                        DecodeSectorArtMessageIndex(artId.Value),
-                        "art/facade",
-                        out assetPath
-                    );
+                    return TryResolveTileArtAssetPath(artId, out assetPath);
                 case EditorMapRenderQueueItemKind.Roof:
                     assetPath = string.Empty;
                     return false;
@@ -3644,6 +3871,13 @@ public sealed class EditorWorkspace
         var resolvedCurrentArtId = TryGetArtId(proto, ObjectField.ObjFCurrentAid);
         if (resolvedCurrentArtId is { } protoArtId && protoArtId.Value == 0u)
             resolvedCurrentArtId = null;
+
+        if (!resolvedCurrentArtId.HasValue)
+        {
+            resolvedCurrentArtId = TryGetArtId(proto, ObjectField.ObjFAid);
+            if (resolvedCurrentArtId is { } protoBaseArtId && protoBaseArtId.Value == 0u)
+                resolvedCurrentArtId = null;
+        }
 
         if (
             !resolvedCurrentArtId.HasValue
