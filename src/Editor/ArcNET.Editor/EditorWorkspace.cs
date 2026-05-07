@@ -28,6 +28,7 @@ public sealed class EditorWorkspace
     private readonly object _artBindingCacheGate = new();
     private readonly object _loadedArtCacheGate = new();
     private readonly object _objectPaletteCacheGate = new();
+    private readonly object _worldAreaCatalogGate = new();
     private readonly ConcurrentDictionary<string, Lazy<ArtFile?>> _loadedArtsByPath = new(
         StringComparer.OrdinalIgnoreCase
     );
@@ -183,6 +184,7 @@ public sealed class EditorWorkspace
     private IReadOnlyDictionary<int, IReadOnlyDictionary<int, string>>? _eyeCandyArtAssetPathsByMessageIndex;
     private TileNameLookupData? _tileNameLookupData;
     private WallArtLookupData? _wallArtLookupData;
+    private EditorWorldAreaCatalog? _worldAreaCatalog;
 
     /// <summary>
     /// Loose or extracted content directory associated with this workspace.
@@ -515,6 +517,15 @@ public sealed class EditorWorkspace
             && GameData.MessagesBySource.TryGetValue(normalizedPath, out var entries)
             ? CreateMessageDetail(asset, entries)
             : null;
+    }
+
+    /// <summary>
+    /// Returns the parsed world-area catalog derived from message metadata.
+    /// </summary>
+    public EditorWorldAreaCatalog GetWorldAreaCatalog()
+    {
+        lock (_worldAreaCatalogGate)
+            return _worldAreaCatalog ??= EditorWorldAreaCatalogBuilder.Build(this);
     }
 
     /// <summary>
