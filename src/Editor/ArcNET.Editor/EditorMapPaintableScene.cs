@@ -571,8 +571,8 @@ public static class EditorMapPaintableSceneBuilder
         {
             ArtId = artId,
             RenderItemKind = request.RenderItemKind,
-            RotationIndex = request.RotationIndex,
-            FrameIndex = request.FrameIndex,
+            RotationIndex = metrics.RotationIndex,
+            FrameIndex = metrics.FrameIndex,
             Width = metrics.Width,
             Height = metrics.Height,
             CenterX = metrics.CenterX,

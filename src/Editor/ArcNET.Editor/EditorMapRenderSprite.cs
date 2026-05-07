@@ -51,6 +51,8 @@ public sealed class EditorMapRenderSprite
 /// </summary>
 public sealed class EditorMapRenderSpriteMetrics
 {
+    public int RotationIndex { get; init; }
+    public int FrameIndex { get; init; }
     public required int Width { get; init; }
     public required int Height { get; init; }
     public required int CenterX { get; init; }
@@ -62,6 +64,8 @@ public sealed class EditorMapRenderSpriteMetrics
 
         return new EditorMapRenderSpriteMetrics
         {
+            RotationIndex = sprite.RotationIndex,
+            FrameIndex = sprite.FrameIndex,
             Width = sprite.Width,
             Height = sprite.Height,
             CenterX = sprite.CenterX,
@@ -103,6 +107,13 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     private const uint ArtTypeMask = 0xF0000000u;
     private const uint WallArtType = 0x10000000u;
     private const uint PortalArtType = 0x30000000u;
+    private const uint SceneryArtType = 0x40000000u;
+    private const uint InterfaceArtType = 0x50000000u;
+    private const uint ItemArtType = 0x60000000u;
+    private const uint MiscArtType = 0x80000000u;
+    private const uint LightArtType = 0x90000000u;
+    private const uint FacadeArtType = 0xB0000000u;
+    private const uint EyeCandyArtType = 0xE0000000u;
     private readonly EditorWorkspace _workspace;
     private readonly EditorArtResolver _artResolver;
     private readonly EditorArtPreviewOptions _previewOptions;
@@ -289,7 +300,8 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
         var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, assetPath, request.RotationIndex);
         var rotationIndex = NormalizeFrameIndex(effectiveRotationIndex, art.EffectiveRotationCount);
-        var frameIndex = NormalizeFrameIndex(request.FrameIndex, checked((int)art.FrameCount));
+        var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
+        var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
         var frame = EditorArtPreviewBuilder.BuildFrame(art, rotationIndex, frameIndex, _previewOptions);
         var (centerX, centerY) = AdjustSpriteCenter(
             assetPath,
@@ -328,12 +340,15 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
         var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, assetPath, request.RotationIndex);
         var rotationIndex = NormalizeFrameIndex(effectiveRotationIndex, art.EffectiveRotationCount);
-        var frameIndex = NormalizeFrameIndex(request.FrameIndex, checked((int)art.FrameCount));
+        var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
+        var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
         var header = art.Frames[rotationIndex][frameIndex].Header;
         var (centerX, centerY) = AdjustSpriteCenter(assetPath, effectiveRotationIndex, header.CenterX, header.CenterY);
 
         return new EditorMapRenderSpriteMetrics
         {
+            RotationIndex = rotationIndex,
+            FrameIndex = frameIndex,
             Width = checked((int)header.Width),
             Height = checked((int)header.Height),
             CenterX = centerX,
@@ -342,9 +357,22 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     }
 
     private static int ResolveEffectiveRotationIndex(ArtId artId, string assetPath, int requestedRotationIndex) =>
-        UsesArtIdRotationForWallPortal(assetPath, artId)
+        UsesArtIdRotation(assetPath, artId)
             ? NormalizeWallPortalRotationIndex((int)((artId.Value >> 11) & 0x7u))
             : requestedRotationIndex;
+
+    private static int ResolveEffectiveFrameIndex(ArtId artId, int requestedFrameIndex) =>
+        requestedFrameIndex != 0 ? requestedFrameIndex : DecodeFrameIndexFromArtId(artId.Value);
+
+    private static int DecodeFrameIndexFromArtId(uint artIdValue) =>
+        (artIdValue & ArtTypeMask) switch
+        {
+            0u or WallArtType or ItemArtType => 0,
+            InterfaceArtType or MiscArtType => (int)((artIdValue >> 8) & 0xFFu),
+            LightArtType or EyeCandyArtType => (int)((artIdValue >> 12) & 0x7Fu),
+            FacadeArtType => (int)((artIdValue >> 1) & 0x3FFu),
+            _ => (int)((artIdValue >> 14) & 0x1Fu),
+        };
 
     private static (int CenterX, int CenterY) AdjustSpriteCenter(
         string assetPath,
@@ -360,12 +388,19 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         return normalizedRotationIndex is < 2 or > 5 ? (centerX - 40, centerY + 20) : (centerX, centerY);
     }
 
+    private static bool UsesArtIdRotation(string assetPath, ArtId artId) =>
+        UsesArtIdRotationForWallPortal(assetPath, artId) || UsesArtIdRotationForScenery(assetPath, artId);
+
     private static bool RequiresCeWallPortalHotspotAdjustment(string assetPath) =>
         assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
         || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase);
 
     private static bool UsesArtIdRotationForWallPortal(string assetPath, ArtId artId) =>
         RequiresCeWallPortalHotspotAdjustment(assetPath) && (artId.Value & ArtTypeMask) is WallArtType or PortalArtType;
+
+    private static bool UsesArtIdRotationForScenery(string assetPath, ArtId artId) =>
+        assetPath.StartsWith("art/scenery/", StringComparison.OrdinalIgnoreCase)
+        && (artId.Value & ArtTypeMask) == SceneryArtType;
 
     private static int NormalizeWallPortalRotationIndex(int rotationIndex)
     {
