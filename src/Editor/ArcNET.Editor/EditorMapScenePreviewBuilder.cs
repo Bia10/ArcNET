@@ -194,7 +194,7 @@ public static class EditorMapScenePreviewBuilder
                         artResolver,
                         spriteBoundsCache,
                         currentArtIdFallbackResolver,
-                        locationOverride: null,
+                        locationOverride: TryGetNormalizedSectorObjectLocation(sectorProjection, mob),
                         sourceAssetPath: sectorProjection.Asset.AssetPath
                     )
                 ),
@@ -346,6 +346,54 @@ public static class EditorMapScenePreviewBuilder
         return true;
     }
 
+    private static Location? TryGetNormalizedSectorObjectLocation(
+        EditorMapSectorProjection sectorProjection,
+        MobData mob
+    )
+    {
+        if (!TryGetMapLocation(mob.GetProperty(ObjectField.ObjFLocation), out var tileX, out var tileY))
+            return null;
+
+        if (tileX is >= 0 and < TileGridWidth && tileY is >= 0 and < TileGridWidth)
+            return new Location(checked((short)tileX), checked((short)tileY));
+
+        var sectorStartTileX = checked(sectorProjection.SectorX * TileGridWidth);
+        var sectorStartTileY = checked(sectorProjection.SectorY * TileGridWidth);
+        if (
+            tileX < sectorStartTileX
+            || tileX >= sectorStartTileX + TileGridWidth
+            || tileY < sectorStartTileY
+            || tileY >= sectorStartTileY + TileGridWidth
+        )
+        {
+            if (tileX is < short.MinValue or > short.MaxValue || tileY is < short.MinValue or > short.MaxValue)
+                return null;
+
+            return new Location(checked((short)tileX), checked((short)tileY));
+        }
+
+        return new Location(checked((short)(tileX - sectorStartTileX)), checked((short)(tileY - sectorStartTileY)));
+    }
+
+    private static bool TryGetMapLocation(ObjectProperty? property, out int tileX, out int tileY)
+    {
+        tileX = 0;
+        tileY = 0;
+
+        if (property is null || property.ParseNote is not null)
+            return false;
+
+        try
+        {
+            (tileX, tileY) = property.GetLocation();
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     private static int FloorDivide(int value, int divisor)
     {
         var quotient = value / divisor;
@@ -400,6 +448,9 @@ public static class EditorMapScenePreviewBuilder
     )
     {
         var currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFCurrentAid);
+        if (currentArtId.Value == 0)
+            currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFAid);
+
         if (currentArtId.Value == 0 && currentArtIdFallbackResolver is not null)
         {
             var fallbackArtId = currentArtIdFallbackResolver(mob);

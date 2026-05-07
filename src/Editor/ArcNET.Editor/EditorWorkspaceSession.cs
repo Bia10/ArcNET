@@ -2915,7 +2915,7 @@ public sealed class EditorWorkspaceSession
             ?? throw new InvalidOperationException(
                 $"No indexed map projection matched '{defaultMap.MapName}' for the default map view state."
             );
-        var camera = CreateCenteredTileCamera(projection);
+        var camera = CreateCenteredTileCamera(defaultMap.MapName, projection);
 
         return NormalizeProjectMapViewState(
             new EditorProjectMapViewState
@@ -5675,6 +5675,22 @@ public sealed class EditorWorkspaceSession
         };
     }
 
+    private EditorProjectMapCameraState CreateCenteredTileCamera(string mapName, EditorMapProjection projection)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        ArgumentNullException.ThrowIfNull(projection);
+
+        var scenePreview = CreateEffectiveMapScenePreview(mapName);
+        var sceneRender = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            EditorMapFloorRenderRequest.CreateWorldEditPreset()
+        );
+
+        return TryCreateObjectCenteredTileCamera(sceneRender, out var camera)
+            ? camera
+            : CreateCenteredTileCamera(projection);
+    }
+
     private static EditorProjectMapCameraState CreateCenteredTileCamera(EditorMapProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
@@ -5712,6 +5728,73 @@ public sealed class EditorWorkspaceSession
             CenterTileY = closestPositionedSector.centerTileY,
             Zoom = 1d,
         };
+    }
+
+    private static bool TryCreateObjectCenteredTileCamera(
+        EditorMapFloorRenderPreview sceneRender,
+        out EditorProjectMapCameraState camera
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+
+        camera = new EditorProjectMapCameraState();
+        if (sceneRender.Objects.Count == 0)
+            return false;
+
+        var minLeft = double.PositiveInfinity;
+        var minTop = double.PositiveInfinity;
+        var maxRight = double.NegativeInfinity;
+        var maxBottom = double.NegativeInfinity;
+
+        foreach (var obj in sceneRender.Objects)
+        {
+            if (obj.SpriteBounds is null)
+            {
+                minLeft = Math.Min(minLeft, obj.AnchorX);
+                minTop = Math.Min(minTop, obj.AnchorY);
+                maxRight = Math.Max(maxRight, obj.AnchorX);
+                maxBottom = Math.Max(maxBottom, obj.AnchorY);
+                continue;
+            }
+
+            var (centerX, centerY) = EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(
+                obj.ObjectType,
+                obj.CurrentArtId,
+                obj.SpriteBounds
+            );
+            var left = obj.AnchorX - centerX;
+            var top = obj.AnchorY - centerY;
+            var right = left + obj.SpriteBounds.MaxFrameWidth;
+            var bottom = top + obj.SpriteBounds.MaxFrameHeight;
+
+            minLeft = Math.Min(minLeft, left);
+            minTop = Math.Min(minTop, top);
+            maxRight = Math.Max(maxRight, right);
+            maxBottom = Math.Max(maxBottom, bottom);
+        }
+
+        if (
+            !double.IsFinite(minLeft)
+            || !double.IsFinite(minTop)
+            || !double.IsFinite(maxRight)
+            || !double.IsFinite(maxBottom)
+        )
+        {
+            return false;
+        }
+
+        var tilePoint = EditorMapSceneRenderSpaceMath.UnprojectMapTile(
+            sceneRender,
+            (minLeft + maxRight) / 2d,
+            (minTop + maxBottom) / 2d
+        );
+        camera = new EditorProjectMapCameraState
+        {
+            CenterTileX = tilePoint.MapTileX,
+            CenterTileY = tilePoint.MapTileY,
+            Zoom = 1d,
+        };
+        return true;
     }
 
     private static EditorMapFloorRenderRequest ComposeMapViewRenderRequest(
@@ -5957,6 +6040,9 @@ public sealed class EditorWorkspaceSession
                     targetTile.IsBlocked
                 );
             var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                renderProjectionRequest.ViewMode,
+                renderProjectionRequest.TileWidthPixels,
+                renderProjectionRequest.TileHeightPixels,
                 tileCenterX,
                 tileCenterY,
                 previewObject
@@ -6077,6 +6163,9 @@ public sealed class EditorWorkspaceSession
                         mapTileY
                     );
                     var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                        renderProjectionRequest.ViewMode,
+                        renderProjectionRequest.TileWidthPixels,
+                        renderProjectionRequest.TileHeightPixels,
                         tileCenterX,
                         tileCenterY,
                         previewObject
@@ -6286,7 +6375,7 @@ public sealed class EditorWorkspaceSession
         ref double maxBottom
     ) =>
         EditorMapFloorRenderBuilder.ExpandObjectBounds(
-            previewObject.SpriteBounds,
+            previewObject,
             previewObject.AnchorX,
             previewObject.AnchorY,
             ref minLeft,
@@ -6510,6 +6599,9 @@ public sealed class EditorWorkspaceSession
                     mapTileY
                 );
                 var (rawAnchorX, rawAnchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                    request.ViewMode,
+                    request.TileWidthPixels,
+                    request.TileHeightPixels,
                     tileCenterX,
                     tileCenterY,
                     sceneObject
