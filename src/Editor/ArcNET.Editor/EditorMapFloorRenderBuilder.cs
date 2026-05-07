@@ -250,17 +250,16 @@ public static class EditorMapFloorRenderBuilder
                     mapTileX,
                     mapTileY
                 );
-                var (anchorX, anchorY) = ProjectObjectAnchor(tileCenterX, tileCenterY, obj);
-
-                ExpandObjectBounds(
-                    obj.SpriteBounds,
-                    anchorX,
-                    anchorY,
-                    ref minLeft,
-                    ref minTop,
-                    ref maxRight,
-                    ref maxBottom
+                var (anchorX, anchorY) = ProjectObjectAnchor(
+                    request.ViewMode,
+                    request.TileWidthPixels,
+                    request.TileHeightPixels,
+                    tileCenterX,
+                    tileCenterY,
+                    obj
                 );
+
+                ExpandObjectBounds(obj, anchorX, anchorY, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
 
                 var (tileOrderPrimary, tileOrderSecondary) = GetObjectTileOrderComponents(obj);
 
@@ -489,10 +488,38 @@ public static class EditorMapFloorRenderBuilder
     private static int GetTileIndex(int tileX, int tileY) => checked((tileY * 64) + tileX);
 
     internal static (double AnchorX, double AnchorY) ProjectObjectAnchor(
+        EditorMapSceneViewMode viewMode,
+        double tileWidthPixels,
+        double tileHeightPixels,
         double tileCenterX,
         double tileCenterY,
         EditorMapObjectPreview objectPreview
-    ) => (tileCenterX + objectPreview.OffsetX, tileCenterY + objectPreview.OffsetY - objectPreview.OffsetZ);
+    )
+    {
+        var (offsetX, offsetY, offsetZ) = ScaleObjectOffsets(
+            viewMode,
+            tileWidthPixels,
+            tileHeightPixels,
+            objectPreview
+        );
+        _ = offsetZ;
+        return (tileCenterX + offsetX, tileCenterY + offsetY);
+    }
+
+    private static (double OffsetX, double OffsetY, double OffsetZ) ScaleObjectOffsets(
+        EditorMapSceneViewMode viewMode,
+        double tileWidthPixels,
+        double tileHeightPixels,
+        EditorMapObjectPreview objectPreview
+    )
+    {
+        if (viewMode is not EditorMapSceneViewMode.Isometric)
+            return (objectPreview.OffsetX, objectPreview.OffsetY, objectPreview.OffsetZ);
+
+        var scaleX = tileWidthPixels / 80d;
+        var scaleY = tileHeightPixels / 40d;
+        return (objectPreview.OffsetX * scaleX, objectPreview.OffsetY * scaleY, objectPreview.OffsetZ * scaleY);
+    }
 
     internal static long GetDrawOrder(EditorMapSceneViewMode viewMode, int mapTileWidth, int mapTileX, int mapTileY) =>
         viewMode switch
@@ -539,8 +566,7 @@ public static class EditorMapFloorRenderBuilder
     }
 
     internal static double GetObjectTieBreakerSortKey(EditorMapObjectPreview objectPreview) =>
-        -objectPreview.OffsetZ
-        + (objectPreview.SpriteBounds?.MaxFrameCenterY ?? 0)
+        (objectPreview.SpriteBounds?.MaxFrameCenterY ?? 0)
         + ((objectPreview.SpriteBounds?.MaxFrameHeight ?? 0) / 4096d)
         + (objectPreview.CollisionHeight / 16777216d);
 
@@ -587,7 +613,7 @@ public static class EditorMapFloorRenderBuilder
         };
 
     internal static void ExpandObjectBounds(
-        EditorMapObjectSpriteBounds? spriteBounds,
+        EditorMapObjectPreview objectPreview,
         double anchorX,
         double anchorY,
         ref double minLeft,
@@ -596,6 +622,7 @@ public static class EditorMapFloorRenderBuilder
         ref double maxBottom
     )
     {
+        var spriteBounds = objectPreview.SpriteBounds;
         if (spriteBounds is null)
         {
             minLeft = Math.Min(minLeft, anchorX);
@@ -605,8 +632,9 @@ public static class EditorMapFloorRenderBuilder
             return;
         }
 
-        var left = anchorX - spriteBounds.MaxFrameCenterX;
-        var top = anchorY - spriteBounds.MaxFrameCenterY;
+        var (centerX, centerY) = GetLayoutSpriteCenter(objectPreview, spriteBounds);
+        var left = anchorX - centerX;
+        var top = anchorY - centerY;
         var right = left + spriteBounds.MaxFrameWidth;
         var bottom = top + spriteBounds.MaxFrameHeight;
 
@@ -614,6 +642,64 @@ public static class EditorMapFloorRenderBuilder
         minTop = Math.Min(minTop, top);
         maxRight = Math.Max(maxRight, right);
         maxBottom = Math.Max(maxBottom, bottom);
+    }
+
+    internal static void ExpandObjectBounds(
+        EditorMapPlacementPreviewObject previewObject,
+        double anchorX,
+        double anchorY,
+        ref double minLeft,
+        ref double minTop,
+        ref double maxRight,
+        ref double maxBottom
+    )
+    {
+        ArgumentNullException.ThrowIfNull(previewObject);
+
+        var spriteBounds = previewObject.SpriteBounds;
+        if (spriteBounds is null)
+        {
+            minLeft = Math.Min(minLeft, anchorX);
+            minTop = Math.Min(minTop, anchorY);
+            maxRight = Math.Max(maxRight, anchorX);
+            maxBottom = Math.Max(maxBottom, anchorY);
+            return;
+        }
+
+        var (centerX, centerY) = GetLayoutSpriteCenter(
+            previewObject.ObjectType,
+            previewObject.CurrentArtId,
+            spriteBounds
+        );
+        var left = anchorX - centerX;
+        var top = anchorY - centerY;
+        var right = left + spriteBounds.MaxFrameWidth;
+        var bottom = top + spriteBounds.MaxFrameHeight;
+
+        minLeft = Math.Min(minLeft, left);
+        minTop = Math.Min(minTop, top);
+        maxRight = Math.Max(maxRight, right);
+        maxBottom = Math.Max(maxBottom, bottom);
+    }
+
+    internal static (int CenterX, int CenterY) GetLayoutSpriteCenter(
+        EditorMapObjectPreview objectPreview,
+        EditorMapObjectSpriteBounds spriteBounds
+    ) => GetLayoutSpriteCenter(objectPreview.ObjectType, objectPreview.CurrentArtId, spriteBounds);
+
+    internal static (int CenterX, int CenterY) GetLayoutSpriteCenter(
+        ObjectType objectType,
+        ArtId artId,
+        EditorMapObjectSpriteBounds spriteBounds
+    )
+    {
+        if (!UsesCeWallPortalOrdering(objectType))
+            return (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY);
+
+        var rotationIndex = (int)((artId.Value >> 11) & 0x7u);
+        return rotationIndex is > 1 and < 6
+            ? (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY)
+            : (spriteBounds.MaxFrameCenterX - 40, spriteBounds.MaxFrameCenterY + 20);
     }
 
     internal static (double AnchorX, double AnchorY) ProjectRoofAnchor(
@@ -627,15 +713,33 @@ public static class EditorMapFloorRenderBuilder
         return viewMode switch
         {
             EditorMapSceneViewMode.TopDown => (-mapTileX * tileWidthPixels, topMapTileY * tileHeightPixels),
-            EditorMapSceneViewMode.Isometric => ProjectTileCenter(
-                viewMode,
+            EditorMapSceneViewMode.Isometric => ProjectIsometricRoofAnchor(
                 tileWidthPixels,
                 tileHeightPixels,
                 mapTileX,
-                checked(topMapTileY + 3)
+                topMapTileY
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
+    }
+
+    private static (double AnchorX, double AnchorY) ProjectIsometricRoofAnchor(
+        double tileWidthPixels,
+        double tileHeightPixels,
+        int mapTileX,
+        int topMapTileY
+    )
+    {
+        var normalizedMapTileX = checked(mapTileX + 2);
+        var normalizedMapTileY = checked(topMapTileY + 2);
+        var (centerX, centerY) = ProjectTileCenter(
+            EditorMapSceneViewMode.Isometric,
+            tileWidthPixels,
+            tileHeightPixels,
+            normalizedMapTileX,
+            normalizedMapTileY
+        );
+        return (centerX - (tileWidthPixels * 2d), centerY - (tileHeightPixels * 5.5d));
     }
 
     internal static void ExpandRoofBounds(
