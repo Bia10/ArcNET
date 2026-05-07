@@ -408,11 +408,11 @@ public static class EditorMapFocusLocator
         sectorProjection = null!;
         tile = default;
 
-        if (!TryGetLocation(mob, out var absoluteLocation))
+        if (!TryGetMapLocation(mob, out var mapTileX, out var mapTileY))
             return false;
 
-        var sectorX = FloorDivide(absoluteLocation.X, SectorTileAxisLength);
-        var sectorY = FloorDivide(absoluteLocation.Y, SectorTileAxisLength);
+        var sectorX = FloorDivide(mapTileX, SectorTileAxisLength);
+        var sectorY = FloorDivide(mapTileY, SectorTileAxisLength);
         var resolvedSectorProjection = projection.Sectors.FirstOrDefault(candidate =>
             candidate.SectorX == sectorX && candidate.SectorY == sectorY
         );
@@ -421,10 +421,30 @@ public static class EditorMapFocusLocator
 
         sectorProjection = resolvedSectorProjection;
         tile = new Location(
-            checked((short)PositiveModulo(absoluteLocation.X, SectorTileAxisLength)),
-            checked((short)PositiveModulo(absoluteLocation.Y, SectorTileAxisLength))
+            checked((short)PositiveModulo(mapTileX, SectorTileAxisLength)),
+            checked((short)PositiveModulo(mapTileY, SectorTileAxisLength))
         );
         return true;
+    }
+
+    private static bool TryGetMapLocation(MobData mob, out int tileX, out int tileY)
+    {
+        tileX = 0;
+        tileY = 0;
+
+        var property = mob.GetProperty(ObjectField.ObjFLocation);
+        if (property is null || property.ParseNote is not null)
+            return false;
+
+        try
+        {
+            (tileX, tileY) = property.GetLocation();
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static bool TryGetLocation(MobData mob, out Location location)
@@ -441,6 +461,10 @@ public static class EditorMapFocusLocator
             return true;
         }
         catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (OverflowException)
         {
             return false;
         }
