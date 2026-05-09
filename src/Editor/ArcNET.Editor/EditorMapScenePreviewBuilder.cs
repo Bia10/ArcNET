@@ -354,25 +354,22 @@ public static class EditorMapScenePreviewBuilder
         if (!TryGetMapLocation(mob.GetProperty(ObjectField.ObjFLocation), out var tileX, out var tileY))
             return null;
 
+        // Sector-local coordinates: no normalization needed.
         if (tileX is >= 0 and < TileGridWidth && tileY is >= 0 and < TileGridWidth)
             return new Location(checked((short)tileX), checked((short)tileY));
 
+        // Map-absolute coordinates: always normalize to sector-local so that
+        // ProcessSector in EditorMapFloorRenderBuilder does not add the sector
+        // offset on top of an already-absolute coordinate (double-shift bug).
         var sectorStartTileX = checked(sectorProjection.SectorX * TileGridWidth);
         var sectorStartTileY = checked(sectorProjection.SectorY * TileGridWidth);
-        if (
-            tileX < sectorStartTileX
-            || tileX >= sectorStartTileX + TileGridWidth
-            || tileY < sectorStartTileY
-            || tileY >= sectorStartTileY + TileGridWidth
-        )
-        {
-            if (tileX is < short.MinValue or > short.MaxValue || tileY is < short.MinValue or > short.MaxValue)
-                return null;
+        var localTileX = tileX - sectorStartTileX;
+        var localTileY = tileY - sectorStartTileY;
 
-            return new Location(checked((short)tileX), checked((short)tileY));
-        }
+        if (localTileX is < short.MinValue or > short.MaxValue || localTileY is < short.MinValue or > short.MaxValue)
+            return null;
 
-        return new Location(checked((short)(tileX - sectorStartTileX)), checked((short)(tileY - sectorStartTileY)));
+        return new Location(checked((short)localTileX), checked((short)localTileY));
     }
 
     private static bool TryGetMapLocation(ObjectProperty? property, out int tileX, out int tileY)
