@@ -9406,7 +9406,7 @@ public sealed class EditorWorkspaceSessionTests
                 .IsEqualTo(shell.ObjectSelection.SelectedObjects.Count);
             await Assert.That(progressUpdates.Length).IsGreaterThan(0);
             await Assert
-                .That(progressUpdates.Any(static update => update.Activity == "Resolving object palette"))
+                .That(progressUpdates.Any(static update => update.Activity == "Resolving shell summaries in parallel"))
                 .IsTrue();
             await Assert
                 .That(progressUpdates.Any(static update => update.Activity == "Finalizing tracked shell"))
@@ -9909,7 +9909,7 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
-    public async Task MapViewWorldEditToolHelpers_CreateDefaultMapViewState_CentersDenseMapsOnPlacedObjects()
+    public async Task MapViewWorldEditToolHelpers_CreateDefaultMapViewState_CentersOnMapGeometricCenter()
     {
         const int protoNumber = 14001;
         const ulong sectorKey = 0UL;
@@ -9935,8 +9935,11 @@ public sealed class EditorWorkspaceSessionTests
             var session = workspace.CreateSession();
             var mapViewState = session.CreateDefaultMapViewState("map-view-1");
 
-            await Assert.That(mapViewState.Camera.CenterTileX).IsEqualTo(5d);
-            await Assert.That(mapViewState.Camera.CenterTileY).IsEqualTo(6d);
+            // Default camera uses geometric center of the map projection (cheap)
+            // instead of a full scene render to find object-centered coordinates.
+            // For one sector at (0,0), the geometric center is (32, 32).
+            await Assert.That(mapViewState.Camera.CenterTileX).IsEqualTo(32d);
+            await Assert.That(mapViewState.Camera.CenterTileY).IsEqualTo(32d);
         }
         finally
         {
