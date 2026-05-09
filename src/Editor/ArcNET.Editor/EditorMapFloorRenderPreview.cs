@@ -59,4 +59,35 @@ public sealed class EditorMapFloorRenderPreview
     /// Unified render queue for <see cref="Tiles"/>, <see cref="Overlays"/>, <see cref="Objects"/>, and <see cref="Roofs"/>.
     /// </summary>
     public required IReadOnlyList<EditorMapRenderQueueItem> RenderQueue { get; init; }
+
+    /// <summary>
+    /// X offset applied to center/anchor coordinates when normalizing into the preview space.
+    /// Used by delta builders to reconstruct raw coordinates.
+    /// </summary>
+    internal double OffsetX { get; init; }
+
+    /// <summary>
+    /// Y offset applied to center/anchor coordinates when normalizing into the preview space.
+    /// </summary>
+    internal double OffsetY { get; init; }
+
+    /// <summary>
+    /// Pre-offset minimum left coordinate used for bounds calculation.
+    /// </summary>
+    internal double RawMinLeft { get; init; }
+
+    /// <summary>
+    /// Pre-offset minimum top coordinate used for bounds calculation.
+    /// </summary>
+    internal double RawMinTop { get; init; }
+
+    /// <summary>
+    /// Pre-offset maximum right coordinate used for bounds calculation.
+    /// </summary>
+    internal double RawMaxRight { get; init; }
+
+    /// <summary>
+    /// Pre-offset maximum bottom coordinate used for bounds calculation.
+    /// </summary>
+    internal double RawMaxBottom { get; init; }
 }

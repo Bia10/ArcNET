@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Threading.Tasks;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -2915,7 +2916,11 @@ public sealed class EditorWorkspaceSession
             ?? throw new InvalidOperationException(
                 $"No indexed map projection matched '{defaultMap.MapName}' for the default map view state."
             );
-        var camera = CreateCenteredTileCamera(defaultMap.MapName, projection);
+        // Use the geometric center directly for the default view state.
+        // The object-centered camera path requires a full scene preview and
+        // floor render build, which doubles the composition cost on first load
+        // and is not justified for a default/initial camera position.
+        var camera = CreateCenteredTileCamera(projection);
 
         return NormalizeProjectMapViewState(
             new EditorProjectMapViewState
@@ -3099,6 +3104,7 @@ public sealed class EditorWorkspaceSession
                 var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
                 var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
 
+                // Phase 1 — Resolve render assets (I/O-bound; single await).
                 progressReporter.Report("Preparing shell render assets", 0.14f);
                 cancellationToken.ThrowIfCancellationRequested();
                 var effectiveArtResolver =
@@ -3110,6 +3116,7 @@ public sealed class EditorWorkspaceSession
                 var effectiveSpriteSource =
                     effectiveRequest.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
 
+                // Phase 2 — Build world-edit scene + resolve placement summary concurrently.
                 progressReporter.Report("Building world-edit scene", 0.48f);
                 cancellationToken.ThrowIfCancellationRequested();
                 var scene = CreateMapWorldEditSceneCore(
@@ -3125,60 +3132,94 @@ public sealed class EditorWorkspaceSession
                     cancellationToken
                 );
 
-                progressReporter.Report("Resolving object placement summary", 0.60f);
+                // Phase 3 — Run independent read-only summaries concurrently.
+                // scene is already built; placement summary, selection, inspector state, palette,
+                // inspector summaries, terrain summaries, and placement preview are all
+                // independent pure reads on the session/workspace and can overlap.
+                progressReporter.Report("Resolving shell summaries in parallel", 0.60f);
                 cancellationToken.ThrowIfCancellationRequested();
                 var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
+
                 var includeTrackedPlacementPreview =
                     effectiveRequest.IncludeTrackedPlacementPreview
                     && mapViewState.WorldEdit.ActiveTool == EditorProjectMapWorldEditActiveTool.ObjectPlacement
                     && objectPlacementTool.CanPreviewOrApply;
-
-                progressReporter.Report("Resolving tracked selection", 0.70f);
                 cancellationToken.ThrowIfCancellationRequested();
+
                 var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
                 var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
+                var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
 
-                progressReporter.Report("Resolving object palette", 0.82f);
-                cancellationToken.ThrowIfCancellationRequested();
-                var objectPalette = await GetTrackedObjectPaletteSummaryAsync(
-                        mapViewStateId,
-                        DefaultRenderableArtBindingStrategy,
-                        effectiveRequest.ObjectPaletteSearchText,
-                        effectiveRequest.ObjectPaletteCategory,
-                        effectiveRequest.IncludeFullObjectPaletteBrowse,
+                // These six inspector-typed summaries and the remaining
+                // shell properties are all independent reads — fan them out.
+                EditorObjectInspectorFlagsSummary objectInspectorFlags = null!;
+                EditorObjectInspectorScriptAttachmentsSummary objectInspectorScriptAttachments = null!;
+                EditorObjectInspectorCritterProgressionSummary objectInspectorCritterProgression = null!;
+                EditorObjectInspectorLightSummary objectInspectorLight = null!;
+                EditorObjectInspectorGeneratorSummary objectInspectorGenerator = null!;
+                EditorObjectInspectorBlendingSummary objectInspectorBlending = null!;
+                EditorMapObjectPaletteSummary objectPalette = null!;
+                EditorMapTerrainToolSummary terrainTool = null!;
+                EditorMapTerrainPaletteSummary terrainPalette = null!;
+                EditorMapPlacementPreview? trackedPlacementPreview = null;
+                EditorMapPaintableScene? trackedPlacementPaintableScene = null;
+
+                await Task.Run(
+                        () =>
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            Parallel.Invoke(
+                                new ParallelOptions { CancellationToken = cancellationToken },
+                                () => objectInspectorFlags = CreateTrackedObjectInspectorFlagsSummary(objectInspector),
+                                () =>
+                                    objectInspectorScriptAttachments =
+                                        CreateTrackedObjectInspectorScriptAttachmentsSummary(objectInspector),
+                                () =>
+                                    objectInspectorCritterProgression =
+                                        CreateTrackedObjectInspectorCritterProgressionSummary(objectInspector),
+                                () => objectInspectorLight = CreateTrackedObjectInspectorLightSummary(objectInspector),
+                                () =>
+                                    objectInspectorGenerator = CreateTrackedObjectInspectorGeneratorSummary(
+                                        objectInspector
+                                    ),
+                                () =>
+                                    objectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(
+                                        objectInspector
+                                    ),
+                                () =>
+                                    objectPalette = GetTrackedObjectPaletteSummary(
+                                        mapViewStateId,
+                                        effectiveRequest.ObjectPaletteSearchText,
+                                        effectiveRequest.ObjectPaletteCategory,
+                                        effectiveRequest.IncludeFullObjectPaletteBrowse
+                                    ),
+                                () => terrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
+                                () => terrainPalette = CreateTrackedShellTerrainPaletteSummary(mapViewStateId),
+                                () =>
+                                {
+                                    if (!includeTrackedPlacementPreview)
+                                        return;
+
+                                    trackedPlacementPreview = PreviewTrackedObjectPlacementTool(
+                                        mapViewStateId,
+                                        renderRequest
+                                    );
+                                    cancellationToken.ThrowIfCancellationRequested();
+                                    trackedPlacementPaintableScene =
+                                        EditorMapPaintableSceneBuilder.BuildPlacementOverlay(
+                                            scene.SceneRender,
+                                            trackedPlacementPreview,
+                                            effectiveSpriteSource,
+                                            cancellationToken
+                                        );
+                                }
+                            );
+                        },
                         cancellationToken
                     )
                     .ConfigureAwait(false);
 
-                progressReporter.Report("Resolving inspector summaries", 0.92f);
-                cancellationToken.ThrowIfCancellationRequested();
-                var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
-                var objectInspectorFlags = CreateTrackedObjectInspectorFlagsSummary(objectInspector);
-                var objectInspectorScriptAttachments = CreateTrackedObjectInspectorScriptAttachmentsSummary(
-                    objectInspector
-                );
-                var objectInspectorCritterProgression = CreateTrackedObjectInspectorCritterProgressionSummary(
-                    objectInspector
-                );
-                var objectInspectorLight = CreateTrackedObjectInspectorLightSummary(objectInspector);
-                var objectInspectorGenerator = CreateTrackedObjectInspectorGeneratorSummary(objectInspector);
-                var objectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(objectInspector);
-
-                progressReporter.Report("Building tracked placement preview", 0.97f);
-                cancellationToken.ThrowIfCancellationRequested();
-                var trackedPlacementPreview = includeTrackedPlacementPreview
-                    ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
-                    : null;
-                var trackedPlacementPaintableScene = trackedPlacementPreview is not null
-                    ? EditorMapPaintableSceneBuilder.BuildPlacementOverlay(
-                        scene.SceneRender,
-                        trackedPlacementPreview,
-                        effectiveSpriteSource,
-                        cancellationToken
-                    )
-                    : null;
-
-                progressReporter.Report("Finalizing tracked shell", 1f);
+                progressReporter.Report("Finalizing tracked shell", 0.97f);
                 cancellationToken.ThrowIfCancellationRequested();
                 return new EditorMapWorldEditShell
                 {
@@ -3190,8 +3231,8 @@ public sealed class EditorWorkspaceSession
                     Scene = scene,
                     TrackedPlacementPreview = trackedPlacementPreview,
                     TrackedPlacementPaintableScene = trackedPlacementPaintableScene,
-                    TerrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
-                    TerrainPalette = CreateTrackedShellTerrainPaletteSummary(mapViewStateId),
+                    TerrainTool = terrainTool,
+                    TerrainPalette = terrainPalette,
                     ObjectPlacementTool = objectPlacementTool,
                     ObjectPalette = objectPalette,
                     ObjectSelection = objectSelection,

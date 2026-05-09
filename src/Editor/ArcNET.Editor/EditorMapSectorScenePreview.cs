@@ -1,4 +1,6 @@
-﻿namespace ArcNET.Editor;
+﻿using System.Numerics;
+
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Rich preview data for one positioned sector inside a projected map.
@@ -99,6 +101,116 @@ public sealed class EditorMapSectorScenePreview
     /// Sector roof-grid height.
     /// </summary>
     public int RoofHeight => RoofGridHeight;
+
+    /// <summary>
+    /// Precomputed dense-tile row bitmasks. Each <see cref="ulong"/> bit represents one column.
+    /// A zero row can be skipped entirely during iteration.
+    /// </summary>
+    public ulong[] TileRowMasks
+    {
+        get
+        {
+            if (_tileRowMasks is not null)
+                return _tileRowMasks;
+
+            var masks = new ulong[TileGridHeight];
+            for (var row = 0; row < TileGridHeight; row++)
+            {
+                var rowMask = 0UL;
+                for (var col = 0; col < TileGridWidth; col++)
+                {
+                    if (TileArtIds[(row * TileGridWidth) + col] != 0)
+                        rowMask |= 1UL << col;
+                }
+
+                masks[row] = rowMask;
+            }
+
+            _tileRowMasks = masks;
+            return masks;
+        }
+    }
+
+    /// <summary>
+    /// Precomputed fast-lookup set of tile indices that carry a light.
+    /// Computed once on first access, avoiding per-sector LINQ allocations during floor-render iteration.
+    /// </summary>
+    public HashSet<int> LightTileIndices
+    {
+        get
+        {
+            if (_lightTileIndices is not null)
+                return _lightTileIndices;
+
+            var indices = new HashSet<int>(Lights.Count);
+            for (var i = 0; i < Lights.Count; i++)
+            {
+                var light = Lights[i];
+                indices.Add((light.TileY * TileGridWidth) + light.TileX);
+            }
+
+            _lightTileIndices = indices;
+            return indices;
+        }
+    }
+
+    /// <summary>
+    /// Precomputed fast-lookup set of tile indices that carry a script.
+    /// Computed once on first access, avoiding per-sector LINQ allocations during floor-render iteration.
+    /// </summary>
+    public HashSet<int> ScriptedTileIndices
+    {
+        get
+        {
+            if (_scriptedTileIndices is not null)
+                return _scriptedTileIndices;
+
+            var indices = new HashSet<int>(TileScripts.Count);
+            for (var i = 0; i < TileScripts.Count; i++)
+                indices.Add(TileScripts[i].TileIndex);
+
+            _scriptedTileIndices = indices;
+            return indices;
+        }
+    }
+
+    /// <summary>
+    /// Precomputed roof-tile row bitmasks. Each <see cref="ulong"/> bit represents one column.
+    /// A zero row can be skipped entirely during iteration. Returns <see langword="null"/> when the sector has no roofs.
+    /// </summary>
+    public ulong[]? RoofRowMasks
+    {
+        get
+        {
+            if (RoofArtIds is null)
+                return null;
+
+            if (_roofRowMasks is not null)
+                return _roofRowMasks;
+
+            var masks = new ulong[RoofGridHeight];
+            for (var row = 0; row < RoofGridHeight; row++)
+            {
+                var rowMask = 0UL;
+                for (var col = 0; col < RoofGridWidth; col++)
+                {
+                    var artId = RoofArtIds[(row * RoofGridWidth) + col];
+                    if (artId is not (0u or uint.MaxValue))
+                        rowMask |= 1UL << col;
+                }
+
+                masks[row] = rowMask;
+            }
+
+            _roofRowMasks = masks;
+            return masks;
+        }
+    }
+
+    private ulong[]? _tileRowMasks;
+    private ulong[]? _roofRowMasks;
+    private HashSet<int>? _lightTileIndices;
+    private HashSet<int>? _scriptedTileIndices;
 
     /// <summary>
     /// Returns one tile art identifier from the 64x64 tile grid.

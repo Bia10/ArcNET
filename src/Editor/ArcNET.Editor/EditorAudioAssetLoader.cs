@@ -37,15 +37,16 @@ internal static class EditorAudioAssetLoader
             throw new DirectoryNotFoundException($"Game directory not found: {gameDir}");
 
         var sourceTasks = DiscoverArchivePaths(gameDir)
-            .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken))
+            .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
             .ToList();
 
         var looseDataDirectory = Path.Combine(gameDir, "data");
         if (Directory.Exists(looseDataDirectory))
-            sourceTasks.Add(LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken));
+            sourceTasks.Add(
+                LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken, progress)
+            );
 
-        var overlaySources = await LoadAudioSourcesAsync(sourceTasks, progress, "Loading install audio sources")
-            .ConfigureAwait(false);
+        var overlaySources = await Task.WhenAll(sourceTasks).ConfigureAwait(false);
         return CreateLoadResult(overlaySources);
     }
 
@@ -66,42 +67,93 @@ internal static class EditorAudioAssetLoader
         {
             sourceTasks.AddRange(
                 DiscoverArchivePaths(gameDirectory)
-                    .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken))
+                    .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
             );
 
             var looseDataDirectory = Path.Combine(gameDirectory, "data");
             if (Directory.Exists(looseDataDirectory))
-                sourceTasks.Add(LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken));
+                sourceTasks.Add(
+                    LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken, progress)
+                );
         }
 
         sourceTasks.AddRange(
             DiscoverModuleArchivePaths(moduleDirectory)
-                .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken))
+                .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
         );
-        sourceTasks.Add(LoadLooseFilesAsync(moduleDirectory, skipSaveDirectory: true, cancellationToken));
+        sourceTasks.Add(LoadLooseFilesAsync(moduleDirectory, skipSaveDirectory: true, cancellationToken, progress));
 
-        var overlaySources = await LoadAudioSourcesAsync(sourceTasks, progress, "Loading module audio sources")
-            .ConfigureAwait(false);
+        var overlaySources = await Task.WhenAll(sourceTasks).ConfigureAwait(false);
         return CreateLoadResult(overlaySources);
     }
 
-    private static Task<AudioOverlaySource> LoadArchiveAsync(string archivePath, CancellationToken cancellationToken) =>
-        Task.Run(() => ReadArchive(archivePath, cancellationToken), cancellationToken);
+    private static Task<AudioOverlaySource> LoadArchiveAsync(
+        string archivePath,
+        CancellationToken cancellationToken,
+        IProgress<EditorAssetLoadProgress>? progress = null
+    ) => Task.Run(() => ReadArchive(archivePath, cancellationToken, progress), cancellationToken);
 
-    private static AudioOverlaySource ReadArchive(string archivePath, CancellationToken cancellationToken)
+    private static AudioOverlaySource ReadArchive(
+        string archivePath,
+        CancellationToken cancellationToken,
+        IProgress<EditorAssetLoadProgress>? progress = null
+    )
     {
         var overlaySource = new AudioOverlaySource();
         using var archive = DatArchive.Open(archivePath);
-        foreach (var entry in archive.Entries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsSupportedAudioAsset(entry.Path))
-                continue;
 
-            var assetPath = NormalizeVirtualPath(entry.Path);
-            overlaySource.DataByPath[assetPath] = archive.GetEntryData(entry.Path);
-            overlaySource.SourceByPath[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
-        }
+        var audioEntries = archive.Entries.Where(e => IsSupportedAudioAsset(e.Path)).ToArray();
+
+        if (audioEntries.Length == 0)
+            return overlaySource;
+
+        var completedCount = 0;
+        var archiveName = Path.GetFileName(archivePath);
+
+        progress?.Report(
+            new EditorAssetLoadProgress($"Reading {archiveName}", 0f, 0, audioEntries.Length, "audio files")
+        );
+
+        Parallel.ForEach(
+            audioEntries,
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+            },
+            entry =>
+            {
+                var assetPath = NormalizeVirtualPath(entry.Path);
+                var data = archive.GetEntryData(entry.Path);
+
+                lock (overlaySource)
+                {
+                    overlaySource.DataByPath[assetPath] = data;
+                    overlaySource.SourceByPath[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
+                }
+
+                var completed = Interlocked.Increment(ref completedCount);
+                progress?.Report(
+                    new EditorAssetLoadProgress(
+                        $"Reading {archiveName}",
+                        completed / (float)audioEntries.Length,
+                        completed,
+                        audioEntries.Length,
+                        "audio files"
+                    )
+                );
+            }
+        );
+
+        progress?.Report(
+            new EditorAssetLoadProgress(
+                $"Reading {archiveName}",
+                1f,
+                audioEntries.Length,
+                audioEntries.Length,
+                "audio files"
+            )
+        );
 
         return overlaySource;
     }
@@ -166,42 +218,6 @@ internal static class EditorAudioAssetLoader
         progress?.Report(new EditorAssetLoadProgress(activity, 1f, filePaths.Length, filePaths.Length, "audio files"));
 
         return overlaySource;
-    }
-
-    private static async Task<AudioOverlaySource[]> LoadAudioSourcesAsync(
-        IReadOnlyList<Task<AudioOverlaySource>> sourceTasks,
-        IProgress<EditorAssetLoadProgress>? progress,
-        string activity
-    )
-    {
-        if (sourceTasks.Count == 0)
-        {
-            progress?.Report(new EditorAssetLoadProgress(activity, 1f, 0, 0, "sources"));
-            return [];
-        }
-
-        progress?.Report(new EditorAssetLoadProgress(activity, 0f, 0, sourceTasks.Count, "sources"));
-
-        var completedCount = 0;
-        var trackedTasks = sourceTasks
-            .Select(async sourceTask =>
-            {
-                var overlaySource = await sourceTask.ConfigureAwait(false);
-                var completedSources = Interlocked.Increment(ref completedCount);
-                progress?.Report(
-                    new EditorAssetLoadProgress(
-                        activity,
-                        completedSources / (float)sourceTasks.Count,
-                        completedSources,
-                        sourceTasks.Count,
-                        "sources"
-                    )
-                );
-                return overlaySource;
-            })
-            .ToArray();
-
-        return await Task.WhenAll(trackedTasks).ConfigureAwait(false);
     }
 
     private static EditorAudioAssetLoadResult CreateLoadResult(IReadOnlyList<AudioOverlaySource> overlaySources)
