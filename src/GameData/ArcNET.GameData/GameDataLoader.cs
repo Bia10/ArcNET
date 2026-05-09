@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+using System.Diagnostics;
+using System.Threading.Channels;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -11,11 +12,11 @@ namespace ArcNET.GameData;
 public static class GameDataLoader
 {
     private delegate Action<GameDataStore>? MemoryLoadHandler(ReadOnlyMemory<byte> memory, string sourcePath);
-    private const int MaxParseParallelism = 16;
+    private const int MaxParseParallelism = 64;
     private const int MinParseParallelism = 4;
-    private const int MaxReadParallelism = 64;
+    private const int MaxReadParallelism = 256;
     private const int MinReadParallelism = 8;
-    private const int MaxLoadedEntryBufferSize = 64;
+    private const int MaxLoadedEntryBufferSize = 256;
 
     private static readonly IReadOnlyDictionary<FileFormat, MemoryLoadHandler> s_memoryLoadHandlers = new Dictionary<
         FileFormat,
@@ -261,40 +262,25 @@ public static class GameDataLoader
 
         var parseParallelism = GetParseParallelism();
         var readParallelism = GetReadParallelism(parseParallelism);
+        Debug.WriteLine(
+            $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, TotalAssets={entries.Count}"
+        );
+        // Use a bounded channel to prevent unbounded memory growth if reading is faster than parsing.
+        // AllowSynchronousContinuations MUST be false to ensure that the CPU-intensive parse continuations
+        // do not hijack the I/O threads. Setting it to true destroys the parallelism pipeline.
         var loadedEntryChannel = Channel.CreateBounded<LoadedEntry>(
             new BoundedChannelOptions(GetLoadedEntryBufferSize(parseParallelism))
             {
-                SingleWriter = false,
-                SingleReader = false,
                 FullMode = BoundedChannelFullMode.Wait,
-                AllowSynchronousContinuations = false,
+                SingleWriter = false,
+                SingleReader = false, // Multiple parse workers read from the channel
+                AllowSynchronousContinuations = false, // Critical: Decouple I/O and CPU work
             }
         );
-        var completedCount = 0;
 
         var parseWorkers = Enumerable
             .Range(0, parseParallelism)
-            .Select(_ =>
-                ConsumeLoadedEntriesAsync(
-                    loadedEntryChannel.Reader,
-                    parsedEntries,
-                    () =>
-                    {
-                        var completedEntries = Interlocked.Increment(ref completedCount);
-                        var parseProgress = completedEntries / (float)entries.Count;
-                        progress?.Report(parseProgress);
-                        loadProgress?.Report(
-                            new GameDataLoadProgress(
-                                "Parsing game data assets",
-                                parseProgress,
-                                completedEntries,
-                                entries.Count
-                            )
-                        );
-                    },
-                    ct
-                )
-            )
+            .Select(_ => Task.Run(() => ConsumeLoadedEntriesAsync(loadedEntryChannel.Reader, parsedEntries, ct), ct))
             .ToArray();
 
         Exception? loadFailure = null;
@@ -326,20 +312,22 @@ public static class GameDataLoader
 
         await Task.WhenAll(parseWorkers).ConfigureAwait(false);
 
+        // Final progress report
+        progress?.Report(1f);
+        loadProgress?.Report(new GameDataLoadProgress("Parsing game data assets", 1f, entries.Count, entries.Count));
+
         return parsedEntries;
     }
 
     private static async Task ConsumeLoadedEntriesAsync(
         ChannelReader<LoadedEntry> reader,
         ParsedLoadEntry[] parsedEntries,
-        Action onParsed,
         CancellationToken ct
     )
     {
         await foreach (var loadedEntry in reader.ReadAllAsync(ct).ConfigureAwait(false))
         {
             parsedEntries[loadedEntry.Index] = ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory);
-            onParsed();
         }
     }
 
@@ -361,13 +349,13 @@ public static class GameDataLoader
     }
 
     private static int GetParseParallelism() =>
-        Math.Clamp(Environment.ProcessorCount, MinParseParallelism, MaxParseParallelism);
+        Math.Clamp(Environment.ProcessorCount * 2, MinParseParallelism, MaxParseParallelism);
 
     private static int GetReadParallelism(int parseParallelism) =>
-        Math.Clamp(parseParallelism * 4, MinReadParallelism, MaxReadParallelism);
+        Math.Clamp(parseParallelism * 8, MinReadParallelism, MaxReadParallelism);
 
     private static int GetLoadedEntryBufferSize(int parseParallelism) =>
-        Math.Clamp(parseParallelism * 4, MinReadParallelism, MaxLoadedEntryBufferSize);
+        Math.Clamp(parseParallelism * 8, MinReadParallelism, MaxLoadedEntryBufferSize);
 
     private static Action<GameDataStore>? ParseEntryFromMemory(
         FileFormat format,
