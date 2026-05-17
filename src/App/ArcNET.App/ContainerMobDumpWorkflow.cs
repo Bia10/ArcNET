@@ -1,4 +1,4 @@
-﻿using ArcNET.Archive;
+using ArcNET.Archive;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -118,14 +118,10 @@ internal static class ContainerMobDumpWorkflow
     private static void WriteContainerReport(MobData mob, int dataLength, string source, string entryPath)
     {
         var invProp = mob.Properties.FirstOrDefault(property =>
-            property.Field == ObjectField.ObjFContainerInventoryListIdx
+            property.Field == ObjectField.ContainerInventoryListIdx
         );
-        var srcProp = mob.Properties.FirstOrDefault(property =>
-            property.Field == ObjectField.ObjFContainerInventorySource
-        );
-        var numProp = mob.Properties.FirstOrDefault(property =>
-            property.Field == ObjectField.ObjFContainerInventoryNum
-        );
+        var srcProp = mob.Properties.FirstOrDefault(property => property.Field == ObjectField.ContainerInventorySource);
+        var numProp = mob.Properties.FirstOrDefault(property => property.Field == ObjectField.ContainerInventoryNum);
 
         AnsiConsole.MarkupLine($"\n[bold cyan]{Markup.Escape(source)}[/]  ({dataLength}B)");
 

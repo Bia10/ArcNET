@@ -1,4 +1,4 @@
-﻿using ArcNET.Archive;
+using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Dumpers;
@@ -240,11 +240,11 @@ public sealed class DataCommands
         return mob.Header.GameObjectType switch
         {
             ObjectType.Weapon =>
-                $"dmg={GetInt(mob, ObjectField.ObjFWeaponDamageLowerIdx) ?? 0}–{GetInt(mob, ObjectField.ObjFWeaponDamageUpperIdx) ?? 0}"
-                    + (GetInt(mob, ObjectField.ObjFWeaponSpeedFactor) is { } spd ? $" spd={spd}" : ""),
-            ObjectType.Armor => $"ac={GetInt(mob, ObjectField.ObjFArmorAcAdj) ?? 0}"
-                + (GetInt(mob, ObjectField.ObjFArmorMagicAcAdj) is { } mac and > 0 ? $"+{mac}magic" : ""),
-            ObjectType.Gold => $"qty={GetInt(mob, ObjectField.ObjFGoldQuantity) ?? 0}",
+                $"dmg={GetInt(mob, ObjectField.WeaponDamageLowerIdx) ?? 0}–{GetInt(mob, ObjectField.WeaponDamageUpperIdx) ?? 0}"
+                    + (GetInt(mob, ObjectField.WeaponSpeedFactor) is { } spd ? $" spd={spd}" : ""),
+            ObjectType.Armor => $"ac={GetInt(mob, ObjectField.ArmorAcAdj) ?? 0}"
+                + (GetInt(mob, ObjectField.ArmorMagicAcAdj) is { } mac and > 0 ? $"+{mac}magic" : ""),
+            ObjectType.Gold => $"qty={GetInt(mob, ObjectField.GoldQuantity) ?? 0}",
             _ => "",
         };
     }
@@ -346,7 +346,7 @@ public sealed class DataCommands
                 AppendInventorySection(
                     writer,
                     mob,
-                    ObjectField.ObjFContainerInventoryListIdx,
+                    ObjectField.ContainerInventoryListIdx,
                     mobByGuid,
                     nameLookup,
                     installation
@@ -355,14 +355,14 @@ public sealed class DataCommands
 
             if (mob.Header.GameObjectType is ObjectType.Npc or ObjectType.Pc)
             {
-                var hasInv = mob.Properties.Any(p => p.Field == ObjectField.ObjFCritterInventoryListIdx);
+                var hasInv = mob.Properties.Any(p => p.Field == ObjectField.CritterInventoryListIdx);
                 if (hasInv)
                 {
                     writer.WriteLine("=== CRITTER INVENTORY ===");
                     AppendInventorySection(
                         writer,
                         mob,
-                        ObjectField.ObjFCritterInventoryListIdx,
+                        ObjectField.CritterInventoryListIdx,
                         mobByGuid,
                         nameLookup,
                         installation
