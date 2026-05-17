@@ -2,7 +2,7 @@
 
 /// <summary>Critter-specific flags (first set).</summary>
 [Flags]
-public enum ObjFCritterFlags : uint
+public enum CritterFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

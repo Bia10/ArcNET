@@ -2,7 +2,7 @@
 
 /// <summary>NPC AI and behaviour flags.</summary>
 [Flags]
-public enum ObjFNpcFlags : uint
+public enum NpcFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

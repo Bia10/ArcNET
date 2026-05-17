@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -10,7 +10,7 @@ public class ObjectItem : ObjectCommon
     private int _itemPadIas1Reserved;
     private long _itemPadI64As1Reserved;
 
-    public ObjFItemFlags ItemFlags { get; internal set; }
+    public ItemFlags ItemFlags { get; internal set; }
     public GameObjectGuid ItemParent { get; internal set; }
     public int ItemWeight { get; internal set; }
     public int ItemMagicWeightAdj { get; internal set; }
@@ -49,51 +49,51 @@ public class ObjectItem : ObjectCommon
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFItemFlags))
-            ItemFlags = unchecked((ObjFItemFlags)(uint)reader.ReadInt32());
-        if (Bit(ObjectField.ObjFItemParent))
+        if (Bit(ObjectField.ItemFlags))
+            ItemFlags = unchecked((ItemFlags)(uint)reader.ReadInt32());
+        if (Bit(ObjectField.ItemParent))
             ItemParent = reader.ReadGameObjectGuid();
-        if (Bit(ObjectField.ObjFItemWeight))
+        if (Bit(ObjectField.ItemWeight))
             ItemWeight = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemMagicWeightAdj))
+        if (Bit(ObjectField.ItemMagicWeightAdj))
             ItemMagicWeightAdj = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemWorth))
+        if (Bit(ObjectField.ItemWorth))
             ItemWorth = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemManaStore))
+        if (Bit(ObjectField.ItemManaStore))
             ItemManaStore = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemInvAid))
+        if (Bit(ObjectField.ItemInvAid))
             ItemInvAid = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemInvLocation))
+        if (Bit(ObjectField.ItemInvLocation))
             ItemInvLocation = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemUseAidFragment))
+        if (Bit(ObjectField.ItemUseAidFragment))
             ItemUseAidFragment = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemMagicTechComplexity))
+        if (Bit(ObjectField.ItemMagicTechComplexity))
             ItemMagicTechComplexity = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemDiscipline))
+        if (Bit(ObjectField.ItemDiscipline))
             ItemDiscipline = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemDescriptionUnknown))
+        if (Bit(ObjectField.ItemDescriptionUnknown))
             ItemDescriptionUnknown = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemDescriptionEffects))
+        if (Bit(ObjectField.ItemDescriptionEffects))
             ItemDescriptionEffects = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpell1))
+        if (Bit(ObjectField.ItemSpell1))
             ItemSpell1 = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpell2))
+        if (Bit(ObjectField.ItemSpell2))
             ItemSpell2 = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpell3))
+        if (Bit(ObjectField.ItemSpell3))
             ItemSpell3 = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpell4))
+        if (Bit(ObjectField.ItemSpell4))
             ItemSpell4 = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpell5))
+        if (Bit(ObjectField.ItemSpell5))
             ItemSpell5 = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemSpellManaStore))
+        if (Bit(ObjectField.ItemSpellManaStore))
             ItemSpellManaStore = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemAiAction))
+        if (Bit(ObjectField.ItemAiAction))
             ItemAiAction = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemPadI1))
+        if (Bit(ObjectField.ItemPadI1))
             _itemPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemPadIas1))
+        if (Bit(ObjectField.ItemPadIas1))
             _itemPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFItemPadI64As1))
+        if (Bit(ObjectField.ItemPadI64As1))
             _itemPadI64As1Reserved = reader.ReadInt64();
     }
 
@@ -101,51 +101,51 @@ public class ObjectItem : ObjectCommon
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFItemFlags))
+        if (Bit(ObjectField.ItemFlags))
             writer.WriteInt32(unchecked((int)ItemFlags));
-        if (Bit(ObjectField.ObjFItemParent))
+        if (Bit(ObjectField.ItemParent))
             ItemParent.Write(ref writer);
-        if (Bit(ObjectField.ObjFItemWeight))
+        if (Bit(ObjectField.ItemWeight))
             writer.WriteInt32(ItemWeight);
-        if (Bit(ObjectField.ObjFItemMagicWeightAdj))
+        if (Bit(ObjectField.ItemMagicWeightAdj))
             writer.WriteInt32(ItemMagicWeightAdj);
-        if (Bit(ObjectField.ObjFItemWorth))
+        if (Bit(ObjectField.ItemWorth))
             writer.WriteInt32(ItemWorth);
-        if (Bit(ObjectField.ObjFItemManaStore))
+        if (Bit(ObjectField.ItemManaStore))
             writer.WriteInt32(ItemManaStore);
-        if (Bit(ObjectField.ObjFItemInvAid))
+        if (Bit(ObjectField.ItemInvAid))
             writer.WriteInt32(ItemInvAid);
-        if (Bit(ObjectField.ObjFItemInvLocation))
+        if (Bit(ObjectField.ItemInvLocation))
             writer.WriteInt32(ItemInvLocation);
-        if (Bit(ObjectField.ObjFItemUseAidFragment))
+        if (Bit(ObjectField.ItemUseAidFragment))
             writer.WriteInt32(ItemUseAidFragment);
-        if (Bit(ObjectField.ObjFItemMagicTechComplexity))
+        if (Bit(ObjectField.ItemMagicTechComplexity))
             writer.WriteInt32(ItemMagicTechComplexity);
-        if (Bit(ObjectField.ObjFItemDiscipline))
+        if (Bit(ObjectField.ItemDiscipline))
             writer.WriteInt32(ItemDiscipline);
-        if (Bit(ObjectField.ObjFItemDescriptionUnknown))
+        if (Bit(ObjectField.ItemDescriptionUnknown))
             writer.WriteInt32(ItemDescriptionUnknown);
-        if (Bit(ObjectField.ObjFItemDescriptionEffects))
+        if (Bit(ObjectField.ItemDescriptionEffects))
             writer.WriteInt32(ItemDescriptionEffects);
-        if (Bit(ObjectField.ObjFItemSpell1))
+        if (Bit(ObjectField.ItemSpell1))
             writer.WriteInt32(ItemSpell1);
-        if (Bit(ObjectField.ObjFItemSpell2))
+        if (Bit(ObjectField.ItemSpell2))
             writer.WriteInt32(ItemSpell2);
-        if (Bit(ObjectField.ObjFItemSpell3))
+        if (Bit(ObjectField.ItemSpell3))
             writer.WriteInt32(ItemSpell3);
-        if (Bit(ObjectField.ObjFItemSpell4))
+        if (Bit(ObjectField.ItemSpell4))
             writer.WriteInt32(ItemSpell4);
-        if (Bit(ObjectField.ObjFItemSpell5))
+        if (Bit(ObjectField.ItemSpell5))
             writer.WriteInt32(ItemSpell5);
-        if (Bit(ObjectField.ObjFItemSpellManaStore))
+        if (Bit(ObjectField.ItemSpellManaStore))
             writer.WriteInt32(ItemSpellManaStore);
-        if (Bit(ObjectField.ObjFItemAiAction))
+        if (Bit(ObjectField.ItemAiAction))
             writer.WriteInt32(ItemAiAction);
-        if (Bit(ObjectField.ObjFItemPadI1))
+        if (Bit(ObjectField.ItemPadI1))
             writer.WriteInt32(_itemPadI1Reserved);
-        if (Bit(ObjectField.ObjFItemPadIas1))
+        if (Bit(ObjectField.ItemPadIas1))
             writer.WriteInt32(_itemPadIas1Reserved);
-        if (Bit(ObjectField.ObjFItemPadI64As1))
+        if (Bit(ObjectField.ItemPadI64As1))
             writer.WriteInt64(_itemPadI64As1Reserved);
     }
 }

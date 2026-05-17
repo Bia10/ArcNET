@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -12,8 +12,8 @@ public class ObjectCritter : ObjectCommon
     private int _critterPadIas1Reserved;
     private long _critterPadI64As1Reserved;
 
-    public ObjFCritterFlags CritterFlags { get; internal set; }
-    public ObjFCritterFlags2 CritterFlags2 { get; internal set; }
+    public CritterFlags CritterFlags { get; internal set; }
+    public CritterFlags2 CritterFlags2 { get; internal set; }
     public int[] CritterStatBase { get; internal set; } = [];
     public int[] CritterBasicSkill { get; internal set; } = [];
     public int[] CritterTechSkill { get; internal set; } = [];

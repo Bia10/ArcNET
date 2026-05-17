@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -23,29 +23,29 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFCurrentAid))
+        if (Bit(ObjectField.CurrentAid))
             obj.CurrentAid = reader.ReadArtId();
-        if (Bit(ObjectField.ObjFLocation))
+        if (Bit(ObjectField.Location))
             obj.Location = ObjectSerializationHelpers.ReadLocation(ref reader);
-        if (Bit(ObjectField.ObjFOffsetX))
+        if (Bit(ObjectField.OffsetX))
             obj.OffsetX = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFOffsetY))
+        if (Bit(ObjectField.OffsetY))
             obj.OffsetY = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFShadow))
+        if (Bit(ObjectField.Shadow))
             obj.Shadow = reader.ReadArtId();
-        if (Bit(ObjectField.ObjFOverlayFore))
+        if (Bit(ObjectField.OverlayFore))
             obj.OverlayFore = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFOverlayBack))
+        if (Bit(ObjectField.OverlayBack))
             obj.OverlayBack = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFUnderlay))
+        if (Bit(ObjectField.Underlay))
             obj.Underlay = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFBlitFlags))
+        if (Bit(ObjectField.BlitFlags))
             obj.BlitFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFBlitColor))
+        if (Bit(ObjectField.BlitColor))
             obj.BlitColor = Color.Read(ref reader);
-        if (Bit(ObjectField.ObjFBlitAlpha))
+        if (Bit(ObjectField.BlitAlpha))
             obj.BlitAlpha = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFBlitScale))
+        if (Bit(ObjectField.BlitScale))
             obj.BlitScale = reader.ReadInt32();
     }
 
@@ -53,17 +53,17 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFLightFlags))
+        if (Bit(ObjectField.LightFlags))
             obj.LightFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFLightAid))
+        if (Bit(ObjectField.LightAid))
             obj.LightAid = reader.ReadArtId();
-        if (Bit(ObjectField.ObjFLightColor))
+        if (Bit(ObjectField.LightColor))
             obj.LightColor = Color.Read(ref reader);
-        if (Bit(ObjectField.ObjFOverlayLightFlags))
+        if (Bit(ObjectField.OverlayLightFlags))
             obj.OverlayLightFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFOverlayLightAid))
+        if (Bit(ObjectField.OverlayLightAid))
             obj.OverlayLightAid = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFOverlayLightColor))
+        if (Bit(ObjectField.OverlayLightColor))
             obj.OverlayLightColor = reader.ReadInt32();
     }
 
@@ -71,36 +71,36 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFFlags))
-            obj.ObjectFlags = unchecked((ObjFFlags)(uint)reader.ReadInt32());
-        if (Bit(ObjectField.ObjFSpellFlags))
-            obj.SpellFlags = unchecked((ObjFSpellFlags)(uint)reader.ReadInt32());
-        if (Bit(ObjectField.ObjFBlockingMask))
+        if (Bit(ObjectField.ObjectFlags))
+            obj.ObjectFlags = unchecked((ObjectFlags)(uint)reader.ReadInt32());
+        if (Bit(ObjectField.SpellFlags))
+            obj.SpellFlags = unchecked((SpellFlags)(uint)reader.ReadInt32());
+        if (Bit(ObjectField.BlockingMask))
             obj.BlockingMask = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFName))
+        if (Bit(ObjectField.Name))
             obj.Name = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFDescription))
+        if (Bit(ObjectField.Description))
             obj.Description = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFAid))
+        if (Bit(ObjectField.Aid))
             obj.Aid = reader.ReadArtId();
-        if (Bit(ObjectField.ObjFDestroyedAid))
+        if (Bit(ObjectField.DestroyedAid))
             obj.DestroyedAid = reader.ReadArtId();
 
         ReadCombatFields(obj, ref reader, bitmap, isPrototype);
 
-        if (Bit(ObjectField.ObjFMaterial))
+        if (Bit(ObjectField.Material))
             obj.Material = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFResistanceIdx))
+        if (Bit(ObjectField.ResistanceIdx))
             obj.ResistanceIdx = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFScriptsIdx))
+        if (Bit(ObjectField.ScriptsIdx))
             obj.ScriptsIdx = ObjectCommon.ReadScripts(ref reader);
-        if (Bit(ObjectField.ObjFSoundEffect))
+        if (Bit(ObjectField.SoundEffect))
             obj.SoundEffect = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFCategory))
+        if (Bit(ObjectField.Category))
             obj.Category = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPadIas1))
+        if (Bit(ObjectField.PadIas1))
             obj.CommonPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPadI64As1))
+        if (Bit(ObjectField.PadI64As1))
             obj.CommonPadI64As1Reserved = ObjectSerializationHelpers.ReadPresencePrefixedInt64(ref reader);
     }
 
@@ -108,13 +108,13 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFAc))
+        if (Bit(ObjectField.Ac))
             obj.Ac = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFHpPts))
+        if (Bit(ObjectField.HpPts))
             obj.HpPts = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFHpAdj))
+        if (Bit(ObjectField.HpAdj))
             obj.HpAdj = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFHpDamage))
+        if (Bit(ObjectField.HpDamage))
             obj.HpDamage = reader.ReadInt32();
     }
 
@@ -122,29 +122,29 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFCurrentAid))
+        if (Bit(ObjectField.CurrentAid))
             obj.CurrentAid.Write(ref writer);
-        if (Bit(ObjectField.ObjFLocation))
+        if (Bit(ObjectField.Location))
             ObjectSerializationHelpers.WriteLocation(ref writer, obj.Location ?? default);
-        if (Bit(ObjectField.ObjFOffsetX))
+        if (Bit(ObjectField.OffsetX))
             writer.WriteInt32(obj.OffsetX);
-        if (Bit(ObjectField.ObjFOffsetY))
+        if (Bit(ObjectField.OffsetY))
             writer.WriteInt32(obj.OffsetY);
-        if (Bit(ObjectField.ObjFShadow))
+        if (Bit(ObjectField.Shadow))
             obj.Shadow.Write(ref writer);
-        if (Bit(ObjectField.ObjFOverlayFore))
+        if (Bit(ObjectField.OverlayFore))
             ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayFore);
-        if (Bit(ObjectField.ObjFOverlayBack))
+        if (Bit(ObjectField.OverlayBack))
             ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayBack);
-        if (Bit(ObjectField.ObjFUnderlay))
+        if (Bit(ObjectField.Underlay))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Underlay);
-        if (Bit(ObjectField.ObjFBlitFlags))
+        if (Bit(ObjectField.BlitFlags))
             writer.WriteInt32(obj.BlitFlags);
-        if (Bit(ObjectField.ObjFBlitColor))
+        if (Bit(ObjectField.BlitColor))
             obj.BlitColor.Write(ref writer);
-        if (Bit(ObjectField.ObjFBlitAlpha))
+        if (Bit(ObjectField.BlitAlpha))
             writer.WriteInt32(obj.BlitAlpha);
-        if (Bit(ObjectField.ObjFBlitScale))
+        if (Bit(ObjectField.BlitScale))
             writer.WriteInt32(obj.BlitScale);
     }
 
@@ -152,17 +152,17 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFLightFlags))
+        if (Bit(ObjectField.LightFlags))
             writer.WriteInt32(obj.LightFlags);
-        if (Bit(ObjectField.ObjFLightAid))
+        if (Bit(ObjectField.LightAid))
             obj.LightAid.Write(ref writer);
-        if (Bit(ObjectField.ObjFLightColor))
+        if (Bit(ObjectField.LightColor))
             obj.LightColor.Write(ref writer);
-        if (Bit(ObjectField.ObjFOverlayLightFlags))
+        if (Bit(ObjectField.OverlayLightFlags))
             writer.WriteInt32(obj.OverlayLightFlags);
-        if (Bit(ObjectField.ObjFOverlayLightAid))
+        if (Bit(ObjectField.OverlayLightAid))
             ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayLightAid);
-        if (Bit(ObjectField.ObjFOverlayLightColor))
+        if (Bit(ObjectField.OverlayLightColor))
             writer.WriteInt32(obj.OverlayLightColor);
     }
 
@@ -170,36 +170,36 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFFlags))
+        if (Bit(ObjectField.ObjectFlags))
             writer.WriteInt32(unchecked((int)obj.ObjectFlags));
-        if (Bit(ObjectField.ObjFSpellFlags))
+        if (Bit(ObjectField.SpellFlags))
             writer.WriteInt32(unchecked((int)obj.SpellFlags));
-        if (Bit(ObjectField.ObjFBlockingMask))
+        if (Bit(ObjectField.BlockingMask))
             writer.WriteInt32(obj.BlockingMask);
-        if (Bit(ObjectField.ObjFName))
+        if (Bit(ObjectField.Name))
             writer.WriteInt32(obj.Name);
-        if (Bit(ObjectField.ObjFDescription))
+        if (Bit(ObjectField.Description))
             writer.WriteInt32(obj.Description);
-        if (Bit(ObjectField.ObjFAid))
+        if (Bit(ObjectField.Aid))
             obj.Aid.Write(ref writer);
-        if (Bit(ObjectField.ObjFDestroyedAid))
+        if (Bit(ObjectField.DestroyedAid))
             obj.DestroyedAid.Write(ref writer);
 
         WriteCombatFields(obj, ref writer, bitmap, isPrototype);
 
-        if (Bit(ObjectField.ObjFMaterial))
+        if (Bit(ObjectField.Material))
             writer.WriteInt32(obj.Material);
-        if (Bit(ObjectField.ObjFResistanceIdx))
+        if (Bit(ObjectField.ResistanceIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ResistanceIdx);
-        if (Bit(ObjectField.ObjFScriptsIdx))
+        if (Bit(ObjectField.ScriptsIdx))
             ObjectCommon.WriteScripts(ref writer, obj.ScriptsIdx);
-        if (Bit(ObjectField.ObjFSoundEffect))
+        if (Bit(ObjectField.SoundEffect))
             writer.WriteInt32(obj.SoundEffect);
-        if (Bit(ObjectField.ObjFCategory))
+        if (Bit(ObjectField.Category))
             writer.WriteInt32(obj.Category);
-        if (Bit(ObjectField.ObjFPadIas1))
+        if (Bit(ObjectField.PadIas1))
             writer.WriteInt32(obj.CommonPadIas1Reserved);
-        if (Bit(ObjectField.ObjFPadI64As1))
+        if (Bit(ObjectField.PadI64As1))
             ObjectSerializationHelpers.WritePresencePrefixedInt64(ref writer, obj.CommonPadI64As1Reserved);
     }
 
@@ -207,13 +207,13 @@ internal static class ObjectCommonFieldsCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFAc))
+        if (Bit(ObjectField.Ac))
             writer.WriteInt32(obj.Ac);
-        if (Bit(ObjectField.ObjFHpPts))
+        if (Bit(ObjectField.HpPts))
             writer.WriteInt32(obj.HpPts);
-        if (Bit(ObjectField.ObjFHpAdj))
+        if (Bit(ObjectField.HpAdj))
             writer.WriteInt32(obj.HpAdj);
-        if (Bit(ObjectField.ObjFHpDamage))
+        if (Bit(ObjectField.HpDamage))
             writer.WriteInt32(obj.HpDamage);
     }
 }

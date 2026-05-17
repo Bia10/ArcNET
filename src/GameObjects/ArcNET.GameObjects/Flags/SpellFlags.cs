@@ -2,7 +2,7 @@
 
 /// <summary>Active magical spell / status effect flags on a critter.</summary>
 [Flags]
-public enum ObjFSpellFlags : uint
+public enum SpellFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

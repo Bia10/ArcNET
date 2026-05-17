@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -11,7 +11,7 @@ public sealed class ObjectContainer : ObjectCommon
     private int _containerPadIas1Reserved;
     private long _containerPadI64As1Reserved;
 
-    public ObjFContainerFlags ContainerFlags { get; internal set; }
+    public ContainerFlags ContainerFlags { get; internal set; }
     public int LockDifficulty { get; internal set; }
     public int KeyId { get; internal set; }
     public GameObjectGuid[] InventoryList { get; internal set; } = [];

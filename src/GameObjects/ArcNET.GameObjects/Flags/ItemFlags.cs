@@ -2,7 +2,7 @@
 
 /// <summary>Item flags shared by all item-type game objects (OIF_).</summary>
 [Flags]
-public enum ObjFItemFlags : uint
+public enum ItemFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

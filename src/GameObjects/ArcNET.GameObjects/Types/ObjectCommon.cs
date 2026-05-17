@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -192,14 +192,14 @@ public abstract class ObjectCommon
     }
 
     // ── State & stats ─────────────────────────────────────────────────────────
-    public ObjFFlags ObjectFlags
+    public ObjectFlags ObjectFlags
     {
-        get => unchecked((ObjFFlags)(uint)_state.Flags);
+        get => unchecked((ObjectFlags)(uint)_state.Flags);
         internal set => _state.Flags = unchecked((int)value);
     }
-    public ObjFSpellFlags SpellFlags
+    public SpellFlags SpellFlags
     {
-        get => unchecked((ObjFSpellFlags)(uint)_state.SpellFlags);
+        get => unchecked((SpellFlags)(uint)_state.SpellFlags);
         internal set => _state.SpellFlags = unchecked((int)value);
     }
     public int BlockingMask

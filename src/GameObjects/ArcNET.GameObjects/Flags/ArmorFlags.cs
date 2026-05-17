@@ -2,7 +2,7 @@
 
 /// <summary>Armor-specific flags (OARF_).</summary>
 [Flags]
-public enum ObjFArmorFlags : uint
+public enum ArmorFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

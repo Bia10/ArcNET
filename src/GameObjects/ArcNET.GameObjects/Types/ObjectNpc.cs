@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -7,7 +7,7 @@ public sealed class ObjectNpc : ObjectCritter
 {
     private int _npcPadI1Reserved;
 
-    public ObjFNpcFlags NpcFlags { get; internal set; }
+    public NpcFlags NpcFlags { get; internal set; }
     public GameObjectGuid Leader { get; internal set; }
     public int AiData { get; internal set; }
     public GameObjectGuid CombatFocus { get; internal set; }

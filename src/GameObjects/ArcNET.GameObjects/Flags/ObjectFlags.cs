@@ -2,7 +2,7 @@
 
 /// <summary>General object flags shared by all game-object types.</summary>
 [Flags]
-public enum ObjFFlags : uint
+public enum ObjectFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

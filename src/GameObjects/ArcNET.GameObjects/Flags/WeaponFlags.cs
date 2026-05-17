@@ -2,7 +2,7 @@
 
 /// <summary>Weapon-specific flags (OWF_).</summary>
 [Flags]
-public enum ObjFWeaponFlags : uint
+public enum WeaponFlags : uint
 {
     /// <summary>No flags set.</summary>
     None = 0,

@@ -1,4 +1,4 @@
-﻿namespace ArcNET.GameObjects.Classes;
+namespace ArcNET.GameObjects.Classes;
 
 /// <summary>
 /// Data model for an NPC or creature template loaded from TDF text data.
@@ -13,12 +13,12 @@ public class Entity
     public int Scale { get; init; }
     public int Alignment { get; init; }
 
-    public List<ObjFFlags> ObjectFlags { get; init; } = [];
-    public List<ObjFCritterFlags> CritterFlags { get; init; } = [];
-    public List<ObjFCritterFlags2> CritterFlags2 { get; init; } = [];
-    public List<ObjFNpcFlags> NpcFlags { get; init; } = [];
-    public List<ObjFBlitFlags> BlitFlags { get; init; } = [];
-    public List<ObjFSpellFlags> SpellFlags { get; init; } = [];
+    public List<ObjectFlags> ObjectFlags { get; init; } = [];
+    public List<CritterFlags> CritterFlags { get; init; } = [];
+    public List<CritterFlags2> CritterFlags2 { get; init; } = [];
+    public List<NpcFlags> NpcFlags { get; init; } = [];
+    public List<BlitFlags> BlitFlags { get; init; } = [];
+    public List<SpellFlags> SpellFlags { get; init; } = [];
 
     public int HitChart { get; init; }
     public List<(BasicStatType Stat, int Value)> BasicStats { get; init; } = [];
