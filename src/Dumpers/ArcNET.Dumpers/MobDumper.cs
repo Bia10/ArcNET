@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Frozen;
 using System.Numerics;
 using ArcNET.Core.Primitives;
@@ -195,37 +195,37 @@ public static class MobDumper
         var f32 = BinaryPrimitives.ReadSingleLittleEndian(bytes);
 
         // ── Common flag fields ──
-        if (prop.Field == ObjectField.ObjFBlitFlags)
+        if (prop.Field == ObjectField.BlitFlags)
         {
             AppendAssignedHex32(ref vsb, u32, "  ");
-            AppendFlagNames<ObjFBlitFlags>(ref vsb, u32);
+            AppendFlagNames<BlitFlags>(ref vsb, u32);
             return;
         }
-        if (prop.Field == ObjectField.ObjFFlags)
+        if (prop.Field == ObjectField.ObjectFlags)
         {
             AppendAssignedHex32(ref vsb, u32, "  ");
-            AppendFlagNames<ObjFFlags>(ref vsb, u32);
+            AppendFlagNames<ObjectFlags>(ref vsb, u32);
             return;
         }
-        if (prop.Field == ObjectField.ObjFSpellFlags)
+        if (prop.Field == ObjectField.SpellFlags)
         {
             AppendAssignedHex32(ref vsb, u32, "  ");
-            AppendFlagNames<ObjFSpellFlags>(ref vsb, u32);
+            AppendFlagNames<SpellFlags>(ref vsb, u32);
             return;
         }
 
         // ── Float fields (rotation, speed, radius, height) ──
         if (
             prop.Field
-            is ObjectField.ObjFPadIas1
-                or ObjectField.ObjFSpeedRun
-                or ObjectField.ObjFSpeedWalk
-                or ObjectField.ObjFPadFloat1
-                or ObjectField.ObjFRadius
-                or ObjectField.ObjFHeight
+            is ObjectField.PadIas1
+                or ObjectField.SpeedRun
+                or ObjectField.SpeedWalk
+                or ObjectField.PadFloat1
+                or ObjectField.Radius
+                or ObjectField.Height
         )
         {
-            if (prop.Field == ObjectField.ObjFPadIas1) // ObjFRotation — stored as radians
+            if (prop.Field == ObjectField.PadIas1) // Rotation — stored as radians
             {
                 vsb.Append("= ");
                 vsb.Append(f32, "F4");
@@ -248,16 +248,16 @@ public static class MobDumper
             switch (objectType)
             {
                 case ObjectType.Npc or ObjectType.Pc:
-                    AppendFlagNames<ObjFCritterFlags>(ref vsb, u32);
+                    AppendFlagNames<CritterFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Container:
-                    AppendFlagNames<ObjFContainerFlags>(ref vsb, u32);
+                    AppendFlagNames<ContainerFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Portal:
-                    AppendFlagNames<ObjFPortalFlags>(ref vsb, u32);
+                    AppendFlagNames<PortalFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Scenery:
-                    AppendFlagNames<ObjFSceneryFlags>(ref vsb, u32);
+                    AppendFlagNames<SceneryFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Weapon
                 or ObjectType.Ammo
@@ -269,7 +269,7 @@ public static class MobDumper
                 or ObjectType.KeyRing
                 or ObjectType.Written
                 or ObjectType.Generic:
-                    AppendFlagNames<ObjFItemFlags>(ref vsb, u32);
+                    AppendFlagNames<ItemFlags>(ref vsb, u32);
                     break;
                 default:
                     vsb.Append("(unknown type flags)");
@@ -277,10 +277,10 @@ public static class MobDumper
             }
             return;
         }
-        if (prop.Field == ObjectField.ObjFCritterFlags2 && objectType is ObjectType.Npc or ObjectType.Pc)
+        if (prop.Field == ObjectField.CritterFlags2 && objectType is ObjectType.Npc or ObjectType.Pc)
         {
             AppendAssignedHex32(ref vsb, u32, "  ");
-            AppendFlagNames<ObjFCritterFlags2>(ref vsb, u32);
+            AppendFlagNames<CritterFlags2>(ref vsb, u32);
             return;
         }
 
@@ -291,15 +291,15 @@ public static class MobDumper
             {
                 case ObjectType.Weapon:
                     AppendAssignedHex32(ref vsb, u32, "  ");
-                    AppendFlagNames<ObjFWeaponFlags>(ref vsb, u32);
+                    AppendFlagNames<WeaponFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Armor:
                     AppendAssignedHex32(ref vsb, u32, "  ");
-                    AppendFlagNames<ObjFArmorFlags>(ref vsb, u32);
+                    AppendFlagNames<ArmorFlags>(ref vsb, u32);
                     break;
                 case ObjectType.Key:
-                    // ObjFKeyKeyId — not flags, it's the key identifier
-                    AppendAssignedInt32(ref vsb, i32, "  (key ID — must match ObjFPortalKeyId / ObjFContainerKeyId)");
+                    // KeyKeyId — not flags, it's the key identifier
+                    AppendAssignedInt32(ref vsb, i32, "  (key ID — must match PortalKeyId / ContainerKeyId)");
                     break;
                 default:
                     AppendAssignedHex32(ref vsb, u32, "  (type-specific flags)");
@@ -308,25 +308,25 @@ public static class MobDumper
             return;
         }
 
-        if (prop.Field == ObjectField.ObjFNpcFlags && objectType is ObjectType.Npc)
+        if (prop.Field == ObjectField.NpcFlags && objectType is ObjectType.Npc)
         {
             AppendAssignedHex32(ref vsb, u32, "  ");
-            AppendFlagNames<ObjFNpcFlags>(ref vsb, u32);
+            AppendFlagNames<NpcFlags>(ref vsb, u32);
             return;
         }
-        if (prop.Field == ObjectField.ObjFPcFlags && objectType is ObjectType.Pc)
+        if (prop.Field == ObjectField.PcFlags && objectType is ObjectType.Pc)
         {
             AppendAssignedHex32(ref vsb, u32, "  (PC flags — no enum defined)");
             return;
         }
 
         // ── Inventory fields ──
-        if (prop.Field is ObjectField.ObjFContainerInventoryNum or ObjectField.ObjFCritterInventoryNum)
+        if (prop.Field is ObjectField.ContainerInventoryNum or ObjectField.CritterInventoryNum)
         {
             AppendAssignedInt32(ref vsb, i32, "  (item count)");
             return;
         }
-        if (prop.Field is ObjectField.ObjFContainerInventorySource or ObjectField.ObjFCritterInventorySource)
+        if (prop.Field is ObjectField.ContainerInventorySource or ObjectField.CritterInventorySource)
         {
             if (i32 == 0)
                 vsb.Append("= 0  *** EMPTY (InvSource=0: engine skips fill) ***");
@@ -338,14 +338,14 @@ public static class MobDumper
         // ── Well-known common scalar fields ──
         var wellKnownLabel = prop.Field switch
         {
-            ObjectField.ObjFAid => "art resource ID",
-            ObjectField.ObjFDestroyedAid => "destroyed-art resource ID",
-            ObjectField.ObjFAc => "armor class",
-            ObjectField.ObjFHpPts => "max HP",
-            ObjectField.ObjFHpAdj => "HP adjustment",
-            ObjectField.ObjFHpDamage => "HP damage taken",
-            ObjectField.ObjFSoundEffect => "sound effect ID",
-            ObjectField.ObjFCategory => "object category",
+            ObjectField.Aid => "art resource ID",
+            ObjectField.DestroyedAid => "destroyed-art resource ID",
+            ObjectField.Ac => "armor class",
+            ObjectField.HpPts => "max HP",
+            ObjectField.HpAdj => "HP adjustment",
+            ObjectField.HpDamage => "HP damage taken",
+            ObjectField.SoundEffect => "sound effect ID",
+            ObjectField.Category => "object category",
             _ => null,
         };
         if (wellKnownLabel is not null)
@@ -443,7 +443,7 @@ public static class MobDumper
             var vals = prop.GetInt32Array();
 
             // ── Critter base stats — index maps to BasicStatType ──
-            if (fieldBit == (int)ObjectField.ObjFCritterStatBaseIdx && objectType is ObjectType.Npc or ObjectType.Pc)
+            if (fieldBit == (int)ObjectField.CritterStatBaseIdx && objectType is ObjectType.Npc or ObjectType.Pc)
             {
                 vsb.AppendLine();
                 for (var idx = 0; idx < vals.Length; idx++)
@@ -494,7 +494,7 @@ public static class MobDumper
         }
 
         // NPC waypoints: 8B per element — each is an Int64 tile location
-        if (elementSize == 8 && objectType is ObjectType.Npc && prop.Field == ObjectField.ObjFNpcWaypointsIdx)
+        if (elementSize == 8 && objectType is ObjectType.Npc && prop.Field == ObjectField.NpcWaypointsIdx)
         {
             var dataSpan = bytes.AsSpan(13, elementCount * 8);
             vsb.AppendLine();
@@ -541,11 +541,8 @@ public static class MobDumper
     }
 
     private static bool IsLocationField(ObjectField field, ObjectType objectType) =>
-        field is ObjectField.ObjFLocation or ObjectField.ObjFCritterTeleportDest
-        || (
-            objectType is ObjectType.Npc
-            && field is ObjectField.ObjFNpcStandpointDay or ObjectField.ObjFNpcStandpointNight
-        );
+        field is ObjectField.Location or ObjectField.CritterTeleportDest
+        || (objectType is ObjectType.Npc && field is ObjectField.NpcStandpointDay or ObjectField.NpcStandpointNight);
 
     private static void AppendFlagNames<T>(ref ValueStringBuilder vsb, uint value)
         where T : struct, Enum
@@ -595,27 +592,27 @@ public static class MobDumper
     private static FrozenDictionary<(ObjectType, int), string> BuildTypeFieldNames()
     {
         // Map name prefix → ObjectType(s) that use fields with that prefix.
-        // Ordered longest-first so "ObjFKeyRing" is checked before "ObjFKey".
+        // Ordered longest-first so "KeyRing" is checked before "Key".
         ReadOnlySpan<(string Prefix, ObjectType[] Types)> prefixes =
         [
-            ("ObjFProjectile", [ObjectType.Projectile]),
-            ("ObjFContainer", [ObjectType.Container]),
-            ("ObjFCritter", [ObjectType.Pc, ObjectType.Npc]),
-            ("ObjFScenery", [ObjectType.Scenery]),
-            ("ObjFKeyRing", [ObjectType.KeyRing]),
-            ("ObjFWritten", [ObjectType.Written]),
-            ("ObjFGeneric", [ObjectType.Generic]),
-            ("ObjFPortal", [ObjectType.Portal]),
-            ("ObjFWeapon", [ObjectType.Weapon]),
-            ("ObjFScroll", [ObjectType.Scroll]),
-            ("ObjFArmor", [ObjectType.Armor]),
-            ("ObjFWall", [ObjectType.Wall]),
-            ("ObjFTrap", [ObjectType.Trap]),
-            ("ObjFAmmo", [ObjectType.Ammo]),
-            ("ObjFFood", [ObjectType.Food]),
-            ("ObjFGold", [ObjectType.Gold]),
+            ("Projectile", [ObjectType.Projectile]),
+            ("Container", [ObjectType.Container]),
+            ("Critter", [ObjectType.Pc, ObjectType.Npc]),
+            ("Scenery", [ObjectType.Scenery]),
+            ("KeyRing", [ObjectType.KeyRing]),
+            ("Written", [ObjectType.Written]),
+            ("Generic", [ObjectType.Generic]),
+            ("Portal", [ObjectType.Portal]),
+            ("Weapon", [ObjectType.Weapon]),
+            ("Scroll", [ObjectType.Scroll]),
+            ("Armor", [ObjectType.Armor]),
+            ("Wall", [ObjectType.Wall]),
+            ("Trap", [ObjectType.Trap]),
+            ("Ammo", [ObjectType.Ammo]),
+            ("Food", [ObjectType.Food]),
+            ("Gold", [ObjectType.Gold]),
             (
-                "ObjFItem",
+                "Item",
                 [
                     ObjectType.Weapon,
                     ObjectType.Ammo,
@@ -629,9 +626,9 @@ public static class MobDumper
                     ObjectType.Generic,
                 ]
             ),
-            ("ObjFKey", [ObjectType.Key]),
-            ("ObjFNpc", [ObjectType.Npc]),
-            ("ObjFPc", [ObjectType.Pc]),
+            ("Key", [ObjectType.Key]),
+            ("Npc", [ObjectType.Npc]),
+            ("Pc", [ObjectType.Pc]),
         ];
 
         var dict = new Dictionary<(ObjectType, int), string>();

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Formats;
@@ -271,11 +271,9 @@ public static class ItemDumper
         Span<char> buf = stackalloc char[512];
         var vsb = new ValueStringBuilder(buf);
 
-        var invNumProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventoryNum);
-        var invSrcProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFContainerInventorySource);
-        var invListProp = container.Properties.FirstOrDefault(p =>
-            p.Field == ObjectField.ObjFContainerInventoryListIdx
-        );
+        var invNumProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ContainerInventoryNum);
+        var invSrcProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ContainerInventorySource);
+        var invListProp = container.Properties.FirstOrDefault(p => p.Field == ObjectField.ContainerInventoryListIdx);
 
         var invNum = invNumProp?.GetInt32() ?? 0;
         var invSrc = invSrcProp?.GetInt32() ?? 0;
@@ -323,18 +321,18 @@ public static class ItemDumper
 
     private static void AppendItemBase(ref ValueStringBuilder vsb, MobData mob)
     {
-        var weight = GetPropInt32(mob, ObjectField.ObjFItemWeight);
-        var worth = GetPropInt32(mob, ObjectField.ObjFItemWorth);
-        var flags = GetPropInt32(mob, ObjectField.ObjFItemFlags);
-        var discipline = GetPropInt32(mob, ObjectField.ObjFItemDiscipline);
-        var complexity = GetPropInt32(mob, ObjectField.ObjFItemMagicTechComplexity);
+        var weight = GetPropInt32(mob, ObjectField.ItemWeight);
+        var worth = GetPropInt32(mob, ObjectField.ItemWorth);
+        var flags = GetPropInt32(mob, ObjectField.ItemFlags);
+        var discipline = GetPropInt32(mob, ObjectField.ItemDiscipline);
+        var complexity = GetPropInt32(mob, ObjectField.ItemMagicTechComplexity);
         int?[] spells =
         [
-            GetPropInt32(mob, ObjectField.ObjFItemSpell1),
-            GetPropInt32(mob, ObjectField.ObjFItemSpell2),
-            GetPropInt32(mob, ObjectField.ObjFItemSpell3),
-            GetPropInt32(mob, ObjectField.ObjFItemSpell4),
-            GetPropInt32(mob, ObjectField.ObjFItemSpell5),
+            GetPropInt32(mob, ObjectField.ItemSpell1),
+            GetPropInt32(mob, ObjectField.ItemSpell2),
+            GetPropInt32(mob, ObjectField.ItemSpell3),
+            GetPropInt32(mob, ObjectField.ItemSpell4),
+            GetPropInt32(mob, ObjectField.ItemSpell5),
         ];
 
         var hasContent =
@@ -356,7 +354,7 @@ public static class ItemDumper
             }
             if (flags is > 0)
             {
-                var flagNames = AppendFlagSummary<ObjFItemFlags>((uint)flags.Value);
+                var flagNames = AppendFlagSummary<ItemFlags>((uint)flags.Value);
                 vsb.Append("  Item flags   : ");
                 vsb.AppendHex((uint)flags.Value, "0x".AsSpan());
                 vsb.Append("  ");
@@ -450,15 +448,15 @@ public static class ItemDumper
 
     private static void AppendWeapon(ref ValueStringBuilder vsb, MobData mob)
     {
-        var dmgLo = GetPropInt32(mob, ObjectField.ObjFWeaponDamageLowerIdx);
-        var dmgHi = GetPropInt32(mob, ObjectField.ObjFWeaponDamageUpperIdx);
-        var magDmg = GetPropInt32(mob, ObjectField.ObjFWeaponMagicDamageAdjIdx);
-        var speed = GetPropInt32(mob, ObjectField.ObjFWeaponSpeedFactor);
-        var magSpd = GetPropInt32(mob, ObjectField.ObjFWeaponMagicSpeedAdj);
-        var range = GetPropInt32(mob, ObjectField.ObjFWeaponRange);
-        var toHit = GetPropInt32(mob, ObjectField.ObjFWeaponBonusToHit);
-        var magHit = GetPropInt32(mob, ObjectField.ObjFWeaponMagicHitAdj);
-        var minStr = GetPropInt32(mob, ObjectField.ObjFWeaponMinStrength);
+        var dmgLo = GetPropInt32(mob, ObjectField.WeaponDamageLowerIdx);
+        var dmgHi = GetPropInt32(mob, ObjectField.WeaponDamageUpperIdx);
+        var magDmg = GetPropInt32(mob, ObjectField.WeaponMagicDamageAdjIdx);
+        var speed = GetPropInt32(mob, ObjectField.WeaponSpeedFactor);
+        var magSpd = GetPropInt32(mob, ObjectField.WeaponMagicSpeedAdj);
+        var range = GetPropInt32(mob, ObjectField.WeaponRange);
+        var toHit = GetPropInt32(mob, ObjectField.WeaponBonusToHit);
+        var magHit = GetPropInt32(mob, ObjectField.WeaponMagicHitAdj);
+        var minStr = GetPropInt32(mob, ObjectField.WeaponMinStrength);
 
         if ((dmgLo is > 0) || (dmgHi is > 0) || (speed is > 0) || (range is > 0))
         {
@@ -517,9 +515,9 @@ public static class ItemDumper
 
     private static void AppendArmor(ref ValueStringBuilder vsb, MobData mob)
     {
-        var ac = GetPropInt32(mob, ObjectField.ObjFArmorAcAdj);
-        var magAc = GetPropInt32(mob, ObjectField.ObjFArmorMagicAcAdj);
-        var silent = GetPropInt32(mob, ObjectField.ObjFArmorSilentMoveAdj);
+        var ac = GetPropInt32(mob, ObjectField.ArmorAcAdj);
+        var magAc = GetPropInt32(mob, ObjectField.ArmorMagicAcAdj);
+        var silent = GetPropInt32(mob, ObjectField.ArmorSilentMoveAdj);
 
         if (ac is not null || magAc is not null)
         {
@@ -547,7 +545,7 @@ public static class ItemDumper
 
     private static void AppendGold(ref ValueStringBuilder vsb, MobData mob)
     {
-        var qty = GetPropInt32(mob, ObjectField.ObjFGoldQuantity);
+        var qty = GetPropInt32(mob, ObjectField.GoldQuantity);
         if (qty is > 0)
         {
             vsb.AppendLine("  --- Gold ---");
@@ -559,7 +557,7 @@ public static class ItemDumper
 
     private static void AppendFood(ref ValueStringBuilder vsb, MobData mob)
     {
-        var flags = GetPropInt32(mob, ObjectField.ObjFFoodFlags);
+        var flags = GetPropInt32(mob, ObjectField.FoodFlags);
         // Food type flags bits are undocumented; we show the raw value only when non-zero
         if (flags is not null)
         {
@@ -576,7 +574,7 @@ public static class ItemDumper
 
     private static void AppendScroll(ref ValueStringBuilder vsb, MobData mob)
     {
-        var flags = GetPropInt32(mob, ObjectField.ObjFScrollFlags);
+        var flags = GetPropInt32(mob, ObjectField.ScrollFlags);
         if (flags is not null)
         {
             vsb.AppendLine("  --- Scroll ---");
@@ -592,8 +590,8 @@ public static class ItemDumper
 
     private static void AppendAmmo(ref ValueStringBuilder vsb, MobData mob)
     {
-        var qty = GetPropInt32(mob, ObjectField.ObjFAmmoQuantity);
-        var type = GetPropInt32(mob, ObjectField.ObjFAmmoType);
+        var qty = GetPropInt32(mob, ObjectField.AmmoQuantity);
+        var type = GetPropInt32(mob, ObjectField.AmmoType);
         if (qty is not null || type is not null)
         {
             vsb.AppendLine("  --- Ammo ---");
@@ -606,7 +604,7 @@ public static class ItemDumper
             {
                 vsb.Append("  Type     : ");
                 vsb.Append(type.Value);
-                vsb.AppendLine("  (ammo type — matches ObjFWeaponAmmoType)");
+                vsb.AppendLine("  (ammo type — matches WeaponAmmoType)");
             }
             vsb.AppendLine();
         }
@@ -614,22 +612,22 @@ public static class ItemDumper
 
     private static void AppendKey(ref ValueStringBuilder vsb, MobData mob)
     {
-        var keyId = GetPropInt32(mob, ObjectField.ObjFKeyKeyId);
+        var keyId = GetPropInt32(mob, ObjectField.KeyKeyId);
         if (keyId is not null)
         {
             vsb.AppendLine("  --- Key ---");
             vsb.Append("  Key ID : ");
             vsb.Append(keyId.Value);
-            vsb.AppendLine("  (must match ObjFPortalKeyId or ObjFContainerKeyId)");
+            vsb.AppendLine("  (must match PortalKeyId or ContainerKeyId)");
             vsb.AppendLine();
         }
     }
 
     private static void AppendWritten(ref ValueStringBuilder vsb, MobData mob)
     {
-        var subtype = GetPropInt32(mob, ObjectField.ObjFWrittenSubtype);
-        var startLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextStartLine);
-        var endLine = GetPropInt32(mob, ObjectField.ObjFWrittenTextEndLine);
+        var subtype = GetPropInt32(mob, ObjectField.WrittenSubtype);
+        var startLine = GetPropInt32(mob, ObjectField.WrittenTextStartLine);
+        var endLine = GetPropInt32(mob, ObjectField.WrittenTextEndLine);
         if (subtype is not null || startLine is not null)
         {
             vsb.AppendLine("  --- Written Item ---");
@@ -661,8 +659,8 @@ public static class ItemDumper
 
     private static void AppendGeneric(ref ValueStringBuilder vsb, MobData mob)
     {
-        var bonus = GetPropInt32(mob, ObjectField.ObjFGenericUsageBonus);
-        var count = GetPropInt32(mob, ObjectField.ObjFGenericUsageCountRemaining);
+        var bonus = GetPropInt32(mob, ObjectField.GenericUsageBonus);
+        var count = GetPropInt32(mob, ObjectField.GenericUsageCountRemaining);
         if (bonus is > 0 || count is not null)
         {
             vsb.AppendLine("  --- Generic Item ---");
