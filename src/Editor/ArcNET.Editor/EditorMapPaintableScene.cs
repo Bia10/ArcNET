@@ -1,4 +1,5 @@
 using ArcNET.Core.Primitives;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
 
@@ -197,7 +198,13 @@ public static class EditorMapPaintableSceneBuilder
 {
     private const int ParallelItemBuildThreshold = 512;
 
-    private readonly record struct SpriteReference(ArtId ArtId, EditorMapRenderQueueItemKind RenderItemKind);
+    private readonly record struct SpriteReference(
+        ArtId ArtId,
+        EditorMapRenderQueueItemKind RenderItemKind,
+        int RotationIndex,
+        int ScalePercent,
+        bool IsShrunk
+    );
 
     /// <summary>
     /// Builds one paintable scene from the committed render queue and one optional placement-preview queue.
@@ -313,9 +320,7 @@ public static class EditorMapPaintableSceneBuilder
 
         cancellationToken.ThrowIfCancellationRequested();
         var resolvedSpriteReferences = referencedSpriteReferences
-            .Where(reference =>
-                spriteSource?.CanResolve(reference.ArtId, CreateSpriteRequest(reference.RenderItemKind)) == true
-            )
+            .Where(reference => spriteSource?.CanResolve(reference.ArtId, CreateSpriteRequest(reference)) == true)
             .ToArray();
         cancellationToken.ThrowIfCancellationRequested();
         var resolvedLookup = resolvedSpriteReferences.ToHashSet();
@@ -381,9 +386,15 @@ public static class EditorMapPaintableSceneBuilder
         {
             EditorMapRenderQueueItemKind.FloorTile => BuildFloorTile(sceneRender, queueItem, spriteSource),
             EditorMapRenderQueueItemKind.TileOverlay => BuildTileOverlay(sceneRender, queueItem),
-            EditorMapRenderQueueItemKind.Object => BuildObject(queueItem, spriteSource),
-            EditorMapRenderQueueItemKind.Roof => BuildRoof(queueItem, spriteSource),
-            EditorMapRenderQueueItemKind.PlacementPreviewObject => BuildPlacementPreviewObject(queueItem, spriteSource),
+            EditorMapRenderQueueItemKind.Object => BuildObject(sceneRender, queueItem, spriteSource),
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => BuildObjectAuxiliary(sceneRender, queueItem, spriteSource),
+            EditorMapRenderQueueItemKind.Roof => BuildRoof(sceneRender, queueItem, spriteSource),
+            EditorMapRenderQueueItemKind.Light => BuildLight(sceneRender, queueItem, spriteSource),
+            EditorMapRenderQueueItemKind.PlacementPreviewObject => BuildPlacementPreviewObject(
+                sceneRender,
+                queueItem,
+                spriteSource
+            ),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(queueItem.Kind),
                 queueItem.Kind,
@@ -413,20 +424,18 @@ public static class EditorMapPaintableSceneBuilder
             footprintWidth: 1,
             footprintHeight: 1
         );
-        var anchorY =
-            sceneRender.ViewMode is EditorMapSceneViewMode.Isometric
-                ? tile.CenterY + (sceneRender.TileHeightPixels / 2d)
-                : tile.CenterY;
         return CreateItem(
             queueItem,
             tile.CenterX,
-            anchorY,
+            tile.CenterY,
             sceneRender.TileWidthPixels,
             sceneRender.TileHeightPixels,
             spriteReference,
             geometry,
             suggestedOpacity: 1d,
-            suggestedTintColor: null
+            suggestedTintColor: tile.SuggestedTintColor,
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
     }
 
@@ -459,6 +468,7 @@ public static class EditorMapPaintableSceneBuilder
     }
 
     private static EditorMapPaintableSceneItem BuildObject(
+        EditorMapFloorRenderPreview sceneRender,
         EditorMapRenderQueueItem queueItem,
         IEditorMapRenderSpriteSource? spriteSource
     )
@@ -466,20 +476,17 @@ public static class EditorMapPaintableSceneBuilder
         var obj =
             queueItem.Object
             ?? throw new InvalidOperationException("Object queue items must carry one object payload.");
-        var request = CreateSpriteRequestFromRotation(EditorMapRenderQueueItemKind.Object, obj.Rotation);
+        var request = CreateSpriteRequest(
+            EditorMapRenderQueueItemKind.Object,
+            obj.RotationIndex,
+            obj.BlitScale,
+            obj.IsShrunk
+        );
         var spriteReference = TryCreateSpriteReference(
             obj.CurrentArtId,
             request,
             spriteSource,
-            obj.SpriteBounds is { } bounds
-                ? new EditorMapRenderSpriteMetrics
-                {
-                    Width = bounds.MaxFrameWidth,
-                    Height = bounds.MaxFrameHeight,
-                    CenterX = bounds.MaxFrameCenterX,
-                    CenterY = bounds.MaxFrameCenterY,
-                }
-                : null
+            CreateFallbackSpriteMetrics(obj.ObjectType, obj.CurrentArtId, obj.SpriteBounds)
         );
 
         return CreateItem(
@@ -491,11 +498,48 @@ public static class EditorMapPaintableSceneBuilder
             spriteReference,
             geometryPoints: null,
             suggestedOpacity: 1d,
-            suggestedTintColor: null
+            suggestedTintColor: null,
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
+        );
+    }
+
+    private static EditorMapPaintableSceneItem BuildObjectAuxiliary(
+        EditorMapFloorRenderPreview sceneRender,
+        EditorMapRenderQueueItem queueItem,
+        IEditorMapRenderSpriteSource? spriteSource
+    )
+    {
+        var auxiliary =
+            queueItem.ObjectAuxiliaryItem
+            ?? throw new InvalidOperationException(
+                "Object-auxiliary queue items must carry one object-auxiliary payload."
+            );
+        var request = CreateSpriteRequest(
+            EditorMapRenderQueueItemKind.ObjectAuxiliary,
+            auxiliary.RotationIndex,
+            auxiliary.ScalePercent,
+            auxiliary.IsShrunk
+        );
+        var spriteReference = TryCreateSpriteReference(auxiliary.ArtId, request, spriteSource);
+
+        return CreateItem(
+            queueItem,
+            auxiliary.AnchorX,
+            auxiliary.AnchorY,
+            spriteReference?.Width ?? 0d,
+            spriteReference?.Height ?? 0d,
+            spriteReference,
+            geometryPoints: null,
+            suggestedOpacity: 1d,
+            auxiliary.SuggestedTintColor,
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
     }
 
     private static EditorMapPaintableSceneItem BuildRoof(
+        EditorMapFloorRenderPreview sceneRender,
         EditorMapRenderQueueItem queueItem,
         IEditorMapRenderSpriteSource? spriteSource
     )
@@ -516,11 +560,43 @@ public static class EditorMapPaintableSceneBuilder
             spriteReference,
             geometryPoints: null,
             suggestedOpacity: 1d,
-            suggestedTintColor: null
+            suggestedTintColor: null,
+            roofAlphaLerp: GetRoofAlphaLerp(roof.ArtId),
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
+        );
+    }
+
+    private static EditorMapPaintableSceneItem BuildLight(
+        EditorMapFloorRenderPreview sceneRender,
+        EditorMapRenderQueueItem queueItem,
+        IEditorMapRenderSpriteSource? spriteSource
+    )
+    {
+        var light =
+            queueItem.Light ?? throw new InvalidOperationException("Light queue items must carry one light payload.");
+        var spriteReference = TryCreateSpriteReference(
+            light.ArtId,
+            CreateSpriteRequest(EditorMapRenderQueueItemKind.Light),
+            spriteSource
+        );
+        return CreateItem(
+            queueItem,
+            light.AnchorX,
+            light.AnchorY,
+            spriteReference?.Width ?? 0d,
+            spriteReference?.Height ?? 0d,
+            spriteReference,
+            geometryPoints: null,
+            light.SuggestedOpacity,
+            light.SuggestedTintColor,
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
     }
 
     private static EditorMapPaintableSceneItem BuildPlacementPreviewObject(
+        EditorMapFloorRenderPreview sceneRender,
         EditorMapRenderQueueItem queueItem,
         IEditorMapRenderSpriteSource? spriteSource
     )
@@ -530,23 +606,21 @@ public static class EditorMapPaintableSceneBuilder
             ?? throw new InvalidOperationException(
                 "Placement-preview queue items must carry one placement-preview payload."
             );
-        var request = CreateSpriteRequestFromRotation(
+        var request = CreateSpriteRequest(
             EditorMapRenderQueueItemKind.PlacementPreviewObject,
-            previewObject.Rotation
+            previewObject.RotationIndex,
+            previewObject.BlitScale,
+            previewObject.IsShrunk
         );
         var spriteReference = TryCreateSpriteReference(
             previewObject.CurrentArtId,
             request,
             spriteSource,
-            previewObject.SpriteBounds is { } bounds
-                ? new EditorMapRenderSpriteMetrics
-                {
-                    Width = bounds.MaxFrameWidth,
-                    Height = bounds.MaxFrameHeight,
-                    CenterX = bounds.MaxFrameCenterX,
-                    CenterY = bounds.MaxFrameCenterY,
-                }
-                : null
+            CreateFallbackSpriteMetrics(
+                previewObject.ObjectType,
+                previewObject.CurrentArtId,
+                previewObject.SpriteBounds
+            )
         );
 
         return CreateItem(
@@ -558,7 +632,9 @@ public static class EditorMapPaintableSceneBuilder
             spriteReference,
             geometryPoints: null,
             previewObject.SuggestedOpacity,
-            previewObject.SuggestedTintColor
+            previewObject.SuggestedTintColor,
+            sceneScaleX: GetSceneSpriteScaleX(sceneRender),
+            sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
     }
 
@@ -571,20 +647,30 @@ public static class EditorMapPaintableSceneBuilder
         EditorMapPaintableSceneSpriteReference? spriteReference,
         IReadOnlyList<EditorMapRenderPoint>? geometryPoints,
         double suggestedOpacity,
-        uint? suggestedTintColor
+        uint? suggestedTintColor,
+        EditorMapRoofAlphaLerp? roofAlphaLerp = null,
+        double sceneScaleX = 1d,
+        double sceneScaleY = 1d
     )
     {
-        var width = spriteReference?.Width ?? fallbackWidth;
-        var height = spriteReference?.Height ?? fallbackHeight;
-        var left = spriteReference is null ? anchorX - (width / 2d) : anchorX - spriteReference.CenterX;
-        var top = spriteReference is null ? anchorY - (height / 2d) : anchorY - spriteReference.CenterY;
+        var width = (spriteReference?.Width ?? fallbackWidth) * sceneScaleX;
+        var height = (spriteReference?.Height ?? fallbackHeight) * sceneScaleY;
+        var left = spriteReference is null ? anchorX - (width / 2d) : anchorX - (spriteReference.CenterX * sceneScaleX);
+        var top = spriteReference is null ? anchorY - (height / 2d) : anchorY - (spriteReference.CenterY * sceneScaleY);
+        EditorMapPaintableSceneSpriteSourceRect? spriteSourceRect = spriteReference is null
+            ? null
+            : new EditorMapPaintableSceneSpriteSourceRect(0, 0, spriteReference.Width, spriteReference.Height);
+        EditorMapPaintableSceneSpriteDestinationRect? spriteDestinationRect = spriteReference is null
+            ? null
+            : new EditorMapPaintableSceneSpriteDestinationRect(left, top, width, height);
 
         return new EditorMapPaintableSceneItem
         {
             Kind = queueItem.Kind,
             DrawOrder = queueItem.DrawOrder,
             SortKey = queueItem.SortKey,
-            CommittedRenderLayer = queueItem.Object?.CommittedRenderLayer,
+            CommittedRenderLayer =
+                queueItem.Object?.CommittedRenderLayer ?? queueItem.ObjectAuxiliaryItem?.CommittedRenderLayer,
             Left = left,
             Top = top,
             Width = width,
@@ -593,7 +679,16 @@ public static class EditorMapPaintableSceneBuilder
             AnchorY = anchorY,
             SuggestedOpacity = suggestedOpacity,
             SuggestedTintColor = suggestedTintColor,
+            TintIgnoresLightVisibility = false,
+            UseLightMaskTint = queueItem.ObjectAuxiliaryItem?.ArtId.Type is ArtId.TypeCode.Light,
+            TileLightDiagnostics = queueItem.Tile?.LightDiagnostics,
             TileOverlayKind = queueItem.TileOverlay?.Kind,
+            SpriteSourceRect = spriteSourceRect,
+            SpriteDestinationRect = spriteDestinationRect,
+            IsRoofCovered = queueItem.ObjectAuxiliaryItem?.IsRoofCovered ?? false,
+            RoofAlphaLerp = roofAlphaLerp,
+            BlendMode = queueItem.ObjectAuxiliaryItem?.BlendMode ?? EditorMapSpriteBlendMode.SourceOver,
+            UseSubtractiveShadowBlend = queueItem.ObjectAuxiliaryItem?.BlendMode is EditorMapSpriteBlendMode.Subtract,
             SpriteReference = spriteReference,
             GeometryPoints = geometryPoints,
         };
@@ -628,15 +723,70 @@ public static class EditorMapPaintableSceneBuilder
         };
     }
 
+    private static EditorMapRenderSpriteMetrics? CreateFallbackSpriteMetrics(
+        ObjectType objectType,
+        ArtId artId,
+        EditorMapObjectSpriteBounds? spriteBounds
+    )
+    {
+        if (spriteBounds is null)
+            return null;
+
+        var (centerX, centerY) = EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(objectType, artId, spriteBounds);
+        return new EditorMapRenderSpriteMetrics
+        {
+            Width = spriteBounds.MaxFrameWidth,
+            Height = spriteBounds.MaxFrameHeight,
+            CenterX = centerX,
+            CenterY = centerY,
+        };
+    }
+
     private static ArtId? TryGetArtId(EditorMapRenderQueueItem item) =>
         item.Kind switch
         {
             EditorMapRenderQueueItemKind.FloorTile => item.Tile?.ArtId,
             EditorMapRenderQueueItemKind.Object => item.Object?.CurrentArtId,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.ArtId,
             EditorMapRenderQueueItemKind.Roof => item.Roof?.ArtId,
+            EditorMapRenderQueueItemKind.Light => item.Light?.ArtId,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.CurrentArtId,
             _ => null,
         };
+
+    private static double GetSceneSpriteScaleX(EditorMapFloorRenderPreview sceneRender) =>
+        sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? sceneRender.TileWidthPixels / 80d : 1d;
+
+    private static double GetSceneSpriteScaleY(EditorMapFloorRenderPreview sceneRender) =>
+        sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? sceneRender.TileHeightPixels / 40d : 1d;
+
+    private static EditorMapRoofAlphaLerp? GetRoofAlphaLerp(ArtId artId)
+    {
+        if (!artId.IsRoofFaded)
+            return null;
+
+        const byte fullOpacity = 0;
+        const byte partialOpacity = 128;
+        const byte fullTransparency = 255;
+
+        return artId.RoofPieceIndex switch
+        {
+            0 => new EditorMapRoofAlphaLerp(fullTransparency, partialOpacity, partialOpacity, fullTransparency),
+            1 => new EditorMapRoofAlphaLerp(partialOpacity, fullOpacity, partialOpacity, fullTransparency),
+            2 => new EditorMapRoofAlphaLerp(fullTransparency, partialOpacity, fullOpacity, partialOpacity),
+            3 => new EditorMapRoofAlphaLerp(partialOpacity, fullOpacity, fullOpacity, partialOpacity),
+            4 => new EditorMapRoofAlphaLerp(partialOpacity, partialOpacity, fullTransparency, fullTransparency),
+            5 => new EditorMapRoofAlphaLerp(fullOpacity, fullOpacity, partialOpacity, partialOpacity),
+            6 => new EditorMapRoofAlphaLerp(partialOpacity, partialOpacity, fullOpacity, fullOpacity),
+            7 => new EditorMapRoofAlphaLerp(fullTransparency, fullTransparency, partialOpacity, partialOpacity),
+            8 => new EditorMapRoofAlphaLerp(fullOpacity, fullOpacity, fullOpacity, fullOpacity),
+            9 => new EditorMapRoofAlphaLerp(partialOpacity, fullTransparency, fullTransparency, partialOpacity),
+            10 => new EditorMapRoofAlphaLerp(fullOpacity, partialOpacity, fullTransparency, partialOpacity),
+            11 => new EditorMapRoofAlphaLerp(partialOpacity, fullTransparency, partialOpacity, fullOpacity),
+            12 => new EditorMapRoofAlphaLerp(fullOpacity, fullOpacity, partialOpacity, partialOpacity),
+            _ => null,
+        };
+    }
 
     private static int ResolveRotationIndex(float rotation)
     {
@@ -651,8 +801,47 @@ public static class EditorMapPaintableSceneBuilder
     private static SpriteReference? TryGetSpriteReference(EditorMapRenderQueueItem item)
     {
         var artId = TryGetArtId(item);
-        return artId is { Value: not 0u } ? new SpriteReference(artId.Value, item.Kind) : null;
+        if (artId is not { Value: not 0u } resolvedArtId)
+            return null;
+
+        var request = CreateSpriteRequest(item);
+        return new SpriteReference(
+            resolvedArtId,
+            item.Kind,
+            request.RotationIndex,
+            request.ScalePercent,
+            request.IsShrunk
+        );
     }
+
+    private static EditorMapRenderSpriteRequest CreateSpriteRequest(SpriteReference reference) =>
+        CreateSpriteRequest(
+            reference.RenderItemKind,
+            reference.RotationIndex,
+            reference.ScalePercent,
+            reference.IsShrunk
+        );
+
+    private static EditorMapRenderSpriteRequest CreateSpriteRequest(EditorMapRenderQueueItem item) =>
+        item.Kind switch
+        {
+            EditorMapRenderQueueItemKind.Object when item.Object is { } obj => CreateSpriteRequest(
+                item.Kind,
+                obj.RotationIndex,
+                obj.BlitScale,
+                obj.IsShrunk
+            ),
+            EditorMapRenderQueueItemKind.ObjectAuxiliary when item.ObjectAuxiliaryItem is { } auxiliary =>
+                CreateSpriteRequest(item.Kind, auxiliary.RotationIndex, auxiliary.ScalePercent, auxiliary.IsShrunk),
+            EditorMapRenderQueueItemKind.PlacementPreviewObject when item.PlacementPreviewObject is { } previewObject =>
+                CreateSpriteRequest(
+                    item.Kind,
+                    previewObject.RotationIndex,
+                    previewObject.BlitScale,
+                    previewObject.IsShrunk
+                ),
+            _ => CreateSpriteRequest(item.Kind),
+        };
 
     private static IReadOnlyList<EditorMapRenderPoint> CreateTileGeometry(
         EditorMapFloorRenderPreview sceneRender,

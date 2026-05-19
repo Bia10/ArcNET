@@ -619,7 +619,9 @@ public class ObjectTypeRoundTripTests
         var restored = ObjectCritter.Read(ref reader, bitmap, isPrototype: true);
 
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
-        await Assert.That(restored.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory);
+        await Assert
+            .That(restored.ObjectFlags)
+            .IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory);
         await Assert.That(restored.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
         await Assert.That(restored.CritterFlags2).IsEqualTo(CritterFlags2.DarkSight | CritterFlags2.NoDecay);
         await Assert.That(restored.CritterStatBase).IsEquivalentTo([10, 11, 12]);

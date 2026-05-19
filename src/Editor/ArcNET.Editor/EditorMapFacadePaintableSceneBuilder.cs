@@ -42,6 +42,7 @@ public static class EditorMapFacadePaintableSceneBuilder
                 Kind = EditorMapRenderQueueItemKind.FloorTile,
                 DrawOrder = index,
                 SortKey = index * 4096d,
+                CommittedRenderLayer = EditorMapCommittedRenderLayer.Ground,
                 Tile = overlayTiles[index],
             };
         }
@@ -116,6 +117,9 @@ public static class EditorMapFacadePaintableSceneBuilder
                 entry.MapTileX,
                 entry.MapTileY
             );
+            if (sceneRender.ViewMode is EditorMapSceneViewMode.Isometric)
+                centerX += 1d;
+
             overlayTiles[index] = new EditorMapFloorTileRenderItem
             {
                 SectorAssetPath = GetFacadeWalkAssetPath(baseArtId),

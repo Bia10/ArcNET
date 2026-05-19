@@ -32,6 +32,11 @@ public sealed class EditorMapRenderQueueItem
     public EditorMapObjectRenderItem? Object { get; init; }
 
     /// <summary>
+    /// Optional CE-style committed scene layer classification for the object.
+    /// </summary>
+    public EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
+
+    /// <summary>
     /// Projected roof payload when <see cref="Kind"/> is <see cref="EditorMapRenderQueueItemKind.Roof"/>.
     /// </summary>
     public EditorMapRoofRenderItem? Roof { get; init; }

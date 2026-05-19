@@ -4769,12 +4769,8 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == addedObject.Header.ObjectId
             );
 
-            await Assert
-                .That(updatedMovedObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((10, 11));
-            await Assert
-                .That(updatedAddedObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((4, 5));
+            await Assert.That(updatedMovedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((10, 11));
+            await Assert.That(updatedAddedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((4, 5));
 
             var preview = updatedWorkspace.CreateMapScenePreview("map01");
             var sectorPreview = preview.Sectors.Single();
@@ -4825,9 +4821,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(addedObject.Header.ProtoId.GetProtoNumber()).IsEqualTo(protoNumber);
             await Assert.That(addedObject.Header.PropCollectionItems).IsEqualTo((short)addedObject.Properties.Count);
             await Assert.That(addedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((12, 13));
-            await Assert
-                .That(addedObject.GetProperty(ObjectField.PcPlayerName)!.GetString())
-                .IsEqualTo("WorkspacePc");
+            await Assert.That(addedObject.GetProperty(ObjectField.PcPlayerName)!.GetString()).IsEqualTo("WorkspacePc");
             await Assert.That(addedObject.GetProperty(ObjectField.HpPts)!.GetInt32()).IsEqualTo(80);
             await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
 
@@ -5514,7 +5508,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(shell.TerrainPalette.MapPropertiesAssetPath).IsEqualTo("maps/map01/map.prp");
             await Assert.That(shell.TerrainPalette.Entries.Count).IsEqualTo(0);
@@ -5719,9 +5713,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(result.RemovedObjectCount).IsEqualTo(0);
             await Assert
                 .That(
-                    result
-                        .CreatedObjects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
-                        .ToArray()
+                    result.CreatedObjects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation()).ToArray()
                 )
                 .IsEquivalentTo(new[] { (63, 2), (0, 2) });
 
@@ -5807,9 +5799,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(pointSectorA).IsNotNull();
             await Assert.That(pointSectorA!.Objects.Count).IsEqualTo(3);
             await Assert
-                .That(
-                    pointSectorA.Objects.Any(obj => obj.GetProperty(ObjectField.Location)!.GetLocation() == (5, 6))
-                )
+                .That(pointSectorA.Objects.Any(obj => obj.GetProperty(ObjectField.Location)!.GetLocation() == (5, 6)))
                 .IsTrue();
 
             var areaSession = workspace.CreateSession();
@@ -5968,16 +5958,12 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert
                 .That(
-                    updatedSectorA
-                        .Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
-                        .ToArray()
+                    updatedSectorA.Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation()).ToArray()
                 )
                 .IsEquivalentTo(new[] { (5, 6), (7, 8) });
             await Assert
                 .That(
-                    updatedSectorB
-                        .Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
-                        .ToArray()
+                    updatedSectorB.Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation()).ToArray()
                 )
                 .IsEquivalentTo(new[] { (1, 2) });
 
@@ -6220,12 +6206,8 @@ public sealed class EditorWorkspaceSessionTests
 
             var createdPointObjectId = pointCreatedObjects[0].Header.ObjectId;
             var createdPointObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == createdPointObjectId);
-            await Assert
-                .That(createdPointObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((6, 8));
-            await Assert
-                .That(createdPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(pointRotation);
+            await Assert.That(createdPointObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((6, 8));
+            await Assert.That(createdPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(pointRotation);
             await Assert
                 .That(createdPointObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(pointRotationPitch);
@@ -6275,18 +6257,10 @@ public sealed class EditorWorkspaceSessionTests
             var createdAreaObjectA = areaSectorA!.Objects.Single(obj => obj.Header.ObjectId == areaObjectAId);
             var createdAreaObjectB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaObjectBId);
 
-            await Assert
-                .That(createdAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((63, 3));
-            await Assert
-                .That(createdAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((0, 3));
-            await Assert
-                .That(createdAreaObjectA.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(areaRotation);
-            await Assert
-                .That(createdAreaObjectB.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(areaRotation);
+            await Assert.That(createdAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((63, 3));
+            await Assert.That(createdAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((0, 3));
+            await Assert.That(createdAreaObjectA.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(areaRotation);
+            await Assert.That(createdAreaObjectB.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(areaRotation);
             await Assert
                 .That(createdAreaObjectA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
@@ -6980,7 +6954,7 @@ public sealed class EditorWorkspaceSessionTests
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var session = workspace.CreateSession();
-            var scene = session.CreateDefaultMapWorldEditScene(
+            var scene = await session.CreateDefaultMapWorldEditSceneAsync(
                 request: new EditorMapWorldEditSceneRequest
                 {
                     RenderRequest = new EditorMapFloorRenderRequest
@@ -7046,7 +7020,7 @@ public sealed class EditorWorkspaceSessionTests
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
             var session = workspace.CreateSession();
-            var scene = session.CreateDefaultMapWorldEditScene(
+            var scene = await session.CreateDefaultMapWorldEditSceneAsync(
                 request: new EditorMapWorldEditSceneRequest
                 {
                     RenderRequest = new EditorMapFloorRenderRequest
@@ -7147,7 +7121,7 @@ public sealed class EditorWorkspaceSessionTests
                 ViewportHeight = 200d,
                 ArtResolver = artResolver,
             };
-            var worldScene = session.CreateMapWorldEditScene("world-edit", sceneRequest);
+            var worldScene = await session.CreateMapWorldEditSceneAsync("world-edit", sceneRequest);
             var asyncWorldScene = await session.CreateMapWorldEditSceneAsync("world-edit", sceneRequest);
 
             var tileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(worldScene.SceneRender, 6d, 6d);
@@ -7263,7 +7237,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var worldScene = session.CreateMapWorldEditScene(
+            var worldScene = await session.CreateMapWorldEditSceneAsync(
                 "world-edit-unresolved",
                 new EditorMapWorldEditSceneRequest
                 {
@@ -7460,12 +7434,8 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(pointAnchorObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
             await Assert.That(pointOffsetObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 7));
-            await Assert
-                .That(pointAnchorObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(anchorRotation);
-            await Assert
-                .That(pointOffsetObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(offsetRotation);
+            await Assert.That(pointAnchorObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
+            await Assert.That(pointOffsetObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
             await Assert
                 .That(pointOffsetObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(offsetRotationPitch);
@@ -7656,9 +7626,7 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert.That(createdObjects.Count).IsEqualTo(1);
-            await Assert
-                .That(createdObjects[0].GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((11, 12));
+            await Assert.That(createdObjects[0].GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((11, 12));
 
             var updatedWorkspace = session.BeginChangeGroup("Apply clicked tracked object tool").ApplyPendingChanges();
             var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
@@ -8197,16 +8165,12 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == retainedObject.Header.ObjectId
             );
 
-            await Assert
-                .That(updatedSelectedObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((6, 6));
+            await Assert.That(updatedSelectedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((6, 6));
             await Assert.That(updatedSelectedObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(0.75f);
             await Assert
                 .That(updatedSelectedObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(1.25f);
-            await Assert
-                .That(updatedRetainedObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((5, 6));
+            await Assert.That(updatedRetainedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
             await Assert.That(updatedRetainedObject.GetProperty(ObjectField.PadIas1)).IsNull();
             await Assert.That(updatedRetainedObject.GetProperty(ObjectField.RotationPitch)).IsNull();
         }
@@ -8440,7 +8404,7 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert
                 .That(persistedState.TargetMode)
@@ -8506,14 +8470,9 @@ public sealed class EditorWorkspaceSessionTests
                     ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(
-                        ObjectField.CritterFlags,
-                        unchecked((int)CritterFlags.Animal)
-                    )
+                    ObjectPropertyFactory.ForInt32(ObjectField.CritterFlags, unchecked((int)CritterFlags.Animal))
                 )
-                .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.NpcFlags, unchecked((int)NpcFlags.Fighting))
-                )
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.NpcFlags, unchecked((int)NpcFlags.Fighting)))
                 .Build();
             SectorFormat.WriteToFile(
                 MakeSector(selectedObject),
@@ -8744,22 +8703,13 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(appliedSector).IsNotNull();
             await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
 
-            var appliedBaseStats = GetInt32Array(
-                appliedSector.Objects[0].Properties,
-                ObjectField.CritterStatBaseIdx
-            );
+            var appliedBaseStats = GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.CritterStatBaseIdx);
             var appliedBasicSkills = GetInt32Array(
                 appliedSector.Objects[0].Properties,
                 ObjectField.CritterBasicSkillIdx
             );
-            var appliedTechSkills = GetInt32Array(
-                appliedSector.Objects[0].Properties,
-                ObjectField.CritterTechSkillIdx
-            );
-            var appliedSpellTech = GetInt32Array(
-                appliedSector.Objects[0].Properties,
-                ObjectField.CritterSpellTechIdx
-            );
+            var appliedTechSkills = GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.CritterTechSkillIdx);
+            var appliedSpellTech = GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.CritterSpellTechIdx);
 
             await Assert
                 .That(appliedSector.Objects[0].GetProperty(ObjectField.CritterFatiguePts)!.GetInt32())
@@ -8875,9 +8825,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(blendingChange).IsNotNull();
             await Assert.That(appliedSector).IsNotNull();
             await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
-            await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.LightFlags)!.GetInt32())
-                .IsEqualTo(9);
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.LightFlags)!.GetInt32()).IsEqualTo(9);
             await Assert
                 .That(appliedSector.Objects[0].GetProperty(ObjectField.LightAid)!.GetInt32())
                 .IsEqualTo(unchecked((int)0x234u));
@@ -8902,12 +8850,8 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.BlitColor))
                 .IsEqualTo(new Color(0x44, 0x55, 0x66));
-            await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.BlitAlpha)!.GetInt32())
-                .IsEqualTo(77);
-            await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.BlitScale)!.GetInt32())
-                .IsEqualTo(88);
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.BlitAlpha)!.GetInt32()).IsEqualTo(77);
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.BlitScale)!.GetInt32()).IsEqualTo(88);
             await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.Material)!.GetInt32()).IsEqualTo(99);
         }
         finally
@@ -8956,10 +8900,7 @@ public sealed class EditorWorkspaceSessionTests
                     ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(
-                        ObjectField.CritterFlags,
-                        unchecked((int)CritterFlags.Animal)
-                    )
+                    ObjectPropertyFactory.ForInt32(ObjectField.CritterFlags, unchecked((int)CritterFlags.Animal))
                 )
                 .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 1))
                 .WithProperty(MakeArtProperty(ObjectField.LightAid, 0x100u))
@@ -9324,7 +9265,7 @@ public sealed class EditorWorkspaceSessionTests
             };
             List<EditorMapWorldEditComposeProgress> composeProgressUpdates = [];
             var progressGate = new object();
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1", shellRequest);
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1", shellRequest);
             var asyncShell = await session.CreateTrackedMapWorldEditShellAsync(
                 "map-view-1",
                 shellRequest,
@@ -9476,7 +9417,7 @@ public sealed class EditorWorkspaceSessionTests
             );
             _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0.5f, activateTool: false);
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(shell.ActiveTool).IsEqualTo(EditorProjectMapWorldEditActiveTool.None);
             await Assert.That(shell.ObjectPlacementTool.CanPreviewOrApply).IsTrue();
@@ -9543,7 +9484,7 @@ public sealed class EditorWorkspaceSessionTests
             );
             _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0f, activateTool: true);
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(shell.HasTrackedPlacementPreview).IsTrue();
             await Assert.That(shell.TrackedPlacementPreview).IsNotNull();
@@ -9622,7 +9563,7 @@ public sealed class EditorWorkspaceSessionTests
             );
             _ = session.SetTrackedObjectPlacementEntry("map-view-1", protoNumber, rotation: 0f, activateTool: true);
 
-            var shell = session.CreateTrackedMapWorldEditShell(
+            var shell = await session.CreateTrackedMapWorldEditShellAsync(
                 "map-view-1",
                 new EditorMapWorldEditShellRequest { IncludeTrackedPlacementPreview = false }
             );
@@ -9699,7 +9640,7 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             var spriteSource = new TestSpriteSource();
-            var shell = session.CreateTrackedMapWorldEditShell(
+            var shell = await session.CreateTrackedMapWorldEditShellAsync(
                 "map-view-1",
                 new EditorMapWorldEditShellRequest { SpriteSource = spriteSource }
             );
@@ -9725,21 +9666,18 @@ public sealed class EditorWorkspaceSessionTests
         const ulong sectorKey = 101334386389UL;
 
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(Path.Combine(contentDir, "art", "facade"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
         Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
 
         try
         {
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
-                Path.Combine(contentDir, "art", "facade", "facadename.mes")
+                new MesFile { Entries = [new MessageEntry(0, "drt0")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(
-                CreateArtFile(1, 1, [1]),
-                Path.Combine(contentDir, "art", "facade", "KerghanFloor2.art")
-            );
+            ArtFormat.WriteToFile(CreateArtFile(1, 1, [1]), Path.Combine(contentDir, "art", "tile", "drt0bse0a.art"));
             SectorFormat.WriteToFile(
-                new SectorBuilder(MakeSector()).SetTile(0, 0, 0x000111C0u).Build(),
+                new SectorBuilder(MakeSector()).SetTile(0, 0, 0x000001C0u).Build(),
                 Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
             );
 
@@ -9759,7 +9697,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
             var asyncShell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(shell.Scene.SpriteCoverage.ResolvedSpriteReferenceCount).IsGreaterThan(0);
@@ -9814,7 +9752,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell(
+            var shell = await session.CreateTrackedMapWorldEditShellAsync(
                 "map-view-1",
                 new EditorMapWorldEditShellRequest
                 {
@@ -9880,7 +9818,7 @@ public sealed class EditorWorkspaceSessionTests
             var session = workspace.CreateSession();
             var mapViewState = session.SetMapViewState(session.CreateDefaultMapViewState("map-view-1"));
 
-            var shell = session.CreateTrackedMapWorldEditShell(
+            var shell = await session.CreateTrackedMapWorldEditShellAsync(
                 mapViewState.Id,
                 new EditorMapWorldEditShellRequest
                 {
@@ -10114,7 +10052,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(shell.Scene.SceneRender.MapName).IsEqualTo("map01");
             await Assert.That(shell.Scene.SceneRender.Objects.Count).IsEqualTo(1);
@@ -10194,7 +10132,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert
                 .That(shell.ObjectInspector.TargetKind)
@@ -10292,7 +10230,7 @@ public sealed class EditorWorkspaceSessionTests
                 }
             );
 
-            var shell = session.CreateTrackedMapWorldEditShell("map-view-1");
+            var shell = await session.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(persistedShellState.ViewMode).IsEqualTo(EditorMapSceneViewMode.TopDown);
             await Assert.That(persistedShellState.ViewportWidth).IsEqualTo(320d);
@@ -10544,12 +10482,8 @@ public sealed class EditorWorkspaceSessionTests
             var updatedPointObject = pointSectorA!.Objects.Single(obj =>
                 obj.Header.ObjectId == transformedPointObject.Header.ObjectId
             );
-            await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((6, 8));
-            await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
-                .IsEqualTo(pointRotation);
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((6, 8));
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(pointRotation);
             await Assert
                 .That(updatedPointObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(pointRotationPitch);
@@ -10920,9 +10854,7 @@ public sealed class EditorWorkspaceSessionTests
             var updatedPointObject = pointSectorA!.Objects.Single(obj =>
                 obj.Header.ObjectId == pointObject.Header.ObjectId
             );
-            await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation())
-                .IsEqualTo((5, 6));
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
             await Assert.That(updatedPointObject.GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
             await Assert.That(updatedPointObject.GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
 

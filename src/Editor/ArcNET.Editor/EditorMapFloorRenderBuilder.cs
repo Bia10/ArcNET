@@ -678,6 +678,8 @@ public static class EditorMapFloorRenderBuilder
                 );
 
                 ExpandObjectBounds(
+                    request.ViewMode is EditorMapSceneViewMode.Isometric ? request.TileWidthPixels / 80d : 1d,
+                    request.ViewMode is EditorMapSceneViewMode.Isometric ? request.TileHeightPixels / 40d : 1d,
                     obj,
                     anchorX,
                     anchorY,
@@ -1553,6 +1555,8 @@ public static class EditorMapFloorRenderBuilder
     }
 
     internal static void ExpandObjectBounds(
+        double scaleX,
+        double scaleY,
         EditorMapObjectPreview objectPreview,
         double anchorX,
         double anchorY,
@@ -1573,10 +1577,10 @@ public static class EditorMapFloorRenderBuilder
         }
 
         var (centerX, centerY) = GetLayoutSpriteCenter(objectPreview, spriteBounds);
-        var left = anchorX - centerX;
-        var top = anchorY - centerY;
-        var right = left + spriteBounds.MaxFrameWidth;
-        var bottom = top + spriteBounds.MaxFrameHeight;
+        var left = anchorX - (centerX * scaleX);
+        var top = anchorY - (centerY * scaleY);
+        var right = left + (spriteBounds.MaxFrameWidth * scaleX);
+        var bottom = top + (spriteBounds.MaxFrameHeight * scaleY);
 
         minLeft = Math.Min(minLeft, left);
         minTop = Math.Min(minTop, top);
@@ -1585,6 +1589,8 @@ public static class EditorMapFloorRenderBuilder
     }
 
     internal static void ExpandObjectBounds(
+        double scaleX,
+        double scaleY,
         EditorMapPlacementPreviewObject previewObject,
         double anchorX,
         double anchorY,
@@ -1611,10 +1617,10 @@ public static class EditorMapFloorRenderBuilder
             previewObject.CurrentArtId,
             spriteBounds
         );
-        var left = anchorX - centerX;
-        var top = anchorY - centerY;
-        var right = left + spriteBounds.MaxFrameWidth;
-        var bottom = top + spriteBounds.MaxFrameHeight;
+        var left = anchorX - (centerX * scaleX);
+        var top = anchorY - (centerY * scaleY);
+        var right = left + (spriteBounds.MaxFrameWidth * scaleX);
+        var bottom = top + (spriteBounds.MaxFrameHeight * scaleY);
 
         minLeft = Math.Min(minLeft, left);
         minTop = Math.Min(minTop, top);

@@ -39,6 +39,21 @@ public sealed class EditorMapObjectRenderItem
     public required ArtId CurrentArtId { get; init; }
 
     /// <summary>
+    /// CE object flags carried forward from the source preview.
+    /// </summary>
+    public ObjectFlags Flags { get; init; }
+
+    /// <summary>
+    /// CE wall flags carried forward from the source preview.
+    /// </summary>
+    public int WallFlags { get; init; }
+
+    /// <summary>
+    /// CE scenery flags carried forward from the source preview.
+    /// </summary>
+    public SceneryFlags SceneryFlags { get; init; }
+
+    /// <summary>
     /// Map-local tile X coordinate of the anchor tile.
     /// </summary>
     public required int MapTileX { get; init; }

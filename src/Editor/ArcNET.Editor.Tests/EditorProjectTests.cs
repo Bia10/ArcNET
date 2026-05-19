@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -388,7 +388,7 @@ public sealed class EditorProjectTests
             var restoredPaletteSummary = restoredSession.GetTrackedObjectPaletteSummary("map-view-1");
             var restoredPlacementTool = restoredSession.GetTrackedObjectPlacementToolSummary("map-view-1");
             var restoredInspector = restoredSession.GetTrackedObjectInspectorSummary("map-view-1");
-            var restoredShell = restoredSession.CreateTrackedMapWorldEditShell("map-view-1");
+            var restoredShell = await restoredSession.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert.That(load.Restore.RestoredProjectState.MapViewStates.Count).IsEqualTo(1);
             await Assert.That(restoredMapViewState.MapName).IsEqualTo("map01");
@@ -546,7 +546,7 @@ public sealed class EditorProjectTests
             var restoredSession = load.Session;
             var restoredMapViewState = restoredSession.GetMapViewStates().Single();
             var restoredPlacementTool = restoredSession.GetTrackedObjectPlacementToolSummary("map-view-1");
-            var restoredShell = restoredSession.CreateTrackedMapWorldEditShell("map-view-1");
+            var restoredShell = await restoredSession.CreateTrackedMapWorldEditShellAsync("map-view-1");
 
             await Assert
                 .That(restoredMapViewState.WorldEdit.ObjectPlacement.Mode)
@@ -624,10 +624,7 @@ public sealed class EditorProjectTests
                     ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(
-                        ObjectField.CritterFlags,
-                        unchecked((int)CritterFlags.Animal)
-                    )
+                    ObjectPropertyFactory.ForInt32(ObjectField.CritterFlags, unchecked((int)CritterFlags.Animal))
                 )
                 .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 1))
                 .WithProperty(MakeArtProperty(ObjectField.LightAid, 0x100u))
@@ -756,7 +753,7 @@ public sealed class EditorProjectTests
             var restoredLight = restoredSession.GetTrackedObjectInspectorLightSummary("map-view-1");
             var restoredGenerator = restoredSession.GetTrackedObjectInspectorGeneratorSummary("map-view-1");
             var restoredBlending = restoredSession.GetTrackedObjectInspectorBlendingSummary("map-view-1");
-            var restoredShell = restoredSession.CreateTrackedMapWorldEditShell("map-view-1");
+            var restoredShell = await restoredSession.CreateTrackedMapWorldEditShellAsync("map-view-1");
             var restoredExamine = restoredScripts.Attachments.Single(attachment =>
                 attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
             );
@@ -986,7 +983,7 @@ public sealed class EditorProjectTests
             var restoredGenerator = restoredSession.GetTrackedObjectInspectorGeneratorSummary("map-view-1");
             var restoredBlending = restoredSession.GetTrackedObjectInspectorBlendingSummary("map-view-1");
             var restoredPaletteSummary = restoredSession.GetTrackedObjectPaletteSummary("map-view-1");
-            var restoredShell = restoredSession.CreateTrackedMapWorldEditShell("map-view-1");
+            var restoredShell = await restoredSession.CreateTrackedMapWorldEditShellAsync("map-view-1");
             var restoredExamine = restoredScripts.Attachments.Single(attachment =>
                 attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
             );
@@ -1097,10 +1094,7 @@ public sealed class EditorProjectTests
                     ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(
-                        ObjectField.CritterFlags,
-                        unchecked((int)CritterFlags.Animal)
-                    )
+                    ObjectPropertyFactory.ForInt32(ObjectField.CritterFlags, unchecked((int)CritterFlags.Animal))
                 )
                 .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 10))
                 .Build();
@@ -1191,7 +1185,7 @@ public sealed class EditorProjectTests
             var restoredInspector = restoredSession.GetTrackedObjectInspectorSummary("map-view-1");
             var restoredFlags = restoredSession.GetTrackedObjectInspectorFlagsSummary("map-view-1");
             var restoredBlending = restoredSession.GetTrackedObjectInspectorBlendingSummary("map-view-1");
-            var restoredShell = restoredSession.CreateTrackedMapWorldEditShell("map-view-1");
+            var restoredShell = await restoredSession.CreateTrackedMapWorldEditShellAsync("map-view-1");
             var restoredPinnedScripts = restoredSession.Workspace.FindObjectInspectorScriptAttachmentsSummary(
                 pinnedProtoNumber
             );

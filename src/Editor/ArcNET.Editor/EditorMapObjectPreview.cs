@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -99,4 +99,55 @@ public sealed class EditorMapObjectPreview
     /// Returns <see langword="true"/> when CE shrunk rendering applies to this object.
     /// </summary>
     public bool IsShrunk => Flags.HasFlag(ObjectFlags.Shrunk);
+
+    /// <summary>
+    /// Returns <see langword="true"/> when CE flat-object ordering applies to this object.
+    /// </summary>
+    public bool IsFlat => Flags.HasFlag(ObjectFlags.Flat);
+
+    /// <summary>
+    /// Wall transparency flags from <see cref="ObjectField.WallFlags"/>.
+    /// </summary>
+    public int WallFlags { get; init; }
+
+    /// <summary>
+    /// Scenery-specific ordering flags from <see cref="ObjectField.SceneryFlags"/>.
+    /// </summary>
+    public SceneryFlags SceneryFlags { get; init; }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when CE's <c>OSCF_UNDER_ALL</c> scenery ordering applies.
+    /// </summary>
+    public bool IsUnderAllScenery => ObjectType is ObjectType.Scenery && SceneryFlags.HasFlag(SceneryFlags.UnderAll);
+
+    // ── Auxiliary layer data ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Shadow art identifier from <see cref="ObjectField.Shadow"/>.
+    /// Non-zero when the object carries a persisted shadow sprite.
+    /// </summary>
+    public ArtId ShadowArtId { get; init; }
+
+    /// <summary>
+    /// Underlay art identifiers from <see cref="ObjectField.Underlay"/>.
+    /// Rendered before the primary object sprite in CE's underlay pass.
+    /// </summary>
+    public IReadOnlyList<int> UnderlayArtIds { get; init; } = [];
+
+    /// <summary>
+    /// Overlay-back art identifiers from <see cref="ObjectField.OverlayBack"/>.
+    /// Rendered in CE's overlay-back pass.
+    /// </summary>
+    public IReadOnlyList<int> OverlayBackArtIds { get; init; } = [];
+
+    /// <summary>
+    /// Overlay-fore art identifiers from <see cref="ObjectField.OverlayFore"/>.
+    /// Rendered in CE's overlay-fore pass.
+    /// </summary>
+    public IReadOnlyList<int> OverlayForeArtIds { get; init; } = [];
+
+    /// <summary>
+    /// Returns <see langword="true"/> when this object is a dead critter/PC.
+    /// </summary>
+    public bool IsDead { get; init; }
 }

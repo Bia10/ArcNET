@@ -12,7 +12,7 @@ public static class EditorMapScenePreviewBuilder
     private const int TileGridWidth = 64;
     private const int RoofGridWidth = 16;
     private const uint ArtTypeMask = 0xF0000000u;
-    private const uint CritterArtType = 0x90000000u;
+    private const uint CritterArtType = 0x20000000u;
     private const uint MonsterArtType = 0xC0000000u;
     private const uint UniqueNpcArtType = 0xD0000000u;
     private const int ArtIdRotationShift = 11;
@@ -454,8 +454,18 @@ public static class EditorMapScenePreviewBuilder
         var offsetY = GetInt32OrDefault(mob, ObjectField.OffsetY);
         var offsetZ = GetFloatOrDefault(mob, ObjectField.OffsetZ);
         var collisionHeight = GetFloatOrDefault(mob, ObjectField.Height);
+        var flags = GetObjectFlagsOrDefault(mob);
+        var wallFlags = GetInt32OrDefault(mob, ObjectField.WallFlags);
+        var sceneryFlags = GetSceneryFlagsOrDefault(mob);
         var rotation = GetRotationOrDefault(mob, currentArtId);
+        var rotationIndex = GetRotationIndex(mob, currentArtId, rotation);
+        var blitScale = GetBlitScaleOrDefault(mob);
         var rotationPitch = GetFloatOrDefault(mob, ObjectField.RotationPitch);
+        var hpProp = mob.GetProperty(ObjectField.HpPts);
+        var isDead =
+            (mob.Header.GameObjectType is ObjectType.Pc or ObjectType.Npc)
+            && hpProp is not null
+            && hpProp.GetInt32() <= 0;
 
         return new EditorMapObjectPreview
         {
@@ -463,6 +473,7 @@ public static class EditorMapScenePreviewBuilder
             ProtoId = mob.Header.ProtoId,
             ObjectType = mob.Header.GameObjectType,
             CurrentArtId = currentArtId,
+            Flags = flags,
             SourceAssetPath = sourceAssetPath,
             Location = location,
             OffsetX = offsetX,
@@ -471,12 +482,40 @@ public static class EditorMapScenePreviewBuilder
             CollisionHeight = collisionHeight,
             SpriteBounds = ResolveSpriteBounds(currentArtId, artResolver, spriteBoundsCache),
             Rotation = rotation,
+            RotationIndex = rotationIndex,
+            BlitScale = blitScale,
             RotationPitch = rotationPitch,
+            WallFlags = wallFlags,
+            SceneryFlags = sceneryFlags,
+            ShadowArtId = GetArtIdOrDefault(mob, ObjectField.Shadow),
+            UnderlayArtIds = GetIntArrayOrDefault(mob, ObjectField.Underlay),
+            OverlayBackArtIds = GetIntArrayOrDefault(mob, ObjectField.OverlayBack),
+            OverlayForeArtIds = GetIntArrayOrDefault(mob, ObjectField.OverlayFore),
+            IsDead = isDead,
         };
     }
 
     private static int GetInt32OrDefault(MobData mob, ObjectField field) =>
         mob.GetProperty(field) is { ParseNote: null } property ? property.GetInt32() : 0;
+
+    private static int[] GetIntArrayOrDefault(MobData mob, ObjectField field) =>
+        mob.GetProperty(field) is { ParseNote: null } property ? property.GetInt32Array() : [];
+
+    private static ObjectFlags GetObjectFlagsOrDefault(MobData mob) =>
+        mob.GetProperty(ObjectField.ObjectFlags) is { ParseNote: null } property
+            ? (ObjectFlags)unchecked((uint)property.GetInt32())
+            : default;
+
+    private static SceneryFlags GetSceneryFlagsOrDefault(MobData mob) =>
+        mob.GetProperty(ObjectField.SceneryFlags) is { ParseNote: null } property
+            ? (SceneryFlags)unchecked((uint)property.GetInt32())
+            : default;
+
+    private static int GetBlitScaleOrDefault(MobData mob)
+    {
+        var blitScale = GetInt32OrDefault(mob, ObjectField.BlitScale);
+        return blitScale > 0 ? blitScale : 100;
+    }
 
     private static float GetFloatOrDefault(MobData mob, ObjectField field) =>
         mob.GetProperty(field) is { ParseNote: null } property ? property.GetFloat() : 0f;
@@ -489,12 +528,49 @@ public static class EditorMapScenePreviewBuilder
         return GetCritterFamilyRotationFromArtId(currentArtId);
     }
 
+    private static int GetRotationIndex(MobData mob, ArtId currentArtId, float rotation)
+    {
+        if (mob.GetProperty(ObjectField.PadIas1) is { ParseNote: null })
+            return NormalizeRotationIndex(rotation);
+
+        return GetEmbeddedCritterRotationIndex(currentArtId);
+    }
+
     private static float GetCritterFamilyRotationFromArtId(ArtId currentArtId)
     {
         var artType = currentArtId.Value & ArtTypeMask;
         return artType is CritterArtType or MonsterArtType or UniqueNpcArtType
             ? (currentArtId.Value >> ArtIdRotationShift) & 0x7u
             : 0f;
+    }
+
+    private static int GetEmbeddedCritterRotationIndex(ArtId currentArtId)
+    {
+        var artType = currentArtId.Value & ArtTypeMask;
+        return artType is CritterArtType or MonsterArtType or UniqueNpcArtType
+            ? checked((int)((currentArtId.Value >> ArtIdRotationShift) & 0x7u))
+            : 0;
+    }
+
+    private static int NormalizeRotationIndex(float rotation)
+    {
+        if (!float.IsFinite(rotation))
+            return 0;
+
+        if (MathF.Abs(rotation) <= 7.5f)
+            return NormalizeDiscreteRotationIndex(checked((int)MathF.Round(rotation, MidpointRounding.AwayFromZero)));
+
+        var normalizedTurns = MathF.Abs(rotation) > (MathF.Tau + 0.001f) ? rotation / 360f : rotation / MathF.Tau;
+        normalizedTurns -= MathF.Floor(normalizedTurns);
+        return NormalizeDiscreteRotationIndex(
+            checked((int)MathF.Round(normalizedTurns * 8f, MidpointRounding.AwayFromZero))
+        );
+    }
+
+    private static int NormalizeDiscreteRotationIndex(int rotationIndex)
+    {
+        var normalizedRotationIndex = rotationIndex % 8;
+        return normalizedRotationIndex < 0 ? normalizedRotationIndex + 8 : normalizedRotationIndex;
     }
 
     private static ArtId GetArtIdOrDefault(MobData mob, ObjectField field) =>

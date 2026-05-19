@@ -352,9 +352,20 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     private string? TryResolveAssetPath(ArtId artId, EditorMapRenderSpriteRequest request)
     {
         if (IsSectorArtId(artId.Value) && request.RenderItemKind is EditorMapRenderQueueItemKind.FloorTile)
-            return _workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var floorAssetPath)
-                ? floorAssetPath
-                : null;
+        {
+            if (_workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var floorAssetPath))
+                return floorAssetPath;
+
+            var lowSectorFallbackAssetPath = _artResolver.FindAssetPath(artId);
+            if (!string.IsNullOrWhiteSpace(lowSectorFallbackAssetPath))
+            {
+                var normPath = lowSectorFallbackAssetPath.Replace('\\', '/');
+                if (IsSectorArtFamilyAssetPath(normPath) && !IsCompatibleFamily(request.RenderItemKind, normPath))
+                    return null;
+                return lowSectorFallbackAssetPath;
+            }
+            return null;
+        }
 
         var assetPath = _artResolver.FindAssetPath(artId);
         if (

@@ -264,9 +264,7 @@ public sealed class MobFormatTests
             w.WriteInt16(1);
 
             var bitmap = new byte[20];
-            bitmap[(int)ObjectField.PcBackgroundText / 8] |= (byte)(
-                1 << ((int)ObjectField.PcBackgroundText % 8)
-            );
+            bitmap[(int)ObjectField.PcBackgroundText / 8] |= (byte)(1 << ((int)ObjectField.PcBackgroundText % 8));
             w.WriteBytes(bitmap);
 
             w.WriteInt32(backgroundText);
@@ -432,11 +430,7 @@ public sealed class MobFormatTests
         await Assert.That(parsed.GetProperty(ObjectField.NpcStandpointNight)!.GetLocation()).IsEqualTo((13, 14));
         await Assert.That(parsed.GetProperty(ObjectField.NpcSubstituteInventory)).IsNotNull();
         await Assert
-            .That(
-                parsed
-                    .GetProperty(ObjectField.NpcSubstituteInventory)!
-                    .RawBytes.SequenceEqual(expectedSubstituteRaw)
-            )
+            .That(parsed.GetProperty(ObjectField.NpcSubstituteInventory)!.RawBytes.SequenceEqual(expectedSubstituteRaw))
             .IsTrue();
         await Assert.That(bridged.GetProperty(ObjectField.CritterFollowerIdx)).IsNotNull();
         await Assert
@@ -454,9 +448,7 @@ public sealed class MobFormatTests
         await Assert.That(bridged.GetProperty(ObjectField.NpcSubstituteInventory)).IsNotNull();
         await Assert
             .That(
-                bridged
-                    .GetProperty(ObjectField.NpcSubstituteInventory)!
-                    .RawBytes.SequenceEqual(expectedSubstituteRaw)
+                bridged.GetProperty(ObjectField.NpcSubstituteInventory)!.RawBytes.SequenceEqual(expectedSubstituteRaw)
             )
             .IsTrue();
     }

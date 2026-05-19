@@ -1329,9 +1329,10 @@ public sealed class EditorWorkspace : IDisposable
         if (artId.Value == 0u)
             return null;
 
-        return TryResolveMapRenderArtAssetPath(artId, renderItemKind: null, out var assetPath)
-            ? FindArt(assetPath)
+        EditorMapRenderQueueItemKind? renderItemKind = IsSectorArtId(artId.Value)
+            ? EditorMapRenderQueueItemKind.FloorTile
             : null;
+        return TryResolveMapRenderArtAssetPath(artId, renderItemKind, out var assetPath) ? FindArt(assetPath) : null;
     }
 
     /// <summary>

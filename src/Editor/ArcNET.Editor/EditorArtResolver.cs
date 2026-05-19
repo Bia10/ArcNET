@@ -92,6 +92,12 @@ public sealed class EditorArtResolver
         }
     }
 
+    internal bool TryFindExplicitAssetPath(ArtId artId, out string assetPath)
+    {
+        lock (_bindingGate)
+            return _assetPathsByArtId.TryGetValue(artId, out assetPath!);
+    }
+
     /// <summary>
     /// Returns the loaded ART asset bound to <paramref name="artId"/>, or <see langword="null"/> when no binding exists.
     /// </summary>

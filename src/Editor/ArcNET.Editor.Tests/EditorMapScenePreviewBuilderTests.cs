@@ -464,16 +464,45 @@ public sealed class EditorMapScenePreviewBuilderTests
     public async Task BuildObjectPreview_UsesEmbeddedCritterFacing_WhenLegacyRotationFieldIsMissing()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 4, Guid.NewGuid());
-        var critterArtId = new ArtId(0x90002000u);
+        var critterArtId = new ArtId(0x20002000u);
         var mob = CreateEmptyMob(ObjectType.Npc, objectId, MakeProtoId(1))
-            .WithProperty(
-                ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)critterArtId.Value))
-            );
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)critterArtId.Value)));
 
         var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);
 
         await Assert.That(preview.CurrentArtId).IsEqualTo(critterArtId);
         await Assert.That(preview.Rotation).IsEqualTo(4f);
+        await Assert.That(preview.RotationIndex).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task BuildObjectPreview_ProjectsWallAndSceneryFlags()
+    {
+        const int wallFlags = 0x6;
+        const SceneryFlags sceneryFlags = SceneryFlags.UnderAll | SceneryFlags.IsFire;
+
+        var wallPreview = EditorMapScenePreviewBuilder.BuildObjectPreview(
+            CreateEmptyMob(
+                    ObjectType.Wall,
+                    new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 41, Guid.NewGuid()),
+                    MakeProtoId(1)
+                )
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.WallFlags, wallFlags))
+        );
+        var sceneryPreview = EditorMapScenePreviewBuilder.BuildObjectPreview(
+            CreateEmptyMob(
+                    ObjectType.Scenery,
+                    new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 42, Guid.NewGuid()),
+                    MakeProtoId(1)
+                )
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.SceneryFlags, unchecked((int)sceneryFlags)))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Flat)))
+        );
+
+        await Assert.That(wallPreview.WallFlags).IsEqualTo(wallFlags);
+        await Assert.That(sceneryPreview.SceneryFlags).IsEqualTo(sceneryFlags);
+        await Assert.That(sceneryPreview.IsFlat).IsTrue();
+        await Assert.That(sceneryPreview.IsUnderAllScenery).IsTrue();
     }
 
     private static MobData CreateEmptyMob(ObjectType objectType, GameObjectGuid objectId, GameObjectGuid protoId) =>

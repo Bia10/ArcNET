@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -5867,8 +5867,21 @@ public sealed class EditorWorkspaceSession
         var maxRight = sceneRender.WidthPixels;
         var maxBottom = sceneRender.HeightPixels;
 
+        var scaleX =
+            renderRequest?.ViewMode is EditorMapSceneViewMode.Isometric ? renderRequest.TileWidthPixels / 80d : 1d;
+        var scaleY =
+            renderRequest?.ViewMode is EditorMapSceneViewMode.Isometric ? renderRequest.TileHeightPixels / 40d : 1d;
+
         foreach (var previewObject in previewObjects)
-            ExpandPlacementPreviewBounds(previewObject.Object, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+            ExpandPlacementPreviewBounds(
+                scaleX,
+                scaleY,
+                previewObject.Object,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
 
         var shiftX = minLeft < 0d ? -minLeft : 0d;
         var shiftY = minTop < 0d ? -minTop : 0d;
@@ -5900,6 +5913,9 @@ public sealed class EditorWorkspaceSession
                         SuggestedOpacity = previewObject.Object.SuggestedOpacity,
                         SuggestedTintColor = previewObject.Object.SuggestedTintColor,
                         Rotation = previewObject.Object.Rotation,
+                        RotationIndex = previewObject.Object.RotationIndex,
+                        BlitScale = previewObject.Object.BlitScale,
+                        IsShrunk = previewObject.Object.IsShrunk,
                         RotationPitch = previewObject.Object.RotationPitch,
                     }
             )
@@ -5929,11 +5945,21 @@ public sealed class EditorWorkspaceSession
 
         var maxRight = sceneRender.WidthPixels;
         var maxBottom = sceneRender.HeightPixels;
+        var scaleX = sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? sceneRender.TileWidthPixels / 80d : 1d;
+        var scaleY = sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? sceneRender.TileHeightPixels / 40d : 1d;
         foreach (var previewObject in previewObjects)
         {
             var minLeft = 0d;
             var minTop = 0d;
-            ExpandPlacementPreviewBounds(previewObject.Object, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+            ExpandPlacementPreviewBounds(
+                scaleX,
+                scaleY,
+                previewObject.Object,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
         }
 
         var orderedPreviewObjects = previewObjects
@@ -5963,6 +5989,9 @@ public sealed class EditorWorkspaceSession
                         SuggestedOpacity = previewObject.Object.SuggestedOpacity,
                         SuggestedTintColor = previewObject.Object.SuggestedTintColor,
                         Rotation = previewObject.Object.Rotation,
+                        RotationIndex = previewObject.Object.RotationIndex,
+                        BlitScale = previewObject.Object.BlitScale,
+                        IsShrunk = previewObject.Object.IsShrunk,
                         RotationPitch = previewObject.Object.RotationPitch,
                     }
             )
@@ -6128,6 +6157,9 @@ public sealed class EditorWorkspaceSession
                         SuggestedOpacity = GetPlacementSuggestedOpacity(placementState),
                         SuggestedTintColor = GetPlacementSuggestedTintColor(placementState),
                         Rotation = previewObject.Rotation,
+                        RotationIndex = previewObject.RotationIndex,
+                        BlitScale = previewObject.BlitScale,
+                        IsShrunk = previewObject.IsShrunk,
                         RotationPitch = previewObject.RotationPitch,
                     },
                     sortKey
@@ -6246,6 +6278,9 @@ public sealed class EditorWorkspaceSession
                                 SuggestedOpacity = GetPlacementSuggestedOpacity(placementState),
                                 SuggestedTintColor = GetPlacementSuggestedTintColor(placementState),
                                 Rotation = previewObject.Rotation,
+                                RotationIndex = previewObject.RotationIndex,
+                                BlitScale = previewObject.BlitScale,
+                                IsShrunk = previewObject.IsShrunk,
                                 RotationPitch = previewObject.RotationPitch,
                             },
                             sortKey
@@ -6321,12 +6356,26 @@ public sealed class EditorWorkspaceSession
                             SortKey = sceneItem.SortKey,
                             Object = ShiftObject(sceneItem.Object!, shiftX, shiftY),
                         },
+                        EditorMapRenderQueueItemKind.ObjectAuxiliary => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            ObjectAuxiliaryItem = ShiftObjectAuxiliary(sceneItem.ObjectAuxiliaryItem!, shiftX, shiftY),
+                        },
                         EditorMapRenderQueueItemKind.Roof => new EditorMapRenderQueueItem
                         {
                             Kind = sceneItem.Kind,
                             DrawOrder = drawOrder,
                             SortKey = sceneItem.SortKey,
                             Roof = ShiftRoof(sceneItem.Roof!, shiftX, shiftY),
+                        },
+                        EditorMapRenderQueueItemKind.Light => new EditorMapRenderQueueItem
+                        {
+                            Kind = sceneItem.Kind,
+                            DrawOrder = drawOrder,
+                            SortKey = sceneItem.SortKey,
+                            Light = ShiftLight(sceneItem.Light!, shiftX, shiftY),
                         },
                         _ => throw new ArgumentOutOfRangeException(
                             nameof(sceneItem.Kind),
@@ -6359,6 +6408,8 @@ public sealed class EditorWorkspaceSession
                 DrawOrder = tile.DrawOrder,
                 CenterX = tile.CenterX + shiftX,
                 CenterY = tile.CenterY + shiftY,
+                SuggestedTintColor = tile.SuggestedTintColor,
+                LightDiagnostics = tile.LightDiagnostics,
             };
 
     private static EditorMapTileOverlayRenderItem ShiftTileOverlay(
@@ -6392,16 +6443,52 @@ public sealed class EditorWorkspaceSession
                 ProtoId = obj.ProtoId,
                 ObjectType = obj.ObjectType,
                 CurrentArtId = obj.CurrentArtId,
+                Flags = obj.Flags,
+                WallFlags = obj.WallFlags,
+                SceneryFlags = obj.SceneryFlags,
                 MapTileX = obj.MapTileX,
                 MapTileY = obj.MapTileY,
                 Tile = obj.Tile,
+                CommittedRenderLayer = obj.CommittedRenderLayer,
                 DrawOrder = obj.DrawOrder,
                 AnchorX = obj.AnchorX + shiftX,
                 AnchorY = obj.AnchorY + shiftY,
                 SpriteBounds = obj.SpriteBounds,
                 IsTileGridSnapped = obj.IsTileGridSnapped,
                 Rotation = obj.Rotation,
+                RotationIndex = obj.RotationIndex,
+                BlitScale = obj.BlitScale,
+                IsShrunk = obj.IsShrunk,
                 RotationPitch = obj.RotationPitch,
+            };
+
+    private static EditorMapObjectAuxiliaryRenderItem ShiftObjectAuxiliary(
+        EditorMapObjectAuxiliaryRenderItem obj,
+        double shiftX,
+        double shiftY
+    ) =>
+        shiftX == 0d && shiftY == 0d
+            ? obj
+            : new EditorMapObjectAuxiliaryRenderItem
+            {
+                SectorAssetPath = obj.SectorAssetPath,
+                ParentObjectId = obj.ParentObjectId,
+                ParentObjectType = obj.ParentObjectType,
+                CommittedRenderLayer = obj.CommittedRenderLayer,
+                ArtId = obj.ArtId,
+                Layer = obj.Layer,
+                MapTileX = obj.MapTileX,
+                MapTileY = obj.MapTileY,
+                Tile = obj.Tile,
+                DrawOrder = obj.DrawOrder,
+                AnchorX = obj.AnchorX + shiftX,
+                AnchorY = obj.AnchorY + shiftY,
+                SuggestedTintColor = obj.SuggestedTintColor,
+                RotationIndex = obj.RotationIndex,
+                ScalePercent = obj.ScalePercent,
+                IsShrunk = obj.IsShrunk,
+                BlendMode = obj.BlendMode,
+                IsRoofCovered = obj.IsRoofCovered,
             };
 
     private static EditorMapRoofRenderItem ShiftRoof(EditorMapRoofRenderItem roof, double shiftX, double shiftY) =>
@@ -6419,7 +6506,27 @@ public sealed class EditorWorkspaceSession
                 AnchorY = roof.AnchorY + shiftY,
             };
 
+    private static EditorMapLightRenderItem ShiftLight(EditorMapLightRenderItem light, double shiftX, double shiftY) =>
+        shiftX == 0d && shiftY == 0d
+            ? light
+            : new EditorMapLightRenderItem
+            {
+                SectorAssetPath = light.SectorAssetPath,
+                MapTileX = light.MapTileX,
+                MapTileY = light.MapTileY,
+                Tile = light.Tile,
+                ArtId = light.ArtId,
+                DrawOrder = light.DrawOrder,
+                AnchorX = light.AnchorX + shiftX,
+                AnchorY = light.AnchorY + shiftY,
+                SuggestedTintColor = light.SuggestedTintColor,
+                SuggestedOpacity = light.SuggestedOpacity,
+                Flags = light.Flags,
+            };
+
     private static void ExpandPlacementPreviewBounds(
+        double scaleX,
+        double scaleY,
         EditorMapPlacementPreviewObject previewObject,
         ref double minLeft,
         ref double minTop,
@@ -6427,6 +6534,8 @@ public sealed class EditorWorkspaceSession
         ref double maxBottom
     ) =>
         EditorMapFloorRenderBuilder.ExpandObjectBounds(
+            scaleX,
+            scaleY,
             previewObject,
             previewObject.AnchorX,
             previewObject.AnchorY,
@@ -6483,6 +6592,9 @@ public sealed class EditorWorkspaceSession
                         SuggestedOpacity = GetPlacementSuggestedOpacity(state),
                         SuggestedTintColor = GetPlacementSuggestedTintColor(state),
                         Rotation = preview.Rotation,
+                        RotationIndex = preview.RotationIndex,
+                        BlitScale = preview.BlitScale,
+                        IsShrunk = preview.IsShrunk,
                         RotationPitch = preview.RotationPitch,
                     },
                     previewTuple.SortKey
@@ -9842,6 +9954,11 @@ public sealed class EditorWorkspaceSession
             var (tileX, tileY) = locationProperty.GetLocation();
             location = new Location(checked((short)tileX), checked((short)tileY));
         }
+        var hpProp = mob.GetProperty(ObjectField.HpPts);
+        var isDead =
+            (mob.Header.GameObjectType is ObjectType.Pc or ObjectType.Npc)
+            && hpProp is not null
+            && hpProp.GetInt32() <= 0;
 
         return new EditorMapObjectPreview
         {
@@ -9857,6 +9974,7 @@ public sealed class EditorWorkspaceSession
             SpriteBounds = null,
             Rotation = mob.GetProperty(ObjectField.PadIas1)?.GetFloat() ?? 0f,
             RotationPitch = mob.GetProperty(ObjectField.RotationPitch)?.GetFloat() ?? 0f,
+            IsDead = isDead,
         };
     }
 

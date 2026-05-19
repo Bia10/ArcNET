@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -1339,7 +1339,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_ResolvesEyeCandyArtIdsUsingCeFallbackNormalization()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_DoesNotProjectEyeCandyFallbackThroughRoofRenderItems()
     {
         var artId = new ArtId(0xA0180000u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1367,8 +1367,7 @@ public class EditorWorkspaceLoaderTests
             );
 
             await Assert.That(resolvedAssetPath).IsEqualTo("art/eye_candy/decapblood_U.art");
-            await Assert.That(roofSprite).IsNotNull();
-            await Assert.That(roofSprite!.AssetPath).IsEqualTo("art/eye_candy/decapblood_U.art");
+            await Assert.That(roofSprite).IsNull();
         }
         finally
         {
@@ -1631,33 +1630,30 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_WithInstallOverlayOptions_LoadsModuleArtBeneathLooseContent()
+    public async Task LoadAsync_WithInstallOverlayOptions_LoadsModuleTileArtBeneathLooseContent()
     {
         var rootDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var contentDir = Path.Combine(rootDir, "content");
         var gameDir = Path.Combine(rootDir, "Arcanum");
         var moduleDir = Path.Combine(gameDir, "modules", "Arcanum");
         Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
-        Directory.CreateDirectory(Path.Combine(moduleDir, "art", "facade"));
+        Directory.CreateDirectory(Path.Combine(moduleDir, "art", "tile"));
 
         try
         {
             MapProperties mapProperties = new()
             {
-                ArtId = 0x111C0,
+                ArtId = 0x1C0,
                 Unused = 0,
                 LimitX = 1,
                 LimitY = 1,
             };
             MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
             MessageFormat.WriteToFile(
-                new MesFile { Entries = [new MessageEntry(273, "KerghanFloor2")] },
-                Path.Combine(moduleDir, "art", "facade", "facadename.mes")
+                new MesFile { Entries = [new MessageEntry(0, "drt0")] },
+                Path.Combine(moduleDir, "art", "tile", "tilename.mes")
             );
-            ArtFormat.WriteToFile(
-                MakeArtFile(frameRate: 12),
-                Path.Combine(moduleDir, "art", "facade", "KerghanFloor2.art")
-            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(moduleDir, "art", "tile", "drt0bse0a.art"));
 
             var workspace = await EditorWorkspaceLoader.LoadAsync(
                 contentDir,
@@ -1668,7 +1664,7 @@ public class EditorWorkspaceLoaderTests
             );
 
             var floorSprite = spriteSource.Resolve(
-                new ArtId(0x000111C0u),
+                new ArtId(0x000001C0u),
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
@@ -1676,7 +1672,7 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(workspace.Module).IsNotNull();
             await Assert.That(workspace.Module!.ModuleName).IsEqualTo("Arcanum");
             await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/drt0bse0a.art");
         }
         finally
         {
@@ -1732,7 +1728,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesSectorArtIdUsesFacadeArtWhenPresent()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FloorTilesDoNotResolveFacadeAssetsFromSectorTileArtIds()
     {
         var artId = new ArtId(0x000111C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1759,8 +1755,7 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/KerghanFloor2.art");
+            await Assert.That(floorSprite).IsNull();
         }
         finally
         {
@@ -1769,7 +1764,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_FlaggedTileArtIdsUseFacadeMessageIndexWhenPresent()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FlaggedSectorTileArtIdsDoNotResolveFacadeAssets()
     {
         var artId = new ArtId(0x004105C0u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -1796,8 +1791,7 @@ public class EditorWorkspaceLoaderTests
                 new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
             );
 
-            await Assert.That(floorSprite).IsNotNull();
-            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/facade/VendiSideWalk_RC.art");
+            await Assert.That(floorSprite).IsNull();
         }
         finally
         {
@@ -3010,10 +3004,7 @@ public class EditorWorkspaceLoaderTests
                     ObjectField.CritterFlags,
                     unchecked((int)(CritterFlags.Undead | CritterFlags.NoFlee))
                 ),
-                ObjectPropertyFactory.ForInt32(
-                    ObjectField.CritterFlags2,
-                    unchecked((int)CritterFlags2.DarkSight)
-                ),
+                ObjectPropertyFactory.ForInt32(ObjectField.CritterFlags2, unchecked((int)CritterFlags2.DarkSight)),
                 ObjectPropertyFactory.ForInt32(ObjectField.PcFlags, 7)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorFlags.pro"));
@@ -4222,9 +4213,7 @@ public class EditorWorkspaceLoaderTests
 
             await Assert.That(workspace.Save).IsNotNull();
             await Assert.That(mob.GetProperty(ObjectField.PcPlayerName)).IsNotNull();
-            await Assert
-                .That(mob.GetProperty(ObjectField.PcPlayerName)!.GetString())
-                .IsEqualTo(overriddenPlayerName);
+            await Assert.That(mob.GetProperty(ObjectField.PcPlayerName)!.GetString()).IsEqualTo(overriddenPlayerName);
         }
         finally
         {
@@ -4685,7 +4674,7 @@ public class EditorWorkspaceLoaderTests
             artResolver.Bind(new ArtId(100u), "art/critters/barbarian.art");
             var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber, artResolver);
             var session = workspace.CreateSession();
-            var worldScene = session.CreateDefaultMapWorldEditScene(
+            var worldScene = await session.CreateDefaultMapWorldEditSceneAsync(
                 request: new EditorMapWorldEditSceneRequest
                 {
                     RenderRequest = new EditorMapFloorRenderRequest
@@ -4806,7 +4795,7 @@ public class EditorWorkspaceLoaderTests
             artResolver.Bind(new ArtId(100u), "art/critters/barbarian.art");
             var paletteEntry = workspace.FindObjectPaletteEntry(protoNumber, artResolver);
             var session = workspace.CreateSession();
-            var worldScene = session.CreateDefaultMapWorldEditScene(
+            var worldScene = await session.CreateDefaultMapWorldEditSceneAsync(
                 request: new EditorMapWorldEditSceneRequest
                 {
                     RenderRequest = new EditorMapFloorRenderRequest

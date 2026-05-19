@@ -57,9 +57,9 @@ public sealed class EditorMapFacadePaintableSceneBuilderTests
         await Assert
             .That(overlayScene.Items.All(static item => item.Kind == EditorMapRenderQueueItemKind.FloorTile))
             .IsTrue();
-        await Assert.That(overlayScene.Items[0].AnchorX).IsEqualTo(440d);
+        await Assert.That(overlayScene.Items[0].AnchorX).IsEqualTo(441d);
         await Assert.That(overlayScene.Items[0].AnchorY).IsEqualTo(560d);
-        await Assert.That(overlayScene.Items[1].AnchorX).IsEqualTo(360d);
+        await Assert.That(overlayScene.Items[1].AnchorX).IsEqualTo(361d);
         await Assert.That(overlayScene.Items[1].AnchorY).IsEqualTo(640d);
     }
 

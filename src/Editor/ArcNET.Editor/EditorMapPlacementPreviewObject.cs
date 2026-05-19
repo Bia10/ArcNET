@@ -94,6 +94,21 @@ public sealed class EditorMapPlacementPreviewObject
     public required float Rotation { get; init; }
 
     /// <summary>
+    /// Effective CE rotation index used to resolve the preview sprite.
+    /// </summary>
+    public int RotationIndex { get; init; }
+
+    /// <summary>
+    /// Effective CE blit scale percentage for the preview sprite.
+    /// </summary>
+    public int BlitScale { get; init; } = 100;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when CE shrunk rendering applies to the preview sprite.
+    /// </summary>
+    public bool IsShrunk { get; init; }
+
+    /// <summary>
     /// Preview pitch rotation copied from the placement request or proto defaults.
     /// </summary>
     public required float RotationPitch { get; init; }

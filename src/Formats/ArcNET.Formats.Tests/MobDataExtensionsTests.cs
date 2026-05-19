@@ -114,9 +114,7 @@ public class MobDataExtensionsTests
         await Assert.That(updated.Properties[0].Field).IsEqualTo(ObjectField.OverlayLightAid);
         await Assert.That(updated.Properties[1].Field).IsEqualTo(ObjectField.Material);
         await Assert.That(reparsed.GetProperty(ObjectField.OverlayLightAid)).IsNotNull();
-        await Assert
-            .That(reparsed.GetProperty(ObjectField.OverlayLightAid)!.GetInt32Array())
-            .IsEquivalentTo([7, 8]);
+        await Assert.That(reparsed.GetProperty(ObjectField.OverlayLightAid)!.GetInt32Array()).IsEquivalentTo([7, 8]);
     }
 
     // ── WithoutProperty ───────────────────────────────────────────────────────
