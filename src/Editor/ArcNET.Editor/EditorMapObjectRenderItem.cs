@@ -29,6 +29,11 @@ public sealed class EditorMapObjectRenderItem
     public required ObjectType ObjectType { get; init; }
 
     /// <summary>
+    /// Optional CE-style committed scene layer classification for the object.
+    /// </summary>
+    public EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
+
+    /// <summary>
     /// Current art identifier.
     /// </summary>
     public required ArtId CurrentArtId { get; init; }
@@ -77,6 +82,21 @@ public sealed class EditorMapObjectRenderItem
     /// Primary rotation copied from the source object preview.
     /// </summary>
     public required float Rotation { get; init; }
+
+    /// <summary>
+    /// Effective CE rotation index used by hosts that need frame-stable selection overlays.
+    /// </summary>
+    public int RotationIndex { get; init; }
+
+    /// <summary>
+    /// Effective CE blit scale percentage.
+    /// </summary>
+    public int BlitScale { get; init; } = 100;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when CE shrunk rendering applies to this sprite.
+    /// </summary>
+    public bool IsShrunk { get; init; }
 
     /// <summary>
     /// Pitch rotation copied from the source object preview.

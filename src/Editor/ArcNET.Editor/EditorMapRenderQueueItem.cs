@@ -45,4 +45,14 @@ public sealed class EditorMapRenderQueueItem
     /// Projected tile overlay payload when <see cref="Kind"/> is <see cref="EditorMapRenderQueueItemKind.TileOverlay"/>.
     /// </summary>
     public EditorMapTileOverlayRenderItem? TileOverlay { get; init; }
+
+    /// <summary>
+    /// Projected object auxiliary payload when <see cref="Kind"/> is <see cref="EditorMapRenderQueueItemKind.ObjectAuxiliary"/>.
+    /// </summary>
+    public EditorMapObjectAuxiliaryRenderItem? ObjectAuxiliaryItem { get; init; }
+
+    /// <summary>
+    /// Projected light mask payload when <see cref="Kind"/> is <see cref="EditorMapRenderQueueItemKind.Light"/>.
+    /// </summary>
+    public EditorMapLightRenderItem? Light { get; init; }
 }

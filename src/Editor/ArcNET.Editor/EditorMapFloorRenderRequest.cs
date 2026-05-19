@@ -53,6 +53,16 @@ public sealed class EditorMapFloorRenderRequest
     public bool IncludeScriptOverlays { get; init; } = true;
 
     /// <summary>
+    /// Indicates whether committed object renders should expose editor-state tint diagnostics.
+    /// </summary>
+    public bool IncludeEditorObjectStateTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
+    /// </summary>
+    public bool IncludeFloorLightTint { get; init; }
+
+    /// <summary>
     /// Returns one cloned request with visibility flags composed from one persisted map-preview state.
     /// </summary>
     public EditorMapFloorRenderRequest WithPreviewState(EditorProjectMapPreviewState previewState)
@@ -70,6 +80,8 @@ public sealed class EditorMapFloorRenderRequest
             IncludeBlockedTileOverlays = IncludeBlockedTileOverlays && previewState.ShowBlockedTiles,
             IncludeLightOverlays = IncludeLightOverlays && previewState.ShowLights,
             IncludeScriptOverlays = IncludeScriptOverlays && previewState.ShowScripts,
+            IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = IncludeFloorLightTint,
         };
     }
 

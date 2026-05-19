@@ -46,9 +46,19 @@ public sealed class EditorMapFloorRenderPreview
     public required IReadOnlyList<EditorMapObjectRenderItem> Objects { get; init; }
 
     /// <summary>
+    /// Render-ready auxiliary object layers in the same normalized render space as <see cref="Tiles"/>.
+    /// </summary>
+    public IReadOnlyList<EditorMapObjectAuxiliaryRenderItem> ObjectAuxiliaryItems { get; init; } = [];
+
+    /// <summary>
     /// Render-ready tile overlays in the same normalized render space as <see cref="Tiles"/>.
     /// </summary>
     public required IReadOnlyList<EditorMapTileOverlayRenderItem> Overlays { get; init; }
+
+    /// <summary>
+    /// Render-ready sector light masks in the same normalized render space as <see cref="Tiles"/>.
+    /// </summary>
+    public IReadOnlyList<EditorMapLightRenderItem> Lights { get; init; } = [];
 
     /// <summary>
     /// Render-ready roof cells in the same normalized render space as <see cref="Tiles"/>.

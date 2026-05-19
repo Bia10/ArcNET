@@ -52,6 +52,16 @@ public sealed class EditorMapWorldEditShellRequest
     /// Indicates whether the tracked object-placement tool should also be previewed as one live shell overlay when possible.
     /// </summary>
     public bool IncludeTrackedPlacementPreview { get; init; } = true;
+
+    /// <summary>
+    /// Indicates whether committed object renders should expose editor-state tint diagnostics.
+    /// </summary>
+    public bool IncludeEditorObjectStateTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
+    /// </summary>
+    public bool IncludeFloorLightTint { get; init; }
 }
 
 /// <summary>
@@ -100,6 +110,11 @@ public sealed class EditorMapWorldEditShell
     /// Hosts can render this directly instead of rebuilding the preview queue during paint.
     /// </summary>
     public EditorMapPaintableScene? TrackedPlacementPaintableScene { get; init; }
+
+    /// <summary>
+    /// Optional host-ready terrain-facade overlay paintable scene for the tracked terrain tool.
+    /// </summary>
+    public EditorMapPaintableScene? TrackedTerrainFacadePaintableScene { get; init; }
 
     /// <summary>
     /// Tracked terrain tool summary for the shell.

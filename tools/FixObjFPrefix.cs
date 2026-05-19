@@ -1,4 +1,4 @@
-#! "nuget: Spectre.Console, 0.55.0"
+﻿#! "nuget: Spectre.Console, 0.55.0"
 
 using System.Collections.Concurrent;
 using Spectre.Console;

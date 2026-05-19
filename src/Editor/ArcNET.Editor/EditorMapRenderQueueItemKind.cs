@@ -29,4 +29,14 @@ public enum EditorMapRenderQueueItemKind
     /// One projected tile-semantic overlay.
     /// </summary>
     TileOverlay = 4,
+
+    /// <summary>
+    /// One projected auxiliary art layer around a committed object.
+    /// </summary>
+    ObjectAuxiliary = 5,
+
+    /// <summary>
+    /// One projected sector light mask.
+    /// </summary>
+    Light = 6,
 }

@@ -65,6 +65,16 @@ public sealed class EditorMapFloorTileRenderItem
     public required double CenterY { get; init; }
 
     /// <summary>
+    /// Suggested diagnostic tint color derived from nearby floor-light samples when available.
+    /// </summary>
+    public uint? SuggestedTintColor { get; init; }
+
+    /// <summary>
+    /// CE-style 3x3 neighboring light sample grid for the tile when available.
+    /// </summary>
+    public EditorMapTileLightDiagnostics? LightDiagnostics { get; init; }
+
+    /// <summary>
     /// Sector-local roof-cell coordinate derived from <see cref="Tile"/>.
     /// </summary>
     public Location RoofCell =>

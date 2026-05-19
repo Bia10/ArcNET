@@ -21,6 +21,11 @@ public sealed class EditorMapObjectTransformRequest
     public float? Rotation { get; init; }
 
     /// <summary>
+    /// CE rotation index to apply when specified; <see langword="null"/> preserves the current rotation.
+    /// </summary>
+    public int? RotationIndex { get; init; }
+
+    /// <summary>
     /// Pitch rotation to apply when specified; <see langword="null"/> preserves the current pitch rotation.
     /// </summary>
     public float? RotationPitch { get; init; }
@@ -40,7 +45,13 @@ public sealed class EditorMapObjectTransformRequest
     /// <summary>
     /// Returns <see langword="true"/> when the request changes one or more object fields.
     /// </summary>
-    public bool HasChanges => HasMoveOffset || Rotation.HasValue || RotationPitch.HasValue || AlignToTileGrid;
+    public bool HasChanges => HasMoveOffset || EffectiveRotation.HasValue || RotationPitch.HasValue || AlignToTileGrid;
+
+    /// <summary>
+    /// Effective primary rotation resolved from <see cref="Rotation"/> or <see cref="RotationIndex"/>.
+    /// </summary>
+    public float? EffectiveRotation =>
+        Rotation ?? (RotationIndex is int rotationIndex ? rotationIndex * (MathF.Tau / 8f) : null);
 
     /// <summary>
     /// Creates one transform request from the supplied optional move and rotation values.

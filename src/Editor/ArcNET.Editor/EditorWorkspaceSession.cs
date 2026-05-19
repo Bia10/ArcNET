@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -1383,6 +1383,18 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one selected-object summary for the tracked map view using the supplied pre-built scene render.
+    /// </summary>
+    public EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(
+        string mapViewStateId,
+        EditorMapFloorRenderPreview sceneRender
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        return GetTrackedObjectSelectionSummary(mapViewStateId);
+    }
+
+    /// <summary>
     /// Returns one host-facing object/proto inspector summary for the current persisted selection on one tracked map view.
     /// The summary reflects the current staged proto/message state for the resolved target.
     /// </summary>
@@ -1488,6 +1500,17 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one typed flags-pane contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+        return CreateTrackedObjectInspectorFlagsSummary(inspector);
+    }
+
+    /// <summary>
     /// Stages one typed flags-pane update for the current persisted inspector target on one tracked map view.
     /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
     /// Returns <see langword="null"/> when the requested update already matches the current staged state.
@@ -1573,6 +1596,17 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one typed critter-progression contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+        return CreateTrackedObjectInspectorCritterProgressionSummary(inspector);
+    }
+
+    /// <summary>
     /// Stages one typed critter-progression update for the current persisted inspector target on one tracked map view.
     /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
     /// Returns <see langword="null"/> when the requested update already matches the current staged state.
@@ -1643,6 +1677,17 @@ public sealed class EditorWorkspaceSession
     {
         var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
 
+        return CreateTrackedObjectInspectorLightSummary(inspector);
+    }
+
+    /// <summary>
+    /// Returns one typed light-pane contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorLightSummary GetTrackedObjectInspectorLightSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
         return CreateTrackedObjectInspectorLightSummary(inspector);
     }
 
@@ -1722,6 +1767,17 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one typed generator-pane contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorGeneratorSummary GetTrackedObjectInspectorGeneratorSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+        return CreateTrackedObjectInspectorGeneratorSummary(inspector);
+    }
+
+    /// <summary>
     /// Stages one typed generator-pane update for the current persisted inspector target on one tracked map view.
     /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
     /// Returns <see langword="null"/> when the requested update already matches the current staged state.
@@ -1789,6 +1845,17 @@ public sealed class EditorWorkspaceSession
     {
         var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
 
+        return CreateTrackedObjectInspectorBlendingSummary(inspector);
+    }
+
+    /// <summary>
+    /// Returns one typed blending-pane contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
         return CreateTrackedObjectInspectorBlendingSummary(inspector);
     }
 
@@ -1866,6 +1933,17 @@ public sealed class EditorWorkspaceSession
     {
         var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
 
+        return CreateTrackedObjectInspectorScriptAttachmentsSummary(inspector);
+    }
+
+    /// <summary>
+    /// Returns one typed script-attachments contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorScriptAttachmentsSummary GetTrackedObjectInspectorScriptAttachmentsSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
         return CreateTrackedObjectInspectorScriptAttachmentsSummary(inspector);
     }
 
@@ -3060,6 +3138,32 @@ public sealed class EditorWorkspaceSession
             () => CreateMapWorldEditSceneCoreAsync(CreateDefaultMapViewState(id, viewId), request, cancellationToken),
             cancellationToken
         );
+
+    /// <summary>
+    /// Creates one optional terrain-facade overlay paintable scene for the tracked terrain tool when a facade entry is selected.
+    /// </summary>
+    public EditorMapPaintableScene? PreviewTrackedTerrainFacadePaintableScene(
+        string mapViewStateId,
+        EditorMapFloorRenderPreview sceneRender,
+        IEditorMapRenderSpriteSource? spriteSource = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var terrainEntry = GetTrackedTerrainToolSummary(mapViewStateId).SelectedEntry;
+        var facadeWalk = terrainEntry is { ArtId.Type: ArtId.TypeCode.Facade }
+            ? Workspace.FindFacadeWalk(EditorMapFacadePaintableSceneBuilder.GetFacadeWalkAssetPath(terrainEntry.ArtId))
+            : null;
+
+        return EditorMapFacadePaintableSceneBuilder.Build(
+            sceneRender,
+            mapViewState.Selection,
+            terrainEntry,
+            facadeWalk,
+            spriteSource
+        );
+    }
 
     /// <summary>
     /// Creates one opinionated tracked world-edit shell for the supplied map view asynchronously.
