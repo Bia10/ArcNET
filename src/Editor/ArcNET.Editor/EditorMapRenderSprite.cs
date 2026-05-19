@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -351,74 +351,10 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
     private string? TryResolveAssetPath(ArtId artId, EditorMapRenderSpriteRequest request)
     {
-        if (
-            request.RenderItemKind is EditorMapRenderQueueItemKind.FloorTile or EditorMapRenderQueueItemKind.Roof
-            && IsSectorArtId(artId.Value)
-        )
-        {
-            if (_workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var renderItemAssetPath))
-                return renderItemAssetPath;
-
-            var lowSectorFallbackAssetPath = _artResolver.FindAssetPath(artId);
-            if (string.IsNullOrWhiteSpace(lowSectorFallbackAssetPath))
-            {
-                if (request.RenderItemKind == EditorMapRenderQueueItemKind.FloorTile)
-                {
-                    var family = (artId.Value >> 8) & 0xFFFu;
-                    var facadeMesPath = Path.Combine(_workspace.ContentDirectory, "art", "facade", "facadename.mes");
-                    if (!File.Exists(facadeMesPath) && _workspace.Module != null)
-                        facadeMesPath = Path.Combine(
-                            _workspace.Module.ModuleDirectory,
-                            "art",
-                            "facade",
-                            "facadename.mes"
-                        );
-
-                    if (File.Exists(facadeMesPath))
-                    {
-                        try
-                        {
-                            var mes = MessageFormat.ParseFile(facadeMesPath);
-                            MessageEntry entry = default;
-                            foreach (var e in mes.Entries)
-                            {
-                                if (e.Index == (int)family)
-                                {
-                                    entry = e;
-                                    break;
-                                }
-                            }
-                            if (entry.Text != null)
-                            {
-                                var facadePath = $"art/facade/{entry.Text}.art";
-                                if (File.Exists(Path.Combine(_workspace.ContentDirectory, facadePath)))
-                                    return facadePath;
-
-                                if (
-                                    _workspace.Module != null
-                                    && File.Exists(Path.Combine(_workspace.Module.ModuleDirectory, facadePath))
-                                )
-                                    return facadePath;
-                            }
-                        }
-                        catch
-                        {
-                            // Ignore read errors
-                        }
-                    }
-                }
-                return null;
-            }
-
-            var normalizedPath = lowSectorFallbackAssetPath.Replace('\\', '/');
-            if (
-                IsSectorArtFamilyAssetPath(normalizedPath)
-                && !IsCompatibleFamily(request.RenderItemKind, normalizedPath)
-            )
-                return null;
-
-            return lowSectorFallbackAssetPath;
-        }
+        if (IsSectorArtId(artId.Value) && request.RenderItemKind is EditorMapRenderQueueItemKind.FloorTile)
+            return _workspace.TryResolveMapRenderArtAssetPath(artId, request.RenderItemKind, out var floorAssetPath)
+                ? floorAssetPath
+                : null;
 
         var assetPath = _artResolver.FindAssetPath(artId);
         if (
@@ -431,6 +367,24 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
         if (string.IsNullOrWhiteSpace(assetPath))
             return null;
+
+        var normalizedPath = assetPath.Replace('\\', '/');
+        if (
+            request.RenderItemKind is EditorMapRenderQueueItemKind.Roof
+            && !normalizedPath.StartsWith("art/roof/", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return null;
+        }
+
+        if (
+            IsSectorArtId(artId.Value)
+            && IsSectorArtFamilyAssetPath(normalizedPath)
+            && !IsCompatibleFamily(request.RenderItemKind, normalizedPath)
+        )
+        {
+            return null;
+        }
 
         return assetPath;
     }
@@ -453,8 +407,11 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
         var frame = EditorArtPreviewBuilder.BuildFrame(art, rotationIndex, frameIndex, _previewOptions);
         var (centerX, centerY) = AdjustSpriteCenter(
+            request.RenderItemKind,
             assetPath,
+            artId,
             effectiveRotationIndex,
+            frame.Width,
             frame.Header.CenterX,
             frame.Header.CenterY
         );
@@ -492,7 +449,15 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
         var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
         var header = art.Frames[rotationIndex][frameIndex].Header;
-        var (centerX, centerY) = AdjustSpriteCenter(assetPath, effectiveRotationIndex, header.CenterX, header.CenterY);
+        var (centerX, centerY) = AdjustSpriteCenter(
+            request.RenderItemKind,
+            assetPath,
+            artId,
+            effectiveRotationIndex,
+            checked((int)header.Width),
+            header.CenterX,
+            header.CenterY
+        );
 
         return new EditorMapRenderSpriteMetrics
         {
@@ -511,17 +476,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             : requestedRotationIndex;
 
     private static int ResolveEffectiveFrameIndex(ArtId artId, int requestedFrameIndex) =>
-        requestedFrameIndex != 0 ? requestedFrameIndex : DecodeFrameIndexFromArtId(artId.Value);
-
-    private static int DecodeFrameIndexFromArtId(uint artIdValue) =>
-        (artIdValue & ArtTypeMask) switch
-        {
-            0u or WallArtType or ItemArtType => 0,
-            InterfaceArtType or MiscArtType => (int)((artIdValue >> 8) & 0xFFu),
-            LightArtType or EyeCandyArtType => (int)((artIdValue >> 12) & 0x7Fu),
-            FacadeArtType => (int)((artIdValue >> 1) & 0x3FFu),
-            _ => (int)((artIdValue >> 14) & 0x1Fu),
-        };
+        requestedFrameIndex != 0 ? requestedFrameIndex : artId.FrameIndex;
 
     internal static (int CenterX, int CenterY) AdjustSpriteCenter(
         EditorMapRenderQueueItemKind? renderItemKind,
@@ -531,14 +486,51 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         int width,
         int centerX,
         int centerY
-    ) => (centerX, centerY);
+    )
+    {
+        if (
+            renderItemKind is EditorMapRenderQueueItemKind.FloorTile
+            && artId.Type is ArtId.TypeCode.Tile or ArtId.TypeCode.Facade
+            && !assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
+            && !assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (centerX - 40, centerY - 20);
+        }
+
+        if (
+            !assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
+            && !assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (centerX, centerY);
+        }
+
+        var adjustedCenterX = centerX;
+        var adjustedCenterY = centerY;
+        if (effectiveRotationIndex < 2 || effectiveRotationIndex > 5)
+        {
+            adjustedCenterX -= 40;
+            adjustedCenterY += 20;
+        }
+
+        return (renderItemKind, artId.Type) switch
+        {
+            (EditorMapRenderQueueItemKind.FloorTile, ArtId.TypeCode.Tile) => (adjustedCenterX, adjustedCenterY),
+            (not EditorMapRenderQueueItemKind.FloorTile, ArtId.TypeCode.Wall or ArtId.TypeCode.Portal) => (
+                (artId.Value & 0x1u) != 0 ? width - adjustedCenterX - 2 : adjustedCenterX,
+                adjustedCenterY
+            ),
+            _ => (adjustedCenterX, adjustedCenterY),
+        };
+    }
 
     private static (int CenterX, int CenterY) AdjustSpriteCenter(
         string assetPath,
         int requestedRotationIndex,
         int centerX,
         int centerY
-    ) => (centerX, centerY);
+    ) => AdjustSpriteCenter(null, assetPath, default, requestedRotationIndex, width: 0, centerX, centerY);
 
     private static bool UsesArtIdRotation(string assetPath, ArtId artId) =>
         UsesArtIdRotationForWallPortal(assetPath, artId) || UsesArtIdRotationForScenery(assetPath, artId);
