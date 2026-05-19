@@ -146,15 +146,22 @@ public sealed class EditorMapPaintableSceneBuilderTests
         await Assert
             .That(floorTile.SpriteSourceRect)
             .IsEqualTo(new EditorMapPaintableSceneSpriteSourceRect(0, 0, 80, 40));
+        // CE-correct: floor tile now defines minTop (no longer overridden by object anchor with wrong -20 offset).
         await Assert
             .That(floorTile.SpriteDestinationRect)
-            .IsEqualTo(new EditorMapPaintableSceneSpriteDestinationRect(0d, 2.3999999999999773d, 64d, 32d));
+            .IsEqualTo(new EditorMapPaintableSceneSpriteDestinationRect(0d, 0d, 64d, 32d));
 
         var objectItem = paintableScene.Items.Single(static item => item.Kind == EditorMapRenderQueueItemKind.Object);
         await Assert.That(objectItem.Width).IsEqualTo(64d);
         await Assert.That(objectItem.Height).IsEqualTo(32d);
-        await Assert.That(objectItem.Left).IsEqualTo(-28d);
-        await Assert.That(objectItem.Top).IsEqualTo(-16d);
+        // CE-correct: anchorX = tileCenterX + offsetX*scaleX = 2020 (was 1988 with wrong -40).
+        // scene offsetX = -1984 (from tile minLeft=1984); anchorX_scene = 2020-1984 = 36.
+        // left = anchorX_scene - centerX*sceneScaleX = 36 - 40*0.8 = 36-32 = 4.
+        // anchorY = tileCenterY + offsetY*scaleY = 1024-2.4 = 1021.6.
+        // minTop from tile = 1008; anchorY_scene = 1021.6-1008 = 13.6.
+        // top = anchorY_scene - centerY*sceneScaleY = 13.6 - 20*0.8 = 13.6-16 = -2.4.
+        await Assert.That(objectItem.Left).IsEqualTo(4d);
+        await Assert.That(objectItem.Top).IsEqualTo(-2.3999999999999773d);
     }
 
     [Test]

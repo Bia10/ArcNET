@@ -145,7 +145,8 @@ public static class EditorMapFloorRenderBuilder
         int RotationIndex,
         int BlitScale,
         bool IsShrunk,
-        float RotationPitch
+        float RotationPitch,
+        bool IsRoofCovered = false
     );
 
     private sealed record RawRoofRenderItem(
@@ -177,7 +178,8 @@ public static class EditorMapFloorRenderBuilder
         int RotationIndex,
         int ScalePercent,
         bool IsShrunk,
-        bool IsParentDead
+        bool IsParentDead,
+        bool IsRoofCovered
     );
 
     private sealed class SectorAccumulator
@@ -447,7 +449,8 @@ public static class EditorMapFloorRenderBuilder
         double anchorY,
         long parentBaseTileDrawOrder,
         int parentSameTileOrder,
-        SectorAccumulator local
+        SectorAccumulator local,
+        bool isRoofCovered
     )
     {
         var rotationIndex = obj.RotationIndex;
@@ -479,7 +482,8 @@ public static class EditorMapFloorRenderBuilder
                     RotationIndex: rotationIndex,
                     ScalePercent: scalePercent,
                     IsShrunk: isShrunk,
-                    IsParentDead: obj.IsDead
+                    IsParentDead: obj.IsDead,
+                    IsRoofCovered: isRoofCovered
                 )
             );
         }
@@ -505,7 +509,8 @@ public static class EditorMapFloorRenderBuilder
                     RotationIndex: rotationIndex,
                     ScalePercent: scalePercent,
                     IsShrunk: isShrunk,
-                    IsParentDead: obj.IsDead
+                    IsParentDead: obj.IsDead,
+                    IsRoofCovered: isRoofCovered
                 )
             );
         }
@@ -539,7 +544,8 @@ public static class EditorMapFloorRenderBuilder
                         RotationIndex: rotationIndex,
                         ScalePercent: scalePercent,
                         IsShrunk: isShrunk,
-                        IsParentDead: obj.IsDead
+                        IsParentDead: obj.IsDead,
+                        IsRoofCovered: isRoofCovered
                     )
                 );
             }
@@ -570,7 +576,8 @@ public static class EditorMapFloorRenderBuilder
                     RotationIndex: rotationIndex,
                     ScalePercent: scalePercent,
                     IsShrunk: isShrunk,
-                    IsParentDead: obj.IsDead
+                    IsParentDead: obj.IsDead,
+                    IsRoofCovered: isRoofCovered
                 )
             );
         }
@@ -654,8 +661,7 @@ public static class EditorMapFloorRenderBuilder
 
                 var mapTileX = checked((sector.LocalX * sectorTileWidth) + location.X);
                 var mapTileY = checked((sector.LocalY * sectorTileHeight) + location.Y);
-                if (IsRoofCovered(sceneSectorLookup, mapTileX, mapTileY))
-                    continue;
+                var isRoofCovered = request.IncludeRoofs && IsRoofCovered(sceneSectorLookup, mapTileX, mapTileY);
 
                 if (ShouldHideTransparentWallUnderFadedRoof(obj, mapTileX, mapTileY, sceneSectorLookup))
                     continue;
@@ -714,7 +720,8 @@ public static class EditorMapFloorRenderBuilder
                         RotationIndex: obj.RotationIndex,
                         BlitScale: obj.BlitScale,
                         IsShrunk: obj.IsShrunk,
-                        RotationPitch: obj.RotationPitch
+                        RotationPitch: obj.RotationPitch,
+                        IsRoofCovered: isRoofCovered
                     )
                 );
 
@@ -730,7 +737,8 @@ public static class EditorMapFloorRenderBuilder
                     anchorY,
                     baseTileDrawOrder,
                     sameTileOrders[objectIndex],
-                    local
+                    local,
+                    isRoofCovered
                 );
             }
         }
@@ -1090,6 +1098,9 @@ public static class EditorMapFloorRenderBuilder
 
         var row = PositiveModulo(coveredTileY, 4);
         var col = PositiveModulo(coveredTileX, 4);
+        if (roof.IsRoofMirrored)
+            col = 3 - col;
+
         return RoofCoverageMatrix[roof.FrameIndex, row, col];
     }
 
@@ -1306,6 +1317,7 @@ public static class EditorMapFloorRenderBuilder
                 BlitScale = o.BlitScale,
                 IsShrunk = o.IsShrunk,
                 RotationPitch = o.RotationPitch,
+                IsRoofCovered = o.IsRoofCovered,
             };
         }
 
@@ -1366,6 +1378,7 @@ public static class EditorMapFloorRenderBuilder
                 RotationIndex = a.RotationIndex,
                 ScalePercent = a.ScalePercent,
                 IsShrunk = a.IsShrunk,
+                IsRoofCovered = a.IsRoofCovered,
             };
         }
 
@@ -1438,14 +1451,11 @@ public static class EditorMapFloorRenderBuilder
         var scaleX = tileWidthPixels / 80d;
         var scaleY = tileHeightPixels / 40d;
 
+        // CE object anchor: base_x = loc_x + offset_x + 40; rect.x = base_x - hot_x
+        // Our tileCenterX = 40*(Y-X) = loc_x + 40, so no additional offset is needed.
+        // Previously a -40/-20 adjustment was applied for Scenery type which was incorrect.
         var baseOffsetX = (double)objectPreview.OffsetX;
         var baseOffsetY = (double)objectPreview.OffsetY;
-
-        if (objectPreview.ObjectType is ObjectType.Scenery)
-        {
-            baseOffsetX -= 40;
-            baseOffsetY -= 20;
-        }
 
         return (baseOffsetX * scaleX, baseOffsetY * scaleY, objectPreview.OffsetZ * scaleY);
     }

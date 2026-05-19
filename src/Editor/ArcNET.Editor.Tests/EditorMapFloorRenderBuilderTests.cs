@@ -242,8 +242,11 @@ public sealed class EditorMapFloorRenderBuilderTests
             preview
         );
 
-        await Assert.That(anchorX).IsEqualTo(64d - 32d);
-        await Assert.That(anchorY).IsEqualTo(32d - 16d - 8d);
+        // CE anchor: base_x = loc_x + offset_x + 40; tileCenterX already equals loc_x + 40.
+        // With scaleX=0.8: anchorX = tileCenterX(32) + offsetX(40)*0.8 = 32 + 32 = 64.
+        // With scaleY=0.8: anchorY = tileCenterY(16) + offsetY(20)*0.8 - offsetZ(10)*0.8 = 16+16-8 = 24.
+        await Assert.That(anchorX).IsEqualTo(64d);
+        await Assert.That(anchorY).IsEqualTo(24d);
     }
 
     [Test]
@@ -966,10 +969,12 @@ public sealed class EditorMapFloorRenderBuilderTests
             }
         );
 
-        await Assert.That(preview.Objects).IsEmpty();
+        // Objects under roofs are retained in the queue with IsRoofCovered=true for dynamic UI-layer hiding.
+        await Assert.That(preview.Objects.Count).IsEqualTo(1);
+        await Assert.That(preview.Objects[0].IsRoofCovered).IsTrue();
         await Assert
             .That(preview.RenderQueue.Count(item => item.Kind == EditorMapRenderQueueItemKind.Object))
-            .IsEqualTo(0);
+            .IsEqualTo(1);
         await Assert.That(preview.Roofs.Count).IsEqualTo(1);
     }
 
