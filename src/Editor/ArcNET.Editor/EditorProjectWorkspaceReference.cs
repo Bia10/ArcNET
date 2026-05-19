@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted workspace input that can reopen an <see cref="EditorWorkspace"/>.
@@ -84,19 +84,6 @@ public sealed class EditorProjectWorkspaceReference
             SaveFolder = SaveFolder,
             SaveSlotName = SaveSlotName,
         };
-
-    /// <summary>
-    /// Reopens the referenced workspace.
-    /// </summary>
-    public EditorWorkspace Load()
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(RootPath);
-
-        var options = CreateLoadOptions();
-        return Kind == EditorProjectWorkspaceKind.GameInstall
-            ? EditorWorkspaceLoader.LoadFromGameInstall(RootPath, options)
-            : EditorWorkspaceLoader.Load(RootPath, options);
-    }
 
     /// <summary>
     /// Reopens the referenced workspace asynchronously.

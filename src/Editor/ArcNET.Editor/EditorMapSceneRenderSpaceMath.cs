@@ -272,10 +272,7 @@ public static class EditorMapSceneRenderSpaceMath
             return null;
 
         var objectHits = sceneRender
-            .Objects.Where(obj =>
-                obj.SectorAssetPath.Equals(hitTile.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
-                && obj.Tile == hitTile.Tile
-            )
+            .Objects.Where(obj => ContainsRenderPoint(obj, renderX, renderY))
             .OrderBy(static obj => obj.DrawOrder)
             .ToArray();
 
@@ -308,7 +305,7 @@ public static class EditorMapSceneRenderSpaceMath
         {
             SectorAssetPath = hit.SectorAssetPath,
             Tile = hit.Tile,
-            ObjectId = hit.ObjectHits.FirstOrDefault()?.ObjectId,
+            ObjectId = hit.ObjectHits.LastOrDefault()?.ObjectId,
         };
     }
 
@@ -356,6 +353,26 @@ public static class EditorMapSceneRenderSpaceMath
                 "Unsupported scene view mode."
             ),
         };
+    }
+
+    private static bool ContainsRenderPoint(EditorMapObjectRenderItem obj, double renderX, double renderY)
+    {
+        var spriteBounds = obj.SpriteBounds;
+        if (spriteBounds is null)
+        {
+            var left = obj.AnchorX - 8d;
+            var top = obj.AnchorY - 8d;
+            return renderX >= left && renderX <= left + 16d && renderY >= top && renderY <= top + 16d;
+        }
+
+        var centerX = spriteBounds.MaxFrameCenterX;
+        var centerY = spriteBounds.MaxFrameCenterY;
+        var spriteLeft = obj.AnchorX - centerX;
+        var spriteTop = obj.AnchorY - centerY;
+        return renderX >= spriteLeft
+            && renderX <= spriteLeft + spriteBounds.MaxFrameWidth
+            && renderY >= spriteTop
+            && renderY <= spriteTop + spriteBounds.MaxFrameHeight;
     }
 
     private static void ValidateFinite(string paramName, double value)

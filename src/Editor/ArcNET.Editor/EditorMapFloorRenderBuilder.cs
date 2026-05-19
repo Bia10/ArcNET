@@ -423,7 +423,7 @@ public static class EditorMapFloorRenderBuilder
             if (rowMask == 0 && !request.IncludeEmptyTiles)
                 continue;
 
-            if (rowMask == 0)
+            if (request.IncludeEmptyTiles)
             {
                 for (var tileX = 0; tileX < sectorTileWidth; tileX++)
                     ProcessTile(
@@ -799,9 +799,6 @@ public static class EditorMapFloorRenderBuilder
                 cmp = a.TypeSortPriority.CompareTo(b.TypeSortPriority);
                 if (cmp != 0)
                     return cmp;
-                cmp = a.TieBreakerSortKey.CompareTo(b.TieBreakerSortKey);
-                if (cmp != 0)
-                    return cmp;
                 cmp = a.MapTileX.CompareTo(b.MapTileX);
                 return cmp != 0 ? cmp : a.PreviewOrder.CompareTo(b.PreviewOrder);
             }
@@ -977,7 +974,11 @@ public static class EditorMapFloorRenderBuilder
 
         var scaleX = tileWidthPixels / 80d;
         var scaleY = tileHeightPixels / 40d;
-        return (objectPreview.OffsetX * scaleX, objectPreview.OffsetY * scaleY, objectPreview.OffsetZ * scaleY);
+        return (
+            (objectPreview.OffsetX + 40) * scaleX,
+            (objectPreview.OffsetY + 20) * scaleY,
+            objectPreview.OffsetZ * scaleY
+        );
     }
 
     internal static long GetDrawOrder(EditorMapSceneViewMode viewMode, int mapTileWidth, int mapTileX, int mapTileY) =>
@@ -1141,24 +1142,18 @@ public static class EditorMapFloorRenderBuilder
         maxBottom = Math.Max(maxBottom, bottom);
     }
 
-    internal static (int CenterX, int CenterY) GetLayoutSpriteCenter(
+    public static (int CenterX, int CenterY) GetLayoutSpriteCenter(
         EditorMapObjectPreview objectPreview,
         EditorMapObjectSpriteBounds spriteBounds
     ) => GetLayoutSpriteCenter(objectPreview.ObjectType, objectPreview.CurrentArtId, spriteBounds);
 
-    internal static (int CenterX, int CenterY) GetLayoutSpriteCenter(
+    public static (int CenterX, int CenterY) GetLayoutSpriteCenter(
         ObjectType objectType,
         ArtId artId,
         EditorMapObjectSpriteBounds spriteBounds
     )
     {
-        if (!UsesCeWallPortalOrdering(objectType))
-            return (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY);
-
-        var rotationIndex = (int)((artId.Value >> 11) & 0x7u);
-        return rotationIndex is > 1 and < 6
-            ? (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY)
-            : (spriteBounds.MaxFrameCenterX - 40, spriteBounds.MaxFrameCenterY + 20);
+        return (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY);
     }
 
     internal static (double AnchorX, double AnchorY) ProjectRoofAnchor(

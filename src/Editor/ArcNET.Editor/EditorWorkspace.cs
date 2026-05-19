@@ -21,12 +21,13 @@ namespace ArcNET.Editor;
 /// The workspace may be backed either by a loose/extracted content directory or by a real
 /// game installation whose DAT archives are read directly.
 /// </remarks>
-public sealed class EditorWorkspace
+public sealed class EditorWorkspace : IDisposable
 {
     private const long DefaultMaxLoadedArtRetainedBytes = 64L * 1024L * 1024L;
     private const int DefaultMaxLoadedArtEntryCount = 256;
     private readonly object _artBindingCacheGate = new();
     private readonly object _loadedArtCacheGate = new();
+    private readonly ConcurrentDictionary<string, DatArchive> _openArchives = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _objectPaletteCacheGate = new();
     private readonly object _worldAreaCatalogGate = new();
     private readonly ConcurrentDictionary<string, Lazy<ArtFile?>> _loadedArtsByPath = new(
@@ -1220,6 +1221,35 @@ public sealed class EditorWorkspace
         return Assets.Find(NormalizeAssetPath(assetPath)) is { Format: FileFormat.Art };
     }
 
+    /// <summary>
+    /// Asynchronously preloads multiple ART sprite files by their asset paths using concurrent batching.
+    /// This prevents thread pool starvation when resolving many sprites during parallel scene construction.
+    /// </summary>
+    public async Task PreloadArtsAsync(IEnumerable<string> assetPaths, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetPaths);
+
+        var distinctPaths = assetPaths
+            .Where(static p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (distinctPaths.Length == 0)
+            return;
+
+        await Parallel
+            .ForEachAsync(
+                distinctPaths,
+                new ParallelOptions { CancellationToken = cancellationToken },
+                (path, _) =>
+                {
+                    FindArt(path);
+                    return ValueTask.CompletedTask;
+                }
+            )
+            .ConfigureAwait(false);
+    }
+
     private ArtFile? LoadFullArt(string assetPath)
     {
         var asset = Assets.Find(assetPath);
@@ -1282,8 +1312,16 @@ public sealed class EditorWorkspace
             );
         }
 
-        using var archive = DatArchive.Open(asset.SourcePath);
+        var archive = _openArchives.GetOrAdd(asset.SourcePath, DatArchive.Open);
         return ArtFormat.ParseMemory(archive.GetEntryData(asset.SourceEntryPath));
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        foreach (var archive in _openArchives.Values)
+            archive.Dispose();
+        _openArchives.Clear();
     }
 
     internal ArtFile? ResolveMapRenderArt(ArtId artId)

@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -442,6 +442,7 @@ public static class EditorMapPaintableSceneBuilder
                 }
                 : null
         );
+
         return CreateItem(
             queueItem,
             obj.AnchorX,
@@ -505,6 +506,7 @@ public static class EditorMapPaintableSceneBuilder
                 }
                 : null
         );
+
         return CreateItem(
             queueItem,
             previewObject.AnchorX,

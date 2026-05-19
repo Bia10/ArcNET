@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -2959,25 +2959,15 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
-    /// Builds one bundled host-facing world-edit scene from a typed map-view state.
-    /// The returned bundle includes committed render output, render-space viewport metadata, one paintable scene model,
-    /// and one optional live placement ghost.
-    /// </summary>
-    public EditorMapWorldEditScene CreateMapWorldEditScene(
-        EditorProjectMapViewState mapViewState,
-        EditorMapWorldEditSceneRequest? request = null
-    ) => CreateMapWorldEditSceneCore(mapViewState, request, CancellationToken.None);
-
-    /// <summary>
     /// Builds one bundled host-facing world-edit scene from a typed map-view state asynchronously.
     /// </summary>
     public Task<EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(
         EditorProjectMapViewState mapViewState,
         EditorMapWorldEditSceneRequest? request = null,
         CancellationToken cancellationToken = default
-    ) => Task.Run(() => CreateMapWorldEditSceneCore(mapViewState, request, cancellationToken), cancellationToken);
+    ) => Task.Run(() => CreateMapWorldEditSceneCoreAsync(mapViewState, request, cancellationToken), cancellationToken);
 
-    private EditorMapWorldEditScene CreateMapWorldEditSceneCore(
+    private async Task<EditorMapWorldEditScene> CreateMapWorldEditSceneCoreAsync(
         EditorProjectMapViewState mapViewState,
         EditorMapWorldEditSceneRequest? request,
         CancellationToken cancellationToken
@@ -3011,6 +3001,16 @@ public sealed class EditorWorkspaceSession
         cancellationToken.ThrowIfCancellationRequested();
         var spriteSource = request?.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (spriteSource is not null)
+        {
+            var prefetchItems = placementPreview is not null
+                ? sceneRender.RenderQueue.Concat(placementPreview.RenderQueue)
+                : sceneRender.RenderQueue;
+            await spriteSource.PreloadAsync(prefetchItems, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
         var paintableScene = EditorMapPaintableSceneBuilder.Build(
             sceneRender,
             placementPreview,
@@ -3030,14 +3030,6 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
-    /// Builds one bundled host-facing world-edit scene from one tracked typed map-view state identifier.
-    /// </summary>
-    public EditorMapWorldEditScene CreateMapWorldEditScene(
-        string mapViewStateId,
-        EditorMapWorldEditSceneRequest? request = null
-    ) => CreateMapWorldEditScene(ResolveTrackedMapViewState(mapViewStateId), request);
-
-    /// <summary>
     /// Builds one bundled host-facing world-edit scene from one tracked typed map-view state identifier asynchronously.
     /// </summary>
     public Task<EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(
@@ -3046,19 +3038,14 @@ public sealed class EditorWorkspaceSession
         CancellationToken cancellationToken = default
     ) =>
         Task.Run(
-            () => CreateMapWorldEditSceneCore(ResolveTrackedMapViewState(mapViewStateId), request, cancellationToken),
+            () =>
+                CreateMapWorldEditSceneCoreAsync(
+                    ResolveTrackedMapViewState(mapViewStateId),
+                    request,
+                    cancellationToken
+                ),
             cancellationToken
         );
-
-    /// <summary>
-    /// Builds one bundled host-facing world-edit scene for the workspace default map.
-    /// The returned scene can be used by hosts as a first-load bootstrap surface.
-    /// </summary>
-    public EditorMapWorldEditScene CreateDefaultMapWorldEditScene(
-        string id = "default-map",
-        string? viewId = null,
-        EditorMapWorldEditSceneRequest? request = null
-    ) => CreateMapWorldEditScene(CreateDefaultMapViewState(id, viewId), request);
 
     /// <summary>
     /// Builds one bundled host-facing world-edit scene for the workspace default map asynchronously.
@@ -3070,19 +3057,9 @@ public sealed class EditorWorkspaceSession
         CancellationToken cancellationToken = default
     ) =>
         Task.Run(
-            () => CreateMapWorldEditSceneCore(CreateDefaultMapViewState(id, viewId), request, cancellationToken),
+            () => CreateMapWorldEditSceneCoreAsync(CreateDefaultMapViewState(id, viewId), request, cancellationToken),
             cancellationToken
         );
-
-    /// <summary>
-    /// Creates one opinionated tracked world-edit shell for the supplied map view.
-    /// The shell bundles a parity-style scene/view preset, tracked terrain/object browser state,
-    /// tracked object selection state, and one optional live tracked placement preview.
-    /// </summary>
-    public EditorMapWorldEditShell CreateTrackedMapWorldEditShell(
-        string mapViewStateId,
-        EditorMapWorldEditShellRequest? request = null
-    ) => CreateTrackedMapWorldEditShellCore(mapViewStateId, request, CancellationToken.None);
 
     /// <summary>
     /// Creates one opinionated tracked world-edit shell for the supplied map view asynchronously.
@@ -3119,18 +3096,19 @@ public sealed class EditorWorkspaceSession
                 // Phase 2 — Build world-edit scene + resolve placement summary concurrently.
                 progressReporter.Report("Building world-edit scene", 0.48f);
                 cancellationToken.ThrowIfCancellationRequested();
-                var scene = CreateMapWorldEditSceneCore(
-                    mapViewState,
-                    new EditorMapWorldEditSceneRequest
-                    {
-                        RenderRequest = renderRequest,
-                        ViewportWidth = effectiveRequest.ViewportWidth,
-                        ViewportHeight = effectiveRequest.ViewportHeight,
-                        ArtResolver = effectiveArtResolver,
-                        SpriteSource = effectiveSpriteSource,
-                    },
-                    cancellationToken
-                );
+                var scene = await CreateMapWorldEditSceneCoreAsync(
+                        mapViewState,
+                        new EditorMapWorldEditSceneRequest
+                        {
+                            RenderRequest = renderRequest,
+                            ViewportWidth = effectiveRequest.ViewportWidth,
+                            ViewportHeight = effectiveRequest.ViewportHeight,
+                            ArtResolver = effectiveArtResolver,
+                            SpriteSource = effectiveSpriteSource,
+                        },
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
 
                 // Phase 3 — Run independent read-only summaries concurrently.
                 // scene is already built; placement summary, selection, inspector state, palette,
@@ -3221,6 +3199,7 @@ public sealed class EditorWorkspaceSession
 
                 progressReporter.Report("Finalizing tracked shell", 0.97f);
                 cancellationToken.ThrowIfCancellationRequested();
+                progressReporter.Report("Tracked shell completed", 1.0f);
                 return new EditorMapWorldEditShell
                 {
                     MapViewStateId = mapViewState.Id,
@@ -3298,91 +3277,6 @@ public sealed class EditorWorkspaceSession
                 }
             );
         }
-    }
-
-    private EditorMapWorldEditShell CreateTrackedMapWorldEditShellCore(
-        string mapViewStateId,
-        EditorMapWorldEditShellRequest? request,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
-        var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
-        var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
-        cancellationToken.ThrowIfCancellationRequested();
-        var effectiveArtResolver =
-            effectiveRequest.ArtResolver
-            ?? Workspace.CreateArtResolver(DefaultRenderableArtBindingStrategy, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var effectiveSpriteSource =
-            effectiveRequest.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
-        cancellationToken.ThrowIfCancellationRequested();
-        var scene = CreateMapWorldEditSceneCore(
-            mapViewState,
-            new EditorMapWorldEditSceneRequest
-            {
-                RenderRequest = renderRequest,
-                ViewportWidth = effectiveRequest.ViewportWidth,
-                ViewportHeight = effectiveRequest.ViewportHeight,
-                ArtResolver = effectiveArtResolver,
-                SpriteSource = effectiveSpriteSource,
-            },
-            cancellationToken
-        );
-        cancellationToken.ThrowIfCancellationRequested();
-        var objectPlacementTool = GetTrackedObjectPlacementToolSummary(mapViewStateId);
-        var includeTrackedPlacementPreview =
-            effectiveRequest.IncludeTrackedPlacementPreview
-            && mapViewState.WorldEdit.ActiveTool == EditorProjectMapWorldEditActiveTool.ObjectPlacement
-            && objectPlacementTool.CanPreviewOrApply;
-        cancellationToken.ThrowIfCancellationRequested();
-        var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
-        var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
-        var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
-        var trackedPlacementPreview = includeTrackedPlacementPreview
-            ? PreviewTrackedObjectPlacementTool(mapViewStateId, renderRequest)
-            : null;
-        cancellationToken.ThrowIfCancellationRequested();
-        var trackedPlacementPaintableScene = trackedPlacementPreview is not null
-            ? EditorMapPaintableSceneBuilder.BuildPlacementOverlay(
-                scene.SceneRender,
-                trackedPlacementPreview,
-                effectiveSpriteSource,
-                cancellationToken
-            )
-            : null;
-        cancellationToken.ThrowIfCancellationRequested();
-
-        return new EditorMapWorldEditShell
-        {
-            MapViewStateId = mapViewState.Id,
-            MapName = mapViewState.MapName,
-            ActiveTool = mapViewState.WorldEdit.ActiveTool,
-            ViewMode = renderRequest.ViewMode,
-            RenderRequest = renderRequest,
-            Scene = scene,
-            TrackedPlacementPreview = trackedPlacementPreview,
-            TrackedPlacementPaintableScene = trackedPlacementPaintableScene,
-            TerrainTool = GetTrackedTerrainToolSummary(mapViewStateId),
-            TerrainPalette = CreateTrackedShellTerrainPaletteSummary(mapViewStateId),
-            ObjectPlacementTool = objectPlacementTool,
-            ObjectPalette = GetTrackedObjectPaletteSummary(
-                mapViewStateId,
-                effectiveRequest.ObjectPaletteSearchText,
-                effectiveRequest.ObjectPaletteCategory,
-                effectiveRequest.IncludeFullObjectPaletteBrowse
-            ),
-            ObjectSelection = objectSelection,
-            ObjectInspectorState = objectInspectorState,
-            ObjectInspector = objectInspector,
-            ObjectInspectorFlags = CreateTrackedObjectInspectorFlagsSummary(objectInspector),
-            ObjectInspectorScriptAttachments = CreateTrackedObjectInspectorScriptAttachmentsSummary(objectInspector),
-            ObjectInspectorCritterProgression = CreateTrackedObjectInspectorCritterProgressionSummary(objectInspector),
-            ObjectInspectorLight = CreateTrackedObjectInspectorLightSummary(objectInspector),
-            ObjectInspectorGenerator = CreateTrackedObjectInspectorGeneratorSummary(objectInspector),
-            ObjectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(objectInspector),
-        };
     }
 
     /// <summary>
@@ -12273,11 +12167,26 @@ public sealed class EditorWorkspaceSession
         if (candidate.Header.ProtoId != selectedObject.ProtoId)
             return false;
 
-        if (
-            selectedObject.Location is { } selectedLocation
-            && TryGetObjectLocation(candidate) != (selectedLocation.X, selectedLocation.Y)
-        )
-            return false;
+        if (selectedObject.Location is { } selectedLocation)
+        {
+            var candidateLocation = TryGetObjectLocation(candidate);
+            if (candidateLocation is null)
+                return false;
+
+            var tileX = candidateLocation.Value.X;
+            var tileY = candidateLocation.Value.Y;
+
+            if (tileX is < 0 or >= SectorTileAxisLength || tileY is < 0 or >= SectorTileAxisLength)
+            {
+                // Normalize to sector-local using the same bitmask the engine applies
+                // in tile_id_from_loc: tile_x = LOCATION_GET_X(loc) & 0x3F.
+                tileX &= 0x3F;
+                tileY &= 0x3F;
+            }
+
+            if (tileX != selectedLocation.X || tileY != selectedLocation.Y)
+                return false;
+        }
 
         if ((TryGetObjectIntProperty(candidate, ObjectField.ObjFOffsetX) ?? 0) != selectedObject.OffsetX)
             return false;

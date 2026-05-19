@@ -351,23 +351,17 @@ public static class EditorMapScenePreviewBuilder
         MobData mob
     )
     {
+        _ = sectorProjection; // Sector identity no longer needed — bitmask normalizes universally.
+
         if (!TryGetMapLocation(mob.GetProperty(ObjectField.ObjFLocation), out var tileX, out var tileY))
             return null;
 
-        // Sector-local coordinates: no normalization needed.
-        if (tileX is >= 0 and < TileGridWidth && tileY is >= 0 and < TileGridWidth)
-            return new Location(checked((short)tileX), checked((short)tileY));
-
-        // Map-absolute coordinates: always normalize to sector-local so that
-        // ProcessSector in EditorMapFloorRenderBuilder does not add the sector
-        // offset on top of an already-absolute coordinate (double-shift bug).
-        var sectorStartTileX = checked(sectorProjection.SectorX * TileGridWidth);
-        var sectorStartTileY = checked(sectorProjection.SectorY * TileGridWidth);
-        var localTileX = tileX - sectorStartTileX;
-        var localTileY = tileY - sectorStartTileY;
-
-        if (localTileX is < short.MinValue or > short.MaxValue || localTileY is < short.MinValue or > short.MaxValue)
-            return null;
+        // Normalize to sector-local using the same bitmask the engine applies in
+        // tile_id_from_loc: `tile_x = LOCATION_GET_X(loc) & 0x3F`.
+        // This correctly handles both tile-local (0-63) and map-absolute locations
+        // and guarantees the result is always in 0-63 range.
+        var localTileX = tileX & 0x3F;
+        var localTileY = tileY & 0x3F;
 
         return new Location(checked((short)localTileX), checked((short)localTileY));
     }

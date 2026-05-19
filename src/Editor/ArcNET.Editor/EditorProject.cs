@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Persisted host-neutral editor-project metadata for reopening a workspace and restoring UI state.
@@ -81,26 +81,6 @@ public sealed class EditorProject
             );
 
         return Create(projectWorkspace);
-    }
-
-    /// <summary>
-    /// Reopens the project's workspace and restores the supported session state into one live editor session.
-    /// </summary>
-    public EditorWorkspaceSession LoadSession()
-    {
-        var session = Workspace.Load().CreateSession();
-        _ = session.RestoreProject(this);
-        return session;
-    }
-
-    /// <summary>
-    /// Reopens the project's workspace and returns both the live session and the normalized restore summary.
-    /// </summary>
-    public EditorProjectLoadSessionResult LoadSessionWithRestoreResult()
-    {
-        var session = Workspace.Load().CreateSession();
-        var restore = session.RestoreProject(this);
-        return new EditorProjectLoadSessionResult { Session = session, Restore = restore };
     }
 
     /// <summary>

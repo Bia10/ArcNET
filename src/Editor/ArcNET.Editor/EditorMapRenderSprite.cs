@@ -94,6 +94,12 @@ public interface IEditorMapRenderSpriteSource
     /// Checks whether <paramref name="artId"/> can resolve without forcing full frame materialization when the source supports a cheaper probe.
     /// </summary>
     bool CanResolve(ArtId artId, EditorMapRenderSpriteRequest? request = null) => Resolve(artId, request) is not null;
+
+    /// <summary>
+    /// Asynchronously preloads required sprites into the cache to prevent thread pool starvation during parallel queries.
+    /// </summary>
+    Task PreloadAsync(IEnumerable<EditorMapRenderQueueItem> items, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }
 
 /// <summary>
@@ -242,6 +248,38 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         return TryResolveAssetPath(artId, effectiveRequest) is not null;
     }
 
+    /// <inheritdoc />
+    public Task PreloadAsync(IEnumerable<EditorMapRenderQueueItem> items, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var assetPaths = items
+            .Select(item =>
+            {
+                var artId = TryGetArtId(item);
+                if (artId is null || artId.Value.Value == 0)
+                    return null;
+
+                var request = new EditorMapRenderSpriteRequest { RenderItemKind = item.Kind };
+                return TryResolveAssetPath(artId.Value, request);
+            })
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return _workspace.PreloadArtsAsync(assetPaths!, cancellationToken);
+    }
+
+    private static ArtId? TryGetArtId(EditorMapRenderQueueItem item) =>
+        item.Kind switch
+        {
+            EditorMapRenderQueueItemKind.FloorTile => item.Tile?.ArtId,
+            EditorMapRenderQueueItemKind.Object => item.Object?.CurrentArtId,
+            EditorMapRenderQueueItemKind.Roof => item.Roof?.ArtId,
+            EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.CurrentArtId,
+            _ => null,
+        };
+
     private EditorMapRenderSprite? ResolveCore(ArtId artId, EditorMapRenderSpriteRequest request)
     {
         var assetPath = TryResolveAssetPath(artId, request);
@@ -262,9 +300,60 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
                 return renderItemAssetPath;
 
             var lowSectorFallbackAssetPath = _artResolver.FindAssetPath(artId);
+            if (string.IsNullOrWhiteSpace(lowSectorFallbackAssetPath))
+            {
+                if (request.RenderItemKind == EditorMapRenderQueueItemKind.FloorTile)
+                {
+                    var family = (artId.Value >> 8) & 0xFFFu;
+                    var facadeMesPath = Path.Combine(_workspace.ContentDirectory, "art", "facade", "facadename.mes");
+                    if (!File.Exists(facadeMesPath) && _workspace.Module != null)
+                        facadeMesPath = Path.Combine(
+                            _workspace.Module.ModuleDirectory,
+                            "art",
+                            "facade",
+                            "facadename.mes"
+                        );
+
+                    if (File.Exists(facadeMesPath))
+                    {
+                        try
+                        {
+                            var mes = MessageFormat.ParseFile(facadeMesPath);
+                            MessageEntry entry = default;
+                            foreach (var e in mes.Entries)
+                            {
+                                if (e.Index == (int)family)
+                                {
+                                    entry = e;
+                                    break;
+                                }
+                            }
+                            if (entry.Text != null)
+                            {
+                                var facadePath = $"art/facade/{entry.Text}.art";
+                                if (File.Exists(Path.Combine(_workspace.ContentDirectory, facadePath)))
+                                    return facadePath;
+
+                                if (
+                                    _workspace.Module != null
+                                    && File.Exists(Path.Combine(_workspace.Module.ModuleDirectory, facadePath))
+                                )
+                                    return facadePath;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore read errors
+                        }
+                    }
+                }
+                return null;
+            }
+
+            var normalizedPath = lowSectorFallbackAssetPath.Replace('\\', '/');
             if (
-                string.IsNullOrWhiteSpace(lowSectorFallbackAssetPath)
-                || IsSectorArtFamilyAssetPath(lowSectorFallbackAssetPath)
+                IsSectorArtFamilyAssetPath(normalizedPath)
+                && !IsCompatibleFamily(request.RenderItemKind, normalizedPath)
             )
                 return null;
 
@@ -379,24 +468,16 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         int requestedRotationIndex,
         int centerX,
         int centerY
-    )
-    {
-        if (!RequiresCeWallPortalHotspotAdjustment(assetPath))
-            return (centerX, centerY);
-
-        var normalizedRotationIndex = NormalizeWallPortalRotationIndex(requestedRotationIndex);
-        return normalizedRotationIndex is < 2 or > 5 ? (centerX - 40, centerY + 20) : (centerX, centerY);
-    }
+    ) => (centerX, centerY);
 
     private static bool UsesArtIdRotation(string assetPath, ArtId artId) =>
         UsesArtIdRotationForWallPortal(assetPath, artId) || UsesArtIdRotationForScenery(assetPath, artId);
 
-    private static bool RequiresCeWallPortalHotspotAdjustment(string assetPath) =>
-        assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
-        || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase);
-
     private static bool UsesArtIdRotationForWallPortal(string assetPath, ArtId artId) =>
-        RequiresCeWallPortalHotspotAdjustment(assetPath) && (artId.Value & ArtTypeMask) is WallArtType or PortalArtType;
+        (
+            assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
+            || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
+        ) && (artId.Value & ArtTypeMask) is WallArtType or PortalArtType;
 
     private static bool UsesArtIdRotationForScenery(string assetPath, ArtId artId) =>
         assetPath.StartsWith("art/scenery/", StringComparison.OrdinalIgnoreCase)
@@ -444,4 +525,17 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         || assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
         || assetPath.StartsWith("art/light/", StringComparison.OrdinalIgnoreCase)
         || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCompatibleFamily(EditorMapRenderQueueItemKind? kind, string assetPath)
+    {
+        if (kind is EditorMapRenderQueueItemKind.FloorTile)
+        {
+            return assetPath.StartsWith("art/tile/", StringComparison.OrdinalIgnoreCase)
+                || assetPath.StartsWith("art/facade/", StringComparison.OrdinalIgnoreCase);
+        }
+        if (kind is EditorMapRenderQueueItemKind.Roof)
+            return assetPath.StartsWith("art/roof/", StringComparison.OrdinalIgnoreCase);
+
+        return true;
+    }
 }
