@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -4324,18 +4324,18 @@ public sealed class EditorWorkspaceSessionTests
         {
             var proto = WithProperties(
                 MakeProto(protoNumber),
-                MakeArtProperty(ObjectField.ObjFAid, sourceArtId),
-                MakeArtProperty(ObjectField.ObjFLightAid, unaffectedArtId),
-                MakeArtProperty(ObjectField.ObjFDestroyedAid, sourceArtId)
+                MakeArtProperty(ObjectField.Aid, sourceArtId),
+                MakeArtProperty(ObjectField.LightAid, unaffectedArtId),
+                MakeArtProperty(ObjectField.DestroyedAid, sourceArtId)
             );
             var mob = WithProperties(
                 MakePc(protoNumber),
-                MakeArtProperty(ObjectField.ObjFCurrentAid, sourceArtId),
-                MakeArtProperty(ObjectField.ObjFShadow, unaffectedArtId)
+                MakeArtProperty(ObjectField.CurrentAid, sourceArtId),
+                MakeArtProperty(ObjectField.Shadow, unaffectedArtId)
             );
             var sector = MakeSectorWithArtRefs(
                 sourceArtId,
-                WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.ObjFAid, sourceArtId))
+                WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.Aid, sourceArtId))
             );
 
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - Test.pro"));
@@ -4401,17 +4401,17 @@ public sealed class EditorWorkspaceSessionTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFAid, sourceArtId)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.Aid, sourceArtId)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             MobFormat.WriteToFile(
-                WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, sourceArtId)),
+                WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.CurrentAid, sourceArtId)),
                 Path.Combine(contentDir, "mob", "test.mob")
             );
             SectorFormat.WriteToFile(
                 MakeSectorWithArtRefs(
                     sourceArtId,
-                    WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.ObjFAid, sourceArtId))
+                    WithProperties(MakePc(protoNumber), MakeArtProperty(ObjectField.Aid, sourceArtId))
                 ),
                 Path.Combine(contentDir, "maps", "map01", "sector.sec")
             );
@@ -4770,10 +4770,10 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert
-                .That(updatedMovedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedMovedObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((10, 11));
             await Assert
-                .That(updatedAddedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedAddedObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((4, 5));
 
             var preview = updatedWorkspace.CreateMapScenePreview("map01");
@@ -4824,11 +4824,11 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(addedObject.Header.ObjectId.OidType).IsEqualTo(GameObjectGuid.OidTypeGuid);
             await Assert.That(addedObject.Header.ProtoId.GetProtoNumber()).IsEqualTo(protoNumber);
             await Assert.That(addedObject.Header.PropCollectionItems).IsEqualTo((short)addedObject.Properties.Count);
-            await Assert.That(addedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((12, 13));
+            await Assert.That(addedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((12, 13));
             await Assert
-                .That(addedObject.GetProperty(ObjectField.ObjFPcPlayerName)!.GetString())
+                .That(addedObject.GetProperty(ObjectField.PcPlayerName)!.GetString())
                 .IsEqualTo("WorkspacePc");
-            await Assert.That(addedObject.GetProperty(ObjectField.ObjFHpPts)!.GetInt32()).IsEqualTo(80);
+            await Assert.That(addedObject.GetProperty(ObjectField.HpPts)!.GetInt32()).IsEqualTo(80);
             await Assert.That(session.GetPendingChanges().Count).IsEqualTo(1);
 
             var updatedWorkspace = session.BeginChangeGroup("Instantiate sector object").ApplyPendingChanges();
@@ -4840,7 +4840,7 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(updatedObject.Header.ObjectId).IsEqualTo(addedObject.Header.ObjectId);
             await Assert.That(updatedObject.Header.ProtoId.GetProtoNumber()).IsEqualTo(protoNumber);
-            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((12, 13));
+            await Assert.That(updatedObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((12, 13));
 
             var preview = updatedWorkspace.CreateMapScenePreview("map01");
             var sectorPreview = preview.Sectors.Single();
@@ -5720,7 +5720,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(
                     result
-                        .CreatedObjects.Select(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                        .CreatedObjects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
                         .ToArray()
                 )
                 .IsEquivalentTo(new[] { (63, 2), (0, 2) });
@@ -5734,10 +5734,10 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(updatedSectorA!.Objects.Count).IsEqualTo(1);
             await Assert.That(updatedSectorB!.Objects.Count).IsEqualTo(1);
             await Assert
-                .That(updatedSectorA.Objects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSectorA.Objects.Single().GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 2));
             await Assert
-                .That(updatedSectorB.Objects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSectorB.Objects.Single().GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 2));
         }
         finally
@@ -5798,7 +5798,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(pointResult.CreatedObjectCount).IsEqualTo(1);
             await Assert.That(pointResult.RemovedObjectCount).IsEqualTo(0);
             await Assert
-                .That(pointResult.CreatedObjects.Single().GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(pointResult.CreatedObjects.Single().GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((5, 6));
 
             var pointWorkspace = pointSession.BeginChangeGroup("Brush point object selection").ApplyPendingChanges();
@@ -5808,7 +5808,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(pointSectorA!.Objects.Count).IsEqualTo(3);
             await Assert
                 .That(
-                    pointSectorA.Objects.Any(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation() == (5, 6))
+                    pointSectorA.Objects.Any(obj => obj.GetProperty(ObjectField.Location)!.GetLocation() == (5, 6))
                 )
                 .IsTrue();
 
@@ -5943,9 +5943,9 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(addedObjects.Count).IsEqualTo(3);
             await Assert.That(addedObjects.Select(obj => obj.Header.ObjectId).Distinct().Count()).IsEqualTo(3);
-            await Assert.That(addedObjects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 6));
-            await Assert.That(addedObjects[1].GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((7, 8));
-            await Assert.That(addedObjects[2].GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((1, 2));
+            await Assert.That(addedObjects[0].GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
+            await Assert.That(addedObjects[1].GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((7, 8));
+            await Assert.That(addedObjects[2].GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((1, 2));
             await Assert.That(addedObjects.All(obj => obj.Header.ProtoId.GetProtoNumber() == protoNumber)).IsTrue();
             await Assert.That(session.GetPendingChanges().Count).IsEqualTo(2);
 
@@ -5969,14 +5969,14 @@ public sealed class EditorWorkspaceSessionTests
             await Assert
                 .That(
                     updatedSectorA
-                        .Objects.Select(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                        .Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
                         .ToArray()
                 )
                 .IsEquivalentTo(new[] { (5, 6), (7, 8) });
             await Assert
                 .That(
                     updatedSectorB
-                        .Objects.Select(obj => obj.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                        .Objects.Select(obj => obj.GetProperty(ObjectField.Location)!.GetLocation())
                         .ToArray()
                 )
                 .IsEquivalentTo(new[] { (1, 2) });
@@ -6221,13 +6221,13 @@ public sealed class EditorWorkspaceSessionTests
             var createdPointObjectId = pointCreatedObjects[0].Header.ObjectId;
             var createdPointObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == createdPointObjectId);
             await Assert
-                .That(createdPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(createdPointObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((6, 8));
             await Assert
-                .That(createdPointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(createdPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(pointRotation);
             await Assert
-                .That(createdPointObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(createdPointObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(pointRotationPitch);
             await Assert
                 .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == createdPointObjectId).Location)
@@ -6276,22 +6276,22 @@ public sealed class EditorWorkspaceSessionTests
             var createdAreaObjectB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaObjectBId);
 
             await Assert
-                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(createdAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 3));
             await Assert
-                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(createdAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 3));
             await Assert
-                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(createdAreaObjectA.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
             await Assert
-                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(createdAreaObjectB.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
             await Assert
-                .That(createdAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(createdAreaObjectA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
-                .That(createdAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(createdAreaObjectB.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
                 .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaObjectAId).Location)
@@ -6375,8 +6375,8 @@ public sealed class EditorWorkspaceSessionTests
 
             var pointObjectId = pointCreatedObjects[0].Header.ObjectId;
             var pointObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == pointObjectId);
-            await Assert.That(pointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((6, 6));
-            await Assert.That(pointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(pointRotation);
+            await Assert.That(pointObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((6, 6));
+            await Assert.That(pointObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(pointRotation);
             await Assert
                 .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == pointObjectId).Location)
                 .IsEqualTo(new Location(6, 6));
@@ -6434,17 +6434,17 @@ public sealed class EditorWorkspaceSessionTests
             var areaAnchorB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorBId);
             var areaOffsetB = areaSectorB.Objects.Single(obj => obj.Header.ObjectId == areaOffsetBId);
 
-            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 2));
-            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 3));
-            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 2));
-            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 3));
-            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(areaRotation);
-            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(areaRotation);
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((63, 2));
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((63, 3));
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((0, 2));
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((0, 3));
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(areaRotation);
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(areaRotation);
             await Assert
-                .That(areaOffsetA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(areaOffsetA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
-                .That(areaOffsetB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(areaOffsetB.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
                 .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaAnchorAId).Location)
@@ -6481,8 +6481,8 @@ public sealed class EditorWorkspaceSessionTests
             ProtoFormat.WriteToFile(
                 WithProperties(
                     MakeProto(protoNumber),
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 13),
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, -9)
+                    ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 13),
+                    ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, -9)
                 ),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
@@ -6508,8 +6508,8 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert.That(createdObjects.Count).IsEqualTo(1);
-            await Assert.That(createdObjects[0].GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(createdObjects[0].GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObjects[0].GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObjects[0].GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
 
             var updatedWorkspace = session
                 .BeginChangeGroup("Palette place snapped object selection")
@@ -6521,9 +6521,9 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(sector).IsNotNull();
             var createdObject = sector!.Objects.Single(obj => obj.Header.ObjectId == createdObjectId);
-            await Assert.That(createdObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 6));
-            await Assert.That(createdObject.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(createdObject.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
+            await Assert.That(createdObject.GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(createdObject.GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
             await Assert
                 .That(previewSector.Objects.Single(obj => obj.ObjectId == createdObjectId).IsTileGridSnapped)
                 .IsTrue();
@@ -6556,8 +6556,8 @@ public sealed class EditorWorkspaceSessionTests
             ProtoFormat.WriteToFile(
                 WithProperties(
                     MakeProto(protoNumber),
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 13),
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, -9)
+                    ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 13),
+                    ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, -9)
                 ),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
@@ -6694,7 +6694,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(preview.Objects[0].SpriteBounds).IsNotNull();
             await Assert.That(createdObjects.Count).IsEqualTo(1);
             await Assert
-                .That(createdObjects[0].GetProperty(ObjectField.ObjFCurrentAid)!.GetInt32())
+                .That(createdObjects[0].GetProperty(ObjectField.CurrentAid)!.GetInt32())
                 .IsEqualTo(unchecked((int)expectedWallArtId.Value));
 
             var updatedWorkspace = session.BeginChangeGroup("Place wall object").ApplyPendingChanges();
@@ -7025,7 +7025,7 @@ public sealed class EditorWorkspaceSessionTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, 200u)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(CreateArtFile(1, 1, [1]), Path.Combine(contentDir, "art", "200.art"));
@@ -7035,7 +7035,7 @@ public sealed class EditorWorkspaceSessionTests
                         new CharacterBuilder(ObjectType.Npc, objectId, protoId)
                             .WithHitPoints(80)
                             .WithLocation(0, 0)
-                            .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, 200u))
+                            .WithProperty(MakeArtProperty(ObjectField.CurrentAid, 200u))
                             .Build()
                     )
                 )
@@ -7088,7 +7088,7 @@ public sealed class EditorWorkspaceSessionTests
                 Path.Combine(contentDir, "mes", "description.mes")
             );
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, 200u)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(CreateArtFile(1, 1, [1]), Path.Combine(contentDir, "art", "test.art"));
@@ -7229,7 +7229,7 @@ public sealed class EditorWorkspaceSessionTests
                 Path.Combine(contentDir, "mes", "description.mes")
             );
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, 200u)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
 
@@ -7458,16 +7458,16 @@ public sealed class EditorWorkspaceSessionTests
             var pointAnchorObject = pointSectorA!.Objects.Single(obj => obj.Header.ObjectId == pointAnchorId);
             var pointOffsetObject = pointSectorA.Objects.Single(obj => obj.Header.ObjectId == pointOffsetId);
 
-            await Assert.That(pointAnchorObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 6));
-            await Assert.That(pointOffsetObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((5, 7));
+            await Assert.That(pointAnchorObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 6));
+            await Assert.That(pointOffsetObject.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((5, 7));
             await Assert
-                .That(pointAnchorObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(pointAnchorObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(anchorRotation);
             await Assert
-                .That(pointOffsetObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(pointOffsetObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(offsetRotation);
             await Assert
-                .That(pointOffsetObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(pointOffsetObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(offsetRotationPitch);
             await Assert
                 .That(pointPreviewSectorA.Objects.Single(obj => obj.ObjectId == pointAnchorId).Location)
@@ -7517,19 +7517,19 @@ public sealed class EditorWorkspaceSessionTests
             var areaAnchorB = areaSectorB!.Objects.Single(obj => obj.Header.ObjectId == areaAnchorBId);
             var areaOffsetB = areaSectorB.Objects.Single(obj => obj.Header.ObjectId == areaOffsetBId);
 
-            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 2));
-            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((63, 3));
-            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 2));
-            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFLocation)!.GetLocation()).IsEqualTo((0, 3));
-            await Assert.That(areaAnchorA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
-            await Assert.That(areaAnchorB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
-            await Assert.That(areaOffsetA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
-            await Assert.That(areaOffsetB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((63, 2));
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((63, 3));
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((0, 2));
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.Location)!.GetLocation()).IsEqualTo((0, 3));
+            await Assert.That(areaAnchorA.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
+            await Assert.That(areaAnchorB.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(anchorRotation);
+            await Assert.That(areaOffsetA.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
+            await Assert.That(areaOffsetB.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(offsetRotation);
             await Assert
-                .That(areaOffsetA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(areaOffsetA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(offsetRotationPitch);
             await Assert
-                .That(areaOffsetB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(areaOffsetB.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(offsetRotationPitch);
             await Assert
                 .That(areaPreviewSectorA.Objects.Single(obj => obj.ObjectId == areaAnchorAId).Location)
@@ -7657,7 +7657,7 @@ public sealed class EditorWorkspaceSessionTests
 
             await Assert.That(createdObjects.Count).IsEqualTo(1);
             await Assert
-                .That(createdObjects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(createdObjects[0].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((11, 12));
 
             var updatedWorkspace = session.BeginChangeGroup("Apply clicked tracked object tool").ApplyPendingChanges();
@@ -7666,7 +7666,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(updatedSector).IsNotNull();
             await Assert.That(updatedSector!.Objects.Count).IsEqualTo(1);
             await Assert
-                .That(updatedSector.Objects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSector.Objects[0].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((11, 12));
         }
         finally
@@ -7729,11 +7729,11 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(reloadedSector!.Objects.Count).IsEqualTo(1);
             await Assert.That(persistedSector.Objects[0].Header.ProtoId.GetProtoNumber()).IsEqualTo(protoNumber);
             await Assert
-                .That(persistedSector.Objects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(persistedSector.Objects[0].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((9, 10));
             await Assert.That(reloadedSector.Objects[0].Header.ProtoId.GetProtoNumber()).IsEqualTo(protoNumber);
             await Assert
-                .That(reloadedSector.Objects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(reloadedSector.Objects[0].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((9, 10));
             await Assert.That(previewSector.Objects.Count).IsEqualTo(1);
             await Assert.That(previewSector.Objects[0].Location).IsEqualTo(new Location(9, 10));
@@ -8198,17 +8198,17 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert
-                .That(updatedSelectedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSelectedObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((6, 6));
-            await Assert.That(updatedSelectedObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(0.75f);
+            await Assert.That(updatedSelectedObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(0.75f);
             await Assert
-                .That(updatedSelectedObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedSelectedObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(1.25f);
             await Assert
-                .That(updatedRetainedObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedRetainedObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((5, 6));
-            await Assert.That(updatedRetainedObject.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
-            await Assert.That(updatedRetainedObject.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert.That(updatedRetainedObject.GetProperty(ObjectField.PadIas1)).IsNull();
+            await Assert.That(updatedRetainedObject.GetProperty(ObjectField.RotationPitch)).IsNull();
         }
         finally
         {
@@ -8328,11 +8328,11 @@ public sealed class EditorWorkspaceSessionTests
 
             var selectedWall = new MobDataBuilder(ObjectType.Wall, nullObjectId, MakeProtoId(protoNumber))
                 .WithLocation(5, 6)
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFWallFlags, selectedWallFlags))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.WallFlags, selectedWallFlags))
                 .Build();
             var otherWall = new MobDataBuilder(ObjectType.Wall, nullObjectId, MakeProtoId(protoNumber))
                 .WithLocation(8, 9)
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFWallFlags, otherWallFlags))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.WallFlags, otherWallFlags))
                 .Build();
 
             SectorFormat.WriteToFile(
@@ -8503,16 +8503,16 @@ public sealed class EditorWorkspaceSessionTests
                 .WithLocation(0, 0)
                 .WithHitPoints(80)
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
                     ObjectPropertyFactory.ForInt32(
-                        ObjectField.ObjFCritterFlags,
-                        unchecked((int)ObjFCritterFlags.Animal)
+                        ObjectField.CritterFlags,
+                        unchecked((int)CritterFlags.Animal)
                     )
                 )
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcFlags, unchecked((int)ObjFNpcFlags.Fighting))
+                    ObjectPropertyFactory.ForInt32(ObjectField.NpcFlags, unchecked((int)NpcFlags.Fighting))
                 )
                 .Build();
             SectorFormat.WriteToFile(
@@ -8541,35 +8541,35 @@ public sealed class EditorWorkspaceSessionTests
                 "map-view-1",
                 new EditorObjectInspectorFlagsUpdate
                 {
-                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
-                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
-                    NpcFlags = ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders,
+                    ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent,
+                    CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee,
+                    NpcFlags = NpcFlags.Kos | NpcFlags.Wanders,
                 }
             );
             var after = session.GetTrackedObjectInspectorFlagsSummary("map-view-1");
             var appliedWorkspace = session.ApplyPendingChanges();
             var appliedSector = appliedWorkspace.FindSector(sectorAssetPath);
 
-            await Assert.That(before.ObjectFlags).IsEqualTo(ObjFFlags.Inventory);
-            await Assert.That(before.CritterFlags).IsEqualTo(ObjFCritterFlags.Animal);
-            await Assert.That(before.NpcFlags).IsEqualTo(ObjFNpcFlags.Fighting);
+            await Assert.That(before.ObjectFlags).IsEqualTo(ObjectFlags.Inventory);
+            await Assert.That(before.CritterFlags).IsEqualTo(CritterFlags.Animal);
+            await Assert.That(before.NpcFlags).IsEqualTo(NpcFlags.Fighting);
             await Assert.That(change).IsNotNull();
             await Assert.That(change!.Kind).IsEqualTo(EditorSessionChangeKind.Sector);
             await Assert.That(change.Target).IsEqualTo(sectorAssetPath);
-            await Assert.That(after.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(after.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
-            await Assert.That(after.NpcFlags).IsEqualTo(ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders);
+            await Assert.That(after.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(after.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
+            await Assert.That(after.NpcFlags).IsEqualTo(NpcFlags.Kos | NpcFlags.Wanders);
             await Assert.That(appliedSector).IsNotNull();
             await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFFlags)!.GetInt32())
-                .IsEqualTo(unchecked((int)(ObjFFlags.Flat | ObjFFlags.Translucent)));
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjectFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(ObjectFlags.Flat | ObjectFlags.Translucent)));
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFCritterFlags)!.GetInt32())
-                .IsEqualTo(unchecked((int)(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee)));
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.CritterFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(CritterFlags.Undead | CritterFlags.NoFlee)));
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFNpcFlags)!.GetInt32())
-                .IsEqualTo(unchecked((int)(ObjFNpcFlags.Kos | ObjFNpcFlags.Wanders)));
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.NpcFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)(NpcFlags.Kos | NpcFlags.Wanders)));
         }
         finally
         {
@@ -8746,23 +8746,23 @@ public sealed class EditorWorkspaceSessionTests
 
             var appliedBaseStats = GetInt32Array(
                 appliedSector.Objects[0].Properties,
-                ObjectField.ObjFCritterStatBaseIdx
+                ObjectField.CritterStatBaseIdx
             );
             var appliedBasicSkills = GetInt32Array(
                 appliedSector.Objects[0].Properties,
-                ObjectField.ObjFCritterBasicSkillIdx
+                ObjectField.CritterBasicSkillIdx
             );
             var appliedTechSkills = GetInt32Array(
                 appliedSector.Objects[0].Properties,
-                ObjectField.ObjFCritterTechSkillIdx
+                ObjectField.CritterTechSkillIdx
             );
             var appliedSpellTech = GetInt32Array(
                 appliedSector.Objects[0].Properties,
-                ObjectField.ObjFCritterSpellTechIdx
+                ObjectField.CritterSpellTechIdx
             );
 
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFCritterFatiguePts)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.CritterFatiguePts)!.GetInt32())
                 .IsEqualTo(90);
             await Assert.That(appliedBaseStats[17]).IsEqualTo(15);
             await Assert.That(appliedBaseStats[18]).IsEqualTo(4321);
@@ -8803,11 +8803,11 @@ public sealed class EditorWorkspaceSessionTests
             )
                 .WithLocation(0, 0)
                 .WithHitPoints(80)
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 1))
-                .WithProperty(MakeArtProperty(ObjectField.ObjFLightAid, 0x100u))
-                .WithProperty(MakeColorProperty(ObjectField.ObjFLightColor, 0x01, 0x02, 0x03))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 5))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 1))
+                .WithProperty(MakeArtProperty(ObjectField.LightAid, 0x100u))
+                .WithProperty(MakeColorProperty(ObjectField.LightColor, 0x01, 0x02, 0x03))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.NpcGeneratorData, 5))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 10))
                 .Build();
             SectorFormat.WriteToFile(
                 MakeSector(selectedObject),
@@ -8842,7 +8842,7 @@ public sealed class EditorWorkspaceSessionTests
                 "map-view-1",
                 new EditorObjectInspectorBlendingUpdate
                 {
-                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitFlags = BlitFlags.BlendAdd,
                     BlitColor = new Color(0x44, 0x55, 0x66),
                     BlitAlpha = 77,
                     BlitScale = 88,
@@ -8876,39 +8876,39 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(appliedSector).IsNotNull();
             await Assert.That(appliedSector!.Objects.Count).IsEqualTo(1);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFLightFlags)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.LightFlags)!.GetInt32())
                 .IsEqualTo(9);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFLightAid)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.LightAid)!.GetInt32())
                 .IsEqualTo(unchecked((int)0x234u));
             await Assert
-                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.ObjFLightColor))
+                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.LightColor))
                 .IsEqualTo(new Color(0x10, 0x20, 0x30));
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFOverlayLightFlags)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.OverlayLightFlags)!.GetInt32())
                 .IsEqualTo(4);
             await Assert
-                .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.ObjFOverlayLightAid))
+                .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.OverlayLightAid))
                 .IsEquivalentTo([7, 8]);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFOverlayLightColor)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.OverlayLightColor)!.GetInt32())
                 .IsEqualTo(12);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFNpcGeneratorData)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.NpcGeneratorData)!.GetInt32())
                 .IsEqualTo(42);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitFlags)!.GetInt32())
-                .IsEqualTo(unchecked((int)ObjFBlitFlags.BlendAdd));
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.BlitFlags)!.GetInt32())
+                .IsEqualTo(unchecked((int)BlitFlags.BlendAdd));
             await Assert
-                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.ObjFBlitColor))
+                .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.BlitColor))
                 .IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitAlpha)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.BlitAlpha)!.GetInt32())
                 .IsEqualTo(77);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFBlitScale)!.GetInt32())
+                .That(appliedSector.Objects[0].GetProperty(ObjectField.BlitScale)!.GetInt32())
                 .IsEqualTo(88);
-            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.ObjFMaterial)!.GetInt32()).IsEqualTo(99);
+            await Assert.That(appliedSector.Objects[0].GetProperty(ObjectField.Material)!.GetInt32()).IsEqualTo(99);
         }
         finally
         {
@@ -8953,19 +8953,19 @@ public sealed class EditorWorkspaceSessionTests
                 .WithHitPoints(80)
                 .WithFatigue(70, 8)
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
                     ObjectPropertyFactory.ForInt32(
-                        ObjectField.ObjFCritterFlags,
-                        unchecked((int)ObjFCritterFlags.Animal)
+                        ObjectField.CritterFlags,
+                        unchecked((int)CritterFlags.Animal)
                     )
                 )
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 1))
-                .WithProperty(MakeArtProperty(ObjectField.ObjFLightAid, 0x100u))
-                .WithProperty(MakeColorProperty(ObjectField.ObjFLightColor, 0x01, 0x02, 0x03))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 5))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 1))
+                .WithProperty(MakeArtProperty(ObjectField.LightAid, 0x100u))
+                .WithProperty(MakeColorProperty(ObjectField.LightColor, 0x01, 0x02, 0x03))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.NpcGeneratorData, 5))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 10))
                 .Build();
 
             SaveGameWriter.Save(
@@ -9017,8 +9017,8 @@ public sealed class EditorWorkspaceSessionTests
                 "map-view-1",
                 new EditorObjectInspectorFlagsUpdate
                 {
-                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
-                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                    ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent,
+                    CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee,
                 }
             );
             var scriptChange = session.SetTrackedObjectInspectorScriptAttachment(
@@ -9047,7 +9047,7 @@ public sealed class EditorWorkspaceSessionTests
                 "map-view-1",
                 new EditorObjectInspectorBlendingUpdate
                 {
-                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitFlags = BlitFlags.BlendAdd,
                     BlitColor = new Color(0x44, 0x55, 0x66),
                     BlitAlpha = 77,
                     BlitScale = 88,
@@ -9113,8 +9113,8 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(reloadedSector).IsNotNull();
             await Assert.That(reloadedSector!.Objects.Count).IsEqualTo(1);
             await Assert.That(reloadedSector.Objects[0].Header.ObjectId).IsEqualTo(selectedObject.Header.ObjectId);
-            await Assert.That(reloadedFlags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(reloadedFlags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+            await Assert.That(reloadedFlags.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(reloadedFlags.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
 
             var reloadedExamine = reloadedScripts.Attachments.Single(attachment =>
                 attachment.AttachmentPoint == ScriptAttachmentPoint.Examine
@@ -9135,7 +9135,7 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(reloadedLight.OverlayLightArtIds).IsEquivalentTo([7, 8]);
             await Assert.That(reloadedLight.OverlayLightColor).IsEqualTo(12);
             await Assert.That(reloadedGenerator.GeneratorData).IsEqualTo(42);
-            await Assert.That(reloadedBlending.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(reloadedBlending.BlitFlags).IsEqualTo(BlitFlags.BlendAdd);
             await Assert.That(reloadedBlending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert.That(reloadedBlending.BlitAlpha).IsEqualTo(77);
             await Assert.That(reloadedBlending.BlitScale).IsEqualTo(88);
@@ -9999,7 +9999,7 @@ public sealed class EditorWorkspaceSessionTests
 
             var placedMobId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid());
             var placedMob = new MobDataBuilder(ObjectType.Container, placedMobId, MakeProtoId(protoNumber))
-                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, worldTileX, worldTileY))
+                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.Location, worldTileX, worldTileY))
                 .Build();
             MobFormat.WriteToFile(placedMob, Path.Combine(contentDir, "maps", "map02", "G_target.mob"));
 
@@ -10086,13 +10086,13 @@ public sealed class EditorWorkspaceSessionTests
                 },
                 Properties = [],
             }
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)0x01020304u)))
-                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 5, 6))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 3))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 4))
-                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFOffsetZ, 5.5f))
-                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFHeight, 6.5f))
-                .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.ObjFCritterFollowerIdx));
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)0x01020304u)))
+                .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.Location, 5, 6))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 3))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, 4))
+                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.OffsetZ, 5.5f))
+                .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.Height, 6.5f))
+                .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.CritterFollowerIdx));
             SectorFormat.WriteToFile(
                 new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
                 Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
@@ -10168,9 +10168,9 @@ public sealed class EditorWorkspaceSessionTests
                 new CharacterBuilder(ObjectType.Npc, selectedObjectId, MakeProtoId(protoNumber))
                     .WithHitPoints(80)
                     .Build(),
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 5, 6),
-                new ObjectProperty { Field = ObjectField.ObjFCritterStatBaseIdx, RawBytes = [1, 2, 3, 4] },
-                new ObjectProperty { Field = ObjectField.ObjFCritterBasicSkillIdx, RawBytes = [5, 6, 7, 8] }
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, 5, 6),
+                new ObjectProperty { Field = ObjectField.CritterStatBaseIdx, RawBytes = [1, 2, 3, 4] },
+                new ObjectProperty { Field = ObjectField.CritterBasicSkillIdx, RawBytes = [5, 6, 7, 8] }
             );
 
             SectorFormat.WriteToFile(
@@ -10545,13 +10545,13 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == transformedPointObject.Header.ObjectId
             );
             await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((6, 8));
             await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(updatedPointObject.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(pointRotation);
             await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedPointObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(pointRotationPitch);
 
             var areaSession = workspace.CreateSession();
@@ -10609,33 +10609,33 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 3));
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 3));
             await Assert
-                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 2));
             await Assert
-                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 2));
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.PadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.PadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.RotationPitch)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.RotationPitch)).IsNull();
 
             var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
             var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
@@ -10754,7 +10754,7 @@ public sealed class EditorWorkspaceSessionTests
                 .That(
                     pointSectorA!
                         .Objects.Single(obj => obj.Header.ObjectId == movedPointObject.Header.ObjectId)
-                        .GetProperty(ObjectField.ObjFLocation)!
+                        .GetProperty(ObjectField.Location)!
                         .GetLocation()
                 )
                 .IsEqualTo((7, 9));
@@ -10809,16 +10809,16 @@ public sealed class EditorWorkspaceSessionTests
             );
 
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 3));
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 3));
             await Assert
-                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedRetainedAreaObjectA.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((63, 2));
             await Assert
-                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedRetainedAreaObjectB.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((0, 2));
 
             var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
@@ -10921,10 +10921,10 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == pointObject.Header.ObjectId
             );
             await Assert
-                .That(updatedPointObject.GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(updatedPointObject.GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((5, 6));
-            await Assert.That(updatedPointObject.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(updatedPointObject.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedPointObject.GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
 
             var pointPreview = pointWorkspace.CreateMapScenePreview("map01");
             var pointPreviewSectorA = pointPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
@@ -10983,14 +10983,14 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
             );
 
-            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFOffsetX)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFOffsetY)!.GetInt32()).IsEqualTo(0);
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFOffsetX)).IsNotNull();
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFOffsetY)).IsNotNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFOffsetX)).IsNotNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFOffsetY)).IsNotNull();
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.OffsetX)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.OffsetY)!.GetInt32()).IsEqualTo(0);
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.OffsetX)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.OffsetY)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.OffsetX)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.OffsetY)).IsNotNull();
 
             var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
             var areaPreviewSectorA = areaPreview.Sectors.Single(sector => sector.AssetPath == sectorAssetPathA);
@@ -11099,7 +11099,7 @@ public sealed class EditorWorkspaceSessionTests
                 .That(
                     pointSectorA!
                         .Objects.Single(obj => obj.Header.ObjectId == rotatedPointObject.Header.ObjectId)
-                        .GetProperty(ObjectField.ObjFRotationPitch)!
+                        .GetProperty(ObjectField.RotationPitch)!
                         .GetFloat()
                 )
                 .IsEqualTo(pointRotationPitch);
@@ -11155,15 +11155,15 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
             );
 
-            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNotNull();
-            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNotNull();
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)).IsNull();
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.RotationPitch)).IsNotNull();
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.RotationPitch)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.RotationPitch)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.RotationPitch)).IsNull();
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(areaRotationPitch);
 
             var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
@@ -11257,7 +11257,7 @@ public sealed class EditorWorkspaceSessionTests
                 .That(
                     pointSectorA!
                         .Objects.Single(obj => obj.Header.ObjectId == rotatedPointObject.Header.ObjectId)
-                        .GetProperty(ObjectField.ObjFPadIas1)!
+                        .GetProperty(ObjectField.PadIas1)!
                         .GetFloat()
                 )
                 .IsEqualTo(pointRotation);
@@ -11311,15 +11311,15 @@ public sealed class EditorWorkspaceSessionTests
                 obj.Header.ObjectId == retainedAreaObjectB.Header.ObjectId
             );
 
-            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
-            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
-            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
-            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)).IsNull();
+            await Assert.That(updatedSelectedAreaObjectA.GetProperty(ObjectField.PadIas1)).IsNotNull();
+            await Assert.That(updatedSelectedAreaObjectB.GetProperty(ObjectField.PadIas1)).IsNotNull();
+            await Assert.That(updatedRetainedAreaObjectA.GetProperty(ObjectField.PadIas1)).IsNull();
+            await Assert.That(updatedRetainedAreaObjectB.GetProperty(ObjectField.PadIas1)).IsNull();
             await Assert
-                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(updatedSelectedAreaObjectA.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
             await Assert
-                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat())
+                .That(updatedSelectedAreaObjectB.GetProperty(ObjectField.PadIas1)!.GetFloat())
                 .IsEqualTo(areaRotation);
 
             var areaPreview = areaWorkspace.CreateMapScenePreview("map01");
@@ -11593,10 +11593,10 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(result.RemovedObjectIds[0]).IsEqualTo(removedObjectA.Header.ObjectId);
             await Assert.That(result.RemovedObjectIds[1]).IsEqualTo(removedObjectB.Header.ObjectId);
             await Assert
-                .That(result.CreatedObjects[0].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(result.CreatedObjects[0].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((5, 6));
             await Assert
-                .That(result.CreatedObjects[1].GetProperty(ObjectField.ObjFLocation)!.GetLocation())
+                .That(result.CreatedObjects[1].GetProperty(ObjectField.Location)!.GetLocation())
                 .IsEqualTo((1, 2));
             await Assert.That(session.GetPendingChanges().Count).IsEqualTo(2);
             await Assert.That(session.CanUndoDirectAssetChanges).IsTrue();
@@ -11705,8 +11705,8 @@ public sealed class EditorWorkspaceSessionTests
 
             var updatedObject = updatedSector!.Objects.Single();
 
-            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFPadIas1)).IsNotNull();
-            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFPadIas1)!.GetFloat()).IsEqualTo(rotation);
+            await Assert.That(updatedObject.GetProperty(ObjectField.PadIas1)).IsNotNull();
+            await Assert.That(updatedObject.GetProperty(ObjectField.PadIas1)!.GetFloat()).IsEqualTo(rotation);
 
             var preview = updatedWorkspace.CreateMapScenePreview("map01");
             var sectorPreview = preview.Sectors.Single();
@@ -11771,9 +11771,9 @@ public sealed class EditorWorkspaceSessionTests
 
             var updatedObject = updatedSector!.Objects.Single();
 
-            await Assert.That(updatedObject.GetProperty(ObjectField.ObjFRotationPitch)).IsNotNull();
+            await Assert.That(updatedObject.GetProperty(ObjectField.RotationPitch)).IsNotNull();
             await Assert
-                .That(updatedObject.GetProperty(ObjectField.ObjFRotationPitch)!.GetFloat())
+                .That(updatedObject.GetProperty(ObjectField.RotationPitch)!.GetFloat())
                 .IsEqualTo(rotationPitch);
 
             var preview = updatedWorkspace.CreateMapScenePreview("map01");
@@ -11992,7 +11992,7 @@ public sealed class EditorWorkspaceSessionTests
         };
 
     private static ObjectProperty MakeScriptProperty(params int[] scriptIds) =>
-        new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray([
+        new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray([
             .. scriptIds.Select(scriptId => new ObjectPropertyScript(0u, 0u, scriptId)),
         ]);
 
@@ -12377,7 +12377,7 @@ public sealed class EditorWorkspaceSessionTests
 
     private static int[] GetScriptIds(IReadOnlyList<ObjectProperty> properties) =>
         properties
-            .Where(static property => property.Field == ObjectField.ObjFScriptsIdx)
+            .Where(static property => property.Field == ObjectField.ScriptsIdx)
             .SelectMany(static property => property.GetScriptArray())
             .Select(static script => script.ScriptId)
             .ToArray();
@@ -12395,11 +12395,11 @@ public sealed class EditorWorkspaceSessionTests
         properties
             .Where(static property =>
                 property.Field
-                    is ObjectField.ObjFCurrentAid
-                        or ObjectField.ObjFShadow
-                        or ObjectField.ObjFLightAid
-                        or ObjectField.ObjFAid
-                        or ObjectField.ObjFDestroyedAid
+                    is ObjectField.CurrentAid
+                        or ObjectField.Shadow
+                        or ObjectField.LightAid
+                        or ObjectField.Aid
+                        or ObjectField.DestroyedAid
             )
             .Select(static property => unchecked((uint)property.GetInt32()))
             .ToArray();

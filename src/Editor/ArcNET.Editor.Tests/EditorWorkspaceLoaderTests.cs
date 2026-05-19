@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -147,14 +147,14 @@ public class EditorWorkspaceLoaderTests
         };
 
     private static ObjectProperty MakeScriptProperty(params int[] scriptIds) =>
-        new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray([
+        new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray([
             .. scriptIds.Select(scriptId => new ObjectPropertyScript(0u, 0u, scriptId)),
         ]);
 
     private static ObjectProperty MakeScriptProperty(params (int SlotIndex, int ScriptId)[] attachments)
     {
         if (attachments.Length == 0)
-            return new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray([]);
+            return new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray([]);
 
         var scripts = new ObjectPropertyScript[attachments.Max(static attachment => attachment.SlotIndex) + 1];
         for (var attachmentIndex = 0; attachmentIndex < attachments.Length; attachmentIndex++)
@@ -163,7 +163,7 @@ public class EditorWorkspaceLoaderTests
             scripts[attachment.SlotIndex] = new ObjectPropertyScript(0u, 0u, attachment.ScriptId);
         }
 
-        return new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }.WithScriptArray(scripts);
+        return new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray(scripts);
     }
 
     private static ObjectProperty MakeArtProperty(ObjectField field, uint artId) =>
@@ -1054,7 +1054,7 @@ public class EditorWorkspaceLoaderTests
                 MakeSector(
                     new CharacterBuilder(ObjectType.Npc, objectId, protoId)
                         .WithHitPoints(80)
-                        .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value))
+                        .WithProperty(MakeArtProperty(ObjectField.CurrentAid, artId.Value))
                         .Build()
                 ),
                 Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
@@ -1103,7 +1103,7 @@ public class EditorWorkspaceLoaderTests
             SectorFormat.WriteToFile(
                 MakeSector(
                     new CharacterBuilder(ObjectType.Portal, objectId, protoId)
-                        .WithProperty(MakeArtProperty(ObjectField.ObjFAid, artId.Value))
+                        .WithProperty(MakeArtProperty(ObjectField.Aid, artId.Value))
                         .Build()
                 ),
                 Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
@@ -1142,7 +1142,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakePortalProto(protoNumber), MakeArtProperty(ObjectField.ObjFAid, artId.Value)),
+                WithProperties(MakePortalProto(protoNumber), MakeArtProperty(ObjectField.Aid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Portal.pro")
             );
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
@@ -1184,7 +1184,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
@@ -1192,7 +1192,7 @@ public class EditorWorkspaceLoaderTests
                 MakeSector(
                     new CharacterBuilder(ObjectType.Npc, objectId, protoId)
                         .WithHitPoints(80)
-                        .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value))
+                        .WithProperty(MakeArtProperty(ObjectField.CurrentAid, artId.Value))
                         .Build()
                 ),
                 Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
@@ -1232,7 +1232,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "a", "200.art"));
@@ -1269,7 +1269,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             MessageFormat.WriteToFile(
@@ -1388,7 +1388,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             MessageFormat.WriteToFile(
@@ -1429,7 +1429,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             var mob = new MobDataBuilder(ObjectType.Container, objectId, protoId)
-                .WithProperty(MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value))
+                .WithProperty(MakeArtProperty(ObjectField.CurrentAid, artId.Value))
                 .Build();
             var proto = new ProtoData
             {
@@ -2848,9 +2848,9 @@ public class EditorWorkspaceLoaderTests
 
             var proto = WithProperties(
                 MakeProto(protoNumber),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFName, 20),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFDescription, 10),
-                MakeArtProperty(ObjectField.ObjFCurrentAid, artId)
+                ObjectPropertyFactory.ForInt32(ObjectField.Name, 20),
+                ObjectPropertyFactory.ForInt32(ObjectField.Description, 10),
+                MakeArtProperty(ObjectField.CurrentAid, artId)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - Test.pro"));
 
@@ -2932,8 +2932,8 @@ public class EditorWorkspaceLoaderTests
 
             var proto = WithProperties(
                 MakeProto(protoNumber),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFName, 20),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFDescription, 10)
+                ObjectPropertyFactory.ForInt32(ObjectField.Name, 20),
+                ObjectPropertyFactory.ForInt32(ObjectField.Description, 10)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - Inspector.pro"));
 
@@ -2996,25 +2996,25 @@ public class EditorWorkspaceLoaderTests
         {
             var proto = WithProperties(
                 MakeProto(protoNumber)
-                    .WithoutProperty(ObjectField.ObjFFlags)
-                    .WithoutProperty(ObjectField.ObjFSpellFlags)
-                    .WithoutProperty(ObjectField.ObjFCritterFlags)
-                    .WithoutProperty(ObjectField.ObjFCritterFlags2)
-                    .WithoutProperty(ObjectField.ObjFPcFlags),
+                    .WithoutProperty(ObjectField.ObjectFlags)
+                    .WithoutProperty(ObjectField.SpellFlags)
+                    .WithoutProperty(ObjectField.CritterFlags)
+                    .WithoutProperty(ObjectField.CritterFlags2)
+                    .WithoutProperty(ObjectField.PcFlags),
                 ObjectPropertyFactory.ForInt32(
-                    ObjectField.ObjFFlags,
-                    unchecked((int)(ObjFFlags.Flat | ObjFFlags.Translucent))
+                    ObjectField.ObjectFlags,
+                    unchecked((int)(ObjectFlags.Flat | ObjectFlags.Translucent))
                 ),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFSpellFlags, unchecked((int)ObjFSpellFlags.Shielded)),
+                ObjectPropertyFactory.ForInt32(ObjectField.SpellFlags, unchecked((int)SpellFlags.Shielded)),
                 ObjectPropertyFactory.ForInt32(
-                    ObjectField.ObjFCritterFlags,
-                    unchecked((int)(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee))
+                    ObjectField.CritterFlags,
+                    unchecked((int)(CritterFlags.Undead | CritterFlags.NoFlee))
                 ),
                 ObjectPropertyFactory.ForInt32(
-                    ObjectField.ObjFCritterFlags2,
-                    unchecked((int)ObjFCritterFlags2.DarkSight)
+                    ObjectField.CritterFlags2,
+                    unchecked((int)CritterFlags2.DarkSight)
                 ),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFPcFlags, 7)
+                ObjectPropertyFactory.ForInt32(ObjectField.PcFlags, 7)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorFlags.pro"));
 
@@ -3023,10 +3023,10 @@ public class EditorWorkspaceLoaderTests
 
             await Assert.That(flags).IsNotNull();
             await Assert.That(flags!.Inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
-            await Assert.That(flags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(flags.SpellFlags).IsEqualTo(ObjFSpellFlags.Shielded);
-            await Assert.That(flags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
-            await Assert.That(flags.CritterFlags2).IsEqualTo(ObjFCritterFlags2.DarkSight);
+            await Assert.That(flags.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(flags.SpellFlags).IsEqualTo(SpellFlags.Shielded);
+            await Assert.That(flags.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
+            await Assert.That(flags.CritterFlags2).IsEqualTo(CritterFlags2.DarkSight);
             await Assert.That(flags.PcFlags).IsEqualTo(7);
             await Assert.That(flags.NpcFlags).IsNull();
             await Assert.That(flags.ItemFlags).IsNull();
@@ -3066,18 +3066,18 @@ public class EditorWorkspaceLoaderTests
 
             var proto = WithProperties(
                 MakeProto(protoNumber)
-                    .WithoutProperty(ObjectField.ObjFCritterStatBaseIdx)
-                    .WithoutProperty(ObjectField.ObjFCritterBasicSkillIdx)
-                    .WithoutProperty(ObjectField.ObjFCritterTechSkillIdx)
-                    .WithoutProperty(ObjectField.ObjFCritterSpellTechIdx)
-                    .WithoutProperty(ObjectField.ObjFCritterFatiguePts)
-                    .WithoutProperty(ObjectField.ObjFCritterFatigueAdj),
-                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterStatBaseIdx, baseStats),
-                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterBasicSkillIdx, basicSkills),
-                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterTechSkillIdx, techSkills),
-                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterSpellTechIdx, spellTech),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatiguePts, 80),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatigueAdj, 9)
+                    .WithoutProperty(ObjectField.CritterStatBaseIdx)
+                    .WithoutProperty(ObjectField.CritterBasicSkillIdx)
+                    .WithoutProperty(ObjectField.CritterTechSkillIdx)
+                    .WithoutProperty(ObjectField.CritterSpellTechIdx)
+                    .WithoutProperty(ObjectField.CritterFatiguePts)
+                    .WithoutProperty(ObjectField.CritterFatigueAdj),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.CritterStatBaseIdx, baseStats),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.CritterBasicSkillIdx, basicSkills),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.CritterTechSkillIdx, techSkills),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.CritterSpellTechIdx, spellTech),
+                ObjectPropertyFactory.ForInt32(ObjectField.CritterFatiguePts, 80),
+                ObjectPropertyFactory.ForInt32(ObjectField.CritterFatigueAdj, 9)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorProgression.pro"));
 
@@ -3119,30 +3119,30 @@ public class EditorWorkspaceLoaderTests
         {
             var proto = WithProperties(
                 MakeNpcProto(protoNumber)
-                    .WithoutProperty(ObjectField.ObjFLightFlags)
-                    .WithoutProperty(ObjectField.ObjFLightAid)
-                    .WithoutProperty(ObjectField.ObjFLightColor)
-                    .WithoutProperty(ObjectField.ObjFOverlayLightFlags)
-                    .WithoutProperty(ObjectField.ObjFOverlayLightAid)
-                    .WithoutProperty(ObjectField.ObjFOverlayLightColor)
-                    .WithoutProperty(ObjectField.ObjFNpcGeneratorData)
-                    .WithoutProperty(ObjectField.ObjFBlitFlags)
-                    .WithoutProperty(ObjectField.ObjFBlitColor)
-                    .WithoutProperty(ObjectField.ObjFBlitAlpha)
-                    .WithoutProperty(ObjectField.ObjFBlitScale)
-                    .WithoutProperty(ObjectField.ObjFMaterial),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 12),
-                MakeArtProperty(ObjectField.ObjFLightAid, 0x1234u),
-                MakeColorProperty(ObjectField.ObjFLightColor, 0x11, 0x22, 0x33),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFOverlayLightFlags, 7),
-                ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFOverlayLightAid, [4, 5, 6]),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFOverlayLightColor, 9),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 42),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitFlags, unchecked((int)ObjFBlitFlags.BlendAdd)),
-                MakeColorProperty(ObjectField.ObjFBlitColor, 0x44, 0x55, 0x66),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 77),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitScale, 88),
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFMaterial, 99)
+                    .WithoutProperty(ObjectField.LightFlags)
+                    .WithoutProperty(ObjectField.LightAid)
+                    .WithoutProperty(ObjectField.LightColor)
+                    .WithoutProperty(ObjectField.OverlayLightFlags)
+                    .WithoutProperty(ObjectField.OverlayLightAid)
+                    .WithoutProperty(ObjectField.OverlayLightColor)
+                    .WithoutProperty(ObjectField.NpcGeneratorData)
+                    .WithoutProperty(ObjectField.BlitFlags)
+                    .WithoutProperty(ObjectField.BlitColor)
+                    .WithoutProperty(ObjectField.BlitAlpha)
+                    .WithoutProperty(ObjectField.BlitScale)
+                    .WithoutProperty(ObjectField.Material),
+                ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 12),
+                MakeArtProperty(ObjectField.LightAid, 0x1234u),
+                MakeColorProperty(ObjectField.LightColor, 0x11, 0x22, 0x33),
+                ObjectPropertyFactory.ForInt32(ObjectField.OverlayLightFlags, 7),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightAid, [4, 5, 6]),
+                ObjectPropertyFactory.ForInt32(ObjectField.OverlayLightColor, 9),
+                ObjectPropertyFactory.ForInt32(ObjectField.NpcGeneratorData, 42),
+                ObjectPropertyFactory.ForInt32(ObjectField.BlitFlags, unchecked((int)BlitFlags.BlendAdd)),
+                MakeColorProperty(ObjectField.BlitColor, 0x44, 0x55, 0x66),
+                ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 77),
+                ObjectPropertyFactory.ForInt32(ObjectField.BlitScale, 88),
+                ObjectPropertyFactory.ForInt32(ObjectField.Material, 99)
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorVisuals.pro"));
 
@@ -3165,7 +3165,7 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(generator.GeneratorData).IsEqualTo(42);
 
             await Assert.That(blending).IsNotNull();
-            await Assert.That(blending!.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(blending!.BlitFlags).IsEqualTo(BlitFlags.BlendAdd);
             await Assert.That(blending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert.That(blending.BlitAlpha).IsEqualTo(77);
             await Assert.That(blending.BlitScale).IsEqualTo(88);
@@ -3198,7 +3198,7 @@ public class EditorWorkspaceLoaderTests
             );
 
             var proto = WithProperties(
-                MakeProto(protoNumber).WithoutProperty(ObjectField.ObjFScriptsIdx),
+                MakeProto(protoNumber).WithoutProperty(ObjectField.ScriptsIdx),
                 MakeScriptProperty((0, 77), (40, 88))
             );
             ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorScripts.pro"));
@@ -3252,7 +3252,7 @@ public class EditorWorkspaceLoaderTests
                 Path.Combine(contentDir, "mes", "description.mes")
             );
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "items", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(
@@ -3342,12 +3342,12 @@ public class EditorWorkspaceLoaderTests
             var mob = WithProperties(
                 MakePc(protoNumber),
                 MakeScriptProperty(scriptId),
-                MakeArtProperty(ObjectField.ObjFAid, artId)
+                MakeArtProperty(ObjectField.Aid, artId)
             );
             var proto = WithProperties(
                 MakeProto(protoNumber),
                 MakeScriptProperty(scriptId, scriptId),
-                MakeArtProperty(ObjectField.ObjFLightAid, artId)
+                MakeArtProperty(ObjectField.LightAid, artId)
             );
 
             var tiles = new uint[4096];
@@ -3398,7 +3398,7 @@ public class EditorWorkspaceLoaderTests
                     WithProperties(
                         MakePc(protoNumber),
                         MakeScriptProperty(scriptId),
-                        MakeArtProperty(ObjectField.ObjFCurrentAid, artId)
+                        MakeArtProperty(ObjectField.CurrentAid, artId)
                     ),
                 ],
             };
@@ -3897,7 +3897,7 @@ public class EditorWorkspaceLoaderTests
         try
         {
             ProtoFormat.WriteToFile(
-                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
@@ -3950,14 +3950,14 @@ public class EditorWorkspaceLoaderTests
                 Properties = [],
             };
             ProtoFormat.WriteToFile(
-                WithProperties(proto, MakeArtProperty(ObjectField.ObjFCurrentAid, artId.Value)),
+                WithProperties(proto, MakeArtProperty(ObjectField.CurrentAid, artId.Value)),
                 Path.Combine(contentDir, "proto", "001001 - Test.pro")
             );
             ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "200.art"));
 
             var mob = WithProperties(
                 new MobDataBuilder(ObjectType.Scenery, objectId, protoId).Build(),
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 10, 11)
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, 10, 11)
             );
             SectorFormat.WriteToFile(MakeSector(mob), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
 
@@ -4011,8 +4011,8 @@ public class EditorWorkspaceLoaderTests
 
             var terrainObject = WithProperties(
                 new MobDataBuilder(ObjectType.Scenery, terrainObjectId, terrainProtoId).Build(),
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 2, 3),
-                MakeArtProperty(ObjectField.ObjFCurrentAid, terrainObjectArtId)
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, 2, 3),
+                MakeArtProperty(ObjectField.CurrentAid, terrainObjectArtId)
             );
             var terrainSector = MakeSector(terrainObject);
             terrainSector.Tiles[0] = terrainTileArtId;
@@ -4020,8 +4020,8 @@ public class EditorWorkspaceLoaderTests
 
             var mapObject = WithProperties(
                 new MobDataBuilder(ObjectType.Scenery, mapObjectId, mapProtoId).Build(),
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 4, 5),
-                MakeArtProperty(ObjectField.ObjFCurrentAid, mapObjectArtId)
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, 4, 5),
+                MakeArtProperty(ObjectField.CurrentAid, mapObjectArtId)
             );
             SectorFormat.WriteToFile(
                 MakeSector(mapObject),
@@ -4070,7 +4070,7 @@ public class EditorWorkspaceLoaderTests
                 .Build();
             var containedItem = WithProperties(
                 new MobDataBuilder(ObjectType.Food, itemObjectId, itemProtoId).Build(),
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, globalTileX, globalTileY)
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, globalTileX, globalTileY)
             );
 
             SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
@@ -4103,7 +4103,7 @@ public class EditorWorkspaceLoaderTests
         {
             var malformedScriptProperty = new ObjectProperty
             {
-                Field = ObjectField.ObjFScriptsIdx,
+                Field = ObjectField.ScriptsIdx,
                 RawBytes = [1, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0],
             };
             var mob = WithProperties(MakePc(), malformedScriptProperty);
@@ -4221,9 +4221,9 @@ public class EditorWorkspaceLoaderTests
             var mob = workspace.GameData.MobsBySource[mobAssetPath].Single();
 
             await Assert.That(workspace.Save).IsNotNull();
-            await Assert.That(mob.GetProperty(ObjectField.ObjFPcPlayerName)).IsNotNull();
+            await Assert.That(mob.GetProperty(ObjectField.PcPlayerName)).IsNotNull();
             await Assert
-                .That(mob.GetProperty(ObjectField.ObjFPcPlayerName)!.GetString())
+                .That(mob.GetProperty(ObjectField.PcPlayerName)!.GetString())
                 .IsEqualTo(overriddenPlayerName);
         }
         finally
@@ -4655,7 +4655,7 @@ public class EditorWorkspaceLoaderTests
                 new Dictionary<string, byte[]>
                 {
                     ["proto\\001001 - Test.pro"] = ProtoFormat.WriteToArray(
-                        WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u))
+                        WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, 200u))
                     ),
                     ["mes\\description.mes"] = MessageFormat.WriteToArray(
                         new MesFile { Entries = [new MessageEntry(protoNumber, "Base palette proto")] }
@@ -4785,7 +4785,7 @@ public class EditorWorkspaceLoaderTests
                 new Dictionary<string, byte[]>
                 {
                     ["proto\\001001 - Test.pro"] = ProtoFormat.WriteToArray(
-                        WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.ObjFCurrentAid, 200u))
+                        WithProperties(MakeProto(protoNumber), MakeArtProperty(ObjectField.CurrentAid, 200u))
                     ),
                     ["mes\\description.mes"] = MessageFormat.WriteToArray(
                         new MesFile { Entries = [new MessageEntry(protoNumber, "Base install palette proto")] }

@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -16,15 +16,15 @@ public sealed class ObjectTrap : ObjectCommon
         var obj = new ObjectTrap();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFTrapFlags))
+        if (Bit(ObjectField.TrapFlags))
             obj.TrapFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFTrapDifficulty))
+        if (Bit(ObjectField.TrapDifficulty))
             obj.Difficulty = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFTrapPadI2))
+        if (Bit(ObjectField.TrapPadI2))
             obj._trapPadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFTrapPadIas1))
+        if (Bit(ObjectField.TrapPadIas1))
             obj._trapPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFTrapPadI64As1))
+        if (Bit(ObjectField.TrapPadI64As1))
             obj._trapPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -33,15 +33,15 @@ public sealed class ObjectTrap : ObjectCommon
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFTrapFlags))
+        if (Bit(ObjectField.TrapFlags))
             writer.WriteInt32(TrapFlags);
-        if (Bit(ObjectField.ObjFTrapDifficulty))
+        if (Bit(ObjectField.TrapDifficulty))
             writer.WriteInt32(Difficulty);
-        if (Bit(ObjectField.ObjFTrapPadI2))
+        if (Bit(ObjectField.TrapPadI2))
             writer.WriteInt32(_trapPadI2Reserved);
-        if (Bit(ObjectField.ObjFTrapPadIas1))
+        if (Bit(ObjectField.TrapPadIas1))
             writer.WriteInt32(_trapPadIas1Reserved);
-        if (Bit(ObjectField.ObjFTrapPadI64As1))
+        if (Bit(ObjectField.TrapPadI64As1))
             writer.WriteInt64(_trapPadI64As1Reserved);
     }
 }

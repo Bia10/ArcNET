@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -111,7 +111,7 @@ public class SaveGameTests
         var (save, _) = MakeMinimalSave();
         var mob = save.Mobiles["maps/map01/mobile/G_pc.mob"];
         await Assert.That(mob.Header.GameObjectType).IsEqualTo(ObjectType.Pc);
-        var nameProp = mob.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+        var nameProp = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(nameProp.GetString()).IsEqualTo("TestPlayer");
     }
 
@@ -178,7 +178,7 @@ public class SaveGameTests
             await Assert.That(loaded.Info.LeaderName).IsEqualTo(save.Info.LeaderName);
             await Assert.That(loaded.Mobiles.ContainsKey("maps/map01/mobile/G_pc.mob")).IsTrue();
             var mob = loaded.Mobiles["maps/map01/mobile/G_pc.mob"];
-            var nameProp = mob.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+            var nameProp = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
             await Assert.That(nameProp.GetString()).IsEqualTo("TestPlayer");
         }
         finally
@@ -213,9 +213,9 @@ public class SaveGameTests
 
             var loaded = SaveGameLoader.Load(tmpDir, "testslot");
             var mob = loaded.Mobiles["maps/map01/mobile/G_pc.mob"];
-            var name = mob.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+            var name = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
             await Assert.That(name.GetString()).IsEqualTo("Modified");
-            var gold = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+            var gold = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
             await Assert.That(gold.GetInt32()).IsEqualTo(999);
         }
         finally
@@ -706,9 +706,9 @@ public class SaveGameTests
 
             var loaded = SaveGameLoader.Load(tmpDir, "testslot");
             var mob = loaded.Mobiles["maps/map01/mobile/G_pc.mob"];
-            var name = mob.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+            var name = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
             await Assert.That(name.GetString()).IsEqualTo("AsyncPlayer");
-            var gold = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+            var gold = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
             await Assert.That(gold.GetInt32()).IsEqualTo(7777);
         }
         finally
@@ -1677,7 +1677,7 @@ public class SaveGameTests
             await Assert.That(loaded.MobileMdys.ContainsKey(mdyPath)).IsTrue();
             await Assert.That(loaded.MobileMdys[mdyPath].Records.Count).IsEqualTo(1);
             var mob = loaded.MobileMdys[mdyPath].Records[0].Mob!;
-            var hpProp = mob.Properties.First(p => p.Field == ObjectField.ObjFHpPts);
+            var hpProp = mob.Properties.First(p => p.Field == ObjectField.HpPts);
             await Assert.That(hpProp.GetInt32()).IsEqualTo(100);
         }
         finally

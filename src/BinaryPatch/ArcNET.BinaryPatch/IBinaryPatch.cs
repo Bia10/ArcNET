@@ -1,4 +1,4 @@
-﻿namespace ArcNET.BinaryPatch;
+namespace ArcNET.BinaryPatch;
 
 /// <summary>
 /// Represents a single binary change applied to one game data file.
@@ -33,7 +33,7 @@ public interface IBinaryPatch
     /// display in tables and logs. Examples:
     /// <list type="bullet">
     ///   <item><c>offset 0x64: FFFFFFFF → 00000000</c> (raw offset patch)</item>
-    ///   <item><c>field ObjFContainerInventorySource: 0 → -1</c> (field patch)</item>
+    ///   <item><c>field ContainerInventorySource: 0 → -1</c> (field patch)</item>
     /// </list>
     /// </summary>
     string PatchSummary { get; }

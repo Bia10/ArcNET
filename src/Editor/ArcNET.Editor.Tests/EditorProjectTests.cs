@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -621,19 +621,19 @@ public sealed class EditorProjectTests
                 .WithHitPoints(80)
                 .WithFatigue(70, 8)
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
                     ObjectPropertyFactory.ForInt32(
-                        ObjectField.ObjFCritterFlags,
-                        unchecked((int)ObjFCritterFlags.Animal)
+                        ObjectField.CritterFlags,
+                        unchecked((int)CritterFlags.Animal)
                     )
                 )
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFLightFlags, 1))
-                .WithProperty(MakeArtProperty(ObjectField.ObjFLightAid, 0x100u))
-                .WithProperty(MakeColorProperty(ObjectField.ObjFLightColor, 0x01, 0x02, 0x03))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFNpcGeneratorData, 5))
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 1))
+                .WithProperty(MakeArtProperty(ObjectField.LightAid, 0x100u))
+                .WithProperty(MakeColorProperty(ObjectField.LightColor, 0x01, 0x02, 0x03))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.NpcGeneratorData, 5))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 10))
                 .Build();
 
             SaveGameWriter.Save(
@@ -695,8 +695,8 @@ public sealed class EditorProjectTests
                 "map-view-1",
                 new EditorObjectInspectorFlagsUpdate
                 {
-                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
-                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                    ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent,
+                    CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee,
                 }
             );
             _ = session.SetTrackedObjectInspectorCritterProgression(
@@ -721,7 +721,7 @@ public sealed class EditorProjectTests
                 "map-view-1",
                 new EditorObjectInspectorBlendingUpdate
                 {
-                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitFlags = BlitFlags.BlendAdd,
                     BlitColor = new Color(0x44, 0x55, 0x66),
                     BlitAlpha = 77,
                     BlitScale = 88,
@@ -781,8 +781,8 @@ public sealed class EditorProjectTests
             await Assert
                 .That(restoredShell.ObjectInspectorState!.ActivePane)
                 .IsEqualTo(EditorObjectInspectorPane.Blending);
-            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
             await Assert.That(restoredProgression.FatiguePoints).IsEqualTo(90);
             await Assert.That(restoredProgression.Level).IsEqualTo(15);
             await Assert.That(restoredProgression.ExperiencePoints).IsEqualTo(4321);
@@ -799,7 +799,7 @@ public sealed class EditorProjectTests
             await Assert.That(restoredLight.OverlayLightArtIds).IsEquivalentTo([7, 8]);
             await Assert.That(restoredLight.OverlayLightColor).IsEqualTo(12);
             await Assert.That(restoredGenerator.GeneratorData).IsEqualTo(42);
-            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(BlitFlags.BlendAdd);
             await Assert.That(restoredBlending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert.That(restoredBlending.BlitAlpha).IsEqualTo(77);
             await Assert.That(restoredBlending.BlitScale).IsEqualTo(88);
@@ -924,8 +924,8 @@ public sealed class EditorProjectTests
                 pinnedProtoNumber,
                 new EditorObjectInspectorFlagsUpdate
                 {
-                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
-                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                    ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent,
+                    CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee,
                 }
             );
             _ = session.SetProtoInspectorCritterProgression(
@@ -950,7 +950,7 @@ public sealed class EditorProjectTests
                 pinnedProtoNumber,
                 new EditorObjectInspectorBlendingUpdate
                 {
-                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitFlags = BlitFlags.BlendAdd,
                     BlitColor = new Color(0x44, 0x55, 0x66),
                     BlitAlpha = 77,
                     BlitScale = 88,
@@ -1015,8 +1015,8 @@ public sealed class EditorProjectTests
                 .That(restoredShell.ObjectInspector!.TargetKind)
                 .IsEqualTo(EditorObjectInspectorTargetKind.ProtoDefinition);
             await Assert.That(restoredShell.ObjectInspector.ProtoNumber).IsEqualTo(pinnedProtoNumber);
-            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
+            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
             await Assert.That(restoredProgression.FatiguePoints).IsEqualTo(90);
             await Assert.That(restoredProgression.Level).IsEqualTo(15);
             await Assert.That(restoredProgression.ExperiencePoints).IsEqualTo(4321);
@@ -1035,7 +1035,7 @@ public sealed class EditorProjectTests
             await Assert.That(restoredLight.OverlayLightArtIds).IsEquivalentTo([7, 8]);
             await Assert.That(restoredLight.OverlayLightColor).IsEqualTo(12);
             await Assert.That(restoredGenerator.GeneratorData).IsEqualTo(42);
-            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(BlitFlags.BlendAdd);
             await Assert.That(restoredBlending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert.That(restoredBlending.BlitAlpha).IsEqualTo(77);
             await Assert.That(restoredBlending.BlitScale).IsEqualTo(88);
@@ -1094,15 +1094,15 @@ public sealed class EditorProjectTests
                 .WithHitPoints(80)
                 .WithFatigue(70, 8)
                 .WithProperty(
-                    ObjectPropertyFactory.ForInt32(ObjectField.ObjFFlags, unchecked((int)ObjFFlags.Inventory))
+                    ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
                 )
                 .WithProperty(
                     ObjectPropertyFactory.ForInt32(
-                        ObjectField.ObjFCritterFlags,
-                        unchecked((int)ObjFCritterFlags.Animal)
+                        ObjectField.CritterFlags,
+                        unchecked((int)CritterFlags.Animal)
                     )
                 )
-                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFBlitAlpha, 10))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.BlitAlpha, 10))
                 .Build();
             SectorFormat.WriteToFile(
                 new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
@@ -1164,15 +1164,15 @@ public sealed class EditorProjectTests
                 "map-view-1",
                 new EditorObjectInspectorFlagsUpdate
                 {
-                    ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent,
-                    CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee,
+                    ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent,
+                    CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee,
                 }
             );
             _ = session.SetTrackedObjectInspectorBlending(
                 "map-view-1",
                 new EditorObjectInspectorBlendingUpdate
                 {
-                    BlitFlags = ObjFBlitFlags.BlendAdd,
+                    BlitFlags = BlitFlags.BlendAdd,
                     BlitColor = new Color(0x44, 0x55, 0x66),
                     BlitAlpha = 77,
                     BlitScale = 88,
@@ -1211,9 +1211,9 @@ public sealed class EditorProjectTests
                 .That(restoredMapViewState.WorldEdit.Inspector.ActivePane)
                 .IsEqualTo(EditorObjectInspectorPane.Blending);
             await Assert.That(restoredInspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
-            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
-            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
-            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(ObjFBlitFlags.BlendAdd);
+            await Assert.That(restoredFlags.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
+            await Assert.That(restoredFlags.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
+            await Assert.That(restoredBlending.BlitFlags).IsEqualTo(BlitFlags.BlendAdd);
             await Assert.That(restoredBlending.BlitColor).IsEqualTo(new Color(0x44, 0x55, 0x66));
             await Assert.That(restoredBlending.BlitAlpha).IsEqualTo(77);
             await Assert.That(restoredBlending.BlitScale).IsEqualTo(88);
@@ -1226,7 +1226,7 @@ public sealed class EditorProjectTests
                 .IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
             await Assert
                 .That(restoredShell.ObjectInspectorFlags.ObjectFlags)
-                .IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent);
+                .IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent);
             await Assert.That(restoredShell.ObjectInspectorBlending.BlitAlpha).IsEqualTo(77);
             await Assert.That(restoredPinnedExamine.ScriptId).IsEqualTo(77);
             await Assert.That(restoredPinnedExamine.IsMissingScript).IsFalse();

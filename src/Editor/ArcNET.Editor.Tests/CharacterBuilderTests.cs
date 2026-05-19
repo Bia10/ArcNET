@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -33,8 +33,8 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithHitPoints(75, 5).Build();
 
-        var pts = mob.Properties.First(p => p.Field == ObjectField.ObjFHpPts);
-        var adj = mob.Properties.First(p => p.Field == ObjectField.ObjFHpAdj);
+        var pts = mob.Properties.First(p => p.Field == ObjectField.HpPts);
+        var adj = mob.Properties.First(p => p.Field == ObjectField.HpAdj);
         await Assert.That(pts.GetInt32()).IsEqualTo(75);
         await Assert.That(adj.GetInt32()).IsEqualTo(5);
     }
@@ -44,7 +44,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithHitPoints(50).Build();
 
-        var adj = mob.Properties.First(p => p.Field == ObjectField.ObjFHpAdj);
+        var adj = mob.Properties.First(p => p.Field == ObjectField.HpAdj);
         await Assert.That(adj.GetInt32()).IsEqualTo(0);
     }
 
@@ -53,8 +53,8 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithFatigue(100, 10).Build();
 
-        var pts = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterFatiguePts);
-        var adj = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterFatigueAdj);
+        var pts = mob.Properties.First(p => p.Field == ObjectField.CritterFatiguePts);
+        var adj = mob.Properties.First(p => p.Field == ObjectField.CritterFatigueAdj);
         await Assert.That(pts.GetInt32()).IsEqualTo(100);
         await Assert.That(adj.GetInt32()).IsEqualTo(10);
     }
@@ -64,7 +64,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithPortrait(42).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterPortrait);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.CritterPortrait);
         await Assert.That(prop.GetInt32()).IsEqualTo(42);
     }
 
@@ -73,7 +73,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithGold(999).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
         await Assert.That(prop.GetInt32()).IsEqualTo(999);
     }
 
@@ -83,7 +83,7 @@ public class CharacterBuilderTests
         int[] stats = [10, 12, 8, 14, 10, 9];
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithBaseStats(stats).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterStatBaseIdx);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.CritterStatBaseIdx);
         await Assert.That(prop.GetInt32Array().SequenceEqual(stats)).IsTrue();
     }
 
@@ -93,7 +93,7 @@ public class CharacterBuilderTests
         int[] skills = [1, 2, 3, 4, 5];
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithBasicSkills(skills).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterBasicSkillIdx);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.CritterBasicSkillIdx);
         await Assert.That(prop.GetInt32Array().SequenceEqual(skills)).IsTrue();
     }
 
@@ -104,8 +104,8 @@ public class CharacterBuilderTests
         var item2 = Guid.NewGuid();
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithInventory([item1, item2]).Build();
 
-        var listProp = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterInventoryListIdx);
-        var countProp = mob.Properties.First(p => p.Field == ObjectField.ObjFCritterInventoryNum);
+        var listProp = mob.Properties.First(p => p.Field == ObjectField.CritterInventoryListIdx);
+        var countProp = mob.Properties.First(p => p.Field == ObjectField.CritterInventoryNum);
         var ids = listProp.GetObjectIdArray();
         await Assert.That(ids.Length).IsEqualTo(2);
         await Assert.That(ids[0]).IsEqualTo(item1);
@@ -118,7 +118,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithLocation(256, 512).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFLocation);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.Location);
         var (x, y) = prop.GetLocation();
         await Assert.That(x).IsEqualTo(256);
         await Assert.That(y).IsEqualTo(512);
@@ -131,7 +131,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithPlayerName("Roberta").Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(prop.GetString()).IsEqualTo("Roberta");
     }
 
@@ -140,7 +140,7 @@ public class CharacterBuilderTests
     {
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithBankMoney(5000).Build();
 
-        var prop = mob.Properties.First(p => p.Field == ObjectField.ObjFPcBankMoney);
+        var prop = mob.Properties.First(p => p.Field == ObjectField.PcBankMoney);
         await Assert.That(prop.GetInt32()).IsEqualTo(5000);
     }
 
@@ -155,10 +155,10 @@ public class CharacterBuilderTests
             .WithBaseStats([10, 10, 10, 10, 10, 10])
             .Build();
 
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFHpPts)).IsTrue();
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFHpAdj)).IsTrue();
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFPcPlayerName)).IsTrue();
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFCritterStatBaseIdx)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.HpPts)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.HpAdj)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.PcPlayerName)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.CritterStatBaseIdx)).IsTrue();
     }
 
     // ── Round-trip through MobFormat ──────────────────────────────────────────
@@ -177,9 +177,9 @@ public class CharacterBuilderTests
         var parsed = MobFormat.ParseMemory(bytes);
 
         await Assert.That(parsed.Header.GameObjectType).IsEqualTo(ObjectType.Pc);
-        var name = parsed.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+        var name = parsed.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(name.GetString()).IsEqualTo("Alice");
-        var gold = parsed.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+        var gold = parsed.Properties.First(p => p.Field == ObjectField.CritterGold);
         await Assert.That(gold.GetInt32()).IsEqualTo(250);
     }
 
@@ -195,11 +195,11 @@ public class CharacterBuilderTests
 
         var edited = new CharacterBuilder(original).WithPlayerName("Bob").Build();
 
-        var pts = edited.Properties.First(p => p.Field == ObjectField.ObjFHpPts);
+        var pts = edited.Properties.First(p => p.Field == ObjectField.HpPts);
         await Assert.That(pts.GetInt32()).IsEqualTo(100);
-        var gold = edited.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+        var gold = edited.Properties.First(p => p.Field == ObjectField.CritterGold);
         await Assert.That(gold.GetInt32()).IsEqualTo(500);
-        var name = edited.Properties.First(p => p.Field == ObjectField.ObjFPcPlayerName);
+        var name = edited.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(name.GetString()).IsEqualTo("Bob");
     }
 
@@ -210,7 +210,7 @@ public class CharacterBuilderTests
 
         _ = new CharacterBuilder(original).WithGold(9999).Build();
 
-        var goldProp = original.Properties.First(p => p.Field == ObjectField.ObjFCritterGold);
+        var goldProp = original.Properties.First(p => p.Field == ObjectField.CritterGold);
         await Assert.That(goldProp.GetInt32()).IsEqualTo(100);
     }
 }

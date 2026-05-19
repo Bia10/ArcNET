@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -432,7 +432,7 @@ public static class EditorMapFocusLocator
         tileX = 0;
         tileY = 0;
 
-        var property = mob.GetProperty(ObjectField.ObjFLocation);
+        var property = mob.GetProperty(ObjectField.Location);
         if (property is null || property.ParseNote is not null)
             return false;
 
@@ -450,7 +450,7 @@ public static class EditorMapFocusLocator
     private static bool TryGetLocation(MobData mob, out Location location)
     {
         location = default;
-        var property = mob.GetProperty(ObjectField.ObjFLocation);
+        var property = mob.GetProperty(ObjectField.Location);
         if (property is null || property.ParseNote is not null)
             return false;
 

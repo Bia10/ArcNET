@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -15,14 +15,14 @@ public sealed class EditorObjectInspectorFlagsSummary
     public required EditorObjectInspectorSummary Inspector { get; init; }
 
     /// <summary>
-    /// Common object flags from <see cref="ObjectField.ObjFFlags"/>.
+    /// Common object flags from <see cref="ObjectField.ObjectFlags"/>.
     /// </summary>
-    public ObjFFlags ObjectFlags { get; init; }
+    public ObjectFlags ObjectFlags { get; init; }
 
     /// <summary>
-    /// Common spell flags from <see cref="ObjectField.ObjFSpellFlags"/>.
+    /// Common spell flags from <see cref="ObjectField.SpellFlags"/>.
     /// </summary>
-    public ObjFSpellFlags SpellFlags { get; init; }
+    public SpellFlags SpellFlags { get; init; }
 
     /// <summary>
     /// Wall flags when the current target is one wall object.
@@ -32,17 +32,17 @@ public sealed class EditorObjectInspectorFlagsSummary
     /// <summary>
     /// Portal flags when the current target is one portal object.
     /// </summary>
-    public ObjFPortalFlags? PortalFlags { get; init; }
+    public PortalFlags? PortalFlags { get; init; }
 
     /// <summary>
     /// Container flags when the current target is one container object.
     /// </summary>
-    public ObjFContainerFlags? ContainerFlags { get; init; }
+    public ContainerFlags? ContainerFlags { get; init; }
 
     /// <summary>
     /// Scenery flags when the current target is one scenery object.
     /// </summary>
-    public ObjFSceneryFlags? SceneryFlags { get; init; }
+    public SceneryFlags? SceneryFlags { get; init; }
 
     /// <summary>
     /// Projectile combat flags when the current target is one projectile object.
@@ -52,12 +52,12 @@ public sealed class EditorObjectInspectorFlagsSummary
     /// <summary>
     /// Base item flags when the current target is one item-derived object.
     /// </summary>
-    public ObjFItemFlags? ItemFlags { get; init; }
+    public ItemFlags? ItemFlags { get; init; }
 
     /// <summary>
     /// Weapon flags when the current target is one weapon object.
     /// </summary>
-    public ObjFWeaponFlags? WeaponFlags { get; init; }
+    public WeaponFlags? WeaponFlags { get; init; }
 
     /// <summary>
     /// Ammo flags when the current target is one ammunition object.
@@ -67,7 +67,7 @@ public sealed class EditorObjectInspectorFlagsSummary
     /// <summary>
     /// Armor flags when the current target is one armor object.
     /// </summary>
-    public ObjFArmorFlags? ArmorFlags { get; init; }
+    public ArmorFlags? ArmorFlags { get; init; }
 
     /// <summary>
     /// Gold flags when the current target is one gold object.
@@ -102,12 +102,12 @@ public sealed class EditorObjectInspectorFlagsSummary
     /// <summary>
     /// Critter flags when the current target is one Pc or Npc.
     /// </summary>
-    public ObjFCritterFlags? CritterFlags { get; init; }
+    public CritterFlags? CritterFlags { get; init; }
 
     /// <summary>
     /// Secondary critter flags when the current target is one Pc or Npc.
     /// </summary>
-    public ObjFCritterFlags2? CritterFlags2 { get; init; }
+    public CritterFlags2? CritterFlags2 { get; init; }
 
     /// <summary>
     /// Raw PC flags when the current target is one Pc.
@@ -117,7 +117,7 @@ public sealed class EditorObjectInspectorFlagsSummary
     /// <summary>
     /// NPC flags when the current target is one Npc.
     /// </summary>
-    public ObjFNpcFlags? NpcFlags { get; init; }
+    public NpcFlags? NpcFlags { get; init; }
 
     /// <summary>
     /// Trap flags when the current target is one trap object.
@@ -164,50 +164,36 @@ public sealed class EditorObjectInspectorFlagsSummary
         return new EditorObjectInspectorFlagsSummary
         {
             Inspector = inspector,
-            ObjectFlags = ReadEnum<ObjFFlags>(properties, ObjectField.ObjFFlags),
-            SpellFlags = ReadEnum<ObjFSpellFlags>(properties, ObjectField.ObjFSpellFlags),
-            WallFlags = objectType is ObjectType.Wall ? ReadInt32(properties, ObjectField.ObjFWallFlags) : null,
+            ObjectFlags = ReadEnum<ObjectFlags>(properties, ObjectField.ObjectFlags),
+            SpellFlags = ReadEnum<SpellFlags>(properties, ObjectField.SpellFlags),
+            WallFlags = objectType is ObjectType.Wall ? ReadInt32(properties, ObjectField.WallFlags) : null,
             PortalFlags =
-                objectType is ObjectType.Portal
-                    ? ReadEnum<ObjFPortalFlags>(properties, ObjectField.ObjFPortalFlags)
-                    : null,
+                objectType is ObjectType.Portal ? ReadEnum<PortalFlags>(properties, ObjectField.PortalFlags) : null,
             ContainerFlags =
                 objectType is ObjectType.Container
-                    ? ReadEnum<ObjFContainerFlags>(properties, ObjectField.ObjFContainerFlags)
+                    ? ReadEnum<ContainerFlags>(properties, ObjectField.ContainerFlags)
                     : null,
             SceneryFlags =
-                objectType is ObjectType.Scenery
-                    ? ReadEnum<ObjFSceneryFlags>(properties, ObjectField.ObjFSceneryFlags)
-                    : null,
+                objectType is ObjectType.Scenery ? ReadEnum<SceneryFlags>(properties, ObjectField.SceneryFlags) : null,
             ProjectileCombatFlags =
-                objectType is ObjectType.Projectile
-                    ? ReadInt32(properties, ObjectField.ObjFProjectileFlagsCombat)
-                    : null,
-            ItemFlags = isItemLike ? ReadEnum<ObjFItemFlags>(properties, ObjectField.ObjFItemFlags) : null,
+                objectType is ObjectType.Projectile ? ReadInt32(properties, ObjectField.ProjectileFlagsCombat) : null,
+            ItemFlags = isItemLike ? ReadEnum<ItemFlags>(properties, ObjectField.ItemFlags) : null,
             WeaponFlags =
-                objectType is ObjectType.Weapon
-                    ? ReadEnum<ObjFWeaponFlags>(properties, ObjectField.ObjFWeaponFlags)
-                    : null,
-            AmmoFlags = objectType is ObjectType.Ammo ? ReadInt32(properties, ObjectField.ObjFAmmoFlags) : null,
+                objectType is ObjectType.Weapon ? ReadEnum<WeaponFlags>(properties, ObjectField.WeaponFlags) : null,
+            AmmoFlags = objectType is ObjectType.Ammo ? ReadInt32(properties, ObjectField.AmmoFlags) : null,
             ArmorFlags =
-                objectType is ObjectType.Armor
-                    ? ReadEnum<ObjFArmorFlags>(properties, ObjectField.ObjFArmorFlags)
-                    : null,
-            GoldFlags = objectType is ObjectType.Gold ? ReadInt32(properties, ObjectField.ObjFGoldFlags) : null,
-            FoodFlags = objectType is ObjectType.Food ? ReadInt32(properties, ObjectField.ObjFFoodFlags) : null,
-            ScrollFlags = objectType is ObjectType.Scroll ? ReadInt32(properties, ObjectField.ObjFScrollFlags) : null,
-            KeyRingFlags =
-                objectType is ObjectType.KeyRing ? ReadInt32(properties, ObjectField.ObjFKeyRingFlags) : null,
-            WrittenFlags =
-                objectType is ObjectType.Written ? ReadInt32(properties, ObjectField.ObjFWrittenFlags) : null,
-            GenericFlags =
-                objectType is ObjectType.Generic ? ReadInt32(properties, ObjectField.ObjFGenericFlags) : null,
-            CritterFlags = isCritter ? ReadEnum<ObjFCritterFlags>(properties, ObjectField.ObjFCritterFlags) : null,
-            CritterFlags2 = isCritter ? ReadEnum<ObjFCritterFlags2>(properties, ObjectField.ObjFCritterFlags2) : null,
-            PcFlags = objectType is ObjectType.Pc ? ReadInt32(properties, ObjectField.ObjFPcFlags) : null,
-            NpcFlags =
-                objectType is ObjectType.Npc ? ReadEnum<ObjFNpcFlags>(properties, ObjectField.ObjFNpcFlags) : null,
-            TrapFlags = objectType is ObjectType.Trap ? ReadInt32(properties, ObjectField.ObjFTrapFlags) : null,
+                objectType is ObjectType.Armor ? ReadEnum<ArmorFlags>(properties, ObjectField.ArmorFlags) : null,
+            GoldFlags = objectType is ObjectType.Gold ? ReadInt32(properties, ObjectField.GoldFlags) : null,
+            FoodFlags = objectType is ObjectType.Food ? ReadInt32(properties, ObjectField.FoodFlags) : null,
+            ScrollFlags = objectType is ObjectType.Scroll ? ReadInt32(properties, ObjectField.ScrollFlags) : null,
+            KeyRingFlags = objectType is ObjectType.KeyRing ? ReadInt32(properties, ObjectField.KeyRingFlags) : null,
+            WrittenFlags = objectType is ObjectType.Written ? ReadInt32(properties, ObjectField.WrittenFlags) : null,
+            GenericFlags = objectType is ObjectType.Generic ? ReadInt32(properties, ObjectField.GenericFlags) : null,
+            CritterFlags = isCritter ? ReadEnum<CritterFlags>(properties, ObjectField.CritterFlags) : null,
+            CritterFlags2 = isCritter ? ReadEnum<CritterFlags2>(properties, ObjectField.CritterFlags2) : null,
+            PcFlags = objectType is ObjectType.Pc ? ReadInt32(properties, ObjectField.PcFlags) : null,
+            NpcFlags = objectType is ObjectType.Npc ? ReadEnum<NpcFlags>(properties, ObjectField.NpcFlags) : null,
+            TrapFlags = objectType is ObjectType.Trap ? ReadInt32(properties, ObjectField.TrapFlags) : null,
         };
     }
 

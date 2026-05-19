@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -36,12 +36,12 @@ public sealed class EditorObjectInspectorLightSummary
         return new EditorObjectInspectorLightSummary
         {
             Inspector = inspector,
-            LightFlags = ReadInt32(properties, ObjectField.ObjFLightFlags),
-            LightArtId = new ArtId(unchecked((uint)ReadInt32(properties, ObjectField.ObjFLightAid))),
-            LightColor = ReadColor(properties, ObjectField.ObjFLightColor),
-            OverlayLightFlags = ReadInt32(properties, ObjectField.ObjFOverlayLightFlags),
-            OverlayLightArtIds = ReadInt32Array(properties, ObjectField.ObjFOverlayLightAid),
-            OverlayLightColor = ReadInt32(properties, ObjectField.ObjFOverlayLightColor),
+            LightFlags = ReadInt32(properties, ObjectField.LightFlags),
+            LightArtId = new ArtId(unchecked((uint)ReadInt32(properties, ObjectField.LightAid))),
+            LightColor = ReadColor(properties, ObjectField.LightColor),
+            OverlayLightFlags = ReadInt32(properties, ObjectField.OverlayLightFlags),
+            OverlayLightArtIds = ReadInt32Array(properties, ObjectField.OverlayLightAid),
+            OverlayLightColor = ReadInt32(properties, ObjectField.OverlayLightColor),
         };
     }
 

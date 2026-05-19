@@ -1,4 +1,4 @@
-﻿using ArcNET.Editor;
+using ArcNET.Editor;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using Probe;
@@ -46,7 +46,7 @@ internal sealed class GoldCommand : IProbeCommand
             foreach (var verifiedRecord in verifiedMd.Records)
             {
                 var goldProp = verifiedRecord.Data?.Properties.FirstOrDefault(p =>
-                    p.Field == ObjectField.ObjFCritterGold
+                    p.Field == ObjectField.CritterGold
                 );
                 if (goldProp is null)
                     continue;

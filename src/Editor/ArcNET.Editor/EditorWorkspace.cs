@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using ArcNET.Archive;
@@ -3877,9 +3877,9 @@ public sealed class EditorWorkspace : IDisposable
             ObjectType = proto.Header.GameObjectType,
             PaletteGroup = GetObjectPaletteGroup(asset.AssetPath),
             DisplayName = ResolveProtoDisplayName(protoNumber),
-            NameMessageIndex = TryGetInt32Property(proto, ObjectField.ObjFName),
-            DescriptionMessageIndex = TryGetInt32Property(proto, ObjectField.ObjFDescription),
-            Description = ResolveMessageText(TryGetInt32Property(proto, ObjectField.ObjFDescription)),
+            NameMessageIndex = TryGetInt32Property(proto, ObjectField.Name),
+            DescriptionMessageIndex = TryGetInt32Property(proto, ObjectField.Description),
+            Description = ResolveMessageText(TryGetInt32Property(proto, ObjectField.Description)),
             CurrentArtId = currentArtId,
             ArtAssetPath = artAssetPath,
             ArtDetail = artDetail,
@@ -3906,13 +3906,13 @@ public sealed class EditorWorkspace : IDisposable
         ArgumentNullException.ThrowIfNull(proto);
 
         currentArtId = default;
-        var resolvedCurrentArtId = TryGetArtId(proto, ObjectField.ObjFCurrentAid);
+        var resolvedCurrentArtId = TryGetArtId(proto, ObjectField.CurrentAid);
         if (resolvedCurrentArtId is { } protoArtId && protoArtId.Value == 0u)
             resolvedCurrentArtId = null;
 
         if (!resolvedCurrentArtId.HasValue)
         {
-            resolvedCurrentArtId = TryGetArtId(proto, ObjectField.ObjFAid);
+            resolvedCurrentArtId = TryGetArtId(proto, ObjectField.Aid);
             if (resolvedCurrentArtId is { } protoBaseArtId && protoBaseArtId.Value == 0u)
                 resolvedCurrentArtId = null;
         }

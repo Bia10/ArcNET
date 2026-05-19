@@ -1,6 +1,6 @@
-﻿// Diagnostic — scan Arcanum DAT archives for:
+// Diagnostic — scan Arcanum DAT archives for:
 //   (1) Proto entries inside DAT files (shadowing check)
-//   (2) Container mob instances where ObjFContainerInventorySource (bit 69) is non-zero
+//   (2) Container mob instances where ContainerInventorySource (bit 69) is non-zero
 //
 // OFF Header layout:
 //   [0x00] int32  version     = 0x77
@@ -10,7 +10,7 @@
 //   PROTO:    [0x38+] 12-byte bitmap, then properties (4 bytes each)
 //   INSTANCE: [0x38] int16 PropCollectionItems, [0x3A+] 12-byte bitmap, then properties
 //
-// ObjFContainerInventorySource = bit 69.
+// ContainerInventorySource = bit 69.
 //
 // Run from repo root:
 //   dotnet run --project tools/DiagnosticMobScan -- "C:\Games\Arcanum\<dir>"

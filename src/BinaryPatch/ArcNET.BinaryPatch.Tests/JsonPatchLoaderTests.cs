@@ -1,4 +1,4 @@
-﻿using ArcNET.BinaryPatch;
+using ArcNET.BinaryPatch;
 using ArcNET.BinaryPatch.Json;
 
 namespace ArcNET.BinaryPatch.Tests;
@@ -83,7 +83,7 @@ public sealed class JsonPatchLoaderTests
                   "id": "clear-test",
                   "description": "Clear a field",
                   "relativePath": "data/proto/items/00000001.pro",
-                  "field": "ObjFContainerInventorySource",
+                  "field": "ContainerInventorySource",
                   "newValue": 0
                 }
               ]

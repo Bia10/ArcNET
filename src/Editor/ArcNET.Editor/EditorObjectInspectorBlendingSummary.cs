@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -11,7 +11,7 @@ public sealed class EditorObjectInspectorBlendingSummary
 {
     public required EditorObjectInspectorSummary Inspector { get; init; }
 
-    public ObjFBlitFlags BlitFlags { get; init; }
+    public BlitFlags BlitFlags { get; init; }
 
     public Color BlitColor { get; init; }
 
@@ -32,11 +32,11 @@ public sealed class EditorObjectInspectorBlendingSummary
         return new EditorObjectInspectorBlendingSummary
         {
             Inspector = inspector,
-            BlitFlags = (ObjFBlitFlags)unchecked((uint)ReadInt32(properties, ObjectField.ObjFBlitFlags)),
-            BlitColor = ReadColor(properties, ObjectField.ObjFBlitColor),
-            BlitAlpha = ReadInt32(properties, ObjectField.ObjFBlitAlpha),
-            BlitScale = ReadInt32(properties, ObjectField.ObjFBlitScale),
-            Material = ReadInt32(properties, ObjectField.ObjFMaterial),
+            BlitFlags = (BlitFlags)unchecked((uint)ReadInt32(properties, ObjectField.BlitFlags)),
+            BlitColor = ReadColor(properties, ObjectField.BlitColor),
+            BlitAlpha = ReadInt32(properties, ObjectField.BlitAlpha),
+            BlitScale = ReadInt32(properties, ObjectField.BlitScale),
+            Material = ReadInt32(properties, ObjectField.Material),
         };
     }
 

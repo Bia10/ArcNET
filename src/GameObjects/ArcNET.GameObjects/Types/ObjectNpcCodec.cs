@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -24,55 +24,55 @@ internal static class ObjectNpcCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFNpcFlags))
-            obj.NpcFlags = unchecked((ObjFNpcFlags)(uint)reader.ReadInt32());
-        if (Bit(ObjectField.ObjFNpcLeader))
+        if (Bit(ObjectField.NpcFlags))
+            obj.NpcFlags = unchecked((NpcFlags)(uint)reader.ReadInt32());
+        if (Bit(ObjectField.NpcLeader))
             obj.Leader = reader.ReadGameObjectGuid();
-        if (Bit(ObjectField.ObjFNpcAiData))
+        if (Bit(ObjectField.NpcAiData))
             obj.AiData = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcCombatFocus))
+        if (Bit(ObjectField.NpcCombatFocus))
             obj.CombatFocus = reader.ReadGameObjectGuid();
-        if (Bit(ObjectField.ObjFNpcWhoHitMeLast))
+        if (Bit(ObjectField.NpcWhoHitMeLast))
             obj.WhoHitMeLast = reader.ReadGameObjectGuid();
-        if (Bit(ObjectField.ObjFNpcExperienceWorth))
+        if (Bit(ObjectField.NpcExperienceWorth))
             obj.ExperienceWorth = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcExperiencePool))
+        if (Bit(ObjectField.NpcExperiencePool))
             obj.ExperiencePool = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcWaypointsIdx))
+        if (Bit(ObjectField.NpcWaypointsIdx))
             obj.Waypoints = ObjectSerializationHelpers.ReadLocationArray(ref reader);
-        if (Bit(ObjectField.ObjFNpcWaypointCurrent))
+        if (Bit(ObjectField.NpcWaypointCurrent))
             obj.WaypointCurrent = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcStandpointDay))
+        if (Bit(ObjectField.NpcStandpointDay))
             obj.StandpointDay = ObjectSerializationHelpers.ReadLocation(ref reader);
-        if (Bit(ObjectField.ObjFNpcStandpointNight))
+        if (Bit(ObjectField.NpcStandpointNight))
             obj.StandpointNight = ObjectSerializationHelpers.ReadLocation(ref reader);
-        if (Bit(ObjectField.ObjFNpcOrigin))
+        if (Bit(ObjectField.NpcOrigin))
             obj.Origin = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcFaction))
+        if (Bit(ObjectField.NpcFaction))
             obj.Faction = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcRetailPriceMultiplier))
+        if (Bit(ObjectField.NpcRetailPriceMultiplier))
             obj.RetailPriceMultiplier = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcSubstituteInventory))
+        if (Bit(ObjectField.NpcSubstituteInventory))
             obj.SubstituteInventory = reader.ReadGameObjectGuid();
-        if (Bit(ObjectField.ObjFNpcReactionBase))
+        if (Bit(ObjectField.NpcReactionBase))
             obj.ReactionBase = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcSocialClass))
+        if (Bit(ObjectField.NpcSocialClass))
             obj.SocialClass = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcReactionPcIdx))
+        if (Bit(ObjectField.NpcReactionPcIdx))
             obj.ReactionPc = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFNpcReactionLevelIdx))
+        if (Bit(ObjectField.NpcReactionLevelIdx))
             obj.ReactionLevel = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFNpcReactionTimeIdx))
+        if (Bit(ObjectField.NpcReactionTimeIdx))
             obj.ReactionTime = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFNpcWait))
+        if (Bit(ObjectField.NpcWait))
             obj.Wait = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcGeneratorData))
+        if (Bit(ObjectField.NpcGeneratorData))
             obj.GeneratorData = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcPadI1))
+        if (Bit(ObjectField.NpcPadI1))
             obj.NpcPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFNpcDamageIdx))
+        if (Bit(ObjectField.NpcDamageIdx))
             obj.Damage = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFNpcHostileListIdx))
+        if (Bit(ObjectField.NpcHostileListIdx))
             obj.HostileList = ObjectCommon.ReadIndexedInts(ref reader);
     }
 
@@ -80,55 +80,55 @@ internal static class ObjectNpcCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFNpcFlags))
+        if (Bit(ObjectField.NpcFlags))
             writer.WriteInt32(unchecked((int)obj.NpcFlags));
-        if (Bit(ObjectField.ObjFNpcLeader))
+        if (Bit(ObjectField.NpcLeader))
             obj.Leader.Write(ref writer);
-        if (Bit(ObjectField.ObjFNpcAiData))
+        if (Bit(ObjectField.NpcAiData))
             writer.WriteInt32(obj.AiData);
-        if (Bit(ObjectField.ObjFNpcCombatFocus))
+        if (Bit(ObjectField.NpcCombatFocus))
             obj.CombatFocus.Write(ref writer);
-        if (Bit(ObjectField.ObjFNpcWhoHitMeLast))
+        if (Bit(ObjectField.NpcWhoHitMeLast))
             obj.WhoHitMeLast.Write(ref writer);
-        if (Bit(ObjectField.ObjFNpcExperienceWorth))
+        if (Bit(ObjectField.NpcExperienceWorth))
             writer.WriteInt32(obj.ExperienceWorth);
-        if (Bit(ObjectField.ObjFNpcExperiencePool))
+        if (Bit(ObjectField.NpcExperiencePool))
             writer.WriteInt32(obj.ExperiencePool);
-        if (Bit(ObjectField.ObjFNpcWaypointsIdx))
+        if (Bit(ObjectField.NpcWaypointsIdx))
             ObjectSerializationHelpers.WriteLocationArray(ref writer, obj.Waypoints);
-        if (Bit(ObjectField.ObjFNpcWaypointCurrent))
+        if (Bit(ObjectField.NpcWaypointCurrent))
             writer.WriteInt32(obj.WaypointCurrent);
-        if (Bit(ObjectField.ObjFNpcStandpointDay))
+        if (Bit(ObjectField.NpcStandpointDay))
             ObjectSerializationHelpers.WriteLocation(ref writer, obj.StandpointDay);
-        if (Bit(ObjectField.ObjFNpcStandpointNight))
+        if (Bit(ObjectField.NpcStandpointNight))
             ObjectSerializationHelpers.WriteLocation(ref writer, obj.StandpointNight);
-        if (Bit(ObjectField.ObjFNpcOrigin))
+        if (Bit(ObjectField.NpcOrigin))
             writer.WriteInt32(obj.Origin);
-        if (Bit(ObjectField.ObjFNpcFaction))
+        if (Bit(ObjectField.NpcFaction))
             writer.WriteInt32(obj.Faction);
-        if (Bit(ObjectField.ObjFNpcRetailPriceMultiplier))
+        if (Bit(ObjectField.NpcRetailPriceMultiplier))
             writer.WriteInt32(obj.RetailPriceMultiplier);
-        if (Bit(ObjectField.ObjFNpcSubstituteInventory))
+        if (Bit(ObjectField.NpcSubstituteInventory))
             obj.SubstituteInventory.Write(ref writer);
-        if (Bit(ObjectField.ObjFNpcReactionBase))
+        if (Bit(ObjectField.NpcReactionBase))
             writer.WriteInt32(obj.ReactionBase);
-        if (Bit(ObjectField.ObjFNpcSocialClass))
+        if (Bit(ObjectField.NpcSocialClass))
             writer.WriteInt32(obj.SocialClass);
-        if (Bit(ObjectField.ObjFNpcReactionPcIdx))
+        if (Bit(ObjectField.NpcReactionPcIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ReactionPc);
-        if (Bit(ObjectField.ObjFNpcReactionLevelIdx))
+        if (Bit(ObjectField.NpcReactionLevelIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ReactionLevel);
-        if (Bit(ObjectField.ObjFNpcReactionTimeIdx))
+        if (Bit(ObjectField.NpcReactionTimeIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ReactionTime);
-        if (Bit(ObjectField.ObjFNpcWait))
+        if (Bit(ObjectField.NpcWait))
             writer.WriteInt32(obj.Wait);
-        if (Bit(ObjectField.ObjFNpcGeneratorData))
+        if (Bit(ObjectField.NpcGeneratorData))
             writer.WriteInt32(obj.GeneratorData);
-        if (Bit(ObjectField.ObjFNpcPadI1))
+        if (Bit(ObjectField.NpcPadI1))
             writer.WriteInt32(obj.NpcPadI1Reserved);
-        if (Bit(ObjectField.ObjFNpcDamageIdx))
+        if (Bit(ObjectField.NpcDamageIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Damage);
-        if (Bit(ObjectField.ObjFNpcHostileListIdx))
+        if (Bit(ObjectField.NpcHostileListIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.HostileList);
     }
 }

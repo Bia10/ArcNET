@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -102,7 +102,7 @@ public sealed class EditorObjectInspectorScriptAttachmentsSummary
         for (var propertyIndex = 0; propertyIndex < properties.Count; propertyIndex++)
         {
             var property = properties[propertyIndex];
-            if (property.Field == ObjectField.ObjFScriptsIdx)
+            if (property.Field == ObjectField.ScriptsIdx)
                 return property.GetScriptArray();
         }
 

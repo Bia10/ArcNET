@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -52,10 +52,10 @@ public sealed class EditorMapScenePreviewBuilderTests
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1, Guid.NewGuid());
         var mob = new CharacterBuilder(ObjectType.Pc, objectId, MakeProtoId(1))
             .WithLocation(10, 11)
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 3))
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 4))
-            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFOffsetZ, 5.5f))
-            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFHeight, 6.5f))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 3))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, 4))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.OffsetZ, 5.5f))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.Height, 6.5f))
             .Build();
 
         var tiles = new uint[4096];
@@ -178,7 +178,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         var artId = new ArtId(0x01020304u);
         var mob = new CharacterBuilder(ObjectType.Pc, objectId, MakeProtoId(1))
             .WithLocation(10, 11)
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)artId.Value)))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)artId.Value)))
             .Build();
         var sector = new Sector
         {
@@ -282,7 +282,7 @@ public sealed class EditorMapScenePreviewBuilderTests
             BlockedTileDensityBand = EditorMapSectorDensityBand.None,
         };
         var mob = CreateEmptyMob(ObjectType.Scenery, objectId, MakeProtoId(1))
-            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, (20 * 64) + 12, (30 * 64) + 34));
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.Location, (20 * 64) + 12, (30 * 64) + 34));
         var sector = new Sector
         {
             Lights = [],
@@ -345,7 +345,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         };
         var mob = CreateEmptyMob(ObjectType.Scenery, objectId, MakeProtoId(1))
             .WithProperty(
-                ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, (sectorX * 64) + 12, (sectorY * 64) + 34)
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, (sectorX * 64) + 12, (sectorY * 64) + 34)
             );
         var sector = new Sector
         {
@@ -376,7 +376,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         var artId = new ArtId(0x01020304u);
         var mob = new CharacterBuilder(ObjectType.Portal, objectId, MakeProtoId(1))
             .WithLocation(10, 11)
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFAid, unchecked((int)artId.Value)))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.Aid, unchecked((int)artId.Value)))
             .Build();
         var sector = new Sector
         {
@@ -439,13 +439,13 @@ public sealed class EditorMapScenePreviewBuilderTests
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 3, Guid.NewGuid());
         var artId = new ArtId(0x01020304u);
         var mob = CreateEmptyMob(ObjectType.Npc, objectId, MakeProtoId(1))
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)artId.Value)))
-            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.ObjFLocation, 10, 11))
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 3))
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 4))
-            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFOffsetZ, 5.5f))
-            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFHeight, 6.5f))
-            .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.ObjFCritterFollowerIdx));
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)artId.Value)))
+            .WithProperty(ObjectPropertyFactory.ForLocation(ObjectField.Location, 10, 11))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 3))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, 4))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.OffsetZ, 5.5f))
+            .WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.Height, 6.5f))
+            .WithProperty(ObjectPropertyFactory.ForEmptyObjectIdArray(ObjectField.CritterFollowerIdx));
 
         var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);
 
@@ -467,7 +467,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         var critterArtId = new ArtId(0x90002000u);
         var mob = CreateEmptyMob(ObjectType.Npc, objectId, MakeProtoId(1))
             .WithProperty(
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)critterArtId.Value))
+                ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)critterArtId.Value))
             );
 
         var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);

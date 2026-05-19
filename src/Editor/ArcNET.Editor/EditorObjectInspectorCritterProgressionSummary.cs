@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -132,16 +132,16 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         if (inspector.TargetObjectType is not ObjectType.Pc and not ObjectType.Npc)
             return new EditorObjectInspectorCritterProgressionSummary { Inspector = inspector };
 
-        var baseStats = ReadInt32Array(properties, ObjectField.ObjFCritterStatBaseIdx);
-        var basicSkills = ReadInt32Array(properties, ObjectField.ObjFCritterBasicSkillIdx);
-        var techSkills = ReadInt32Array(properties, ObjectField.ObjFCritterTechSkillIdx);
-        var spellTech = ReadInt32Array(properties, ObjectField.ObjFCritterSpellTechIdx);
+        var baseStats = ReadInt32Array(properties, ObjectField.CritterStatBaseIdx);
+        var basicSkills = ReadInt32Array(properties, ObjectField.CritterBasicSkillIdx);
+        var techSkills = ReadInt32Array(properties, ObjectField.CritterTechSkillIdx);
+        var spellTech = ReadInt32Array(properties, ObjectField.CritterSpellTechIdx);
 
         return new EditorObjectInspectorCritterProgressionSummary
         {
             Inspector = inspector,
-            FatiguePoints = ReadInt32(properties, ObjectField.ObjFCritterFatiguePts),
-            FatigueAdjustment = ReadInt32(properties, ObjectField.ObjFCritterFatigueAdj),
+            FatiguePoints = ReadInt32(properties, ObjectField.CritterFatiguePts),
+            FatigueAdjustment = ReadInt32(properties, ObjectField.CritterFatigueAdj),
             Level = ReadAt(baseStats, 17),
             ExperiencePoints = ReadAt(baseStats, 18),
             Alignment = ReadAt(baseStats, 19),

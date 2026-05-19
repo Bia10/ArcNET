@@ -7361,7 +7361,7 @@ public sealed class EditorWorkspaceSession
                                 request.Rotation.HasValue
                                 && ShouldApplyObjectFloatProperty(
                                     currentObject,
-                                    ObjectField.ObjFPadIas1,
+                                    ObjectField.PadIas1,
                                     request.Rotation.Value
                                 )
                             )
@@ -7374,7 +7374,7 @@ public sealed class EditorWorkspaceSession
                                 request.RotationPitch.HasValue
                                 && ShouldApplyObjectFloatProperty(
                                     currentObject,
-                                    ObjectField.ObjFRotationPitch,
+                                    ObjectField.RotationPitch,
                                     request.RotationPitch.Value
                                 )
                             )
@@ -7430,15 +7430,15 @@ public sealed class EditorWorkspaceSession
 
         var changed = false;
 
-        if (TryGetObjectIntProperty(currentObject, ObjectField.ObjFOffsetX) is { } offsetX && offsetX != 0)
+        if (TryGetObjectIntProperty(currentObject, ObjectField.OffsetX) is { } offsetX && offsetX != 0)
         {
-            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, 0));
+            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, 0));
             changed = true;
         }
 
-        if (TryGetObjectIntProperty(currentObject, ObjectField.ObjFOffsetY) is { } offsetY && offsetY != 0)
+        if (TryGetObjectIntProperty(currentObject, ObjectField.OffsetY) is { } offsetY && offsetY != 0)
         {
-            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, 0));
+            builder.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, 0));
             changed = true;
         }
 
@@ -7512,7 +7512,7 @@ public sealed class EditorWorkspaceSession
             {
                 var objectIndex = FindSectorObjectIndex(sector, normalizedPath, objectId);
                 var currentObject = sector.Objects[objectIndex];
-                var currentRotationProperty = currentObject.GetProperty(ObjectField.ObjFPadIas1);
+                var currentRotationProperty = currentObject.GetProperty(ObjectField.PadIas1);
 
                 if (currentRotationProperty is null && rotation == 0f)
                     return null;
@@ -7547,7 +7547,7 @@ public sealed class EditorWorkspaceSession
             {
                 var objectIndex = FindSectorObjectIndex(sector, normalizedPath, objectId);
                 var currentObject = sector.Objects[objectIndex];
-                var currentRotationProperty = currentObject.GetProperty(ObjectField.ObjFRotationPitch);
+                var currentRotationProperty = currentObject.GetProperty(ObjectField.RotationPitch);
 
                 if (currentRotationProperty is null && rotationPitch == 0f)
                     return null;
@@ -9708,7 +9708,7 @@ public sealed class EditorWorkspaceSession
             ? []
             : sector
                 .Objects.Where(candidate =>
-                    candidate.GetProperty(ObjectField.ObjFLocation)?.GetLocation() == (tile.X, tile.Y)
+                    candidate.GetProperty(ObjectField.Location)?.GetLocation() == (tile.X, tile.Y)
                     && selectedObjectIds.Contains(candidate.Header.ObjectId)
                 )
                 .Select(CreateFallbackObjectPreview)
@@ -9720,7 +9720,7 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(mob);
 
         Location? location = null;
-        if (mob.GetProperty(ObjectField.ObjFLocation) is { } locationProperty)
+        if (mob.GetProperty(ObjectField.Location) is { } locationProperty)
         {
             var (tileX, tileY) = locationProperty.GetLocation();
             location = new Location(checked((short)tileX), checked((short)tileY));
@@ -9731,15 +9731,15 @@ public sealed class EditorWorkspaceSession
             ObjectId = mob.Header.ObjectId,
             ProtoId = mob.Header.ProtoId,
             ObjectType = mob.Header.GameObjectType,
-            CurrentArtId = new ArtId((uint)(mob.GetProperty(ObjectField.ObjFCurrentAid)?.GetInt32() ?? 0)),
+            CurrentArtId = new ArtId((uint)(mob.GetProperty(ObjectField.CurrentAid)?.GetInt32() ?? 0)),
             Location = location,
-            OffsetX = mob.GetProperty(ObjectField.ObjFOffsetX)?.GetInt32() ?? 0,
-            OffsetY = mob.GetProperty(ObjectField.ObjFOffsetY)?.GetInt32() ?? 0,
-            OffsetZ = mob.GetProperty(ObjectField.ObjFOffsetZ)?.GetFloat() ?? 0f,
-            CollisionHeight = mob.GetProperty(ObjectField.ObjFHeight)?.GetFloat() ?? 0f,
+            OffsetX = mob.GetProperty(ObjectField.OffsetX)?.GetInt32() ?? 0,
+            OffsetY = mob.GetProperty(ObjectField.OffsetY)?.GetInt32() ?? 0,
+            OffsetZ = mob.GetProperty(ObjectField.OffsetZ)?.GetFloat() ?? 0f,
+            CollisionHeight = mob.GetProperty(ObjectField.Height)?.GetFloat() ?? 0f,
             SpriteBounds = null,
-            Rotation = mob.GetProperty(ObjectField.ObjFPadIas1)?.GetFloat() ?? 0f,
-            RotationPitch = mob.GetProperty(ObjectField.ObjFRotationPitch)?.GetFloat() ?? 0f,
+            Rotation = mob.GetProperty(ObjectField.PadIas1)?.GetFloat() ?? 0f,
+            RotationPitch = mob.GetProperty(ObjectField.RotationPitch)?.GetFloat() ?? 0f,
         };
     }
 
@@ -9877,9 +9877,9 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(proto);
 
-        var nameMessageIndex = proto.GetProperty(ObjectField.ObjFName)?.GetInt32();
-        var descriptionMessageIndex = proto.GetProperty(ObjectField.ObjFDescription)?.GetInt32();
-        var currentArtIdValue = proto.GetProperty(ObjectField.ObjFCurrentAid)?.GetInt32();
+        var nameMessageIndex = proto.GetProperty(ObjectField.Name)?.GetInt32();
+        var descriptionMessageIndex = proto.GetProperty(ObjectField.Description)?.GetInt32();
+        var currentArtIdValue = proto.GetProperty(ObjectField.CurrentAid)?.GetInt32();
         ArtId? currentArtId = currentArtIdValue.HasValue ? new ArtId(unchecked((uint)currentArtIdValue.Value)) : null;
 
         return new EditorObjectPaletteEntry
@@ -10035,148 +10035,148 @@ public sealed class EditorWorkspaceSession
 
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFFlags,
+            ObjectField.ObjectFlags,
             update.ObjectFlags,
             applicable: true,
             nameof(update.ObjectFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFSpellFlags,
+            ObjectField.SpellFlags,
             update.SpellFlags,
             applicable: true,
             nameof(update.SpellFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFWallFlags,
+            ObjectField.WallFlags,
             update.WallFlags,
             objectType is ObjectType.Wall,
             nameof(update.WallFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFPortalFlags,
+            ObjectField.PortalFlags,
             update.PortalFlags,
             objectType is ObjectType.Portal,
             nameof(update.PortalFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFContainerFlags,
+            ObjectField.ContainerFlags,
             update.ContainerFlags,
             objectType is ObjectType.Container,
             nameof(update.ContainerFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFSceneryFlags,
+            ObjectField.SceneryFlags,
             update.SceneryFlags,
             objectType is ObjectType.Scenery,
             nameof(update.SceneryFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFProjectileFlagsCombat,
+            ObjectField.ProjectileFlagsCombat,
             update.ProjectileCombatFlags,
             objectType is ObjectType.Projectile,
             nameof(update.ProjectileCombatFlags)
         );
-        AppendFlagUpdate(updates, ObjectField.ObjFItemFlags, update.ItemFlags, isItemLike, nameof(update.ItemFlags));
+        AppendFlagUpdate(updates, ObjectField.ItemFlags, update.ItemFlags, isItemLike, nameof(update.ItemFlags));
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFWeaponFlags,
+            ObjectField.WeaponFlags,
             update.WeaponFlags,
             objectType is ObjectType.Weapon,
             nameof(update.WeaponFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFAmmoFlags,
+            ObjectField.AmmoFlags,
             update.AmmoFlags,
             objectType is ObjectType.Ammo,
             nameof(update.AmmoFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFArmorFlags,
+            ObjectField.ArmorFlags,
             update.ArmorFlags,
             objectType is ObjectType.Armor,
             nameof(update.ArmorFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFGoldFlags,
+            ObjectField.GoldFlags,
             update.GoldFlags,
             objectType is ObjectType.Gold,
             nameof(update.GoldFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFFoodFlags,
+            ObjectField.FoodFlags,
             update.FoodFlags,
             objectType is ObjectType.Food,
             nameof(update.FoodFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFScrollFlags,
+            ObjectField.ScrollFlags,
             update.ScrollFlags,
             objectType is ObjectType.Scroll,
             nameof(update.ScrollFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFKeyRingFlags,
+            ObjectField.KeyRingFlags,
             update.KeyRingFlags,
             objectType is ObjectType.KeyRing,
             nameof(update.KeyRingFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFWrittenFlags,
+            ObjectField.WrittenFlags,
             update.WrittenFlags,
             objectType is ObjectType.Written,
             nameof(update.WrittenFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFGenericFlags,
+            ObjectField.GenericFlags,
             update.GenericFlags,
             objectType is ObjectType.Generic,
             nameof(update.GenericFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFCritterFlags,
+            ObjectField.CritterFlags,
             update.CritterFlags,
             isCritter,
             nameof(update.CritterFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFCritterFlags2,
+            ObjectField.CritterFlags2,
             update.CritterFlags2,
             isCritter,
             nameof(update.CritterFlags2)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFPcFlags,
+            ObjectField.PcFlags,
             update.PcFlags,
             objectType is ObjectType.Pc,
             nameof(update.PcFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFNpcFlags,
+            ObjectField.NpcFlags,
             update.NpcFlags,
             objectType is ObjectType.Npc,
             nameof(update.NpcFlags)
         );
         AppendFlagUpdate(
             updates,
-            ObjectField.ObjFTrapFlags,
+            ObjectField.TrapFlags,
             update.TrapFlags,
             objectType is ObjectType.Trap,
             nameof(update.TrapFlags)
@@ -10297,29 +10297,29 @@ public sealed class EditorWorkspaceSession
         var updated = proto;
         var changed = false;
 
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatiguePts, update.FatiguePoints);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatigueAdj, update.FatigueAdjustment);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.CritterFatiguePts, update.FatiguePoints);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.CritterFatigueAdj, update.FatigueAdjustment);
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterStatBaseIdx,
+            ObjectField.CritterStatBaseIdx,
             28,
             CreateCritterBaseStatProgressionUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterBasicSkillIdx,
+            ObjectField.CritterBasicSkillIdx,
             12,
             CreateCritterBasicSkillUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterTechSkillIdx,
+            ObjectField.CritterTechSkillIdx,
             4,
             CreateCritterTechSkillUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterSpellTechIdx,
+            ObjectField.CritterSpellTechIdx,
             25,
             CreateCritterSpellTechUpdates(update)
         );
@@ -10335,16 +10335,16 @@ public sealed class EditorWorkspaceSession
         var updated = proto;
         var changed = false;
 
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFLightFlags, update.LightFlags);
-        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.ObjFLightAid, update.LightArtId);
-        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFLightColor, update.LightColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.LightFlags, update.LightFlags);
+        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.LightAid, update.LightArtId);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.LightColor, update.LightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightFlags, update.OverlayLightFlags);
         changed |= ApplyWholeInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFOverlayLightAid,
+            ObjectField.OverlayLightAid,
             update.OverlayLightArtIds
         );
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightColor, update.OverlayLightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightColor, update.OverlayLightColor);
 
         return changed ? updated : null;
     }
@@ -10357,16 +10357,16 @@ public sealed class EditorWorkspaceSession
         var updated = mob;
         var changed = false;
 
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFLightFlags, update.LightFlags);
-        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.ObjFLightAid, update.LightArtId);
-        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFLightColor, update.LightColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.LightFlags, update.LightFlags);
+        changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.LightAid, update.LightArtId);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.LightColor, update.LightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightFlags, update.OverlayLightFlags);
         changed |= ApplyWholeInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFOverlayLightAid,
+            ObjectField.OverlayLightAid,
             update.OverlayLightArtIds
         );
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFOverlayLightColor, update.OverlayLightColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightColor, update.OverlayLightColor);
 
         return changed ? updated : null;
     }
@@ -10377,7 +10377,7 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(update);
 
         var updated = proto;
-        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFNpcGeneratorData, update.GeneratorData);
+        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.NpcGeneratorData, update.GeneratorData);
         return changed ? updated : null;
     }
 
@@ -10387,7 +10387,7 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(update);
 
         var updated = mob;
-        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFNpcGeneratorData, update.GeneratorData);
+        var changed = ApplyInt32PropertyUpdate(ref updated, ObjectField.NpcGeneratorData, update.GeneratorData);
         return changed ? updated : null;
     }
 
@@ -10401,13 +10401,13 @@ public sealed class EditorWorkspaceSession
 
         changed |= ApplyInt32PropertyUpdate(
             ref updated,
-            ObjectField.ObjFBlitFlags,
+            ObjectField.BlitFlags,
             update.BlitFlags.HasValue ? unchecked((int)update.BlitFlags.Value) : null
         );
-        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFBlitColor, update.BlitColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitAlpha, update.BlitAlpha);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitScale, update.BlitScale);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFMaterial, update.Material);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.BlitColor, update.BlitColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.BlitAlpha, update.BlitAlpha);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.BlitScale, update.BlitScale);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.Material, update.Material);
 
         return changed ? updated : null;
     }
@@ -10422,13 +10422,13 @@ public sealed class EditorWorkspaceSession
 
         changed |= ApplyInt32PropertyUpdate(
             ref updated,
-            ObjectField.ObjFBlitFlags,
+            ObjectField.BlitFlags,
             update.BlitFlags.HasValue ? unchecked((int)update.BlitFlags.Value) : null
         );
-        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.ObjFBlitColor, update.BlitColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitAlpha, update.BlitAlpha);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFBlitScale, update.BlitScale);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFMaterial, update.Material);
+        changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.BlitColor, update.BlitColor);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.BlitAlpha, update.BlitAlpha);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.BlitScale, update.BlitScale);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.Material, update.Material);
 
         return changed ? updated : null;
     }
@@ -10444,29 +10444,29 @@ public sealed class EditorWorkspaceSession
         var updated = mob;
         var changed = false;
 
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatiguePts, update.FatiguePoints);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ObjFCritterFatigueAdj, update.FatigueAdjustment);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.CritterFatiguePts, update.FatiguePoints);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.CritterFatigueAdj, update.FatigueAdjustment);
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterStatBaseIdx,
+            ObjectField.CritterStatBaseIdx,
             28,
             CreateCritterBaseStatProgressionUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterBasicSkillIdx,
+            ObjectField.CritterBasicSkillIdx,
             12,
             CreateCritterBasicSkillUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterTechSkillIdx,
+            ObjectField.CritterTechSkillIdx,
             4,
             CreateCritterTechSkillUpdates(update)
         );
         changed |= ApplyInt32ArrayPropertyUpdate(
             ref updated,
-            ObjectField.ObjFCritterSpellTechIdx,
+            ObjectField.CritterSpellTechIdx,
             25,
             CreateCritterSpellTechUpdates(update)
         );
@@ -10814,13 +10814,13 @@ public sealed class EditorWorkspaceSession
     {
         ArgumentNullException.ThrowIfNull(proto);
 
-        var currentProperty = proto.GetProperty(ObjectField.ObjFScriptsIdx);
+        var currentProperty = proto.GetProperty(ObjectField.ScriptsIdx);
         var updatedScripts = CreateUpdatedScriptAttachments(currentProperty, slotIndex, attachment);
         if (updatedScripts is null)
             return null;
 
         return updatedScripts.Length == 0
-            ? proto.WithoutProperty(ObjectField.ObjFScriptsIdx)
+            ? proto.WithoutProperty(ObjectField.ScriptsIdx)
             : proto.WithProperty(CreateScriptArrayProperty(currentProperty, updatedScripts));
     }
 
@@ -10828,13 +10828,13 @@ public sealed class EditorWorkspaceSession
     {
         ArgumentNullException.ThrowIfNull(mob);
 
-        var currentProperty = mob.GetProperty(ObjectField.ObjFScriptsIdx);
+        var currentProperty = mob.GetProperty(ObjectField.ScriptsIdx);
         var updatedScripts = CreateUpdatedScriptAttachments(currentProperty, slotIndex, attachment);
         if (updatedScripts is null)
             return null;
 
         return updatedScripts.Length == 0
-            ? mob.WithoutProperty(ObjectField.ObjFScriptsIdx)
+            ? mob.WithoutProperty(ObjectField.ScriptsIdx)
             : mob.WithProperty(CreateScriptArrayProperty(currentProperty, updatedScripts));
     }
 
@@ -10873,7 +10873,7 @@ public sealed class EditorWorkspaceSession
         }
 
         return (
-            currentProperty ?? new ObjectProperty { Field = ObjectField.ObjFScriptsIdx, RawBytes = [0] }
+            currentProperty ?? new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }
         ).WithScriptArray(scripts);
     }
 
@@ -12188,19 +12188,19 @@ public sealed class EditorWorkspaceSession
                 return false;
         }
 
-        if ((TryGetObjectIntProperty(candidate, ObjectField.ObjFOffsetX) ?? 0) != selectedObject.OffsetX)
+        if ((TryGetObjectIntProperty(candidate, ObjectField.OffsetX) ?? 0) != selectedObject.OffsetX)
             return false;
 
-        if ((TryGetObjectIntProperty(candidate, ObjectField.ObjFOffsetY) ?? 0) != selectedObject.OffsetY)
+        if ((TryGetObjectIntProperty(candidate, ObjectField.OffsetY) ?? 0) != selectedObject.OffsetY)
             return false;
 
-        if (TryGetObjectFloatProperty(candidate, ObjectField.ObjFOffsetZ) != selectedObject.OffsetZ)
+        if (TryGetObjectFloatProperty(candidate, ObjectField.OffsetZ) != selectedObject.OffsetZ)
             return false;
 
-        if (TryGetObjectFloatProperty(candidate, ObjectField.ObjFRotationPitch) != selectedObject.RotationPitch)
+        if (TryGetObjectFloatProperty(candidate, ObjectField.RotationPitch) != selectedObject.RotationPitch)
             return false;
 
-        var candidateCurrentArtId = TryGetObjectArtId(candidate, ObjectField.ObjFCurrentAid);
+        var candidateCurrentArtId = TryGetObjectArtId(candidate, ObjectField.CurrentAid);
         return selectedObject.CurrentArtId.Value == 0u
             || candidateCurrentArtId.Value == 0u
             || candidateCurrentArtId == selectedObject.CurrentArtId;
@@ -12216,7 +12216,7 @@ public sealed class EditorWorkspaceSession
 
     private static (int X, int Y)? TryGetObjectLocation(MobData mob)
     {
-        var locationProperty = mob.GetProperty(ObjectField.ObjFLocation);
+        var locationProperty = mob.GetProperty(ObjectField.Location);
         if (locationProperty is null)
             return null;
 
@@ -12297,7 +12297,7 @@ public sealed class EditorWorkspaceSession
         if (TryResolvePlacementCurrentArtId(proto, request, out var currentArtId))
         {
             builder.WithProperty(
-                ObjectPropertyFactory.ForInt32(ObjectField.ObjFCurrentAid, unchecked((int)currentArtId.Value))
+                ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)currentArtId.Value))
             );
         }
 
@@ -12324,7 +12324,7 @@ public sealed class EditorWorkspaceSession
             return false;
 
         if (
-            proto.GetProperty(ObjectField.ObjFCurrentAid) is { ParseNote: null } existingCurrentArtId
+            proto.GetProperty(ObjectField.CurrentAid) is { ParseNote: null } existingCurrentArtId
             && unchecked((uint)existingCurrentArtId.GetInt32()) != 0u
         )
         {

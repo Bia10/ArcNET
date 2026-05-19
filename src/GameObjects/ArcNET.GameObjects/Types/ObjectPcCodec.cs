@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -24,55 +24,55 @@ internal static class ObjectPcCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFPcFlags))
+        if (Bit(ObjectField.PcFlags))
             obj.PcFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcFlagsFate))
+        if (Bit(ObjectField.PcFlagsFate))
             obj.FateFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcReputationIdx))
+        if (Bit(ObjectField.PcReputationIdx))
             obj.Reputation = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcReputationTsIdx))
+        if (Bit(ObjectField.PcReputationTsIdx))
             obj.ReputationTs = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcBackground))
+        if (Bit(ObjectField.PcBackground))
             obj.Background = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcBackgroundText))
+        if (Bit(ObjectField.PcBackgroundText))
             obj.BackgroundText = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcQuestIdx))
+        if (Bit(ObjectField.PcQuestIdx))
             obj.Quest = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcBlessingIdx))
+        if (Bit(ObjectField.PcBlessingIdx))
             obj.Blessing = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcBlessingTsIdx))
+        if (Bit(ObjectField.PcBlessingTsIdx))
             obj.BlessingTs = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcCurseIdx))
+        if (Bit(ObjectField.PcCurseIdx))
             obj.Curse = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcCurseTsIdx))
+        if (Bit(ObjectField.PcCurseTsIdx))
             obj.CurseTs = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcPartyId))
+        if (Bit(ObjectField.PcPartyId))
             obj.PartyId = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcRumorIdx))
+        if (Bit(ObjectField.PcRumorIdx))
             obj.Rumor = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcPadIas2))
+        if (Bit(ObjectField.PcPadIas2))
             obj.PcPadIas2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcSchematicsFoundIdx))
+        if (Bit(ObjectField.PcSchematicsFoundIdx))
             obj.SchematicsFound = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcLogbookEgoIdx))
+        if (Bit(ObjectField.PcLogbookEgoIdx))
             obj.LogbookEgo = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcFogMask))
+        if (Bit(ObjectField.PcFogMask))
             obj.FogMask = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcPlayerName))
+        if (Bit(ObjectField.PcPlayerName))
             obj.PlayerName = ObjectSerializationHelpers.ReadRawString(ref reader);
-        if (Bit(ObjectField.ObjFPcBankMoney))
+        if (Bit(ObjectField.PcBankMoney))
             obj.BankMoney = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcGlobalFlags))
+        if (Bit(ObjectField.PcGlobalFlags))
             obj.GlobalFlags = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcGlobalVariables))
+        if (Bit(ObjectField.PcGlobalVariables))
             obj.GlobalVariables = ObjectCommon.ReadIndexedInts(ref reader);
-        if (Bit(ObjectField.ObjFPcPadI1))
+        if (Bit(ObjectField.PcPadI1))
             obj.PcPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcPadI2))
+        if (Bit(ObjectField.PcPadI2))
             obj.PcPadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcPadIas1))
+        if (Bit(ObjectField.PcPadIas1))
             obj.PcPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFPcPadI64As1))
+        if (Bit(ObjectField.PcPadI64As1))
             obj.PcPadI64As1Reserved = reader.ReadInt64();
     }
 
@@ -80,55 +80,55 @@ internal static class ObjectPcCodec
     {
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
 
-        if (Bit(ObjectField.ObjFPcFlags))
+        if (Bit(ObjectField.PcFlags))
             writer.WriteInt32(obj.PcFlags);
-        if (Bit(ObjectField.ObjFPcFlagsFate))
+        if (Bit(ObjectField.PcFlagsFate))
             writer.WriteInt32(obj.FateFlags);
-        if (Bit(ObjectField.ObjFPcReputationIdx))
+        if (Bit(ObjectField.PcReputationIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Reputation);
-        if (Bit(ObjectField.ObjFPcReputationTsIdx))
+        if (Bit(ObjectField.PcReputationTsIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ReputationTs);
-        if (Bit(ObjectField.ObjFPcBackground))
+        if (Bit(ObjectField.PcBackground))
             writer.WriteInt32(obj.Background);
-        if (Bit(ObjectField.ObjFPcBackgroundText))
+        if (Bit(ObjectField.PcBackgroundText))
             writer.WriteInt32(obj.BackgroundText);
-        if (Bit(ObjectField.ObjFPcQuestIdx))
+        if (Bit(ObjectField.PcQuestIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Quest);
-        if (Bit(ObjectField.ObjFPcBlessingIdx))
+        if (Bit(ObjectField.PcBlessingIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Blessing);
-        if (Bit(ObjectField.ObjFPcBlessingTsIdx))
+        if (Bit(ObjectField.PcBlessingTsIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.BlessingTs);
-        if (Bit(ObjectField.ObjFPcCurseIdx))
+        if (Bit(ObjectField.PcCurseIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Curse);
-        if (Bit(ObjectField.ObjFPcCurseTsIdx))
+        if (Bit(ObjectField.PcCurseTsIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.CurseTs);
-        if (Bit(ObjectField.ObjFPcPartyId))
+        if (Bit(ObjectField.PcPartyId))
             writer.WriteInt32(obj.PartyId);
-        if (Bit(ObjectField.ObjFPcRumorIdx))
+        if (Bit(ObjectField.PcRumorIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Rumor);
-        if (Bit(ObjectField.ObjFPcPadIas2))
+        if (Bit(ObjectField.PcPadIas2))
             writer.WriteInt32(obj.PcPadIas2Reserved);
-        if (Bit(ObjectField.ObjFPcSchematicsFoundIdx))
+        if (Bit(ObjectField.PcSchematicsFoundIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.SchematicsFound);
-        if (Bit(ObjectField.ObjFPcLogbookEgoIdx))
+        if (Bit(ObjectField.PcLogbookEgoIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.LogbookEgo);
-        if (Bit(ObjectField.ObjFPcFogMask))
+        if (Bit(ObjectField.PcFogMask))
             writer.WriteInt32(obj.FogMask);
-        if (Bit(ObjectField.ObjFPcPlayerName))
+        if (Bit(ObjectField.PcPlayerName))
             ObjectSerializationHelpers.WriteRawString(ref writer, obj.PlayerName);
-        if (Bit(ObjectField.ObjFPcBankMoney))
+        if (Bit(ObjectField.PcBankMoney))
             writer.WriteInt32(obj.BankMoney);
-        if (Bit(ObjectField.ObjFPcGlobalFlags))
+        if (Bit(ObjectField.PcGlobalFlags))
             ObjectCommon.WriteIndexedInts(ref writer, obj.GlobalFlags);
-        if (Bit(ObjectField.ObjFPcGlobalVariables))
+        if (Bit(ObjectField.PcGlobalVariables))
             ObjectCommon.WriteIndexedInts(ref writer, obj.GlobalVariables);
-        if (Bit(ObjectField.ObjFPcPadI1))
+        if (Bit(ObjectField.PcPadI1))
             writer.WriteInt32(obj.PcPadI1Reserved);
-        if (Bit(ObjectField.ObjFPcPadI2))
+        if (Bit(ObjectField.PcPadI2))
             writer.WriteInt32(obj.PcPadI2Reserved);
-        if (Bit(ObjectField.ObjFPcPadIas1))
+        if (Bit(ObjectField.PcPadIas1))
             writer.WriteInt32(obj.PcPadIas1Reserved);
-        if (Bit(ObjectField.ObjFPcPadI64As1))
+        if (Bit(ObjectField.PcPadI64As1))
             writer.WriteInt64(obj.PcPadI64As1Reserved);
     }
 }

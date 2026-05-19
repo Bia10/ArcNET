@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Reflection;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
@@ -46,8 +46,8 @@ public class ObjectTypeRoundTripTests
         obj.OverlayLightFlags = 1;
         obj.OverlayLightAid = [11, 22];
         obj.OverlayLightColor = 0x112233;
-        obj.ObjectFlags = ObjFFlags.Flat | ObjFFlags.Translucent | ObjFFlags.Inventory;
-        obj.SpellFlags = ObjFSpellFlags.Invisible | ObjFSpellFlags.DetectingMagic | ObjFSpellFlags.Shielded;
+        obj.ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory;
+        obj.SpellFlags = SpellFlags.Invisible | SpellFlags.DetectingMagic | SpellFlags.Shielded;
         obj.BlockingMask = 0xAA;
         obj.Name = 42;
         obj.Description = 99;
@@ -73,7 +73,7 @@ public class ObjectTypeRoundTripTests
     private static void PopulateItem(ObjectItem obj)
     {
         PopulateCommon(obj);
-        obj.ItemFlags = ObjFItemFlags.Identified | ObjFItemFlags.IsMagical;
+        obj.ItemFlags = ItemFlags.Identified | ItemFlags.IsMagical;
         obj.ItemParent = TestGuid;
         obj.ItemWeight = 10;
         obj.ItemMagicWeightAdj = 2;
@@ -186,7 +186,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectPortal();
         PopulateCommon(original);
-        original.PortalFlags = ObjFPortalFlags.Locked;
+        original.PortalFlags = PortalFlags.Locked;
         original.LockDifficulty = 50;
         original.KeyId = 7;
         original.NotifyNpc = 1;
@@ -210,7 +210,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectContainer();
         PopulateCommon(original);
-        original.ContainerFlags = ObjFContainerFlags.Jammed;
+        original.ContainerFlags = ContainerFlags.Jammed;
         original.LockDifficulty = 30;
         original.KeyId = 5;
         original.InventoryList =
@@ -237,13 +237,13 @@ public class ObjectTypeRoundTripTests
     public async Task ObjectContainer_SeparatesObjectFlagsAndContainerFlags()
     {
         ObjectCommon common = new ObjectContainer();
-        common.ObjectFlags = ObjFFlags.Dynamic | ObjFFlags.Inventory;
+        common.ObjectFlags = ObjectFlags.Dynamic | ObjectFlags.Inventory;
 
         var container = (ObjectContainer)common;
-        container.ContainerFlags = ObjFContainerFlags.Locked | ObjFContainerFlags.Jammed;
+        container.ContainerFlags = ContainerFlags.Locked | ContainerFlags.Jammed;
 
-        await Assert.That(common.ObjectFlags).IsEqualTo(ObjFFlags.Dynamic | ObjFFlags.Inventory);
-        await Assert.That(container.ContainerFlags).IsEqualTo(ObjFContainerFlags.Locked | ObjFContainerFlags.Jammed);
+        await Assert.That(common.ObjectFlags).IsEqualTo(ObjectFlags.Dynamic | ObjectFlags.Inventory);
+        await Assert.That(container.ContainerFlags).IsEqualTo(ContainerFlags.Locked | ContainerFlags.Jammed);
     }
 
     // ── ObjectScenery ────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectScenery();
         PopulateCommon(original);
-        original.SceneryFlags = ObjFSceneryFlags.Busted | ObjFSceneryFlags.MarksTownmap;
+        original.SceneryFlags = SceneryFlags.Busted | SceneryFlags.MarksTownmap;
         original.WhosInMe = TestGuid;
         original.RespawnDelay = 120;
         SetReserved<ObjectScenery>(original, "_sceneryPadI2Reserved", 1);
@@ -320,7 +320,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectWeapon();
         PopulateItem(original);
-        original.WeaponFlags = ObjFWeaponFlags.Loud;
+        original.WeaponFlags = WeaponFlags.Loud;
         original.PaperDollAid = 2;
         original.BonusToHit = 3;
         original.MagicHitAdj = 1;
@@ -386,7 +386,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectArmor();
         PopulateItem(original);
-        original.ArmorFlags = ObjFArmorFlags.SizeLarge;
+        original.ArmorFlags = ArmorFlags.SizeLarge;
         original.PaperDollAid = 7;
         original.AcAdj = 5;
         original.MagicAcAdj = 2;
@@ -567,8 +567,8 @@ public class ObjectTypeRoundTripTests
         var bitmap = EmptyBitmap;
         var original = new ObjectNpc();
         PopulateCommon(original);
-        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.Animal | ObjFCritterFlags.Sleeping;
-        original.CritterFlags2 = ObjFCritterFlags2.AutoAnimates | ObjFCritterFlags2.UsingBoomerang;
+        original.CritterFlags = CritterFlags.Undead | CritterFlags.Animal | CritterFlags.Sleeping;
+        original.CritterFlags2 = CritterFlags2.AutoAnimates | CritterFlags2.UsingBoomerang;
         original.CritterStatBase = [10, 11, 12];
         original.CritterInventoryList = [TestGuid];
         original.CritterFollowers =
@@ -577,7 +577,7 @@ public class ObjectTypeRoundTripTests
         ];
         original.CritterTeleportDest = TestLocation;
         PopulateCritterReserved(original);
-        original.NpcFlags = ObjFNpcFlags.Fighting;
+        original.NpcFlags = NpcFlags.Fighting;
         original.Leader = TestGuid;
         original.ExperienceWorth = 250;
         original.Waypoints = [TestLocation, new Location(30, 40)];
@@ -600,8 +600,8 @@ public class ObjectTypeRoundTripTests
         var bitmap = EmptyBitmap;
         var original = new ObjectCritter();
         PopulateCommon(original);
-        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee;
-        original.CritterFlags2 = ObjFCritterFlags2.DarkSight | ObjFCritterFlags2.NoDecay;
+        original.CritterFlags = CritterFlags.Undead | CritterFlags.NoFlee;
+        original.CritterFlags2 = CritterFlags2.DarkSight | CritterFlags2.NoDecay;
         original.CritterStatBase = [10, 11, 12];
         original.CritterEffects = [5, 6];
         original.CritterFleeingFrom = TestGuid;
@@ -619,9 +619,9 @@ public class ObjectTypeRoundTripTests
         var restored = ObjectCritter.Read(ref reader, bitmap, isPrototype: true);
 
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
-        await Assert.That(restored.ObjectFlags).IsEqualTo(ObjFFlags.Flat | ObjFFlags.Translucent | ObjFFlags.Inventory);
-        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.NoFlee);
-        await Assert.That(restored.CritterFlags2).IsEqualTo(ObjFCritterFlags2.DarkSight | ObjFCritterFlags2.NoDecay);
+        await Assert.That(restored.ObjectFlags).IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory);
+        await Assert.That(restored.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.NoFlee);
+        await Assert.That(restored.CritterFlags2).IsEqualTo(CritterFlags2.DarkSight | CritterFlags2.NoDecay);
         await Assert.That(restored.CritterStatBase).IsEquivalentTo([10, 11, 12]);
         await Assert.That(restored.CritterEffects).IsEquivalentTo([5, 6]);
         await Assert.That(restored.CritterFleeingFrom).IsEqualTo(TestGuid);
@@ -637,11 +637,11 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectNpc();
         PopulateCommon(original);
-        original.CritterFlags = ObjFCritterFlags.Undead | ObjFCritterFlags.Animal;
+        original.CritterFlags = CritterFlags.Undead | CritterFlags.Animal;
         original.CritterInventoryList = [TestGuid];
         original.CritterFollowers = [];
         original.CritterTeleportDest = TestLocation;
-        original.NpcFlags = ObjFNpcFlags.Fighting;
+        original.NpcFlags = NpcFlags.Fighting;
         original.Leader = TestGuid;
         original.ExperienceWorth = 250;
         original.Waypoints = [TestLocation, new Location(30, 40)];
@@ -654,9 +654,9 @@ public class ObjectTypeRoundTripTests
 
         await Assert.That(restoredGameObject.Type).IsEqualTo(ObjectType.Npc);
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
-        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.Undead | ObjFCritterFlags.Animal);
+        await Assert.That(restored.CritterFlags).IsEqualTo(CritterFlags.Undead | CritterFlags.Animal);
         await Assert.That(restored.CritterInventoryList).IsEquivalentTo([TestGuid]);
-        await Assert.That(restored.NpcFlags).IsEqualTo(ObjFNpcFlags.Fighting);
+        await Assert.That(restored.NpcFlags).IsEqualTo(NpcFlags.Fighting);
         await Assert.That(restored.Leader).IsEqualTo(TestGuid);
         await Assert.That(restored.ExperienceWorth).IsEqualTo(250);
         await Assert.That(restored.Waypoints).IsEquivalentTo([TestLocation, new Location(30, 40)]);
@@ -671,7 +671,7 @@ public class ObjectTypeRoundTripTests
         var bitmap = EmptyBitmap;
         var original = new ObjectPc();
         PopulateCommon(original);
-        original.CritterFlags = ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead;
+        original.CritterFlags = CritterFlags.IsConcealed | CritterFlags.Undead;
         original.CritterGold = 166;
         original.CritterArrows = 60;
         original.CritterBullets = 100;
@@ -701,7 +701,7 @@ public class ObjectTypeRoundTripTests
     {
         var original = new ObjectPc();
         PopulateCommon(original);
-        original.CritterFlags = ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead;
+        original.CritterFlags = CritterFlags.IsConcealed | CritterFlags.Undead;
         original.CritterGold = 166;
         original.CritterArrows = 60;
         original.CritterBullets = 100;
@@ -724,7 +724,7 @@ public class ObjectTypeRoundTripTests
 
         await Assert.That(restoredGameObject.Type).IsEqualTo(ObjectType.Pc);
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
-        await Assert.That(restored.CritterFlags).IsEqualTo(ObjFCritterFlags.IsConcealed | ObjFCritterFlags.Undead);
+        await Assert.That(restored.CritterFlags).IsEqualTo(CritterFlags.IsConcealed | CritterFlags.Undead);
         await Assert.That(restored.CritterGold).IsEqualTo(166);
         await Assert.That(restored.CritterArrows).IsEqualTo(60);
         await Assert.That(restored.PcFlags).IsEqualTo(2);
@@ -869,8 +869,8 @@ public class ObjectTypeRoundTripTests
     public async Task ObjectContainer_UsesInventoryListLength_WhenInventoryListIsSerialized()
     {
         var bitmap = EmptyBitmap;
-        bitmap.SetField(ObjectField.ObjFContainerInventoryNum, true);
-        bitmap.SetField(ObjectField.ObjFContainerInventoryListIdx, true);
+        bitmap.SetField(ObjectField.ContainerInventoryNum, true);
+        bitmap.SetField(ObjectField.ContainerInventoryListIdx, true);
 
         var original = new ObjectContainer();
         original.InventoryList = [TestGuid, TestGuid];
@@ -887,8 +887,8 @@ public class ObjectTypeRoundTripTests
     public async Task ObjectCritter_UsesInventoryListLength_WhenInventoryListIsSerialized()
     {
         var bitmap = EmptyBitmap;
-        bitmap.SetField(ObjectField.ObjFCritterInventoryNum, true);
-        bitmap.SetField(ObjectField.ObjFCritterInventoryListIdx, true);
+        bitmap.SetField(ObjectField.CritterInventoryNum, true);
+        bitmap.SetField(ObjectField.CritterInventoryListIdx, true);
 
         var original = new ObjectCritter();
         original.CritterInventoryList = [TestGuid];
@@ -905,7 +905,7 @@ public class ObjectTypeRoundTripTests
     public async Task ObjectContainer_RejectsInventoryListBitmapWithoutCount()
     {
         var bitmap = EmptyBitmap;
-        bitmap.SetField(ObjectField.ObjFContainerInventoryListIdx, true);
+        bitmap.SetField(ObjectField.ContainerInventoryListIdx, true);
 
         var original = new ObjectContainer();
         original.InventoryList = [TestGuid];

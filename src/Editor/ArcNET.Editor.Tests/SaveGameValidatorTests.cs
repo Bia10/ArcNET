@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -18,10 +18,10 @@ public sealed class SaveGameValidatorTests
 
         await Assert.That(issues.Count).IsEqualTo(2);
         await Assert
-            .That(issues.Any(issue => issue.Message.Contains("missing ObjFLocation", StringComparison.Ordinal)))
+            .That(issues.Any(issue => issue.Message.Contains("missing Location", StringComparison.Ordinal)))
             .IsTrue();
         await Assert
-            .That(issues.Any(issue => issue.Message.Contains("missing ObjFHpPts", StringComparison.Ordinal)))
+            .That(issues.Any(issue => issue.Message.Contains("missing HpPts", StringComparison.Ordinal)))
             .IsTrue();
     }
 

@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 using static ArcNET.Editor.SaveValidationIssue;
 
@@ -281,15 +281,13 @@ public static class SaveGameValidator
         // For PC objects: specific required fields.
         if (hdr.GameObjectType == ObjectType.Pc)
         {
-            if (!HasField(mob, ObjectField.ObjFLocation))
+            if (!HasField(mob, ObjectField.Location))
                 issues.Add(
-                    Warning(path, $"{label}: PC object is missing ObjFLocation — character will spawn at tile (0,0).")
+                    Warning(path, $"{label}: PC object is missing Location — character will spawn at tile (0,0).")
                 );
 
-            if (!HasField(mob, ObjectField.ObjFHpPts))
-                issues.Add(
-                    Warning(path, $"{label}: PC object is missing ObjFHpPts — engine will use prototype max HP.")
-                );
+            if (!HasField(mob, ObjectField.HpPts))
+                issues.Add(Warning(path, $"{label}: PC object is missing HpPts — engine will use prototype max HP."));
         }
     }
 

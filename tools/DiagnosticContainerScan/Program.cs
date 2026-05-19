@@ -1,4 +1,4 @@
-﻿// Diagnostic — scan Arcanum container protos for Fancy Chest and wrong inventory source.
+// Diagnostic — scan Arcanum container protos for Fancy Chest and wrong inventory source.
 // Uses the actual OFF (Object File Format) header layout from ArcanumResearchDoc.md.
 //
 // OFF Header layout (56 bytes, offsets 0x00–0x37):
@@ -14,10 +14,10 @@
 //   property data follows bitmap (4 bytes each, in bit-index order)
 //
 // ObjectField bits (from ArcNET ObjectField.cs):
-//   ObjFName=21, ObjFDescription=22, ObjFAid=23
-//   ObjFContainerFlags=64, ObjFContainerLockDifficulty=65, ObjFContainerKeyId=66,
-//   ObjFContainerInventoryNum=67, ObjFContainerInventoryListIdx=68, ObjFContainerInventorySource=69
-//   ObjFContainerNotifyNpc=70
+//   Name=21, Description=22, Aid=23
+//   ContainerFlags=64, ContainerLockDifficulty=65, ContainerKeyId=66,
+//   ContainerInventoryNum=67, ContainerInventoryListIdx=68, ContainerInventorySource=69
+//   ContainerNotifyNpc=70
 //
 // Run from repo root:
 //   dotnet run --project tools/DiagnosticContainerScan
@@ -33,13 +33,13 @@ const int BitmapLength = 12;
 const int HeaderSize = 0x38; // 56 bytes
 const int BitCount = BitmapLength * 8;
 
-const int ObjFNameBit = 21;
-const int ObjFDescriptionBit = 22;
-const int ObjFAidBit = 23;
-const int ObjFContainerInventorySourceBit = 69;
+const int NameBit = 21;
+const int DescriptionBit = 22;
+const int AidBit = 23;
+const int ContainerInventorySourceBit = 69;
 
 // Returns all set bits and their corresponding int32 property values, plus the byte offset
-// of ObjFContainerInventorySource within the file (for RawAtOffset patches).
+// of ContainerInventorySource within the file (for RawAtOffset patches).
 static (Dictionary<int, int> fields, int invSourceOffset) ReadAllProps(byte[] data)
 {
     var bitmap = new BitArray(data[HeaderSize..(HeaderSize + BitmapLength)]);
@@ -55,7 +55,7 @@ static (Dictionary<int, int> fields, int invSourceOffset) ReadAllProps(byte[] da
             break;
         var v = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(cursor));
         fields[bit] = v;
-        if (bit == ObjFContainerInventorySourceBit)
+        if (bit == ContainerInventorySourceBit)
             invSourceOffset = cursor;
         cursor += 4;
     }
@@ -84,7 +84,7 @@ Array.Sort(files);
 Console.WriteLine($"Scanning {files.Length} container protos in:\n  {ProtoDir}\n");
 
 // ── Pass 1: Protos with wrong InvSource — full field dump ──────────────
-Console.WriteLine("=== Protos with wrong ObjFContainerInventorySource (full field dump) ===\n");
+Console.WriteLine("=== Protos with wrong ContainerInventorySource (full field dump) ===\n");
 foreach (var file in files)
 {
     try
@@ -93,16 +93,16 @@ foreach (var file in files)
         if (!IsValidContainerProto(data, out _))
             continue;
         var (fields, invSourceOffset) = ReadAllProps(data);
-        if (!fields.TryGetValue(ObjFContainerInventorySourceBit, out var invSource) || invSource == 0)
+        if (!fields.TryGetValue(ContainerInventorySourceBit, out var invSource) || invSource == 0)
             continue;
 
-        var name = fields.TryGetValue(ObjFNameBit, out var nv) ? nv.ToString() : "-";
-        var desc = fields.TryGetValue(ObjFDescriptionBit, out var dv) ? dv.ToString() : "-";
-        var aid = fields.TryGetValue(ObjFAidBit, out var av) ? av.ToString() : "-";
+        var name = fields.TryGetValue(NameBit, out var nv) ? nv.ToString() : "-";
+        var desc = fields.TryGetValue(DescriptionBit, out var dv) ? dv.ToString() : "-";
+        var aid = fields.TryGetValue(AidBit, out var av) ? av.ToString() : "-";
 
         Console.WriteLine($"{Path.GetFileName(file)}  (proto id={ProtoIdFromFilename(file)})");
         Console.WriteLine(
-            $"  ObjFName(21)={name}  ObjFDesc(22)={desc}  ObjFAid(23)={aid}  InvSource={invSource}  InvSrcOffset=0x{invSourceOffset:X}"
+            $"  Name(21)={name}  Desc(22)={desc}  Aid(23)={aid}  InvSource={invSource}  InvSrcOffset=0x{invSourceOffset:X}"
         );
         Console.Write("  All set bits: ");
         foreach (var (bit, val) in fields.OrderBy(x => x.Key))
@@ -128,7 +128,7 @@ foreach (var file in files)
         if (!IsValidContainerProto(data, out _))
             continue;
         var (fields, invSourceOffset) = ReadAllProps(data);
-        if (!fields.TryGetValue(ObjFContainerInventorySourceBit, out var invSource) || invSource == 0)
+        if (!fields.TryGetValue(ContainerInventorySourceBit, out var invSource) || invSource == 0)
             continue;
         var protoId = ProtoIdFromFilename(file);
         Console.WriteLine(

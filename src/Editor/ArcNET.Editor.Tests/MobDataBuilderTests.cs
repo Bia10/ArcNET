@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Editor;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -50,11 +50,11 @@ public class MobDataBuilderTests
     public async Task WithProperty_AddNewField_AppearsInPropertiesAndBitmap()
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName))
+            .WithProperty(MakeProp(ObjectField.Name))
             .Build();
 
         await Assert.That(mob.Properties.Count).IsEqualTo(1);
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFName)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.Name)).IsTrue();
         await Assert.That(mob.Header.PropCollectionItems).IsEqualTo((short)1);
     }
 
@@ -62,8 +62,8 @@ public class MobDataBuilderTests
     public async Task WithProperty_DuplicateField_ReplacesExisting()
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName, 1))
-            .WithProperty(MakeProp(ObjectField.ObjFName, 99))
+            .WithProperty(MakeProp(ObjectField.Name, 1))
+            .WithProperty(MakeProp(ObjectField.Name, 99))
             .Build();
 
         await Assert.That(mob.Properties.Count).IsEqualTo(1);
@@ -76,20 +76,20 @@ public class MobDataBuilderTests
     public async Task WithoutProperty_ExistingField_Removed()
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName))
-            .WithoutProperty(ObjectField.ObjFName)
+            .WithProperty(MakeProp(ObjectField.Name))
+            .WithoutProperty(ObjectField.Name)
             .Build();
 
         await Assert.That(mob.Properties.Count).IsEqualTo(0);
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFName)).IsFalse();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.Name)).IsFalse();
     }
 
     [Test]
     public async Task WithoutProperty_AbsentField_NoChange()
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName))
-            .WithoutProperty(ObjectField.ObjFHpPts)
+            .WithProperty(MakeProp(ObjectField.Name))
+            .WithoutProperty(ObjectField.HpPts)
             .Build();
 
         await Assert.That(mob.Properties.Count).IsEqualTo(1);
@@ -102,7 +102,7 @@ public class MobDataBuilderTests
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId).WithLocation(tileX: 10, tileY: 20).Build();
 
-        var prop = mob.GetProperty(ObjectField.ObjFLocation);
+        var prop = mob.GetProperty(ObjectField.Location);
         await Assert.That(prop).IsNotNull();
 
         // Wire format: 1 presence byte + 8-byte int64
@@ -122,24 +122,24 @@ public class MobDataBuilderTests
     public async Task ConstructFromExisting_PreservesProperties()
     {
         var original = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName))
+            .WithProperty(MakeProp(ObjectField.Name))
             .Build();
 
-        var modified = new MobDataBuilder(original).WithProperty(MakeProp(ObjectField.ObjFHpPts, 50)).Build();
+        var modified = new MobDataBuilder(original).WithProperty(MakeProp(ObjectField.HpPts, 50)).Build();
 
         await Assert.That(modified.Properties.Count).IsEqualTo(2);
-        await Assert.That(modified.Header.Bitmap.HasField(ObjectField.ObjFName)).IsTrue();
-        await Assert.That(modified.Header.Bitmap.HasField(ObjectField.ObjFHpPts)).IsTrue();
+        await Assert.That(modified.Header.Bitmap.HasField(ObjectField.Name)).IsTrue();
+        await Assert.That(modified.Header.Bitmap.HasField(ObjectField.HpPts)).IsTrue();
     }
 
     [Test]
     public async Task ConstructFromExisting_DoesNotMutateOriginal()
     {
         var original = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName))
+            .WithProperty(MakeProp(ObjectField.Name))
             .Build();
 
-        _ = new MobDataBuilder(original).WithProperty(MakeProp(ObjectField.ObjFHpPts)).Build();
+        _ = new MobDataBuilder(original).WithProperty(MakeProp(ObjectField.HpPts)).Build();
 
         await Assert.That(original.Properties.Count).IsEqualTo(1);
     }
@@ -150,14 +150,14 @@ public class MobDataBuilderTests
     public async Task Build_WallMob_RoundTripsThroughMobFormat()
     {
         var mob = new MobDataBuilder(ObjectType.Wall, ObjectId, ProtoId)
-            .WithProperty(MakeProp(ObjectField.ObjFName, 100))
+            .WithProperty(MakeProp(ObjectField.Name, 100))
             .Build();
 
         var bytes = MobFormat.WriteToArray(in mob);
         var reparsed = MobFormat.ParseMemory(bytes);
 
         await Assert.That(reparsed.Header.GameObjectType).IsEqualTo(ObjectType.Wall);
-        var nameProp = reparsed.GetProperty(ObjectField.ObjFName);
+        var nameProp = reparsed.GetProperty(ObjectField.Name);
         await Assert.That(nameProp).IsNotNull();
         await Assert.That(BitConverter.ToInt32(nameProp!.RawBytes)).IsEqualTo(100);
     }

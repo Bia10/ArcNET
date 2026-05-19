@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -172,11 +172,11 @@ internal static class EditorArtReferenceReplacer
 
     private static bool IsArtProperty(ObjectField field) =>
         field
-            is ObjectField.ObjFCurrentAid
-                or ObjectField.ObjFShadow
-                or ObjectField.ObjFLightAid
-                or ObjectField.ObjFAid
-                or ObjectField.ObjFDestroyedAid;
+            is ObjectField.CurrentAid
+                or ObjectField.Shadow
+                or ObjectField.LightAid
+                or ObjectField.Aid
+                or ObjectField.DestroyedAid;
 
     private static bool TryGetArtId(ObjectProperty property, out uint artId)
     {

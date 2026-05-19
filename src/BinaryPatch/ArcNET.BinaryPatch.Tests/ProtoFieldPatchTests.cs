@@ -1,4 +1,4 @@
-﻿using ArcNET.BinaryPatch.Patches;
+using ArcNET.BinaryPatch.Patches;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -17,8 +17,8 @@ public sealed class ProtoFieldPatchTests
     private static byte[] BuildContainerProtoBytes(int inventorySource)
     {
         var bitmap = new byte[12]; // 12 bytes = 96 bits
-        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
-            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        bitmap[(int)ObjectField.ContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ContainerInventorySource & 7)
         );
 
         var header = new GameObjectHeader
@@ -39,7 +39,7 @@ public sealed class ProtoFieldPatchTests
             Header = header,
             Properties =
             [
-                new ObjectProperty { Field = ObjectField.ObjFContainerInventorySource, RawBytes = invSourceBytes },
+                new ObjectProperty { Field = ObjectField.ContainerInventorySource, RawBytes = invSourceBytes },
             ],
         };
 
@@ -57,7 +57,7 @@ public sealed class ProtoFieldPatchTests
             "test-patch",
             "test",
             "data/proto/containers/00000025.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue: 42,
             newValue: 0
         );
@@ -74,7 +74,7 @@ public sealed class ProtoFieldPatchTests
             "test-patch",
             "test",
             "data/proto/containers/00000025.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue: 42,
             newValue: 0
         );
@@ -103,7 +103,7 @@ public sealed class ProtoFieldPatchTests
             "test-patch",
             "test",
             "data/proto/containers/00000001.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue: 0,
             newValue: 99
         );
@@ -122,7 +122,7 @@ public sealed class ProtoFieldPatchTests
             "test-patch",
             "test",
             "data/proto/containers/00000025.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue: 42,
             newValue: 0
         );
@@ -130,7 +130,7 @@ public sealed class ProtoFieldPatchTests
         var patched = patch.Apply(bytes);
 
         var result = ProtoFormat.ParseMemory(patched);
-        var invSource = result.Properties.First(p => p.Field == ObjectField.ObjFContainerInventorySource);
+        var invSource = result.Properties.First(p => p.Field == ObjectField.ContainerInventorySource);
 
         await Assert.That(invSource.GetInt32()).IsEqualTo(0);
     }
@@ -139,9 +139,9 @@ public sealed class ProtoFieldPatchTests
     public async Task Apply_PreservesOtherFields_WhenMultiplePropsPresent()
     {
         var bitmap = new byte[12]; // 12 bytes = 96 bits
-        bitmap[(int)ObjectField.ObjFContainerFlags >> 3] |= (byte)(1 << ((int)ObjectField.ObjFContainerFlags & 7));
-        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
-            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        bitmap[(int)ObjectField.ContainerFlags >> 3] |= (byte)(1 << ((int)ObjectField.ContainerFlags & 7));
+        bitmap[(int)ObjectField.ContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ContainerInventorySource & 7)
         );
 
         var header = new GameObjectHeader
@@ -165,8 +165,8 @@ public sealed class ProtoFieldPatchTests
             Header = header,
             Properties =
             [
-                new ObjectProperty { Field = ObjectField.ObjFContainerFlags, RawBytes = flagBytes },
-                new ObjectProperty { Field = ObjectField.ObjFContainerInventorySource, RawBytes = srcBytes },
+                new ObjectProperty { Field = ObjectField.ContainerFlags, RawBytes = flagBytes },
+                new ObjectProperty { Field = ObjectField.ContainerInventorySource, RawBytes = srcBytes },
             ],
         };
 
@@ -176,7 +176,7 @@ public sealed class ProtoFieldPatchTests
             "test-patch",
             "test",
             "data/proto/containers/00000025.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue: 42,
             newValue: 0
         );
@@ -184,8 +184,8 @@ public sealed class ProtoFieldPatchTests
         var patched = patch.Apply(bytes);
         var result = ProtoFormat.ParseMemory(patched);
 
-        var flags = result.Properties.First(p => p.Field == ObjectField.ObjFContainerFlags);
-        var invSrc = result.Properties.First(p => p.Field == ObjectField.ObjFContainerInventorySource);
+        var flags = result.Properties.First(p => p.Field == ObjectField.ContainerFlags);
+        var invSrc = result.Properties.First(p => p.Field == ObjectField.ContainerInventorySource);
 
         await Assert.That(flags.GetInt32()).IsEqualTo(7);
         await Assert.That(invSrc.GetInt32()).IsEqualTo(0);
@@ -202,7 +202,7 @@ public sealed class ProtoFieldPatchTests
             "test-custom",
             "test",
             "data/proto/containers/00000025.pro",
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             needsApplyPredicate: null,
             transform: prop => new ObjectProperty { Field = prop.Field, RawBytes = [0, 0, 0, 0] }
         );

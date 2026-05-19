@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -45,12 +45,12 @@ public sealed class EditorObjectPaletteEntry
     public string? DisplayName { get; init; }
 
     /// <summary>
-    /// Raw message index stored in <c>ObjFName</c>, or <see langword="null"/> when absent.
+    /// Raw message index stored in <c>Name</c>, or <see langword="null"/> when absent.
     /// </summary>
     public int? NameMessageIndex { get; init; }
 
     /// <summary>
-    /// Raw message index stored in <c>ObjFDescription</c>, or <see langword="null"/> when absent.
+    /// Raw message index stored in <c>Description</c>, or <see langword="null"/> when absent.
     /// </summary>
     public int? DescriptionMessageIndex { get; init; }
 
@@ -60,7 +60,7 @@ public sealed class EditorObjectPaletteEntry
     public string? Description { get; init; }
 
     /// <summary>
-    /// Current art identifier stored in <c>ObjFCurrentAid</c>, or <see langword="null"/> when absent.
+    /// Current art identifier stored in <c>CurrentAid</c>, or <see langword="null"/> when absent.
     /// </summary>
     public ArtId? CurrentArtId { get; init; }
 

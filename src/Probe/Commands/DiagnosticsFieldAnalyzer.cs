@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.GameObjects;
 using Bia.ValueBuffers;
 using Probe;
@@ -9,14 +9,14 @@ internal static class DiagnosticsFieldAnalyzer
 {
     private static readonly ObjectField[] s_linkSummaryFields =
     [
-        ObjectField.ObjFCritterFleeingFrom,
-        ObjectField.ObjFCritterGold,
-        ObjectField.ObjFCritterArrows,
-        ObjectField.ObjFCritterBullets,
-        ObjectField.ObjFCritterPowerCells,
-        ObjectField.ObjFCritterFuel,
-        ObjectField.ObjFCritterInventoryListIdx,
-        ObjectField.ObjFCritterFollowerIdx,
+        ObjectField.CritterFleeingFrom,
+        ObjectField.CritterGold,
+        ObjectField.CritterArrows,
+        ObjectField.CritterBullets,
+        ObjectField.CritterPowerCells,
+        ObjectField.CritterFuel,
+        ObjectField.CritterInventoryListIdx,
+        ObjectField.CritterFollowerIdx,
     ];
 
     public static async Task WriteLinkFieldSummaryAsync(SharedProbeContext ctx)

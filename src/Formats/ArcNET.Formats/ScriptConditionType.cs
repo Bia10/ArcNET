@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Formats;
+namespace ArcNET.Formats;
 
 /// <summary>
 /// Script condition opcodes (SCT_* enum).
@@ -23,7 +23,7 @@ public enum ScriptConditionType : byte
     ObjIsInvisible = 15,
     ObjHasMirrorImage = 16,
     ObjHasItemNamed = 17,
-    ObjFollowingPc = 18,
+    ollowingPc = 18,
     ObjIsMonsterOfType = 19,
     ObjIsNamed = 20,
     ObjIsWieldingItem = 21,

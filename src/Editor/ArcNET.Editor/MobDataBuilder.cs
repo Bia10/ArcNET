@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -107,38 +107,38 @@ public sealed class MobDataBuilder
     }
 
     /// <summary>
-    /// Sets the <see cref="ObjectField.ObjFLocation"/> property from tile coordinates.
+    /// Sets the <see cref="ObjectField.Location"/> property from tile coordinates.
     /// Location is packed as <c>LOCATION_MAKE(x, y)</c>: lower 32 bits = X, upper 32 bits = Y.
     /// </summary>
     public MobDataBuilder WithLocation(int tileX, int tileY)
     {
         var packed = (long)tileX | ((long)tileY << 32);
-        // ObjFLocation wire type is Int64 — presence byte (1) + 8-byte value
+        // Location wire type is Int64 — presence byte (1) + 8-byte value
         var bytes = new byte[9];
         bytes[0] = 1; // presence = present
         BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(1), packed);
-        return WithProperty(new ObjectProperty { Field = ObjectField.ObjFLocation, RawBytes = bytes });
+        return WithProperty(new ObjectProperty { Field = ObjectField.Location, RawBytes = bytes });
     }
 
     /// <summary>
     /// Sets the screen-space tile offsets of the object.
     /// </summary>
     public MobDataBuilder WithOffset(int offsetX, int offsetY) =>
-        WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetX, offsetX))
-            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFOffsetY, offsetY));
+        WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetX, offsetX))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.OffsetY, offsetY));
 
     /// <summary>
     /// Sets the primary rotation of the object using the legacy
-    /// <see cref="ObjectField.ObjFPadIas1"/> field that stores <c>ObjFRotation</c>.
+    /// <see cref="ObjectField.PadIas1"/> field that stores <c>Rotation</c>.
     /// </summary>
     public MobDataBuilder WithRotation(float rotation) =>
-        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFPadIas1, rotation));
+        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.PadIas1, rotation));
 
     /// <summary>
-    /// Sets the pitch rotation of the object (<see cref="ObjectField.ObjFRotationPitch"/>).
+    /// Sets the pitch rotation of the object (<see cref="ObjectField.RotationPitch"/>).
     /// </summary>
     public MobDataBuilder WithRotationPitch(float rotationPitch) =>
-        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.ObjFRotationPitch, rotationPitch));
+        WithProperty(ObjectPropertyFactory.ForFloat(ObjectField.RotationPitch, rotationPitch));
 
     // ── Build ─────────────────────────────────────────────────────────────────
 

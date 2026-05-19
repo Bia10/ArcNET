@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -150,7 +150,7 @@ internal static class EditorScriptReferenceRetargeter
         for (var i = 0; i < properties.Count; i++)
         {
             var property = properties[i];
-            if (property.Field != ObjectField.ObjFScriptsIdx)
+            if (property.Field != ObjectField.ScriptsIdx)
             {
                 replacements[i] = property;
                 continue;

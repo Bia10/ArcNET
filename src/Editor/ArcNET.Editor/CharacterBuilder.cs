@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -46,7 +46,7 @@ public sealed class CharacterBuilder
 
     // ── Common object fields ──────────────────────────────────────────────────
 
-    /// <summary>Sets the tile position of the character (<c>ObjFLocation</c>).</summary>
+    /// <summary>Sets the tile position of the character (<c>Location</c>).</summary>
     public CharacterBuilder WithLocation(int tileX, int tileY)
     {
         _inner.WithLocation(tileX, tileY);
@@ -55,27 +55,27 @@ public sealed class CharacterBuilder
 
     /// <summary>
     /// Sets hit-point values.
-    /// <para><c>pts</c> → <c>ObjFHpPts</c> (base maximum HP).</para>
-    /// <para><c>adj</c> → <c>ObjFHpAdj</c> (adjustment/current damage offset; default 0).</para>
+    /// <para><c>pts</c> → <c>HpPts</c> (base maximum HP).</para>
+    /// <para><c>adj</c> → <c>HpAdj</c> (adjustment/current damage offset; default 0).</para>
     /// </summary>
     public CharacterBuilder WithHitPoints(int pts, int adj = 0)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFHpPts, pts));
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFHpAdj, adj));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.HpPts, pts));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.HpAdj, adj));
         return this;
     }
 
-    /// <summary>Sets the amount of damage the character has taken (<c>ObjFHpDamage</c>).</summary>
+    /// <summary>Sets the amount of damage the character has taken (<c>HpDamage</c>).</summary>
     public CharacterBuilder WithHpDamage(int damage)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFHpDamage, damage));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.HpDamage, damage));
         return this;
     }
 
     // ── Critter base fields (shared by PC and NPC) ────────────────────────────
 
     /// <summary>
-    /// Sets ability-score base values (<c>ObjFCritterStatBaseIdx</c>, Int32 array, 28 elements).
+    /// Sets ability-score base values (<c>CritterStatBaseIdx</c>, Int32 array, 28 elements).
     /// Arcanum's stat array contains all 28 critter stats in this order:
     /// STR, DEX, CON, BEAUT, INT, PERC, WILL, CHA, CARRY_WT, DMG_BONUS, AC_ADJ, SPEED,
     /// HEAL_RATE, POISON_REC, REACT_MOD, MAX_FOLL, MAGIC_TECH_APT, LEVEL, XP_TOTAL,
@@ -84,103 +84,103 @@ public sealed class CharacterBuilder
     /// </summary>
     public CharacterBuilder WithBaseStats(ReadOnlySpan<int> stats)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterStatBaseIdx, stats));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.CritterStatBaseIdx, stats));
         return this;
     }
 
-    /// <summary>Sets basic-skill ranks (<c>ObjFCritterBasicSkillIdx</c>, Int32 array).</summary>
+    /// <summary>Sets basic-skill ranks (<c>CritterBasicSkillIdx</c>, Int32 array).</summary>
     public CharacterBuilder WithBasicSkills(ReadOnlySpan<int> skills)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterBasicSkillIdx, skills));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.CritterBasicSkillIdx, skills));
         return this;
     }
 
-    /// <summary>Sets tech-skill ranks (<c>ObjFCritterTechSkillIdx</c>, Int32 array).</summary>
+    /// <summary>Sets tech-skill ranks (<c>CritterTechSkillIdx</c>, Int32 array).</summary>
     public CharacterBuilder WithTechSkills(ReadOnlySpan<int> skills)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterTechSkillIdx, skills));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.CritterTechSkillIdx, skills));
         return this;
     }
 
-    /// <summary>Sets spell/tech discipline ranks (<c>ObjFCritterSpellTechIdx</c>, Int32 array).</summary>
+    /// <summary>Sets spell/tech discipline ranks (<c>CritterSpellTechIdx</c>, Int32 array).</summary>
     public CharacterBuilder WithSpellTech(ReadOnlySpan<int> ranks)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFCritterSpellTechIdx, ranks));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.CritterSpellTechIdx, ranks));
         return this;
     }
 
     /// <summary>
     /// Sets fatigue values.
-    /// <para><c>pts</c> → <c>ObjFCritterFatiguePts</c> (base maximum fatigue).</para>
-    /// <para><c>adj</c> → <c>ObjFCritterFatigueAdj</c> (adjustment; default 0).</para>
+    /// <para><c>pts</c> → <c>CritterFatiguePts</c> (base maximum fatigue).</para>
+    /// <para><c>adj</c> → <c>CritterFatigueAdj</c> (adjustment; default 0).</para>
     /// </summary>
     public CharacterBuilder WithFatigue(int pts, int adj = 0)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatiguePts, pts));
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterFatigueAdj, adj));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterFatiguePts, pts));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterFatigueAdj, adj));
         return this;
     }
 
-    /// <summary>Sets the portrait art ID (<c>ObjFCritterPortrait</c>).</summary>
+    /// <summary>Sets the portrait art ID (<c>CritterPortrait</c>).</summary>
     public CharacterBuilder WithPortrait(int portraitId)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterPortrait, portraitId));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterPortrait, portraitId));
         return this;
     }
 
     /// <summary>
-    /// Sets the character's carried gold counter (<c>ObjFCritterGold</c>).
+    /// Sets the character's carried gold counter (<c>CritterGold</c>).
     /// This writes the raw critter scalar field used by the compact mob property layer.
     /// For PC records in the v2 <c>mobile.mdy</c> format, use <see cref="SaveGameEditor"/>
     /// or <see cref="CharacterRecord"/> for the player-character save-global gold surface.
     /// </summary>
     public CharacterBuilder WithGold(int amount)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterGold, amount));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterGold, amount));
         return this;
     }
 
     /// <summary>
     /// Replaces the character's inventory with the given item GUIDs
-    /// (<c>ObjFCritterInventoryListIdx</c>, HandleArray).
-    /// Also sets <c>ObjFCritterInventoryNum</c> to match the count.
+    /// (<c>CritterInventoryListIdx</c>, HandleArray).
+    /// Also sets <c>CritterInventoryNum</c> to match the count.
     /// </summary>
     public CharacterBuilder WithInventory(ReadOnlySpan<Guid> itemIds)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForObjectIdArray(ObjectField.ObjFCritterInventoryListIdx, itemIds));
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFCritterInventoryNum, itemIds.Length));
+        _inner.WithProperty(ObjectPropertyFactory.ForObjectIdArray(ObjectField.CritterInventoryListIdx, itemIds));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterInventoryNum, itemIds.Length));
         return this;
     }
 
     /// <summary>
     /// Replaces the character's follower list with the given critter GUIDs
-    /// (<c>ObjFCritterFollowerIdx</c>, HandleArray).
+    /// (<c>CritterFollowerIdx</c>, HandleArray).
     /// </summary>
     public CharacterBuilder WithFollowers(ReadOnlySpan<Guid> followerIds)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForObjectIdArray(ObjectField.ObjFCritterFollowerIdx, followerIds));
+        _inner.WithProperty(ObjectPropertyFactory.ForObjectIdArray(ObjectField.CritterFollowerIdx, followerIds));
         return this;
     }
 
     // ── PC-only fields ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Sets the player-visible character name (<c>ObjFPcPlayerName</c>, String).
+    /// Sets the player-visible character name (<c>PcPlayerName</c>, String).
     /// Only meaningful for <see cref="ObjectType.Pc"/> objects.
     /// </summary>
     public CharacterBuilder WithPlayerName(string name)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForString(ObjectField.ObjFPcPlayerName, name));
+        _inner.WithProperty(ObjectPropertyFactory.ForString(ObjectField.PcPlayerName, name));
         return this;
     }
 
     /// <summary>
-    /// Sets the bank balance (<c>ObjFPcBankMoney</c>).
+    /// Sets the bank balance (<c>PcBankMoney</c>).
     /// Only meaningful for <see cref="ObjectType.Pc"/> objects.
     /// </summary>
     public CharacterBuilder WithBankMoney(int amount)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.ObjFPcBankMoney, amount));
+        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.PcBankMoney, amount));
         return this;
     }
 

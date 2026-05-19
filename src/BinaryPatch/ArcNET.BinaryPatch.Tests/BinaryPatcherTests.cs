@@ -1,4 +1,4 @@
-﻿using ArcNET.BinaryPatch.Patches;
+using ArcNET.BinaryPatch.Patches;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
@@ -27,8 +27,8 @@ public sealed class BinaryPatcherTests : IDisposable
     private static byte[] BuildContainerProtoBytes(int inventorySource)
     {
         var bitmap = new byte[12]; // 12 bytes = 96 bits
-        bitmap[(int)ObjectField.ObjFContainerInventorySource >> 3] |= (byte)(
-            1 << ((int)ObjectField.ObjFContainerInventorySource & 7)
+        bitmap[(int)ObjectField.ContainerInventorySource >> 3] |= (byte)(
+            1 << ((int)ObjectField.ContainerInventorySource & 7)
         );
 
         var header = new GameObjectHeader
@@ -47,7 +47,7 @@ public sealed class BinaryPatcherTests : IDisposable
         var proto = new ProtoData
         {
             Header = header,
-            Properties = [new ObjectProperty { Field = ObjectField.ObjFContainerInventorySource, RawBytes = srcBytes }],
+            Properties = [new ObjectProperty { Field = ObjectField.ContainerInventorySource, RawBytes = srcBytes }],
         };
 
         return ProtoFormat.WriteToArray(in proto);
@@ -66,7 +66,7 @@ public sealed class BinaryPatcherTests : IDisposable
             "test-patch",
             "test",
             relativePath,
-            ObjectField.ObjFContainerInventorySource,
+            ObjectField.ContainerInventorySource,
             expectedValue,
             newValue
         );
@@ -93,7 +93,7 @@ public sealed class BinaryPatcherTests : IDisposable
         await Assert.That(results[0].Status).IsEqualTo(PatchStatus.Applied);
 
         var proto = ProtoFormat.ParseFile(path);
-        var src = proto.Properties.First(p => p.Field == ObjectField.ObjFContainerInventorySource);
+        var src = proto.Properties.First(p => p.Field == ObjectField.ContainerInventorySource);
         await Assert.That(src.GetInt32()).IsEqualTo(0);
     }
 

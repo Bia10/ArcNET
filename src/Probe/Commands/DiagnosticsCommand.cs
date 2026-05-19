@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using Bia.ValueBuffers;
@@ -34,7 +34,7 @@ internal sealed class DiagnosticsCommand : IProbeCommand
             await WriteLineAsync(
                 $"  PC[0]: bitmap_bits={firstPc.Header.Bitmap.Sum(b => int.PopCount(b))}  props={firstPc.Properties.Count}  propCollItems={firstPc.Header.PropCollectionItems}"
             );
-            var goldProp = firstPc.Properties.FirstOrDefault(p => p.Field == ObjectField.ObjFCritterGold);
+            var goldProp = firstPc.Properties.FirstOrDefault(p => p.Field == ObjectField.CritterGold);
             await WriteLineAsync($"  PC[0] gold: {(goldProp is null ? "absent" : goldProp.GetInt32().ToString())}");
             await WriteLineAsync($"  PC[0] bitmap: {ValueBufferText.FormatHex(firstPc.Header.Bitmap)}");
             await WriteLineAsync(

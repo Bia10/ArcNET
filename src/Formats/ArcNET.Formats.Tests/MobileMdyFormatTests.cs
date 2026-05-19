@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Buffers.Binary;
 using ArcNET.Core;
 using ArcNET.GameObjects;
@@ -28,7 +28,7 @@ public sealed class MobileMdyFormatTests
 
     /// <summary>
     /// Builds a minimal standard mob record binary (version + full mob header + props).
-    /// Wall type, bit 21 (ObjFName = Int32) set, value = 7.
+    /// Wall type, bit 21 (Name = Int32) set, value = 7.
     /// This is the complete binary that MobFormat.Parse / MobileMdyFormat expects.
     /// </summary>
     private static byte[] BuildMinimalWallMobRecord(int version = 0x77)
@@ -44,12 +44,12 @@ public sealed class MobileMdyFormatTests
         w.WriteUInt32((uint)ObjectType.Wall);
         w.WriteInt16(1); // PropCollectionItems
 
-        // Bitmap 12 bytes; set bit 21 (ObjFName)
+        // Bitmap 12 bytes; set bit 21 (Name)
         var bitmap = new byte[12];
         bitmap[2] = 0x20;
         w.WriteBytes(bitmap);
 
-        w.WriteInt32(7); // ObjFName = 7
+        w.WriteInt32(7); // Name = 7
 
         return buf.WrittenSpan.ToArray();
     }

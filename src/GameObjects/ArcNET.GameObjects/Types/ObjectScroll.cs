@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -17,15 +17,15 @@ public sealed class ObjectScroll : ObjectItem
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFScrollFlags))
+        if (Bit(ObjectField.ScrollFlags))
             obj.ScrollFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFScrollPadI1))
+        if (Bit(ObjectField.ScrollPadI1))
             obj._scrollPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFScrollPadI2))
+        if (Bit(ObjectField.ScrollPadI2))
             obj._scrollPadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFScrollPadIas1))
+        if (Bit(ObjectField.ScrollPadIas1))
             obj._scrollPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFScrollPadI64As1))
+        if (Bit(ObjectField.ScrollPadI64As1))
             obj._scrollPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -35,15 +35,15 @@ public sealed class ObjectScroll : ObjectItem
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFScrollFlags))
+        if (Bit(ObjectField.ScrollFlags))
             writer.WriteInt32(ScrollFlags);
-        if (Bit(ObjectField.ObjFScrollPadI1))
+        if (Bit(ObjectField.ScrollPadI1))
             writer.WriteInt32(_scrollPadI1Reserved);
-        if (Bit(ObjectField.ObjFScrollPadI2))
+        if (Bit(ObjectField.ScrollPadI2))
             writer.WriteInt32(_scrollPadI2Reserved);
-        if (Bit(ObjectField.ObjFScrollPadIas1))
+        if (Bit(ObjectField.ScrollPadIas1))
             writer.WriteInt32(_scrollPadIas1Reserved);
-        if (Bit(ObjectField.ObjFScrollPadI64As1))
+        if (Bit(ObjectField.ScrollPadI64As1))
             writer.WriteInt64(_scrollPadI64As1Reserved);
     }
 }

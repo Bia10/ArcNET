@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using static ArcNET.Formats.Tests.SpanWriterTestHelpers;
@@ -30,7 +30,7 @@ public sealed class ProtoFormatTests
 
     /// <summary>
     /// Builds a minimal valid PRO binary (prototype — OID_TYPE_BLOCKED ProtoId).
-    /// Scenery type, bitmap 12 bytes, bit 21 (ObjFName) set.
+    /// Scenery type, bitmap 12 bytes, bit 21 (Name) set.
     /// </summary>
     private static byte[] BuildMinimalSceneryProto()
     {
@@ -49,12 +49,12 @@ public sealed class ProtoFormatTests
 
             // NO PropCollectionItems field — prototype omits it
 
-            // Bitmap — 12 bytes; bit 21 = ObjFName
+            // Bitmap — 12 bytes; bit 21 = Name
             var bitmap = new byte[12];
             bitmap[2] = 0x20;
             w.WriteBytes(bitmap);
 
-            // ObjFName property — Int32
+            // Name property — Int32
             w.WriteInt32(99);
         });
     }
@@ -77,7 +77,7 @@ public sealed class ProtoFormatTests
         var proto = ProtoFormat.ParseMemory(bytes);
 
         await Assert.That(proto.Properties.Count).IsEqualTo(1);
-        await Assert.That(proto.Properties[0].Field).IsEqualTo(ObjectField.ObjFName);
+        await Assert.That(proto.Properties[0].Field).IsEqualTo(ObjectField.Name);
     }
 
     [Test]
@@ -159,11 +159,11 @@ public sealed class ProtoFormatTests
             WriteOidBlocked(w); // ProtoId — prototype marker
             WriteOidGuid(w, 2); // ObjectId
             w.WriteUInt32((uint)ObjectType.Trap);
-            // Bitmap 12 bytes, bit 21 set (ObjFName)
+            // Bitmap 12 bytes, bit 21 set (Name)
             var bitmap = new byte[12];
             bitmap[2] = 0x20;
             w.WriteBytes(bitmap);
-            w.WriteInt32(55); // ObjFName
+            w.WriteInt32(55); // Name
         });
 
         var proto = ProtoFormat.ParseMemory(bytes);

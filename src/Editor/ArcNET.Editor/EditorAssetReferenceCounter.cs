@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
 
@@ -294,7 +294,7 @@ internal static class EditorAssetReferenceCounter
     {
         foreach (var property in properties)
         {
-            if (property.Field != ObjectField.ObjFScriptsIdx)
+            if (property.Field != ObjectField.ScriptsIdx)
                 continue;
 
             if (!TryGetScriptArray(property, out var scripts))
@@ -316,11 +316,11 @@ internal static class EditorAssetReferenceCounter
         {
             switch (property.Field)
             {
-                case ObjectField.ObjFCurrentAid:
-                case ObjectField.ObjFShadow:
-                case ObjectField.ObjFLightAid:
-                case ObjectField.ObjFAid:
-                case ObjectField.ObjFDestroyedAid:
+                case ObjectField.CurrentAid:
+                case ObjectField.Shadow:
+                case ObjectField.LightAid:
+                case ObjectField.Aid:
+                case ObjectField.DestroyedAid:
                     if (TryGetArtId(property, out var artId))
                         IncrementNonZeroCount(counts, artId);
                     break;

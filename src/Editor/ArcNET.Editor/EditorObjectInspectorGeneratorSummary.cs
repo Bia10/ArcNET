@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -25,7 +25,7 @@ public sealed class EditorObjectInspectorGeneratorSummary
         return new EditorObjectInspectorGeneratorSummary
         {
             Inspector = inspector,
-            GeneratorData = ReadInt32(properties, ObjectField.ObjFNpcGeneratorData),
+            GeneratorData = ReadInt32(properties, ObjectField.NpcGeneratorData),
         };
     }
 

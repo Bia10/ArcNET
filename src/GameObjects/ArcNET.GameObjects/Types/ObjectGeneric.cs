@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -17,15 +17,15 @@ public sealed class ObjectGeneric : ObjectItem
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFGenericFlags))
+        if (Bit(ObjectField.GenericFlags))
             obj.GenericFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFGenericUsageBonus))
+        if (Bit(ObjectField.GenericUsageBonus))
             obj.UsageBonus = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFGenericUsageCountRemaining))
+        if (Bit(ObjectField.GenericUsageCountRemaining))
             obj.UsageCountRemaining = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFGenericPadIas1))
+        if (Bit(ObjectField.GenericPadIas1))
             obj._genericPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFGenericPadI64As1))
+        if (Bit(ObjectField.GenericPadI64As1))
             obj._genericPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -35,15 +35,15 @@ public sealed class ObjectGeneric : ObjectItem
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFGenericFlags))
+        if (Bit(ObjectField.GenericFlags))
             writer.WriteInt32(GenericFlags);
-        if (Bit(ObjectField.ObjFGenericUsageBonus))
+        if (Bit(ObjectField.GenericUsageBonus))
             writer.WriteInt32(UsageBonus);
-        if (Bit(ObjectField.ObjFGenericUsageCountRemaining))
+        if (Bit(ObjectField.GenericUsageCountRemaining))
             writer.WriteInt32(UsageCountRemaining);
-        if (Bit(ObjectField.ObjFGenericPadIas1))
+        if (Bit(ObjectField.GenericPadIas1))
             writer.WriteInt32(_genericPadIas1Reserved);
-        if (Bit(ObjectField.ObjFGenericPadI64As1))
+        if (Bit(ObjectField.GenericPadI64As1))
             writer.WriteInt64(_genericPadI64As1Reserved);
     }
 }

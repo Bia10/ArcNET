@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -17,15 +17,15 @@ public sealed class ObjectKey : ObjectItem
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFKeyKeyId))
+        if (Bit(ObjectField.KeyKeyId))
             obj.KeyId = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFKeyPadI1))
+        if (Bit(ObjectField.KeyPadI1))
             obj._keyPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFKeyPadI2))
+        if (Bit(ObjectField.KeyPadI2))
             obj._keyPadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFKeyPadIas1))
+        if (Bit(ObjectField.KeyPadIas1))
             obj._keyPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFKeyPadI64As1))
+        if (Bit(ObjectField.KeyPadI64As1))
             obj._keyPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -35,15 +35,15 @@ public sealed class ObjectKey : ObjectItem
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFKeyKeyId))
+        if (Bit(ObjectField.KeyKeyId))
             writer.WriteInt32(KeyId);
-        if (Bit(ObjectField.ObjFKeyPadI1))
+        if (Bit(ObjectField.KeyPadI1))
             writer.WriteInt32(_keyPadI1Reserved);
-        if (Bit(ObjectField.ObjFKeyPadI2))
+        if (Bit(ObjectField.KeyPadI2))
             writer.WriteInt32(_keyPadI2Reserved);
-        if (Bit(ObjectField.ObjFKeyPadIas1))
+        if (Bit(ObjectField.KeyPadIas1))
             writer.WriteInt32(_keyPadIas1Reserved);
-        if (Bit(ObjectField.ObjFKeyPadI64As1))
+        if (Bit(ObjectField.KeyPadI64As1))
             writer.WriteInt64(_keyPadI64As1Reserved);
     }
 }

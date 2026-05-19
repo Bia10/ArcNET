@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -9,7 +9,7 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class EditorObjectInspectorBlendingUpdate
 {
-    public ObjFBlitFlags? BlitFlags { get; init; }
+    public BlitFlags? BlitFlags { get; init; }
 
     public Color? BlitColor { get; init; }
 

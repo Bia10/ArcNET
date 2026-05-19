@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Higher-level host-neutral request that applies one or more object transforms to grouped scene-sector hits.
@@ -27,8 +27,8 @@ public sealed class EditorMapObjectTransformRequest
 
     /// <summary>
     /// Returns objects to their stored tile anchor by clearing screen-space tile offsets
-    /// such as <see cref="ArcNET.GameObjects.ObjectField.ObjFOffsetX"/> and
-    /// <see cref="ArcNET.GameObjects.ObjectField.ObjFOffsetY"/>.
+    /// such as <see cref="ArcNET.GameObjects.ObjectField.OffsetX"/> and
+    /// <see cref="ArcNET.GameObjects.ObjectField.OffsetY"/>.
     /// </summary>
     public bool AlignToTileGrid { get; init; }
 

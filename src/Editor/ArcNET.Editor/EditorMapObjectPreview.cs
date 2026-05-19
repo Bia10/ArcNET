@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -40,22 +40,22 @@ public sealed class EditorMapObjectPreview
     public Location? Location { get; init; }
 
     /// <summary>
-    /// Screen-space X offset taken from <see cref="ObjectField.ObjFOffsetX"/>.
+    /// Screen-space X offset taken from <see cref="ObjectField.OffsetX"/>.
     /// </summary>
     public int OffsetX { get; init; }
 
     /// <summary>
-    /// Screen-space Y offset taken from <see cref="ObjectField.ObjFOffsetY"/>.
+    /// Screen-space Y offset taken from <see cref="ObjectField.OffsetY"/>.
     /// </summary>
     public int OffsetY { get; init; }
 
     /// <summary>
-    /// Z-axis offset taken from <see cref="ObjectField.ObjFOffsetZ"/>.
+    /// Z-axis offset taken from <see cref="ObjectField.OffsetZ"/>.
     /// </summary>
     public float OffsetZ { get; init; }
 
     /// <summary>
-    /// Collision height taken from <see cref="ObjectField.ObjFHeight"/> when present.
+    /// Collision height taken from <see cref="ObjectField.Height"/> when present.
     /// </summary>
     public float CollisionHeight { get; init; }
 
@@ -65,13 +65,13 @@ public sealed class EditorMapObjectPreview
     public EditorMapObjectSpriteBounds? SpriteBounds { get; init; }
 
     /// <summary>
-    /// Primary rotation taken from the legacy <see cref="ObjectField.ObjFPadIas1"/> field that stores
-    /// <c>ObjFRotation</c>.
+    /// Primary rotation taken from the legacy <see cref="ObjectField.PadIas1"/> field that stores
+    /// <c>Rotation</c>.
     /// </summary>
     public float Rotation { get; init; }
 
     /// <summary>
-    /// Pitch rotation taken from <see cref="ObjectField.ObjFRotationPitch"/>.
+    /// Pitch rotation taken from <see cref="ObjectField.RotationPitch"/>.
     /// </summary>
     public required float RotationPitch { get; init; }
 

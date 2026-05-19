@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
@@ -20,21 +20,21 @@ public sealed class ObjectProjectile : ObjectCommon
         var obj = new ObjectProjectile();
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFProjectileFlagsCombat))
+        if (Bit(ObjectField.ProjectileFlagsCombat))
             obj.CombatFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))
+        if (Bit(ObjectField.ProjectileFlagsCombatDamage))
             obj.CombatDamageFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectileHitLoc))
+        if (Bit(ObjectField.ProjectileHitLoc))
             obj.HitLoc = reader.ReadLocation();
-        if (Bit(ObjectField.ObjFProjectileParentWeapon))
+        if (Bit(ObjectField.ProjectileParentWeapon))
             obj.ParentWeapon = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectilePadI1))
+        if (Bit(ObjectField.ProjectilePadI1))
             obj._projectilePadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectilePadI2))
+        if (Bit(ObjectField.ProjectilePadI2))
             obj._projectilePadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectilePadIas1))
+        if (Bit(ObjectField.ProjectilePadIas1))
             obj._projectilePadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFProjectilePadI64As1))
+        if (Bit(ObjectField.ProjectilePadI64As1))
             obj._projectilePadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -43,21 +43,21 @@ public sealed class ObjectProjectile : ObjectCommon
     {
         WriteCommonFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFProjectileFlagsCombat))
+        if (Bit(ObjectField.ProjectileFlagsCombat))
             writer.WriteInt32(CombatFlags);
-        if (Bit(ObjectField.ObjFProjectileFlagsCombatDamage))
+        if (Bit(ObjectField.ProjectileFlagsCombatDamage))
             writer.WriteInt32(CombatDamageFlags);
-        if (Bit(ObjectField.ObjFProjectileHitLoc))
+        if (Bit(ObjectField.ProjectileHitLoc))
             HitLoc.Write(ref writer);
-        if (Bit(ObjectField.ObjFProjectileParentWeapon))
+        if (Bit(ObjectField.ProjectileParentWeapon))
             writer.WriteInt32(ParentWeapon);
-        if (Bit(ObjectField.ObjFProjectilePadI1))
+        if (Bit(ObjectField.ProjectilePadI1))
             writer.WriteInt32(_projectilePadI1Reserved);
-        if (Bit(ObjectField.ObjFProjectilePadI2))
+        if (Bit(ObjectField.ProjectilePadI2))
             writer.WriteInt32(_projectilePadI2Reserved);
-        if (Bit(ObjectField.ObjFProjectilePadIas1))
+        if (Bit(ObjectField.ProjectilePadIas1))
             writer.WriteInt32(_projectilePadIas1Reserved);
-        if (Bit(ObjectField.ObjFProjectilePadI64As1))
+        if (Bit(ObjectField.ProjectilePadI64As1))
             writer.WriteInt64(_projectilePadI64As1Reserved);
     }
 }

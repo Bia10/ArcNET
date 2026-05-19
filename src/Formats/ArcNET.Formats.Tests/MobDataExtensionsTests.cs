@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -52,24 +52,24 @@ public class MobDataExtensionsTests
     [Test]
     public async Task GetProperty_PresentField_ReturnsProperty()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName));
-        var result = mob.GetProperty(ObjectField.ObjFName);
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name));
+        var result = mob.GetProperty(ObjectField.Name);
         await Assert.That(result).IsNotNull();
-        await Assert.That(result!.Field).IsEqualTo(ObjectField.ObjFName);
+        await Assert.That(result!.Field).IsEqualTo(ObjectField.Name);
     }
 
     [Test]
     public async Task GetProperty_AbsentField_ReturnsNull()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName));
-        await Assert.That(mob.GetProperty(ObjectField.ObjFHpPts)).IsNull();
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name));
+        await Assert.That(mob.GetProperty(ObjectField.HpPts)).IsNull();
     }
 
     [Test]
     public async Task GetProperty_EmptyProperties_ReturnsNull()
     {
         var mob = MakeMob(ObjectType.Wall);
-        await Assert.That(mob.GetProperty(ObjectField.ObjFName)).IsNull();
+        await Assert.That(mob.GetProperty(ObjectField.Name)).IsNull();
     }
 
     // ── WithProperty ─────────────────────────────────────────────────────────
@@ -78,18 +78,18 @@ public class MobDataExtensionsTests
     public async Task WithProperty_NewField_AppendsAndUpdatesHeader()
     {
         var mob = MakeMob(ObjectType.Wall);
-        var updated = mob.WithProperty(MakeProp(ObjectField.ObjFName));
+        var updated = mob.WithProperty(MakeProp(ObjectField.Name));
 
         await Assert.That(updated.Properties.Count).IsEqualTo(1);
-        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.ObjFName)).IsTrue();
+        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.Name)).IsTrue();
         await Assert.That(updated.Header.PropCollectionItems).IsEqualTo((short)1);
     }
 
     [Test]
     public async Task WithProperty_ExistingField_ReplacesValue()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName, 10));
-        var updated = mob.WithProperty(MakeProp(ObjectField.ObjFName, 99));
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name, 10));
+        var updated = mob.WithProperty(MakeProp(ObjectField.Name, 99));
 
         await Assert.That(updated.Properties.Count).IsEqualTo(1);
         await Assert.That(BitConverter.ToInt32(updated.Properties[0].RawBytes)).IsEqualTo(99);
@@ -99,23 +99,23 @@ public class MobDataExtensionsTests
     public async Task WithProperty_DoesNotMutateOriginal()
     {
         var mob = MakeMob(ObjectType.Wall);
-        _ = mob.WithProperty(MakeProp(ObjectField.ObjFName));
+        _ = mob.WithProperty(MakeProp(ObjectField.Name));
         await Assert.That(mob.Properties.Count).IsEqualTo(0);
     }
 
     [Test]
     public async Task WithProperty_NewLowerField_PreservesFieldOrderForRoundTrip()
     {
-        var mob = MakeMob(ObjectType.Npc, MakeProp(ObjectField.ObjFMaterial, 9));
+        var mob = MakeMob(ObjectType.Npc, MakeProp(ObjectField.Material, 9));
 
-        var updated = mob.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.ObjFOverlayLightAid, [7, 8]));
+        var updated = mob.WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightAid, [7, 8]));
         var reparsed = MobFormat.ParseMemory(MobFormat.WriteToArray(updated));
 
-        await Assert.That(updated.Properties[0].Field).IsEqualTo(ObjectField.ObjFOverlayLightAid);
-        await Assert.That(updated.Properties[1].Field).IsEqualTo(ObjectField.ObjFMaterial);
-        await Assert.That(reparsed.GetProperty(ObjectField.ObjFOverlayLightAid)).IsNotNull();
+        await Assert.That(updated.Properties[0].Field).IsEqualTo(ObjectField.OverlayLightAid);
+        await Assert.That(updated.Properties[1].Field).IsEqualTo(ObjectField.Material);
+        await Assert.That(reparsed.GetProperty(ObjectField.OverlayLightAid)).IsNotNull();
         await Assert
-            .That(reparsed.GetProperty(ObjectField.ObjFOverlayLightAid)!.GetInt32Array())
+            .That(reparsed.GetProperty(ObjectField.OverlayLightAid)!.GetInt32Array())
             .IsEquivalentTo([7, 8]);
     }
 
@@ -124,19 +124,19 @@ public class MobDataExtensionsTests
     [Test]
     public async Task WithoutProperty_ExistingField_RemovesAndUpdatesHeader()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName), MakeProp(ObjectField.ObjFHpPts));
-        var updated = mob.WithoutProperty(ObjectField.ObjFName);
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name), MakeProp(ObjectField.HpPts));
+        var updated = mob.WithoutProperty(ObjectField.Name);
 
         await Assert.That(updated.Properties.Count).IsEqualTo(1);
-        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.ObjFName)).IsFalse();
-        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.ObjFHpPts)).IsTrue();
+        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.Name)).IsFalse();
+        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.HpPts)).IsTrue();
     }
 
     [Test]
     public async Task WithoutProperty_AbsentField_LeavesUnchanged()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName));
-        var updated = mob.WithoutProperty(ObjectField.ObjFHpPts);
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name));
+        var updated = mob.WithoutProperty(ObjectField.HpPts);
         await Assert.That(updated.Properties.Count).IsEqualTo(1);
     }
 
@@ -145,16 +145,16 @@ public class MobDataExtensionsTests
     [Test]
     public async Task RebuildHeader_BitmapMatchesProperties()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName), MakeProp(ObjectField.ObjFHpPts));
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFName)).IsTrue();
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFHpPts)).IsTrue();
-        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.ObjFMaterial)).IsFalse();
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name), MakeProp(ObjectField.HpPts));
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.Name)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.HpPts)).IsTrue();
+        await Assert.That(mob.Header.Bitmap.HasField(ObjectField.Material)).IsFalse();
     }
 
     [Test]
     public async Task RebuildHeader_PropCollectionItems_MatchesCount()
     {
-        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.ObjFName), MakeProp(ObjectField.ObjFHpPts));
+        var mob = MakeMob(ObjectType.Wall, MakeProp(ObjectField.Name), MakeProp(ObjectField.HpPts));
         await Assert.That(mob.Header.PropCollectionItems).IsEqualTo((short)2);
     }
 
@@ -166,10 +166,10 @@ public class MobDataExtensionsTests
         var proto = new ProtoData
         {
             Header = MakeHeader(ObjectType.Wall, isProto: true),
-            Properties = [MakeProp(ObjectField.ObjFName)],
+            Properties = [MakeProp(ObjectField.Name)],
         }.RebuildHeader();
 
-        var result = proto.GetProperty(ObjectField.ObjFName);
+        var result = proto.GetProperty(ObjectField.Name);
         await Assert.That(result).IsNotNull();
     }
 
@@ -182,9 +182,9 @@ public class MobDataExtensionsTests
             Properties = [],
         }.RebuildHeader();
 
-        var updated = proto.WithProperty(MakeProp(ObjectField.ObjFName));
+        var updated = proto.WithProperty(MakeProp(ObjectField.Name));
         await Assert.That(updated.Properties.Count).IsEqualTo(1);
-        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.ObjFName)).IsTrue();
+        await Assert.That(updated.Header.Bitmap.HasField(ObjectField.Name)).IsTrue();
     }
 
     [Test]
@@ -193,10 +193,10 @@ public class MobDataExtensionsTests
         var proto = new ProtoData
         {
             Header = MakeHeader(ObjectType.Wall, isProto: true),
-            Properties = [MakeProp(ObjectField.ObjFName)],
+            Properties = [MakeProp(ObjectField.Name)],
         }.RebuildHeader();
 
-        var updated = proto.WithoutProperty(ObjectField.ObjFName);
+        var updated = proto.WithoutProperty(ObjectField.Name);
         await Assert.That(updated.Properties.Count).IsEqualTo(0);
     }
 }

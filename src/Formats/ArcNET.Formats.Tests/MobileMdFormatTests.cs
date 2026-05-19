@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Buffers.Binary;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
@@ -42,7 +42,7 @@ public sealed class MobileMdFormatTests
     /// Builds a minimal standard-format Wall mob body (without version prefix).
     /// The version is passed separately in the mobile.md envelope.
     /// Wire: ProtoId(24) + ObjectId(24) + type(4) + propCollItems(2) + bitmap(12) + props.
-    /// Bit 21 (ObjFName) is set; its payload is a single Int32.
+    /// Bit 21 (Name) is set; its payload is a single Int32.
     /// </summary>
     private static byte[] BuildWallMobBody(int version = 0x77)
     {
@@ -64,12 +64,12 @@ public sealed class MobileMdFormatTests
         // PropCollectionItems
         w.WriteInt16(1);
 
-        // Bitmap (12 bytes for Wall); set bit 21 (ObjFName)
+        // Bitmap (12 bytes for Wall); set bit 21 (Name)
         var bitmap = new byte[12];
         bitmap[2] = 0x20; // byte index 2 = bits 16-23; bit 5 of byte = bit index 21
         w.WriteBytes(bitmap);
 
-        // Property payload: ObjFName (Int32) = 99
+        // Property payload: Name (Int32) = 99
         w.WriteInt32(99);
 
         return buf.WrittenSpan.ToArray();

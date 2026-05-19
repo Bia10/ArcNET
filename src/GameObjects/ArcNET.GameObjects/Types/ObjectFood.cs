@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -17,15 +17,15 @@ public sealed class ObjectFood : ObjectItem
         obj.ReadCommonFields(ref reader, bitmap, isPrototype);
         obj.ReadItemFields(ref reader, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFFoodFlags))
+        if (Bit(ObjectField.FoodFlags))
             obj.FoodFlags = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFFoodPadI1))
+        if (Bit(ObjectField.FoodPadI1))
             obj._foodPadI1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFFoodPadI2))
+        if (Bit(ObjectField.FoodPadI2))
             obj._foodPadI2Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFFoodPadIas1))
+        if (Bit(ObjectField.FoodPadIas1))
             obj._foodPadIas1Reserved = reader.ReadInt32();
-        if (Bit(ObjectField.ObjFFoodPadI64As1))
+        if (Bit(ObjectField.FoodPadI64As1))
             obj._foodPadI64As1Reserved = reader.ReadInt64();
         return obj;
     }
@@ -35,15 +35,15 @@ public sealed class ObjectFood : ObjectItem
         WriteCommonFields(ref writer, bitmap, isPrototype);
         WriteItemFields(ref writer, bitmap, isPrototype);
         bool Bit(ObjectField f) => ObjectBitmap.IsFieldPresent(bitmap, f, isPrototype);
-        if (Bit(ObjectField.ObjFFoodFlags))
+        if (Bit(ObjectField.FoodFlags))
             writer.WriteInt32(FoodFlags);
-        if (Bit(ObjectField.ObjFFoodPadI1))
+        if (Bit(ObjectField.FoodPadI1))
             writer.WriteInt32(_foodPadI1Reserved);
-        if (Bit(ObjectField.ObjFFoodPadI2))
+        if (Bit(ObjectField.FoodPadI2))
             writer.WriteInt32(_foodPadI2Reserved);
-        if (Bit(ObjectField.ObjFFoodPadIas1))
+        if (Bit(ObjectField.FoodPadIas1))
             writer.WriteInt32(_foodPadIas1Reserved);
-        if (Bit(ObjectField.ObjFFoodPadI64As1))
+        if (Bit(ObjectField.FoodPadI64As1))
             writer.WriteInt64(_foodPadI64As1Reserved);
     }
 }

@@ -1,4 +1,4 @@
-﻿using ArcNET.GameObjects;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
 
@@ -8,27 +8,27 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class EditorObjectInspectorFlagsUpdate
 {
-    public ObjFFlags? ObjectFlags { get; init; }
+    public ObjectFlags? ObjectFlags { get; init; }
 
-    public ObjFSpellFlags? SpellFlags { get; init; }
+    public SpellFlags? SpellFlags { get; init; }
 
     public int? WallFlags { get; init; }
 
-    public ObjFPortalFlags? PortalFlags { get; init; }
+    public PortalFlags? PortalFlags { get; init; }
 
-    public ObjFContainerFlags? ContainerFlags { get; init; }
+    public ContainerFlags? ContainerFlags { get; init; }
 
-    public ObjFSceneryFlags? SceneryFlags { get; init; }
+    public SceneryFlags? SceneryFlags { get; init; }
 
     public int? ProjectileCombatFlags { get; init; }
 
-    public ObjFItemFlags? ItemFlags { get; init; }
+    public ItemFlags? ItemFlags { get; init; }
 
-    public ObjFWeaponFlags? WeaponFlags { get; init; }
+    public WeaponFlags? WeaponFlags { get; init; }
 
     public int? AmmoFlags { get; init; }
 
-    public ObjFArmorFlags? ArmorFlags { get; init; }
+    public ArmorFlags? ArmorFlags { get; init; }
 
     public int? GoldFlags { get; init; }
 
@@ -42,13 +42,13 @@ public sealed class EditorObjectInspectorFlagsUpdate
 
     public int? GenericFlags { get; init; }
 
-    public ObjFCritterFlags? CritterFlags { get; init; }
+    public CritterFlags? CritterFlags { get; init; }
 
-    public ObjFCritterFlags2? CritterFlags2 { get; init; }
+    public CritterFlags2? CritterFlags2 { get; init; }
 
     public int? PcFlags { get; init; }
 
-    public ObjFNpcFlags? NpcFlags { get; init; }
+    public NpcFlags? NpcFlags { get; init; }
 
     public int? TrapFlags { get; init; }
 

@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -280,8 +280,8 @@ public static class EditorMapScenePreviewBuilder
         {
             foreach (var mob in mobs)
             {
-                AddContainedObjectGuids(mob.GetProperty(ObjectField.ObjFContainerInventoryListIdx), guids);
-                AddContainedObjectGuids(mob.GetProperty(ObjectField.ObjFCritterInventoryListIdx), guids);
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.ContainerInventoryListIdx), guids);
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.CritterInventoryListIdx), guids);
             }
         }
 
@@ -327,7 +327,7 @@ public static class EditorMapScenePreviewBuilder
         sectorProjection = null!;
         location = default;
 
-        var property = mob.GetProperty(ObjectField.ObjFLocation);
+        var property = mob.GetProperty(ObjectField.Location);
         if (property is null || property.ParseNote is not null)
             return false;
 
@@ -353,7 +353,7 @@ public static class EditorMapScenePreviewBuilder
     {
         _ = sectorProjection; // Sector identity no longer needed — bitmask normalizes universally.
 
-        if (!TryGetMapLocation(mob.GetProperty(ObjectField.ObjFLocation), out var tileX, out var tileY))
+        if (!TryGetMapLocation(mob.GetProperty(ObjectField.Location), out var tileX, out var tileY))
             return null;
 
         // Normalize to sector-local using the same bitmask the engine applies in
@@ -438,9 +438,9 @@ public static class EditorMapScenePreviewBuilder
         string? sourceAssetPath = null
     )
     {
-        var currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFCurrentAid);
+        var currentArtId = GetArtIdOrDefault(mob, ObjectField.CurrentAid);
         if (currentArtId.Value == 0)
-            currentArtId = GetArtIdOrDefault(mob, ObjectField.ObjFAid);
+            currentArtId = GetArtIdOrDefault(mob, ObjectField.Aid);
 
         if (currentArtId.Value == 0 && currentArtIdFallbackResolver is not null)
         {
@@ -449,13 +449,13 @@ public static class EditorMapScenePreviewBuilder
                 currentArtId = resolvedArtId;
         }
 
-        var location = locationOverride ?? GetPreviewLocation(mob.GetProperty(ObjectField.ObjFLocation));
-        var offsetX = GetInt32OrDefault(mob, ObjectField.ObjFOffsetX);
-        var offsetY = GetInt32OrDefault(mob, ObjectField.ObjFOffsetY);
-        var offsetZ = GetFloatOrDefault(mob, ObjectField.ObjFOffsetZ);
-        var collisionHeight = GetFloatOrDefault(mob, ObjectField.ObjFHeight);
+        var location = locationOverride ?? GetPreviewLocation(mob.GetProperty(ObjectField.Location));
+        var offsetX = GetInt32OrDefault(mob, ObjectField.OffsetX);
+        var offsetY = GetInt32OrDefault(mob, ObjectField.OffsetY);
+        var offsetZ = GetFloatOrDefault(mob, ObjectField.OffsetZ);
+        var collisionHeight = GetFloatOrDefault(mob, ObjectField.Height);
         var rotation = GetRotationOrDefault(mob, currentArtId);
-        var rotationPitch = GetFloatOrDefault(mob, ObjectField.ObjFRotationPitch);
+        var rotationPitch = GetFloatOrDefault(mob, ObjectField.RotationPitch);
 
         return new EditorMapObjectPreview
         {
@@ -483,7 +483,7 @@ public static class EditorMapScenePreviewBuilder
 
     private static float GetRotationOrDefault(MobData mob, ArtId currentArtId)
     {
-        if (mob.GetProperty(ObjectField.ObjFPadIas1) is { ParseNote: null } property)
+        if (mob.GetProperty(ObjectField.PadIas1) is { ParseNote: null } property)
             return property.GetFloat();
 
         return GetCritterFamilyRotationFromArtId(currentArtId);
