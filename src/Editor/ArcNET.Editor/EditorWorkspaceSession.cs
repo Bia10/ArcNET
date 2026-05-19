@@ -1406,6 +1406,19 @@ public sealed class EditorWorkspaceSession
         return CreateTrackedObjectInspectorSummary(selectionSummary, inspectorState);
     }
 
+    /// <summary>
+    /// Returns one host-facing object/proto inspector summary for the supplied pre-resolved selection.
+    /// </summary>
+    public EditorObjectInspectorSummary GetTrackedObjectInspectorSummary(
+        string mapViewStateId,
+        EditorMapObjectSelectionSummary selectionSummary
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selectionSummary);
+        var inspectorState = GetTrackedObjectInspectorState(mapViewStateId);
+        return CreateTrackedObjectInspectorSummary(selectionSummary, inspectorState);
+    }
+
     private EditorObjectInspectorSummary CreateTrackedObjectInspectorSummary(
         EditorMapObjectSelectionSummary selectionSummary,
         EditorProjectMapObjectInspectorState inspectorState

@@ -10,6 +10,7 @@ public sealed class EditorMapPaintableSceneItem
     public required EditorMapRenderQueueItemKind Kind { get; init; }
     public required int DrawOrder { get; init; }
     public required double SortKey { get; init; }
+    public EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
     public required double Left { get; init; }
     public required double Top { get; init; }
     public required double Width { get; init; }
@@ -18,6 +19,20 @@ public sealed class EditorMapPaintableSceneItem
     public required double AnchorY { get; init; }
     public required double SuggestedOpacity { get; init; }
     public uint? SuggestedTintColor { get; init; }
+    public bool TintIgnoresLightVisibility { get; init; }
+    public bool UseGrayscalePaletteOverride { get; init; }
+    public bool UseLightMaskTint { get; init; }
+    public bool SuppressFallback { get; init; }
+    public EditorMapTileLightDiagnostics? TileLightDiagnostics { get; init; }
+    public EditorMapTileOverlayKind? TileOverlayKind { get; init; }
+    public EditorMapPaintableSceneSpriteSourceRect? SpriteSourceRect { get; init; }
+    public EditorMapPaintableSceneSpriteDestinationRect? SpriteDestinationRect { get; init; }
+    public bool IsRoofCovered { get; init; }
+    public EditorMapObjectColorArray? ObjectColorArray { get; init; }
+    public EditorMapObjectAlphaLerp? ObjectAlphaLerp { get; init; }
+    public EditorMapRoofAlphaLerp? RoofAlphaLerp { get; init; }
+    public EditorMapSpriteBlendMode BlendMode { get; init; } = EditorMapSpriteBlendMode.SourceOver;
+    public bool UseSubtractiveShadowBlend { get; init; }
     public EditorMapRenderSprite? Sprite { get; init; }
     public EditorMapPaintableSceneSpriteReference? SpriteReference { get; init; }
     public IReadOnlyList<EditorMapRenderPoint>? GeometryPoints { get; init; }
@@ -33,6 +48,10 @@ public sealed class EditorMapPaintableSceneSpriteReference
     public EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
     public required int RotationIndex { get; init; }
     public required int FrameIndex { get; init; }
+    public int FramesPerRotation { get; init; } = 1;
+    public uint FrameRate { get; init; }
+    public int ScalePercent { get; init; } = 100;
+    public bool IsShrunk { get; init; }
     public required int Width { get; init; }
     public required int Height { get; init; }
     public required int CenterX { get; init; }
@@ -333,8 +352,24 @@ public static class EditorMapPaintableSceneBuilder
 
     private static EditorMapRenderSpriteRequest CreateSpriteRequest(
         EditorMapRenderQueueItemKind renderItemKind,
-        float rotation = 0f
-    ) => new() { RenderItemKind = renderItemKind, RotationIndex = ResolveRotationIndex(rotation) };
+        int rotationIndex = 0,
+        int scalePercent = 100,
+        bool isShrunk = false
+    ) =>
+        new()
+        {
+            RenderItemKind = renderItemKind,
+            RotationIndex = rotationIndex,
+            ScalePercent = scalePercent,
+            IsShrunk = isShrunk,
+        };
+
+    private static EditorMapRenderSpriteRequest CreateSpriteRequestFromRotation(
+        EditorMapRenderQueueItemKind renderItemKind,
+        float rotation,
+        int scalePercent = 100,
+        bool isShrunk = false
+    ) => CreateSpriteRequest(renderItemKind, ResolveRotationIndex(rotation), scalePercent, isShrunk);
 
     private static EditorMapPaintableSceneItem BuildItem(
         EditorMapFloorRenderPreview sceneRender,
@@ -378,10 +413,14 @@ public static class EditorMapPaintableSceneBuilder
             footprintWidth: 1,
             footprintHeight: 1
         );
+        var anchorY =
+            sceneRender.ViewMode is EditorMapSceneViewMode.Isometric
+                ? tile.CenterY + (sceneRender.TileHeightPixels / 2d)
+                : tile.CenterY;
         return CreateItem(
             queueItem,
             tile.CenterX,
-            tile.CenterY,
+            anchorY,
             sceneRender.TileWidthPixels,
             sceneRender.TileHeightPixels,
             spriteReference,
@@ -427,7 +466,7 @@ public static class EditorMapPaintableSceneBuilder
         var obj =
             queueItem.Object
             ?? throw new InvalidOperationException("Object queue items must carry one object payload.");
-        var request = CreateSpriteRequest(EditorMapRenderQueueItemKind.Object, obj.Rotation);
+        var request = CreateSpriteRequestFromRotation(EditorMapRenderQueueItemKind.Object, obj.Rotation);
         var spriteReference = TryCreateSpriteReference(
             obj.CurrentArtId,
             request,
@@ -491,7 +530,10 @@ public static class EditorMapPaintableSceneBuilder
             ?? throw new InvalidOperationException(
                 "Placement-preview queue items must carry one placement-preview payload."
             );
-        var request = CreateSpriteRequest(EditorMapRenderQueueItemKind.PlacementPreviewObject, previewObject.Rotation);
+        var request = CreateSpriteRequestFromRotation(
+            EditorMapRenderQueueItemKind.PlacementPreviewObject,
+            previewObject.Rotation
+        );
         var spriteReference = TryCreateSpriteReference(
             previewObject.CurrentArtId,
             request,
@@ -542,6 +584,7 @@ public static class EditorMapPaintableSceneBuilder
             Kind = queueItem.Kind,
             DrawOrder = queueItem.DrawOrder,
             SortKey = queueItem.SortKey,
+            CommittedRenderLayer = queueItem.Object?.CommittedRenderLayer,
             Left = left,
             Top = top,
             Width = width,
@@ -550,6 +593,7 @@ public static class EditorMapPaintableSceneBuilder
             AnchorY = anchorY,
             SuggestedOpacity = suggestedOpacity,
             SuggestedTintColor = suggestedTintColor,
+            TileOverlayKind = queueItem.TileOverlay?.Kind,
             SpriteReference = spriteReference,
             GeometryPoints = geometryPoints,
         };
@@ -575,6 +619,8 @@ public static class EditorMapPaintableSceneBuilder
             RenderItemKind = request.RenderItemKind,
             RotationIndex = metrics.RotationIndex,
             FrameIndex = metrics.FrameIndex,
+            ScalePercent = request.ScalePercent,
+            IsShrunk = request.IsShrunk,
             Width = metrics.Width,
             Height = metrics.Height,
             CenterX = metrics.CenterX,

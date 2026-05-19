@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+﻿namespace ArcNET.Editor;
 
 /// <summary>
 /// Higher-level host-neutral request that applies one or more object transforms to grouped scene-sector hits.

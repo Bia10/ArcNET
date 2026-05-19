@@ -24,6 +24,16 @@ public sealed class EditorMapRenderSpriteRequest
     /// Zero-based frame index within <see cref="RotationIndex"/>.
     /// </summary>
     public int FrameIndex { get; init; }
+
+    /// <summary>
+    /// Optional CE scale percentage hint used by some hosts for cache keys and variant resolution.
+    /// </summary>
+    public int ScalePercent { get; init; } = 100;
+
+    /// <summary>
+    /// Indicates whether one CE shrunk variant is requested when available.
+    /// </summary>
+    public bool IsShrunk { get; init; }
 }
 
 /// <summary>
@@ -70,6 +80,49 @@ public sealed class EditorMapRenderSpriteMetrics
             Height = sprite.Height,
             CenterX = sprite.CenterX,
             CenterY = sprite.CenterY,
+        };
+    }
+
+    internal static EditorMapRenderSpriteMetrics ApplyCeScale(
+        EditorMapRenderSpriteMetrics metrics,
+        int scalePercent,
+        bool isShrunk
+    )
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+
+        if (scalePercent == 100 && !isShrunk)
+            return metrics;
+
+        var width = metrics.Width;
+        var height = metrics.Height;
+        var centerX = metrics.CenterX;
+        var centerY = metrics.CenterY;
+
+        if (scalePercent != 100)
+        {
+            width = (int)((float)width * scalePercent / 100f);
+            height = (int)((float)height * scalePercent / 100f);
+            centerX = (int)((float)centerX * scalePercent / 100f);
+            centerY = (int)((float)centerY * scalePercent / 100f);
+        }
+
+        if (isShrunk)
+        {
+            width /= 2;
+            height /= 2;
+            centerX /= 2;
+            centerY /= 2;
+        }
+
+        return new EditorMapRenderSpriteMetrics
+        {
+            RotationIndex = metrics.RotationIndex,
+            FrameIndex = metrics.FrameIndex,
+            Width = width,
+            Height = height,
+            CenterX = centerX,
+            CenterY = centerY,
         };
     }
 }
@@ -183,7 +236,14 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         if (assetPath is null)
             return null;
 
-        return CreateResolvedSpriteMetrics(artId, effectiveRequest, assetPath);
+        var metrics = CreateResolvedSpriteMetrics(artId, effectiveRequest, assetPath);
+        return metrics is null
+            ? null
+            : EditorMapRenderSpriteMetrics.ApplyCeScale(
+                metrics,
+                effectiveRequest.ScalePercent,
+                effectiveRequest.IsShrunk
+            );
     }
 
     /// <inheritdoc />
@@ -462,6 +522,16 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             FacadeArtType => (int)((artIdValue >> 1) & 0x3FFu),
             _ => (int)((artIdValue >> 14) & 0x1Fu),
         };
+
+    internal static (int CenterX, int CenterY) AdjustSpriteCenter(
+        EditorMapRenderQueueItemKind? renderItemKind,
+        string assetPath,
+        ArtId artId,
+        int effectiveRotationIndex,
+        int width,
+        int centerX,
+        int centerY
+    ) => (centerX, centerY);
 
     private static (int CenterX, int CenterY) AdjustSpriteCenter(
         string assetPath,
