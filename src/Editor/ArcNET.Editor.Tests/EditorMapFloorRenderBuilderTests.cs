@@ -1376,6 +1376,112 @@ public sealed class EditorMapFloorRenderBuilderTests
         return artId;
     }
 
+    [Test]
+    public async Task Build_ParityGaps_Reconciliation_Verified()
+    {
+        var guidId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1000, Guid.NewGuid());
+        var guidId2 = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1001, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        // 1. Verify item types and traps are mapped to Scenery instead of Ground
+        var weaponObj = CreateObjectPreview(
+            objectId: guidId,
+            protoId: protoId,
+            objectType: ObjectType.Weapon,
+            currentArtId: new ArtId(0x02000000u)
+        );
+        var trapObj = CreateObjectPreview(
+            objectId: guidId2,
+            protoId: protoId,
+            objectType: ObjectType.Trap,
+            currentArtId: new ArtId(0x02000001u)
+        );
+
+        var scenePreview = CreateScenePreview(
+            new EditorMapSectorScenePreview
+            {
+                AssetPath = "maps/map01/sector_a.sec",
+                SectorX = 0,
+                SectorY = 0,
+                LocalX = 0,
+                LocalY = 0,
+                PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                TileArtIds = CreateSingleTileMapTileArtIds(),
+                RoofArtIds = null,
+                BlockMask = new uint[128],
+                Lights = [],
+                TileScripts = [],
+                Objects = [weaponObj, trapObj],
+            }
+        );
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+            }
+        );
+
+        await Assert.That(preview.Objects.Count).IsEqualTo(2);
+        await Assert.That(preview.Objects[0].CommittedRenderLayer).IsEqualTo(EditorMapCommittedRenderLayer.Scenery);
+        await Assert.That(preview.Objects[1].CommittedRenderLayer).IsEqualTo(EditorMapCommittedRenderLayer.Scenery);
+
+        // 2. Verify that floor tiles with TileType != 0 (e.g. 1) are correctly evaluated under roofs
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[0] = 0x01000005u; // ArtType = Tile (0), TileType = 1 (bits 24-27), ArtNum = 5
+
+        var roofArtIds = new uint[16 * 16];
+        roofArtIds[0] = CreateRoofArtId(2, faded: false, fill: false); // FrameIndex = 2, row 3, col 3 will map to roof matrix index 2 (which is true)
+
+        var objectUnderRoof = new EditorMapObjectPreview
+        {
+            ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1002, Guid.NewGuid()),
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty),
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x02000002u),
+            Location = new Location(0, 0),
+            RotationPitch = 0f,
+        };
+
+        var scenePreviewWithRoof = CreateScenePreview(
+            new EditorMapSectorScenePreview
+            {
+                AssetPath = "maps/map01/sector_roof.sec",
+                SectorX = 0,
+                SectorY = 0,
+                LocalX = 0,
+                LocalY = 0,
+                PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                TileArtIds = tileArtIds,
+                RoofArtIds = roofArtIds,
+                BlockMask = new uint[128],
+                Lights = [],
+                TileScripts = [],
+                Objects = [objectUnderRoof],
+            }
+        );
+
+        var previewWithRoof = EditorMapFloorRenderBuilder.Build(
+            scenePreviewWithRoof,
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+            }
+        );
+
+        await Assert.That(previewWithRoof.Objects.Count).IsEqualTo(1);
+        await Assert.That(previewWithRoof.Objects[0].IsRoofCovered).IsTrue();
+    }
+
     private static uint[] CreateBlockMask(params (int TileX, int TileY)[] blockedTiles)
     {
         var blockMask = new uint[128];

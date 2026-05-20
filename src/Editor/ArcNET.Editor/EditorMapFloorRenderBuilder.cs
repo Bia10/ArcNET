@@ -423,23 +423,31 @@ public static class EditorMapFloorRenderBuilder
             _ => false,
         };
 
-    private static EditorMapCommittedRenderLayer GetCommittedRenderLayer(ObjectType objectType, ObjectFlags flags)
-    {
-        if (flags.HasFlag(ObjectFlags.Flat))
-            return EditorMapCommittedRenderLayer.GroundDecal;
-
-        return objectType switch
-        {
-            ObjectType.Wall => EditorMapCommittedRenderLayer.Wall,
-            ObjectType.Portal => EditorMapCommittedRenderLayer.Wall,
-            ObjectType.Scenery => EditorMapCommittedRenderLayer.Scenery,
-            ObjectType.Container => EditorMapCommittedRenderLayer.Scenery,
-            ObjectType.Pc => EditorMapCommittedRenderLayer.Mobile,
-            ObjectType.Npc => EditorMapCommittedRenderLayer.Mobile,
-            ObjectType.Projectile => EditorMapCommittedRenderLayer.Mobile,
-            _ => EditorMapCommittedRenderLayer.Ground,
-        };
-    }
+    private static EditorMapCommittedRenderLayer GetCommittedRenderLayer(ObjectType objectType, ObjectFlags flags) =>
+        flags.HasFlag(ObjectFlags.Flat)
+            ? EditorMapCommittedRenderLayer.GroundDecal
+            : objectType switch
+            {
+                ObjectType.Wall => EditorMapCommittedRenderLayer.Wall,
+                ObjectType.Portal => EditorMapCommittedRenderLayer.Wall,
+                ObjectType.Scenery => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Container => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Pc => EditorMapCommittedRenderLayer.Mobile,
+                ObjectType.Npc => EditorMapCommittedRenderLayer.Mobile,
+                ObjectType.Projectile => EditorMapCommittedRenderLayer.Mobile,
+                ObjectType.Weapon => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Ammo => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Armor => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Gold => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Food => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Scroll => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Key => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.KeyRing => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Written => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Generic => EditorMapCommittedRenderLayer.Scenery,
+                ObjectType.Trap => EditorMapCommittedRenderLayer.Scenery,
+                _ => EditorMapCommittedRenderLayer.Ground,
+            };
 
     private static void GenerateAuxiliaryItems(
         string sectorAssetPath,
@@ -1066,20 +1074,6 @@ public static class EditorMapFloorRenderBuilder
 
     private static bool IsRoofCovered(SceneSectorLookup sceneSectorLookup, int mapTileX, int mapTileY)
     {
-        if (
-            !sceneSectorLookup.TryGetSectorTile(
-                mapTileX,
-                mapTileY,
-                out var tileSector,
-                out var localTileX,
-                out var localTileY
-            )
-        )
-            return false;
-
-        if (new ArtId(tileSector.GetTileArtId(localTileX, localTileY)).TileType != 0)
-            return false;
-
         var coveredTileX = mapTileX + 3;
         var coveredTileY = mapTileY + 3;
         if (
@@ -1128,10 +1122,12 @@ public static class EditorMapFloorRenderBuilder
 
     private static bool IsRoofFaded(SceneSectorLookup sceneSectorLookup, int mapTileX, int mapTileY)
     {
+        var coveredTileX = mapTileX + 3;
+        var coveredTileY = mapTileY + 3;
         if (
             !sceneSectorLookup.TryGetSectorTile(
-                mapTileX,
-                mapTileY,
+                coveredTileX,
+                coveredTileY,
                 out var sector,
                 out var localTileX,
                 out var localTileY
