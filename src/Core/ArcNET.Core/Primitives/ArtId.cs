@@ -90,6 +90,9 @@ public readonly record struct ArtId(uint Value)
     /// <summary>Returns <see langword="true"/> when this AID is one faded roof piece.</summary>
     public bool IsRoofFaded => Type is TypeCode.Roof && ((Value >> RoofFadeShift) & 0x1u) != 0;
 
+    /// <summary>Returns <see langword="true"/> when this AID is one horizontally mirrored roof piece.</summary>
+    public bool IsRoofMirrored => Type is TypeCode.Roof && (Value & 0x1u) != 0;
+
     /// <summary>Returns the CE roof piece index, including mirrored variants, or -1 for non-roof AIDs.</summary>
     public int RoofPieceIndex => Type is not TypeCode.Roof ? -1 : FrameIndex + (((Value & 0x1u) != 0) ? 9 : 0);
 

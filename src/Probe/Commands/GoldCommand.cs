@@ -45,9 +45,7 @@ internal sealed class GoldCommand : IProbeCommand
         {
             foreach (var verifiedRecord in verifiedMd.Records)
             {
-                var goldProp = verifiedRecord.Data?.Properties.FirstOrDefault(p =>
-                    p.Field == ObjectField.CritterGold
-                );
+                var goldProp = verifiedRecord.Data?.Properties.FirstOrDefault(p => p.Field == ObjectField.CritterGold);
                 if (goldProp is null)
                     continue;
 

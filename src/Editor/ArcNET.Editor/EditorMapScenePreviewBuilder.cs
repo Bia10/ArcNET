@@ -480,7 +480,8 @@ public static class EditorMapScenePreviewBuilder
             && hpProp is not null
             && hpProp.GetInt32() <= 0;
 
-        var critterFlags2Prop = mob.GetProperty(ObjectField.CritterFlags2);
+        var isCritter = mob.Header.GameObjectType is ObjectType.Pc or ObjectType.Npc;
+        var critterFlags2Prop = isCritter ? mob.GetProperty(ObjectField.CritterFlags2) : null;
         uint? reactionColor = null;
         if (critterFlags2Prop is not null && critterFlags2Prop.ParseNote is null)
         {

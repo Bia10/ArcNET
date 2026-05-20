@@ -170,12 +170,12 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue[0].Tile?.ArtId).IsEqualTo(new ArtId(200u));
         await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
         await Assert.That(preview.RenderQueue[1].Tile?.ArtId).IsEqualTo(new ArtId(100u));
-        await Assert.That(preview.RenderQueue[2].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
-        await Assert.That(preview.RenderQueue[2].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+        await Assert.That(preview.RenderQueue[2].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+        await Assert.That(preview.RenderQueue[2].Tile?.ArtId).IsEqualTo(new ArtId(300u));
         await Assert.That(preview.RenderQueue[3].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
-        await Assert.That(preview.RenderQueue[3].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
-        await Assert.That(preview.RenderQueue[4].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
-        await Assert.That(preview.RenderQueue[4].Tile?.ArtId).IsEqualTo(new ArtId(300u));
+        await Assert.That(preview.RenderQueue[3].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.BlockedTile);
+        await Assert.That(preview.RenderQueue[4].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
+        await Assert.That(preview.RenderQueue[4].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
         await Assert.That(preview.RenderQueue[5].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
         await Assert.That(preview.RenderQueue[5].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
     }

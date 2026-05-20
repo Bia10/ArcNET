@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -117,4 +117,9 @@ public sealed class EditorMapObjectRenderItem
     /// Pitch rotation copied from the source object preview.
     /// </summary>
     public required float RotationPitch { get; init; }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the object is visually covered by a roof tile.
+    /// </summary>
+    public bool IsRoofCovered { get; init; }
 }

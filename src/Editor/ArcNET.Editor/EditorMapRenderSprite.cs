@@ -412,7 +412,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         if (art is null || art.EffectiveRotationCount <= 0 || art.FrameCount == 0)
             return null;
 
-        var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, assetPath, request.RotationIndex);
+        var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, request.RotationIndex);
         var rotationIndex = NormalizeFrameIndex(effectiveRotationIndex, art.EffectiveRotationCount);
         var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
         var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
@@ -455,7 +455,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         if (art is null || art.EffectiveRotationCount <= 0 || art.FrameCount == 0)
             return null;
 
-        var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, assetPath, request.RotationIndex);
+        var effectiveRotationIndex = ResolveEffectiveRotationIndex(artId, request.RotationIndex);
         var rotationIndex = NormalizeFrameIndex(effectiveRotationIndex, art.EffectiveRotationCount);
         var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
         var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
@@ -481,8 +481,8 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         };
     }
 
-    private static int ResolveEffectiveRotationIndex(ArtId artId, string assetPath, int requestedRotationIndex) =>
-        UsesArtIdRotation(assetPath, artId)
+    private static int ResolveEffectiveRotationIndex(ArtId artId, int requestedRotationIndex) =>
+        UsesArtIdRotation(artId)
             ? NormalizeWallPortalRotationIndex((int)((artId.Value >> 11) & 0x7u))
             : requestedRotationIndex;
 
@@ -543,18 +543,8 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         int centerY
     ) => AdjustSpriteCenter(null, assetPath, default, requestedRotationIndex, width: 0, centerX, centerY);
 
-    private static bool UsesArtIdRotation(string assetPath, ArtId artId) =>
-        UsesArtIdRotationForWallPortal(assetPath, artId) || UsesArtIdRotationForScenery(assetPath, artId);
-
-    private static bool UsesArtIdRotationForWallPortal(string assetPath, ArtId artId) =>
-        (
-            assetPath.StartsWith("art/wall/", StringComparison.OrdinalIgnoreCase)
-            || assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
-        ) && (artId.Value & ArtTypeMask) is WallArtType or PortalArtType;
-
-    private static bool UsesArtIdRotationForScenery(string assetPath, ArtId artId) =>
-        assetPath.StartsWith("art/scenery/", StringComparison.OrdinalIgnoreCase)
-        && (artId.Value & ArtTypeMask) == SceneryArtType;
+    private static bool UsesArtIdRotation(ArtId artId) =>
+        (artId.Value & ArtTypeMask) is WallArtType or PortalArtType or SceneryArtType;
 
     private static int NormalizeWallPortalRotationIndex(int rotationIndex)
     {
