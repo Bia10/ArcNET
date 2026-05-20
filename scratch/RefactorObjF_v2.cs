@@ -5,17 +5,34 @@ using System.Text.RegularExpressions;
 var rootPath = @"c:\Users\Bia\source\repos\ArcNET";
 var files = Directory.GetFiles(rootPath, "*.cs", SearchOption.AllDirectories);
 
-string[] enumsToRename = [
-    "ArmorFlags", "BlitFlags", "ContainerFlags", "CritterFlags", 
-    "CritterFlags2", "ObjectFlags", "ItemFlags", "NpcFlags", 
-    "PortalFlags", "SceneryFlags", "SpellFlags", "WeaponFlags",
-    "AmmoFlags", "GoldFlags", "FoodFlags", "ScrollFlags",
-    "KeyRingFlags", "WrittenFlags", "GenericFlags", "PcFlags"
+string[] enumsToRename =
+[
+    "ArmorFlags",
+    "BlitFlags",
+    "ContainerFlags",
+    "CritterFlags",
+    "CritterFlags2",
+    "ObjectFlags",
+    "ItemFlags",
+    "NpcFlags",
+    "PortalFlags",
+    "SceneryFlags",
+    "SpellFlags",
+    "WeaponFlags",
+    "AmmoFlags",
+    "GoldFlags",
+    "FoodFlags",
+    "ScrollFlags",
+    "KeyRingFlags",
+    "WrittenFlags",
+    "GenericFlags",
+    "PcFlags",
 ];
 
 foreach (var file in files)
 {
-    if (file.Contains("RefactorObjF")) continue;
+    if (file.Contains("RefactorObjF"))
+        continue;
 
     var content = File.ReadAllText(file);
     var originalContent = content;

@@ -3164,6 +3164,9 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(sceneRender);
 
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        if (mapViewState.WorldEdit.ActiveTool is not EditorProjectMapWorldEditActiveTool.TerrainPaint)
+            return null;
+
         var terrainEntry = GetTrackedTerrainToolSummary(mapViewStateId).SelectedEntry;
         var facadeWalk = terrainEntry is { ArtId.Type: ArtId.TypeCode.Facade }
             ? Workspace.FindFacadeWalk(EditorMapFacadePaintableSceneBuilder.GetFacadeWalkAssetPath(terrainEntry.ArtId))

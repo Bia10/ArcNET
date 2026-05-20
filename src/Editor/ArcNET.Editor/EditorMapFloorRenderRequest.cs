@@ -14,13 +14,13 @@ public sealed class EditorMapFloorRenderRequest
     /// Width in pixels of one rendered floor tile.
     /// For isometric rendering this is the diamond width.
     /// </summary>
-    public double TileWidthPixels { get; init; } = 64d;
+    public double TileWidthPixels { get; init; } = 80d;
 
     /// <summary>
     /// Height in pixels of one rendered floor tile.
     /// For isometric rendering this is the diamond height.
     /// </summary>
-    public double TileHeightPixels { get; init; } = 32d;
+    public double TileHeightPixels { get; init; } = 40d;
 
     /// <summary>
     /// Indicates whether tiles whose art identifier is zero should still be emitted.
@@ -96,8 +96,8 @@ public sealed class EditorMapFloorRenderRequest
             EditorMapSceneViewMode.Isometric => new EditorMapFloorRenderRequest
             {
                 ViewMode = EditorMapSceneViewMode.Isometric,
-                TileWidthPixels = 64d,
-                TileHeightPixels = 32d,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
                 IncludeEmptyTiles = true,
             },
             EditorMapSceneViewMode.TopDown => new EditorMapFloorRenderRequest

@@ -879,7 +879,7 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
-    public async Task Build_Isometric_NormalizesWallBoundsUsingCeHotspotAdjustment()
+    public async Task Build_Isometric_NormalizesWallBoundsUsingRawCeHotspot()
     {
         var wallId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 799, Guid.NewGuid());
         var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
@@ -915,9 +915,9 @@ public sealed class EditorMapFloorRenderBuilderTests
             }
         );
 
-        await Assert.That(preview.HeightPixels).IsCloseTo(136.8d, 0.001d);
+        await Assert.That(preview.HeightPixels).IsCloseTo(121.6d, 0.001d);
         await Assert.That(preview.Objects).HasSingleItem();
-        await Assert.That(preview.Objects[0].AnchorY).IsCloseTo(120.8d, 0.001d);
+        await Assert.That(preview.Objects[0].AnchorY).IsCloseTo(104.8d, 0.001d);
     }
 
     [Test]

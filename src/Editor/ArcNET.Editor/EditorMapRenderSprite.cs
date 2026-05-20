@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -517,22 +517,15 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             return (centerX, centerY);
         }
 
-        var adjustedCenterX = centerX;
-        var adjustedCenterY = centerY;
-        if (effectiveRotationIndex < 2 || effectiveRotationIndex > 5)
-        {
-            adjustedCenterX -= 40;
-            adjustedCenterY += 20;
-        }
-
+        // CE uses the raw hotspot from the art frame without any rotation-based adjustment.
+        // Only the mirror flag (bit 0) requires a horizontal hotspot flip for wall/portal objects.
         return (renderItemKind, artId.Type) switch
         {
-            (EditorMapRenderQueueItemKind.FloorTile, ArtId.TypeCode.Tile) => (adjustedCenterX, adjustedCenterY),
             (not EditorMapRenderQueueItemKind.FloorTile, ArtId.TypeCode.Wall or ArtId.TypeCode.Portal) => (
-                (artId.Value & 0x1u) != 0 ? width - adjustedCenterX - 2 : adjustedCenterX,
-                adjustedCenterY
+                (artId.Value & 0x1u) != 0 ? width - centerX - 2 : centerX,
+                centerY
             ),
-            _ => (adjustedCenterX, adjustedCenterY),
+            _ => (centerX, centerY),
         };
     }
 

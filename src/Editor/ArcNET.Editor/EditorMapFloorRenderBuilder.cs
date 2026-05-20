@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Numerics;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -665,8 +665,8 @@ public static class EditorMapFloorRenderBuilder
                 if (obj.Location is not { } location)
                     continue;
 
-                if (obj.Flags.HasFlag(ObjectFlags.Invisible))
-                    continue;
+                // CE editor mode shows ALL objects regardless of visibility flags.
+                // Do not filter OF_INVISIBLE here — the flag is only meaningful in gameplay mode.
 
                 var mapTileX = checked((sector.LocalX * sectorTileWidth) + location.X);
                 var mapTileY = checked((sector.LocalY * sectorTileHeight) + location.Y);
@@ -1663,19 +1663,14 @@ public static class EditorMapFloorRenderBuilder
         if (objectType is not ObjectType.Wall and not ObjectType.Portal)
             return (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY);
 
+        // CE uses the raw hotspot from the art frame without any rotation-based adjustment.
+        // Only the mirror flag (bit 0) requires a horizontal hotspot flip for wall/portal objects.
         var adjustedCenterX = spriteBounds.MaxFrameCenterX;
-        var adjustedCenterY = spriteBounds.MaxFrameCenterY;
-        var rotationIndex = NormalizeWallPortalRotationIndex((int)((artId.Value >> 11) & 0x7u));
-        if (rotationIndex < 2 || rotationIndex > 5)
-        {
-            adjustedCenterX -= 40;
-            adjustedCenterY += 20;
-        }
 
         if ((artId.Value & 0x1u) != 0)
             adjustedCenterX = spriteBounds.MaxFrameWidth - adjustedCenterX - 2;
 
-        return (adjustedCenterX, adjustedCenterY);
+        return (adjustedCenterX, spriteBounds.MaxFrameCenterY);
     }
 
     private static int NormalizeWallPortalRotationIndex(int rotationIndex)

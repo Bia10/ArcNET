@@ -1222,3 +1222,135 @@ Aux overlay-fore      -> +2 from object sort key
 | Parity Comparison | `docs/rendering-parity-comparison.md` | Side-by-side parity analysis with gap tracking (577 lines) |
 | Rendering Fix Checklist | `docs/rendering_analysis.md` | 24 verified rendering fixes |
 | This Document | `docs/rendering-pipeline-parity-analysis.md` | ArcNET rendering pipeline analysis |
+
+---
+
+## 17. Deep Parity Analysis — Wall/Scenery/Tile Composition
+
+> **Generated:** 2026-05-20 from source code at `src/Editor/ArcNET.Editor/EditorMapFloorRenderBuilder.cs`, `EditorMapPaintableScene.cs`, and `EditorMapObjectPreview.cs` cross-referenced against CE `object.c`, `sector_object_list.c`, and `roof.c`.
+
+### 17.1 Verified Correct Behaviors
+
+The following rendering behaviors have been verified correct through deep source-level comparison with CE:
+
+| Behavior | Verification |
+|----------|-------------|
+| **Same-tile ordering: flat before non-flat** | `InsertCeSameTileObject` correctly inserts flat objects before non-flat objects. Flat objects skip past all existing flat objects via `if (existingObject.IsFlat) continue;` and land after the last flat but before the first non-flat. |
+| **Same-tile ordering: UnderAll at head of flat** | `IsUnderAllScenery` check inserts before all existing flat objects, matching CE's `objlist_insert_internal()` head-of-flat-segment insertion. |
+| **Same-tile ordering: wall before portal** | Explicit wall/portal type checks insert wall before portal regardless of tile order components. Portal insertion after wall uses `index + 1`. |
+| **Same-tile ordering: tile order components** | `GetObjectTileOrderComponents` computes `Primary = horizontal + vertical` (CE's `v1 + v2`) and `Secondary = vertical - horizontal` (CE's `v2 - v1`). Comparison is Primary-first then Secondary, which matches CE's "compare second component first, then first" given the name swap. |
+| **Diagonal draw order formula** | `GetDrawOrder` = `((mapTileY + mapTileX) * mapTileWidth) + mapTileY` correctly produces ascending `y+x` primary ordering with ascending `y` (left-to-right) secondary ordering. |
+| **Global band structure** | `BuildRenderQueue` correctly implements CE's global layer bands: Underlays (0..N), UnderAll (100M), Flat (200M), Shadows (400M), Non-flat (600M), Overlays (700M), Roofs (800M). |
+| **Overlay iteration order** | `GenerateAuxiliaryItems` iterates slots from `overlaySlotCount - 1` down to `0`, checking fore then back per slot, matching CE's `object_draw()` overlay loop. |
+| **Wall/portal ordering offsets** | `GetCeWallPortalOrderingOffsetY` returns 19 for rotations 2-5 and -20 for rotations 0-1, 6-7, matching CE's `objlist_insert_internal()` wall/portal offset constants. |
+| **Wall center adjustment** | `GetLayoutSpriteCenter` applies `centerX -= 40, centerY += 20` for cardinal rotations (0-1, 6-7) and mirror flag handling, matching CE's wall hotspot adjustment. |
+| **Roof coverage matrix** | `IsRoofCovered` uses the 13-piece `RoofCoverageMatrix[13,4,4]` with mirror flag support, matching CE's `roof_is_covered_loc()`. |
+| **Transparent wall hiding under faded roofs** | `ShouldHideTransparentWallUnderFadedRoof` correctly checks `OWAF_TRANS_LEFT | RIGHT` and non-cardinal rotation exclusion (rotations 2-5 are excluded). |
+| **Object anchor projection** | `ProjectObjectAnchor` + `ScaleObjectOffsets` produces `tileCenter + offset * scale`, matching CE's `location_xy() + offset + (40, 20)`. |
+| **Eye candy scale type** | `AdjustEyeCandyRequest` applies the `dword_5A548C` multiplier table `[50,63,75,87,100,130,160,200]` for EyeCandy art types, matching CE's eye candy scale lookup. |
+| **Object flag mappings in paintable scene** | `CreateItem` correctly maps: `Translucent → 0.5 opacity`, `DontLight → TintIgnoresLightVisibility`, `Stoned → UseGrayscalePaletteOverride`, `AnimatedDead → 0xFF00FF00 green tint`. |
+| **Shadow blend mode** | Shadow auxiliaries carry `BlendMode = Subtract` and `CreateItem` maps to `UseSubtractiveShadowBlend = true`. |
+| **Wading shadow color** | Shadow auxiliaries for wading objects get `SuggestedTintColor = 0xFF5C5C5C` (92, 92, 92). |
+| **Reaction underlay tint** | Underlays with art 433 get `SuggestedTintColor = obj.ReactionColor` and `ScalePercent = 100`. |
+| **Roof fade alpha gradients** | `GetRoofAlphaLerp` implements all 13 roof piece types with correct 4-corner alpha values. |
+
+### 17.2 Critical Bugs Found
+
+#### 17.2.1 Ghost Overlay SubOrder Inverted (M13)
+
+**Location:** `EditorMapFloorRenderBuilder.BuildRenderQueue()` lines ~1830-1870
+
+**Bug:** In the non-flat band (600M+), ghost overlays (art 243 on dead NPCs) are assigned `SubOrder = 0` while main objects get `SubOrder = 1`. The non-flat list sorts by `SubOrder` ascending, so ghost overlays render BEFORE their parent main objects.
+
+**CE behavior:** In `object_draw()`, the main sprite is enqueued at `non_flat_order++`, then the ghost overlay is enqueued at the next `non_flat_order++`. The ghost always has a HIGHER order than its parent, rendering on top.
+
+**Fix required:** Swap SubOrder values: main objects = 0, ghost/armor overlays = 1.
+
+```csharp
+// Current (wrong):
+// Ghost overlay: SubOrder = 0
+// Main object:   SubOrder = 1
+
+// Correct:
+// Main object:   SubOrder = 0
+// Ghost overlay: SubOrder = 1
+```
+
+#### 17.2.2 Armor Overlay Check Too Strict (M13)
+
+**Location:** `EditorMapFloorRenderBuilder.IsGhostOrArmorOverlay()` lines ~1130-1140
+
+**Bug:** `IsGhostOrArmorOverlay` requires `item.ArtId.ArtNum == 243` for ALL cases including Armor. CE's code:
+
+```c
+if (obj_type == OBJ_TYPE_ARMOR
+    || (obj_type == OBJ_TYPE_NPC && critter_is_dead(obj_node->obj) && tig_art_num_get(art_id) == 243))
+```
+
+CE unconditionally moves ALL Armor overlays to the non-flat band regardless of art ID. The art 243 check only applies to NPC dead overlays.
+
+**Fix required:** Split the check: Armor overlays always go to non-flat; NPC dead overlays with art 243 go to non-flat.
+
+#### 17.2.3 PC Ghost Overlay Incorrectly Included (M13)
+
+**Bug:** `IsGhostOrArmorOverlay` includes `ObjectType.Pc` in the dead overlay check. CE only checks `OBJ_TYPE_NPC`, not `OBJ_TYPE_PC`. Dead PCs with ghost overlay 243 should stay in the overlay band.
+
+#### 17.2.4 Invisible Objects Filtered in Editor Mode (M18)
+
+**Location:** `EditorMapFloorRenderBuilder.ProcessSector()` lines ~700
+
+**Bug:**
+```csharp
+if (obj.Flags.HasFlag(ObjectFlags.Invisible))
+    continue;
+```
+
+CE editor mode sets `dword_5E2F88 = 0` (no skip flags) and `dword_5E2EC8 = 0` (no dontdraw filter), meaning ALL objects are visible including `OF_INVISIBLE`. ArcNET unconditionally filters invisible objects even in editor mode.
+
+**Fix required:** Remove the invisible filter or make it conditional on a request flag (e.g., `request.FilterInvisible`).
+
+#### 17.2.5 OWAF_TRANS_DISALLOW Not Checked (M24)
+
+**Location:** `EditorMapFloorRenderBuilder.ShouldHideTransparentWallUnderFadedRoof()` lines ~1100
+
+**Bug:** The function checks `OWAF_TRANS_LEFT | OWAF_TRANS_RIGHT` but not `OWAF_TRANS_DISALLOW` (0x0001). Walls with this flag block transparency and should NOT be hidden even under faded roofs.
+
+**Fix required:** Add `&& (objectPreview.WallFlags & 0x0001) == 0` to the condition.
+
+#### 17.2.6 Frozen Object Effect Missing (M5)
+
+**Location:** `EditorMapPaintableScene.CreateItem()` lines ~800
+
+**Bug:** `ObjectFlags.Frozen` is not mapped. CE applies additive blend + blue tint `(0, 128, 255)` via `TIG_ART_BLT_BLEND_COLOR_CONST`.
+
+**Fix required:** In `CreateItem`, check `ObjectFlags.Frozen` and set `BlendMode = Add` + `SuggestedTintColor = 0xFF0080FF`.
+
+### 17.3 Corrected Status Summary
+
+| Item | Previous Status | Corrected Status | Evidence |
+|------|----------------|-----------------|----------|
+| M10 (Wading Shadow) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~530: `SuggestedTintColor: obj.IsWading ? 0xFF5C5C5C : null` |
+| M12 (Reaction Tints) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~490: `isReactionUnderlay ? obj.ReactionColor : null` |
+| M14 (Subtract Shadow) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~535: `BlendMode: EditorMapSpriteBlendMode.Subtract` |
+| M15 (AnimatedDead) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `isAnimatedDead ? 0xFF00FF00 : suggestedTintColor` |
+| M16 (Stoned) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `UseGrayscalePaletteOverride = isStoned` |
+| M17 (DontLight) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `TintIgnoresLightVisibility = dontLight` |
+| M21 (Roof Alpha) | ❌ Open | ✅ Resolved | `GetRoofAlphaLerp` lines ~900-930: 13-piece switch expression |
+| M22 (EyeCandy Scale) | ❌ Open | ✅ Resolved | `AdjustEyeCandyRequest` lines ~870-890: `dword_5A548C` multiplier table |
+| M23 (Translucent) | ❌ Open | ✅ Resolved | `BuildObject` line ~580: `SuggestedOpacity = 0.5d` for Translucent flag |
+| M13 (Ghost Stacking) | ❌ Open | ⚠️ Partial | Correct non-flat band placement, but SubOrder inverted + Armor/PC checks wrong |
+| M18 (Invisible) | ❌ Open | ⚠️ Inverted | ArcNET hides invisible objects; CE editor shows them |
+
+### 17.4 Remaining Open Gaps
+
+| # | Gap | Priority | Details |
+|---|-----|----------|---------|
+| M4 | Wading effect (15px shift, alpha=92) | Low | Gameplay critter effect, not editor rendering. |
+| M5 | Frozen object effect | Medium | Missing `BlendMode = Add` + blue tint `0xFF0080FF`. |
+| M6 | Editor destroyed/off tint | Medium | Missing red `(255,0,0)` / green `(0,255,0)` additive tints for `OF_DESTROYED`/`OF_OFF`. |
+| M7 | Hover highlight pulsing | Low | Interactive render-level feature. |
+| M9 | Quadrant-Based Light LERP | Low | Floor tile light interpolation across 9 vertices. |
+| M11 | Scaled sprite dirty rect bypass | Low | CE bypasses dirty culling for `scale != 100`. |
+| M19 | Top-down wall overlays | Low | CE draws 2px red lines + magenta dots; ArcNET draws sprites. |
+| M20 | Floating text rendering | Low | `OF_TEXT`/`OF_TEXT_FLOATER` text bubble layer missing. |
+| M24 | OWAF_TRANS_DISALLOW flag | Medium | Walls with this flag incorrectly hidden under faded roofs. |

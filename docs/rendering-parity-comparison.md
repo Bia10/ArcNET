@@ -412,21 +412,22 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 | M6 | Editor destroyed/off tint | Editor mode highlights not rendered | ❌ Open | Additive red `(255, 0, 0)` or green `(0, 255, 0)`. |
 | M7 | Hover highlight (underlay/overlay pulsing) | Cursor hovering over objects does not pulse | ❌ Open | Render-level interactive outline pulsing. |
 | M8 | Hit testing uses bounds vs. pixel test | Selection accuracy differs | ⚠️ Acceptable | Standard editor bounding-box checks. |
-| M9 | Quadrant-Based Light Interpolation (LERP) | Lacks smooth, non-linear floor tiling light blends | ❌ Open | **New CE Discovery**: Splits tile into 4 sub-quadrants to blend lighting colors across 9 vertices. |
-| M10 | Wading Shadow Color Multiplication | Shadows of wading critters lack (92, 92, 92) multiplication | ❌ Open | **New CE Discovery**: Found in `object.c` wading checks. |
-| M11 | Scaled Sprite Dirty Rect Bypass | Scaled sprites (`scale != 100`) have rounding blit artifacts | ❌ Open | **New CE Discovery**: CE bypasses dirty culling for scaled sprites entirely. |
-| M12 | NPC Underlay Reaction Tints | Reaction underlays (ID 433) lack const color mapping | ❌ Open | **New CE Discovery**: Underlays are colored according to critter reaction flags. |
-| M13 | Armor/Critter Ghost Stacking | Visual ghost overlay (ID 243) renders in wrong z-order band | ❌ Open | **New CE Discovery**: Ghost overlay enqueues in standard non-flat object bucket. |
-| M14 | Subtractive shadow blending | Shadows lack subtractive blend mode | ❌ Open | **New CE Discovery**: Shadows blit with `TIG_ART_BLT_BLEND_SUB \| TIG_ART_BLT_BLEND_COLOR_CONST`. |
-| M15 | `OF_ANIMATED_DEAD` Object Tint | Undead animation tint not applied | ❌ Open | **New CE Discovery**: Apply pure green multiplier `(0, 255, 0)`. |
-| M16 | `OF_STONED` Grayscale Palette | Petrified objects lack grayscale | ❌ Open | **New CE Discovery**: Map `Stoned` flag to `UseGrayscalePaletteOverride`. |
-| M17 | `OF_DONTLIGHT` Light Mask Bypass | Lighting applied to unlit objects | ❌ Open | **New CE Discovery**: Map `DontLight` flag to `TintIgnoresLightVisibility`. |
-| M18 | `OF_INVISIBLE` Visibility Rules | Hidden objects remain rendered | ❌ Open | **New CE Discovery**: Add rendering culling logic for `Invisible` flag. |
-| M19 | Top-Down Wall Editor Overlays | Top-down walls lack 2px red geometry | ❌ Open | **New CE Discovery**: CE renders top-down walls as lines/dots, not sprites. |
-| M20 | Floating Text Rendering | Text bubbles do not render | ❌ Open | **New CE Discovery**: Missing `EditorMapTextRenderItem` layer for `OF_TEXT`. |
-| M21 | Roof Fade Alpha LERP Gradients | Faded roofs lack 4-corner smooth gradients | ❌ Open | **New CE Discovery**: Faded roofs use 4-corner gradients dependent on piece type. |
-| M22 | Eye Candy Scale Types | Eye candy is rendered at wrong scale | ❌ Open | **New CE Discovery**: Eye candy relies on `scale_type` lookup for base percentage multipliers. |
-| M23 | `OF_TRANSLUCENT` Opacity Mapping | Translucent objects lack 50% blend | ❌ Open | **New CE Discovery**: Forces `OBJ_F_RENDER_ALPHA` = 128 (50% opacity). |
+| M9 | Quadrant-Based Light Interpolation (LERP) | Lacks smooth, non-linear floor tiling light blends | ❌ Open | Splits tile into 4 sub-quadrants to blend lighting colors across 9 vertices. |
+| M10 | Wading Shadow Color Multiplication | Shadows of wading critters lack (92, 92, 92) multiplication | ✅ Resolved | **Wading Shadow Tint**: `GenerateAuxiliaryItems` applies `SuggestedTintColor = 0xFF5C5C5C` (92, 92, 92) when `obj.IsWading` is true. |
+| M11 | Scaled Sprite Dirty Rect Bypass | Scaled sprites (`scale != 100`) have rounding blit artifacts | ❌ Open | CE bypasses dirty culling for scaled sprites entirely. |
+| M12 | NPC Underlay Reaction Tints | Reaction underlays (ID 433) lack const color mapping | ✅ Resolved | **Reaction Underlay Tint**: `GenerateAuxiliaryItems` detects `artId.Value == 433`, sets `SuggestedTintColor = obj.ReactionColor` and forces `ScalePercent = 100`, `IsShrunk = false`. |
+| M13 | Armor/Critter Ghost Stacking | Ghost overlay SubOrder inverted; Armor check too strict; PC incorrectly included | ⚠️ Partial | **Correct band, wrong order**: Ghost overlays are in the non-flat band (600M+) matching CE, but `SubOrder = 0` renders ghost BEFORE its parent main object (should be 1). `IsGhostOrArmorOverlay` requires `ArtNum == 243` for Armor (CE unconditionally moves ALL Armor overlays). ArcNET includes PC dead overlays (CE only handles NPC, not PC). |
+| M14 | Subtractive shadow blending | Shadows lack subtractive blend mode | ✅ Resolved | **Subtract Blend**: `GenerateAuxiliaryItems` sets `BlendMode = Subtract` for shadow auxiliaries; `CreateItem` maps to `UseSubtractiveShadowBlend = true`. |
+| M15 | `OF_ANIMATED_DEAD` Object Tint | Undead animation tint not applied | ✅ Resolved | **Green Tint**: `CreateItem` applies `SuggestedTintColor = 0xFF00FF00` when `ObjectFlags.AnimatedDead` is set. |
+| M16 | `OF_STONED` Grayscale Palette | Petrified objects lack grayscale | ✅ Resolved | **Grayscale Override**: `CreateItem` sets `UseGrayscalePaletteOverride = true` when `ObjectFlags.Stoned` is set. |
+| M17 | `OF_DONTLIGHT` Light Mask Bypass | Lighting applied to unlit objects | ✅ Resolved | **Light Bypass**: `CreateItem` sets `TintIgnoresLightVisibility = true` when `ObjectFlags.DontLight` is set. |
+| M18 | `OF_INVISIBLE` Editor Visibility | Invisible objects incorrectly hidden in editor mode | ⚠️ Inverted | **Wrong culling direction**: `ProcessSector` skips `Invisible` objects via `continue`, but CE editor mode (`dword_5E2F88 = 0`, `dword_5E2EC8 = 0`) shows ALL objects including invisible ones. Editor should not cull this flag. |
+| M19 | Top-Down Wall Editor Overlays | Top-down walls lack 2px red geometry | ❌ Open | CE renders top-down walls as lines/dots, not sprites. |
+| M20 | Floating Text Rendering | Text bubbles do not render | ❌ Open | Missing `EditorMapTextRenderItem` layer for `OF_TEXT`/`OF_TEXT_FLOATER`. |
+| M21 | Roof Fade Alpha LERP Gradients | Faded roofs lack 4-corner smooth gradients | ✅ Resolved | **13-Piece Alpha LERP**: `GetRoofAlphaLerp` in `EditorMapPaintableSceneBuilder` applies correct 4-corner alpha for all 13 roof piece types when `ArtId.IsRoofFaded` is true. |
+| M22 | Eye Candy Scale Types | Eye candy is rendered at wrong scale | ✅ Resolved | **Scale Type Multiplier**: `AdjustEyeCandyRequest` applies the CE `dword_5A548C` lookup `[50,63,75,87,100,130,160,200]` based on ArtId scale type bits when `Type == EyeCandy`. |
+| M23 | `OF_TRANSLUCENT` Opacity Mapping | Translucent objects lack 50% blend | ✅ Resolved | **50% Opacity**: `BuildObject` applies `SuggestedOpacity = 0.5d` when `ObjectFlags.Translucent` is set. |
+| M24 | `OWAF_TRANS_DISALLOW` Wall Flag | Walls with DISALLOW flag incorrectly hidden under faded roofs | ❌ Open | `ShouldHideTransparentWallUnderFadedRoof` checks `OWAF_TRANS_LEFT | RIGHT` but not `OWAF_TRANS_DISALLOW` (0x0001). Walls with this flag should remain visible. |
 ### 11.3 Verified Parity Items
 
 | # | Item | Status |

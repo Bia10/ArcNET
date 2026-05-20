@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor.Tests;
 
@@ -19,12 +19,12 @@ public sealed class EditorMapRenderSpriteTests
             centerY: 40
         );
 
-        await Assert.That(centerX).IsEqualTo(108);
-        await Assert.That(centerY).IsEqualTo(60);
+        await Assert.That(centerX).IsEqualTo(68);
+        await Assert.That(centerY).IsEqualTo(40);
     }
 
     [Test]
-    public async Task AdjustSpriteCenter_WallObjectWithoutFlipOnlyAppliesCeNorthSouthHotspotShift()
+    public async Task AdjustSpriteCenter_WallObjectWithoutFlipUsesRawHotspot()
     {
         var artId = new ArtId(0x10000000u);
 
@@ -38,8 +38,8 @@ public sealed class EditorMapRenderSpriteTests
             centerY: 40
         );
 
-        await Assert.That(centerX).IsEqualTo(-10);
-        await Assert.That(centerY).IsEqualTo(60);
+        await Assert.That(centerX).IsEqualTo(30);
+        await Assert.That(centerY).IsEqualTo(40);
     }
 
     [Test]
@@ -62,7 +62,7 @@ public sealed class EditorMapRenderSpriteTests
     }
 
     [Test]
-    public async Task AdjustSpriteCenter_FloorTileSectorWallBindingAppliesCeWallHotspotShift()
+    public async Task AdjustSpriteCenter_FloorTileSectorWallBindingUsesRawHotspot()
     {
         var artId = new ArtId(0x00000101u);
 
@@ -76,7 +76,7 @@ public sealed class EditorMapRenderSpriteTests
             centerY: 40
         );
 
-        await Assert.That(centerX).IsEqualTo(-10);
-        await Assert.That(centerY).IsEqualTo(60);
+        await Assert.That(centerX).IsEqualTo(30);
+        await Assert.That(centerY).IsEqualTo(40);
     }
 }

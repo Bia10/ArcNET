@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using ArcNET.Archive;
@@ -2053,6 +2053,11 @@ public sealed class EditorWorkspace : IDisposable
             return false;
         }
 
+        baseTerrainName = NormalizeTerrainTypeAssetName(baseTerrainName);
+        secondaryTerrainName = NormalizeTerrainTypeAssetName(secondaryTerrainName);
+        if (string.IsNullOrWhiteSpace(baseTerrainName) || string.IsNullOrWhiteSpace(secondaryTerrainName))
+            return false;
+
         if (baseTerrainType == secondaryTerrainType || edge == 0)
         {
             assetPath =
@@ -2084,6 +2089,19 @@ public sealed class EditorWorkspace : IDisposable
     private static int DecodeTerrainEdge(ushort terrainId) => (terrainId >> 2) & 0x0F;
 
     private static int DecodeTerrainVariant(ushort terrainId) => terrainId & 0x03;
+
+    private static string NormalizeTerrainTypeAssetName(string terrainTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(terrainTypeName))
+            return string.Empty;
+
+        var normalizedName = terrainTypeName.Trim();
+        var blockedMarkerIndex = normalizedName.IndexOf("/b", StringComparison.OrdinalIgnoreCase);
+        if (blockedMarkerIndex < 0)
+            return normalizedName;
+
+        return normalizedName[..blockedMarkerIndex].TrimEnd();
+    }
 
     private static Sector MergeTerrainBaseSector(Sector terrainSector, Sector mapSector)
     {
@@ -2176,9 +2194,10 @@ public sealed class EditorWorkspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(mob);
 
-        if (mob.Header.GameObjectType is ObjectType.Scenery)
-            return null;
-
+        // CE resolves the art ID for all object types from their prototype when the mob
+        // data does not carry a direct CurrentAid override.  Previously Scenery was skipped
+        // which caused prototype-inheriting scenery objects (furniture, beds, tables, altars)
+        // to have art ID 0 and become invisible.
         var protoNumber = mob.Header.ProtoId.GetProtoNumber();
         return
             protoNumber is int resolvedProtoNumber

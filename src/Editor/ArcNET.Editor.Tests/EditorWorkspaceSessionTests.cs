@@ -5583,6 +5583,61 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task PreviewTrackedTerrainFacadePaintableScene_SkipsOverlayOutsideTerrainPaintMode()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(contentDir);
+
+        try
+        {
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = "maps/map01/00000000.sec",
+                        Tile = new Location(5, 6),
+                    },
+                    WorldEdit = new EditorProjectMapWorldEditState
+                    {
+                        ActiveTool = EditorProjectMapWorldEditActiveTool.ObjectPlacement,
+                    },
+                }
+            );
+
+            var sceneRender = new EditorMapFloorRenderPreview
+            {
+                MapName = "map01",
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+                WidthPixels = 64d,
+                HeightPixels = 32d,
+                Tiles = [],
+                Objects = [],
+                ObjectAuxiliaryItems = [],
+                Overlays = [],
+                Lights = [],
+                Roofs = [],
+                RenderQueue = [],
+            };
+
+            var overlayScene = session.PreviewTrackedTerrainFacadePaintableScene("map-view-1", sceneRender);
+
+            await Assert.That(overlayScene).IsNull();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_SetTrackedTerrainPaletteEntry_PreservesPinnedInspectorState()
     {
         const int selectedProtoNumber = 1001;

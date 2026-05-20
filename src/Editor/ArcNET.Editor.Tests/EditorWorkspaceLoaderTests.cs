@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using ArcNET.Archive;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -675,7 +675,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapRenderSpriteSource_AppliesCeWallHotspotAdjustment()
+    public async Task LoadAsync_CreateMapRenderSpriteSource_UsesRawCeWallHotspotWithoutRotationAdjustment()
     {
         var artId = new ArtId(1u);
         var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -703,10 +703,10 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(northWallSprite).IsNotNull();
             await Assert.That(northWallMetrics).IsNotNull();
             await Assert.That(eastWallSprite).IsNotNull();
-            await Assert.That(northWallSprite!.CenterX).IsEqualTo(-28);
-            await Assert.That(northWallSprite.CenterY).IsEqualTo(54);
-            await Assert.That(northWallMetrics!.CenterX).IsEqualTo(-28);
-            await Assert.That(northWallMetrics.CenterY).IsEqualTo(54);
+            await Assert.That(northWallSprite!.CenterX).IsEqualTo(12);
+            await Assert.That(northWallSprite.CenterY).IsEqualTo(34);
+            await Assert.That(northWallMetrics!.CenterX).IsEqualTo(12);
+            await Assert.That(northWallMetrics.CenterY).IsEqualTo(34);
             await Assert.That(eastWallSprite!.CenterX).IsEqualTo(12);
             await Assert.That(eastWallSprite.CenterY).IsEqualTo(34);
         }
@@ -3912,7 +3912,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapScenePreview_DoesNotUseProtoCurrentArtIdWhenScenerySceneMobOmitsOne()
+    public async Task LoadAsync_CreateMapScenePreview_UsesProtoCurrentArtIdWhenScenerySceneMobOmitsOne()
     {
         const int protoNumber = 1001;
         const ulong sectorKey = 101334386389UL;
@@ -3957,8 +3957,8 @@ public class EditorWorkspaceLoaderTests
 
             var preview = workspace.CreateMapScenePreview("map01", artResolver);
 
-            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId.Value).IsEqualTo(0u);
-            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNull();
+            await Assert.That(preview.Sectors[0].Objects[0].CurrentArtId).IsEqualTo(artId);
+            await Assert.That(preview.Sectors[0].Objects[0].SpriteBounds).IsNotNull();
         }
         finally
         {
@@ -4028,6 +4028,52 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(2);
             await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == terrainObjectId)).IsTrue();
             await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == mapObjectId)).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_NormalizesBlockedTerrainNamesWhenComposingBaseSectors()
+    {
+        const int terrainBaseType = 0;
+        const ulong sectorKey = 0UL;
+        const uint terrainTileArtId = 0x55667788u;
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "terrain", "water"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "terrain"));
+
+        try
+        {
+            var terrainMessages = new MesFile { Entries = [new MessageEntry(terrainBaseType, "water /b")] };
+            MessageFormat.WriteToFile(in terrainMessages, Path.Combine(contentDir, "terrain", "terrain.mes"));
+
+            var terrain = new TerrainData
+            {
+                Version = 1.2f,
+                BaseTerrainType = TerrainType.Desert,
+                Width = 1,
+                Height = 1,
+                Compressed = false,
+                Tiles = [MakeTerrainId(terrainBaseType, terrainBaseType, 0, 1)],
+            };
+            TerrainFormat.WriteToFile(in terrain, Path.Combine(contentDir, "maps", "map01", "terrain.tdf"));
+
+            var terrainSector = MakeSector();
+            terrainSector.Tiles[0] = terrainTileArtId;
+            SectorFormat.WriteToFile(terrainSector, Path.Combine(contentDir, "terrain", "water", "1.sec"));
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].GetTileArtId(0, 0)).IsEqualTo(terrainTileArtId);
         }
         finally
         {
@@ -4445,7 +4491,7 @@ public class EditorWorkspaceLoaderTests
                 new Dictionary<string, byte[]> { ["art\\critters\\barbarian.art"] = ArtFormat.WriteToArray(in artFile) }
             );
 
-            var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(gameDir);
+            using var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(gameDir);
             var asset = workspace.Assets.Find("art/critters/barbarian.art");
             var storedArt = workspace.GameData.Arts[0];
             var art = workspace.FindArt("art/critters/barbarian.art");
@@ -4666,7 +4712,7 @@ public class EditorWorkspaceLoaderTests
                 Path.Combine(moduleDir, "maps", "map01", "0.sec")
             );
 
-            var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+            using var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
                 gameDir,
                 new EditorWorkspaceLoadOptions { ModuleName = "Arcanum" }
             );
@@ -4787,7 +4833,7 @@ public class EditorWorkspaceLoaderTests
                 Path.Combine(moduleDir, "maps", "map01", "0.sec")
             );
 
-            var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+            using var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
                 gameDir,
                 new EditorWorkspaceLoadOptions { ModuleName = "Arcanum" }
             );
