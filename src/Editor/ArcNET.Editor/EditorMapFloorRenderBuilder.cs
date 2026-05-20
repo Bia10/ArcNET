@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Numerics;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -13,6 +13,7 @@ public static class EditorMapFloorRenderBuilder
 {
     private const int WallTransparencyLeft = 0x0002;
     private const int WallTransparencyRight = 0x0004;
+    private const int WallTransDisallow = 0x0001;
 
     private static readonly bool[,,] RoofCoverageMatrix =
     {
@@ -1121,6 +1122,7 @@ public static class EditorMapFloorRenderBuilder
     ) =>
         objectPreview.ObjectType is ObjectType.Wall
         && (objectPreview.WallFlags & (WallTransparencyLeft | WallTransparencyRight)) != 0
+        && (objectPreview.WallFlags & WallTransDisallow) == 0
         && !UsesNonCardinalWallRotation(objectPreview.CurrentArtId)
         && IsRoofFaded(sceneSectorLookup, mapTileX, mapTileY);
 
@@ -1172,9 +1174,8 @@ public static class EditorMapFloorRenderBuilder
         )
         && (
             item.ParentObjectType is ObjectType.Armor
-            || (item.ParentObjectType is ObjectType.Npc or ObjectType.Pc && item.IsParentDead)
-        )
-        && item.ArtId.ArtNum == 243;
+            || (item.ParentObjectType is ObjectType.Npc && item.IsParentDead && item.ArtId.ArtNum == 243)
+        );
 
     private sealed record NonFlatSortItem(
         EditorMapRenderQueueItemKind Kind,
@@ -1825,7 +1826,7 @@ public static class EditorMapFloorRenderBuilder
                     SameTileOrder: obj.SameTileOrder,
                     MapTileX: obj.MapTileX,
                     MapTileY: obj.MapTileY,
-                    SubOrder: 1,
+                    SubOrder: 0,
                     SlotOrder: 0
                 )
             );
@@ -1845,7 +1846,7 @@ public static class EditorMapFloorRenderBuilder
                     SameTileOrder: aux.ParentSameTileOrder,
                     MapTileX: aux.MapTileX,
                     MapTileY: aux.MapTileY,
-                    SubOrder: 0,
+                    SubOrder: 1,
                     SlotOrder: aux.SlotOrder
                 )
             );

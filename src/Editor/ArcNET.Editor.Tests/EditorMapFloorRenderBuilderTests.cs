@@ -870,12 +870,12 @@ public sealed class EditorMapFloorRenderBuilderTests
             .ToArray();
 
         await Assert.That(relevantQueue.Length).IsEqualTo(2);
-        await Assert.That(relevantQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.ObjectAuxiliary);
+        await Assert.That(relevantQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.Object);
+        await Assert.That(relevantQueue[0].Object?.ObjectId).IsEqualTo(parentNpcId);
+        await Assert.That(relevantQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.ObjectAuxiliary);
         await Assert
-            .That(relevantQueue[0].ObjectAuxiliaryItem?.Layer)
+            .That(relevantQueue[1].ObjectAuxiliaryItem?.Layer)
             .IsEqualTo(EditorMapObjectAuxiliaryRenderLayer.OverlayFore);
-        await Assert.That(relevantQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.Object);
-        await Assert.That(relevantQueue[1].Object?.ObjectId).IsEqualTo(parentNpcId);
     }
 
     [Test]
