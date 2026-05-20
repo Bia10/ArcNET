@@ -280,26 +280,129 @@ public static class EditorMapPaintableSceneBuilder
         CancellationToken cancellationToken
     )
     {
-        var items = new EditorMapPaintableSceneItem[queue.Count];
-        if (queue.Count < ParallelItemBuildThreshold)
+        var items = new List<EditorMapPaintableSceneItem>(queue.Count);
+        for (var itemIndex = 0; itemIndex < queue.Count; itemIndex++)
         {
-            for (var itemIndex = 0; itemIndex < queue.Count; itemIndex++)
+            cancellationToken.ThrowIfCancellationRequested();
+            var queueItem = queue[itemIndex];
+
+            if (
+                queueItem.Kind is EditorMapRenderQueueItemKind.FloorTile
+                && queueItem.Tile is { } tile
+                && tile.LightDiagnostics?.HasInterpolationVariance == true
+            )
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                items[itemIndex] = BuildItem(sceneRender, queue[itemIndex], spriteSource);
+                var quadrants = BuildFloorTileQuadrants(sceneRender, queueItem, spriteSource);
+                items.AddRange(quadrants);
             }
-
-            return items;
+            else
+            {
+                items.Add(BuildItem(sceneRender, queueItem, spriteSource));
+            }
         }
+        return items.ToArray();
+    }
 
-        Parallel.For(
-            0,
-            queue.Count,
-            new ParallelOptions { CancellationToken = cancellationToken },
-            itemIndex => items[itemIndex] = BuildItem(sceneRender, queue[itemIndex], spriteSource)
+    private static EditorMapPaintableSceneItem[] BuildFloorTileQuadrants(
+        EditorMapFloorRenderPreview sceneRender,
+        EditorMapRenderQueueItem queueItem,
+        IEditorMapRenderSpriteSource? spriteSource
+    )
+    {
+        var tile =
+            queueItem.Tile
+            ?? throw new InvalidOperationException("Floor tile queue items must carry one tile payload.");
+        var spriteReference = TryCreateSpriteReference(
+            tile.ArtId,
+            CreateSpriteRequest(EditorMapRenderQueueItemKind.FloorTile),
+            spriteSource
         );
-        cancellationToken.ThrowIfCancellationRequested();
-        return items;
+
+        var w = sceneRender.TileWidthPixels;
+        var h = sceneRender.TileHeightPixels;
+        var halfW = w / 2d;
+        var halfH = h / 2d;
+
+        var left = tile.CenterX - (w / 2d);
+        var top = tile.CenterY - (h / 2d);
+
+        var g = tile.LightDiagnostics!.Value;
+        var defaultColor = tile.SuggestedTintColor ?? 0xFFFFFFFF;
+        var c0 = g.TopLeft ?? defaultColor;
+        var c1 = g.TopCenter ?? defaultColor;
+        var c2 = g.TopRight ?? defaultColor;
+        var c3 = g.MiddleLeft ?? defaultColor;
+        var c4 = g.MiddleCenter ?? defaultColor;
+        var c5 = g.MiddleRight ?? defaultColor;
+        var c6 = g.BottomLeft ?? defaultColor;
+        var c7 = g.BottomCenter ?? defaultColor;
+        var c8 = g.BottomRight ?? defaultColor;
+
+        uint[][] quadrantColors =
+        [
+            [c0, c1, c4, c3], // Q0: Top-Left
+            [c1, c2, c5, c4], // Q1: Top-Right
+            [c3, c4, c7, c6], // Q2: Bottom-Left
+            [c4, c5, c8, c7], // Q3: Bottom-Right
+        ];
+
+        var results = new EditorMapPaintableSceneItem[4];
+        for (int i = 0; i < 4; i++)
+        {
+            var qLeft = left + (i % 2 == 1 ? halfW : 0d);
+            var qTop = top + (i >= 2 ? halfH : 0d);
+
+            var sourceRect = new EditorMapPaintableSceneSpriteSourceRect(
+                (int)(i % 2 == 1 ? halfW : 0d),
+                (int)(i >= 2 ? halfH : 0d),
+                (int)halfW,
+                (int)halfH
+            );
+
+            var destRect = new EditorMapPaintableSceneSpriteDestinationRect(qLeft, qTop, halfW, halfH);
+
+            var qCenterX = qLeft + (halfW / 2d);
+            var qCenterY = qTop + (halfH / 2d);
+
+            var geomPoints =
+                sceneRender.ViewMode is EditorMapSceneViewMode.TopDown
+                    ? (IReadOnlyList<EditorMapRenderPoint>)
+                        [
+                            new EditorMapRenderPoint(qLeft, qTop),
+                            new EditorMapRenderPoint(qLeft + halfW, qTop),
+                            new EditorMapRenderPoint(qLeft + halfW, qTop + halfH),
+                            new EditorMapRenderPoint(qLeft, qTop + halfH),
+                        ]
+                    : (IReadOnlyList<EditorMapRenderPoint>)
+                        [
+                            new EditorMapRenderPoint(qLeft + (halfW / 2d), qTop),
+                            new EditorMapRenderPoint(qLeft + halfW, qTop + (halfH / 2d)),
+                            new EditorMapRenderPoint(qLeft + (halfW / 2d), qTop + halfH),
+                            new EditorMapRenderPoint(qLeft, qTop + (halfH / 2d)),
+                        ];
+
+            results[i] = new EditorMapPaintableSceneItem
+            {
+                Kind = queueItem.Kind,
+                DrawOrder = queueItem.DrawOrder,
+                SortKey = queueItem.SortKey,
+                Left = qLeft,
+                Top = qTop,
+                Width = halfW,
+                Height = halfH,
+                AnchorX = qCenterX,
+                AnchorY = qCenterY,
+                SuggestedOpacity = 1d,
+                SuggestedTintColor = null,
+                ObjectColorArray = new EditorMapObjectColorArray(quadrantColors[i]),
+                TileLightDiagnostics = tile.LightDiagnostics,
+                SpriteSourceRect = sourceRect,
+                SpriteDestinationRect = destRect,
+                SpriteReference = spriteReference,
+                GeometryPoints = geomPoints,
+            };
+        }
+        return results;
     }
 
     private static EditorMapRenderSpriteCoverage BuildSpriteCoverage(
@@ -497,7 +600,7 @@ public static class EditorMapPaintableSceneBuilder
             obj.SpriteBounds?.MaxFrameHeight ?? spriteReference?.Height ?? 0d,
             spriteReference,
             geometryPoints: null,
-            suggestedOpacity: 1d,
+            suggestedOpacity: obj.Flags.HasFlag(ObjectFlags.Translucent) ? 0.5d : 1d,
             suggestedTintColor: null,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
@@ -664,6 +767,21 @@ public static class EditorMapPaintableSceneBuilder
             ? null
             : new EditorMapPaintableSceneSpriteDestinationRect(left, top, width, height);
 
+        var isEyeCandyTranslucent =
+            queueItem.Object?.CurrentArtId.IsEyeCandyTranslucent == true
+            || queueItem.ObjectAuxiliaryItem?.ArtId.IsEyeCandyTranslucent == true
+            || queueItem.PlacementPreviewObject?.CurrentArtId.IsEyeCandyTranslucent == true;
+        var blendMode = isEyeCandyTranslucent
+            ? EditorMapSpriteBlendMode.Add
+            : (queueItem.ObjectAuxiliaryItem?.BlendMode ?? EditorMapSpriteBlendMode.SourceOver);
+
+        var dontLight = queueItem.Object?.Flags.HasFlag(ObjectFlags.DontLight) == true;
+
+        var isStoned = queueItem.Object?.Flags.HasFlag(ObjectFlags.Stoned) == true;
+
+        var isAnimatedDead = queueItem.Object?.Flags.HasFlag(ObjectFlags.AnimatedDead) == true;
+        var finalTintColor = isAnimatedDead ? 0xFF00FF00 : suggestedTintColor;
+
         return new EditorMapPaintableSceneItem
         {
             Kind = queueItem.Kind,
@@ -678,17 +796,18 @@ public static class EditorMapPaintableSceneBuilder
             AnchorX = anchorX,
             AnchorY = anchorY,
             SuggestedOpacity = suggestedOpacity,
-            SuggestedTintColor = suggestedTintColor,
-            TintIgnoresLightVisibility = false,
+            SuggestedTintColor = finalTintColor,
+            TintIgnoresLightVisibility = dontLight,
+            UseGrayscalePaletteOverride = isStoned,
             UseLightMaskTint = queueItem.ObjectAuxiliaryItem?.ArtId.Type is ArtId.TypeCode.Light,
             TileLightDiagnostics = queueItem.Tile?.LightDiagnostics,
             TileOverlayKind = queueItem.TileOverlay?.Kind,
             SpriteSourceRect = spriteSourceRect,
             SpriteDestinationRect = spriteDestinationRect,
-            IsRoofCovered = queueItem.ObjectAuxiliaryItem?.IsRoofCovered ?? false,
+            IsRoofCovered = queueItem.Object?.IsRoofCovered ?? queueItem.ObjectAuxiliaryItem?.IsRoofCovered ?? false,
             RoofAlphaLerp = roofAlphaLerp,
-            BlendMode = queueItem.ObjectAuxiliaryItem?.BlendMode ?? EditorMapSpriteBlendMode.SourceOver,
-            UseSubtractiveShadowBlend = queueItem.ObjectAuxiliaryItem?.BlendMode is EditorMapSpriteBlendMode.Subtract,
+            BlendMode = blendMode,
+            UseSubtractiveShadowBlend = blendMode is EditorMapSpriteBlendMode.Subtract,
             SpriteReference = spriteReference,
             GeometryPoints = geometryPoints,
         };
@@ -704,6 +823,7 @@ public static class EditorMapPaintableSceneBuilder
         if (artId.Value == 0)
             return null;
 
+        request = AdjustEyeCandyRequest(artId, request);
         var metrics = spriteSource?.GetSpriteMetrics(artId, request) ?? fallbackMetrics;
         if (metrics is null)
             return null;
@@ -721,6 +841,26 @@ public static class EditorMapPaintableSceneBuilder
             CenterX = metrics.CenterX,
             CenterY = metrics.CenterY,
         };
+    }
+
+    private static EditorMapRenderSpriteRequest AdjustEyeCandyRequest(ArtId artId, EditorMapRenderSpriteRequest request)
+    {
+        if (artId.Type == ArtId.TypeCode.EyeCandy)
+        {
+            var scaleIndex = (int)((artId.Value >> 1) & 7);
+            if (scaleIndex != 4)
+            {
+                int[] multipliers = [50, 63, 75, 87, 100, 130, 160, 200];
+                return new EditorMapRenderSpriteRequest
+                {
+                    RenderItemKind = request.RenderItemKind,
+                    RotationIndex = request.RotationIndex,
+                    ScalePercent = (request.ScalePercent * multipliers[scaleIndex]) / 100,
+                    IsShrunk = request.IsShrunk,
+                };
+            }
+        }
+        return request;
     }
 
     private static EditorMapRenderSpriteMetrics? CreateFallbackSpriteMetrics(
@@ -804,7 +944,7 @@ public static class EditorMapPaintableSceneBuilder
         if (artId is not { Value: not 0u } resolvedArtId)
             return null;
 
-        var request = CreateSpriteRequest(item);
+        var request = AdjustEyeCandyRequest(resolvedArtId, CreateSpriteRequest(item));
         return new SpriteReference(
             resolvedArtId,
             item.Kind,

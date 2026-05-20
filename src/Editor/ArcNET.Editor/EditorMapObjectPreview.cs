@@ -106,6 +106,16 @@ public sealed class EditorMapObjectPreview
     public bool IsFlat => Flags.HasFlag(ObjectFlags.Flat);
 
     /// <summary>
+    /// Returns <see langword="true"/> when the object is wading in water.
+    /// </summary>
+    public bool IsWading => Flags.HasFlag(ObjectFlags.Wading);
+
+    /// <summary>
+    /// Suggested tint color mapped from the NPC's reaction level.
+    /// </summary>
+    public uint? ReactionColor { get; init; }
+
+    /// <summary>
     /// Wall transparency flags from <see cref="ObjectField.WallFlags"/>.
     /// </summary>
     public int WallFlags { get; init; }

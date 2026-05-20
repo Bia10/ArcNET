@@ -15,6 +15,9 @@ public static class EditorMapScenePreviewBuilder
     private const uint CritterArtType = 0x20000000u;
     private const uint MonsterArtType = 0xC0000000u;
     private const uint UniqueNpcArtType = 0xD0000000u;
+    private const uint WallArtType = 0x10000000u;
+    private const uint PortalArtType = 0x30000000u;
+    private const uint SceneryArtType = 0x40000000u;
     private const int ArtIdRotationShift = 11;
 
     /// <summary>
@@ -222,7 +225,7 @@ public static class EditorMapScenePreviewBuilder
             (sectorProjection.SectorX, sectorProjection.SectorY)
         );
         var sectorObjectGuids = CollectSectorObjectGuids(sectorsByAssetPath);
-        var containedObjectGuids = CollectContainedObjectGuids(mapMobsByAssetPath);
+        var containedObjectGuids = CollectContainedObjectGuids(mapMobsByAssetPath, sectorsByAssetPath);
 
         foreach (var (assetPath, mobs) in mapMobsByAssetPath)
         {
@@ -272,13 +275,23 @@ public static class EditorMapScenePreviewBuilder
     }
 
     private static HashSet<Guid> CollectContainedObjectGuids(
-        IReadOnlyDictionary<string, IReadOnlyList<MobData>> mapMobsByAssetPath
+        IReadOnlyDictionary<string, IReadOnlyList<MobData>> mapMobsByAssetPath,
+        IReadOnlyDictionary<string, Sector> sectorsByAssetPath
     )
     {
         var guids = new HashSet<Guid>();
         foreach (var mobs in mapMobsByAssetPath.Values)
         {
             foreach (var mob in mobs)
+            {
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.ContainerInventoryListIdx), guids);
+                AddContainedObjectGuids(mob.GetProperty(ObjectField.CritterInventoryListIdx), guids);
+            }
+        }
+
+        foreach (var sector in sectorsByAssetPath.Values)
+        {
+            foreach (var mob in sector.Objects)
             {
                 AddContainedObjectGuids(mob.GetProperty(ObjectField.ContainerInventoryListIdx), guids);
                 AddContainedObjectGuids(mob.GetProperty(ObjectField.CritterInventoryListIdx), guids);
@@ -467,6 +480,27 @@ public static class EditorMapScenePreviewBuilder
             && hpProp is not null
             && hpProp.GetInt32() <= 0;
 
+        var critterFlags2Prop = mob.GetProperty(ObjectField.CritterFlags2);
+        uint? reactionColor = null;
+        if (critterFlags2Prop is not null && critterFlags2Prop.ParseNote is null)
+        {
+            var critterFlags2 = critterFlags2Prop.GetInt32();
+            if ((critterFlags2 & 0x4000) != 0)
+                reactionColor = 0xFF00FF00; // Reaction0: Hate
+            else if ((critterFlags2 & 0x8000) != 0)
+                reactionColor = 0xFF55FF00; // Reaction1
+            else if ((critterFlags2 & 0x10000) != 0)
+                reactionColor = 0xFFAAFF00; // Reaction2
+            else if ((critterFlags2 & 0x20000) != 0)
+                reactionColor = 0xFFFFFF00; // Reaction3: Neutral
+            else if ((critterFlags2 & 0x40000) != 0)
+                reactionColor = 0xFFFFAA00; // Reaction4
+            else if ((critterFlags2 & 0x80000) != 0)
+                reactionColor = 0xFFFF5500; // Reaction5
+            else if ((critterFlags2 & 0x100000) != 0)
+                reactionColor = 0xFFFF0000; // Reaction6: Love/Hostile
+        }
+
         return new EditorMapObjectPreview
         {
             ObjectId = mob.Header.ObjectId,
@@ -492,6 +526,7 @@ public static class EditorMapScenePreviewBuilder
             OverlayBackArtIds = GetIntArrayOrDefault(mob, ObjectField.OverlayBack),
             OverlayForeArtIds = GetIntArrayOrDefault(mob, ObjectField.OverlayFore),
             IsDead = isDead,
+            ReactionColor = reactionColor,
         };
     }
 
@@ -539,7 +574,14 @@ public static class EditorMapScenePreviewBuilder
     private static float GetCritterFamilyRotationFromArtId(ArtId currentArtId)
     {
         var artType = currentArtId.Value & ArtTypeMask;
-        return artType is CritterArtType or MonsterArtType or UniqueNpcArtType
+        return
+            artType
+                is CritterArtType
+                    or MonsterArtType
+                    or UniqueNpcArtType
+                    or WallArtType
+                    or PortalArtType
+                    or SceneryArtType
             ? (currentArtId.Value >> ArtIdRotationShift) & 0x7u
             : 0f;
     }
@@ -547,7 +589,14 @@ public static class EditorMapScenePreviewBuilder
     private static int GetEmbeddedCritterRotationIndex(ArtId currentArtId)
     {
         var artType = currentArtId.Value & ArtTypeMask;
-        return artType is CritterArtType or MonsterArtType or UniqueNpcArtType
+        return
+            artType
+                is CritterArtType
+                    or MonsterArtType
+                    or UniqueNpcArtType
+                    or WallArtType
+                    or PortalArtType
+                    or SceneryArtType
             ? checked((int)((currentArtId.Value >> ArtIdRotationShift) & 0x7u))
             : 0;
     }

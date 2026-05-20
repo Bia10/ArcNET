@@ -179,7 +179,9 @@ public static class EditorMapFloorRenderBuilder
         int ScalePercent,
         bool IsShrunk,
         bool IsParentDead,
-        bool IsRoofCovered
+        bool IsRoofCovered,
+        uint? SuggestedTintColor = null,
+        EditorMapSpriteBlendMode BlendMode = EditorMapSpriteBlendMode.SourceOver
     );
 
     private sealed class SectorAccumulator
@@ -463,6 +465,7 @@ public static class EditorMapFloorRenderBuilder
             if (artId.Value == 0)
                 continue;
 
+            var isReactionUnderlay = artId.Value == 433;
             local.RawAuxiliaries.Add(
                 new RawAuxiliaryRenderItem(
                     SectorAssetPath: sectorAssetPath,
@@ -480,10 +483,11 @@ public static class EditorMapFloorRenderBuilder
                     AnchorX: anchorX,
                     AnchorY: anchorY,
                     RotationIndex: rotationIndex,
-                    ScalePercent: scalePercent,
-                    IsShrunk: isShrunk,
+                    ScalePercent: isReactionUnderlay ? 100 : scalePercent,
+                    IsShrunk: !isReactionUnderlay && isShrunk,
                     IsParentDead: obj.IsDead,
-                    IsRoofCovered: isRoofCovered
+                    IsRoofCovered: isRoofCovered,
+                    SuggestedTintColor: isReactionUnderlay ? obj.ReactionColor : null
                 )
             );
         }
@@ -510,7 +514,9 @@ public static class EditorMapFloorRenderBuilder
                     ScalePercent: scalePercent,
                     IsShrunk: isShrunk,
                     IsParentDead: obj.IsDead,
-                    IsRoofCovered: isRoofCovered
+                    IsRoofCovered: isRoofCovered,
+                    SuggestedTintColor: obj.IsWading ? 0xFF5C5C5C : null,
+                    BlendMode: EditorMapSpriteBlendMode.Subtract
                 )
             );
         }
@@ -657,6 +663,9 @@ public static class EditorMapFloorRenderBuilder
             {
                 var obj = sector.Objects[objectIndex];
                 if (obj.Location is not { } location)
+                    continue;
+
+                if (obj.Flags.HasFlag(ObjectFlags.Invisible))
                     continue;
 
                 var mapTileX = checked((sector.LocalX * sectorTileWidth) + location.X);
@@ -1379,6 +1388,8 @@ public static class EditorMapFloorRenderBuilder
                 ScalePercent = a.ScalePercent,
                 IsShrunk = a.IsShrunk,
                 IsRoofCovered = a.IsRoofCovered,
+                SuggestedTintColor = a.SuggestedTintColor,
+                BlendMode = a.BlendMode,
             };
         }
 
