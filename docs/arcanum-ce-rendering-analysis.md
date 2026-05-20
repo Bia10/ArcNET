@@ -103,7 +103,7 @@ These are the flags stored in `OBJ_F_FLAGS` that directly affect rendering:
 | `OF_TEXT` | `0x00000008` | Text overlay object |
 | `OF_SEE_THROUGH` | `0x00000010` | Object can be seen through |
 | `OF_SHOOT_THROUGH` | `0x00000020` | Projectiles pass through |
-| `OF_TRANSLUCENT` | `0x00000040` | Object rendered with translucency |
+| `OF_TRANSLUCENT` | `0x00000040` | **Object rendered with translucency** — forces an overriding 50% opacity blend (`OBJ_F_RENDER_ALPHA` = 128) |
 | `OF_SHRUNK` | `0x00000080` | **Shrunk object** — sprite dimensions halved (÷2), source rect doubled (×2) |
 | `OF_DONTDRAW` | `0x00000100` | **Object completely hidden** from rendering (checked against `dword_5E2EC8` mask) |
 | `OF_INVISIBLE` | `0x00000200` | Object invisible unless `OSF_DETECTING_INVISIBLE` is active |
@@ -116,11 +116,11 @@ These are the flags stored in `OBJ_F_FLAGS` that directly affect rendering:
 | `OF_HAS_UNDERLAYS` | `0x00010000` | **Has underlay eye candies** — enables underlay rendering loop |
 | `OF_WADING` | `0x00020000` | Object is in water — adds 15px vertical offset to screen pos, lower 15px drawn with alpha=92 |
 | `OF_WATER_WALKING` | `0x00040000` | Wading offset suppressed when combined with `OF_WADING` |
-| `OF_STONED` | `0x00080000` | Petrified appearance |
-| `OF_DONTLIGHT` | `0x00100000` | Object unaffected by lighting |
+| `OF_STONED` | `0x00080000` | **Petrified appearance** — applies grayscale palette override (`TIG_PALETTE_MODIFY_GRAYSCALE`) |
+| `OF_DONTLIGHT` | `0x00100000` | **Object unaffected by lighting** — forces original palette, bypassing light color arrays |
 | `OF_TEXT_FLOATER` | `0x00200000` | Floating text |
-| `OF_FROZEN` | `0x10000000` | **Frozen object** — rendered with additive blending + color tint |
-| `OF_ANIMATED_DEAD` | `0x20000000` | Undead animation style |
+| `OF_FROZEN` | `0x10000000` | **Frozen object** — rendered with additive blending + blue color tint `tig_color_make(0, 128, 255)` |
+| `OF_ANIMATED_DEAD` | `0x20000000` | **Undead animation style** — base color multiplied by green tint `tig_color_make(0, 255, 0)` |
 
 ### 2.2 Rendering Decision Flow in `object_draw()`
 
@@ -239,19 +239,22 @@ Two modes:
 
 This function configures the `TigArtBlitInfo` based on the object's flags:
 
-1. **Frozen** (`OF_FROZEN`): Additive + color-const blend (blue/white tint)
-2. **Custom BLIT_ADD**: Uses `OBJ_F_BLIT_FLAGS` additive blend
-3. **Custom BLIT_MUL**: Uses `OBJ_F_BLIT_FLAGS` multiplicative blend
-4. **Custom ALPHA_CONST**: Uses `OBJ_F_BLIT_ALPHA` for transparency
-5. **Default**: Uses `OBJ_F_RENDER_FLAGS` (cached lighting/palette flags)
-6. **Eye candy translucency**: Auto-adds `TIG_ART_BLT_BLEND_ADD` for translucent eye candy art
-7. **Editor mode**: Destroyed objects → red tint; off objects → green tint
+1. **Frozen** (`OF_FROZEN`): Additive + color-const blend with blue tint `tig_color_make(0, 128, 255)`.
+2. **Animated Dead** (`OF_ANIMATED_DEAD`): Multiplies render color by green tint `tig_color_make(0, 255, 0)`.
+3. **Stoned** (`OF_STONED`): Applies `TIG_PALETTE_MODIFY_GRAYSCALE`.
+4. **DontLight** (`OF_DONTLIGHT`): Forces `TIG_ART_BLT_PALETTE_ORIGINAL`, ignoring ambient lighting palettes.
+5. **Custom BLIT_ADD**: Uses `OBJ_F_BLIT_FLAGS` additive blend.
+6. **Custom BLIT_MUL**: Uses `OBJ_F_BLIT_FLAGS` multiplicative blend.
+7. **Custom ALPHA_CONST**: Uses `OBJ_F_BLIT_ALPHA` for transparency.
+8. **Default**: Uses `OBJ_F_RENDER_FLAGS` (cached lighting/palette flags).
+9. **Eye candy translucency**: Auto-adds `TIG_ART_BLT_BLEND_ADD` for translucent eye candy art.
+10. **Editor mode**: Destroyed objects → additive red `(255,0,0)` tint; off objects → additive green `(0,255,0)` tint.
 
 ### 3.5 Scale & Shrink
 
 - **`OBJ_F_BLIT_SCALE`**: Percentage scale (100 = normal). Affects hot-spot, width, height calculations via float multiplication.
 - **`OF_SHRUNK`**: Halves all sprite dimensions. Source rectangle is doubled to compensate.
-- **Eye candy scale types**: `dword_5A548C[]` = `{50, 63, 75, 87, 100, 130, 160, 200}`. When scale_type ≠ 4, the object's base scale is further multiplied by this factor.
+- **Eye candy scale types**: Eye Candy sprites (`TIG_ART_TYPE_EYE_CANDY`) have their base scale overridden/multiplied by a constant mapping table (`dword_5A548C`) based on their `scale_type`: `{50, 63, 75, 87, 100, 130, 160, 200}`. When `scale_type ≠ 4`, the object's base scale is multiplied by this percentage factor.
 
 ### 3.6 Water Wading
 
@@ -680,6 +683,17 @@ void sub_4B93F0(int offset_x, int offset_y, int* horizontal, int* vertical) {
 }
 ```
 
+#### 🚨 Crucial Discovery: Isometric Diagonal Traversal Sequence
+The overall draw sequence for tiles in Arcanum's isometric mode traverses tiles diagonal-by-diagonal. 
+1. **Primary sort component (`y + x`):** Tiles are processed in order of screen rows from top to bottom (ascending `y + x`).
+2. **Secondary sort component (`y` / `-x`):** Within a diagonal screen row (where `y + x` is constant), tiles are rendered from left to right. This corresponds strictly to **ascending `y`** (which is mathematically identical to **descending `x`**).
+
+**The Secondary Ordering Discrepancy:**
+Historically, ArcNET implemented this diagonal secondary tie-breaker as `+ mapTileX` (ascending `x`, i.e., descending `y`), which is exactly **backwards**. This caused walls, portals, and scenery on the same diagonal screen row to overlap in the wrong direction, resulting in incorrect scene layering. The mathematically correct formula for isometric base draw order is:
+```csharp
+baseDrawOrder = ((mapTileY + mapTileX) * mapTileWidth) + mapTileY
+```
+
 ### 9.7 Location Normalization (`location_normalize`)
 
 Snaps a location+offset pair to the nearest tile:
@@ -745,6 +759,9 @@ The main game and the editor use different fixed draw sequences in `gamelib.c`.
 12. tb_draw()
 ```
 
+**Floating Text & Text Bubbles:**
+Objects with `OF_TEXT` or `OF_TEXT_FLOATER` are processed by `tb_draw()` (Text Bubbles) and `tf_draw()` (Text Floaters) respectively, after the main rendering loops have finished.
+
 For the parity work in `ArcanumEditor`, the stages that matter most are `tile_draw()`, `facade_draw()`, `object_draw()`, and `roof_draw()`. In isometric view, walls are still drawn as part of `object_draw()`, not `wall_draw()`.
 
 ### 10.3 Dirty Rect System
@@ -759,6 +776,16 @@ typedef struct ViewOptions {
     int zoom;   // Zoom level (top-down only, 12–64)
 } ViewOptions;
 ```
+
+### 10.5 Roof Rendering (`roof_draw`)
+
+When a roof becomes faded (hidden because the player is under it), CE does not simply assign a uniform translucency. Instead, it uses `TIG_ART_BLT_BLEND_ALPHA_LERP_BOTH` to render a 4-corner alpha gradient that smooths out the transition between adjacent roof sections.
+
+The engine uses two baseline constants loaded from `art\roof\roofshade.mes`:
+- `roof_partial_opacity` (outer edge of fade)
+- `roof_full_transparency` (inner edge of fade)
+
+Based on the 13 different possible roof piece shapes (e.g., `TIG_ART_ROOF_PIECE_NORTH_WEST_OUTSIDE`), the renderer maps `roof_partial_opacity`, `roof_full_transparency`, or `roof_full_opacity` to each of the four vertex alpha channels (`alpha[0]`, `alpha[1]`, `alpha[2]`, `alpha[3]`), creating a seamless piece-dependent gradient across the ceiling grid.
 
 ---
 

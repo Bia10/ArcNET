@@ -1475,7 +1475,7 @@ public static class EditorMapFloorRenderBuilder
         viewMode switch
         {
             EditorMapSceneViewMode.TopDown => checked((((long)mapTileY * mapTileWidth) + mapTileX)),
-            EditorMapSceneViewMode.Isometric => checked((((long)mapTileY + mapTileX) * mapTileWidth) + mapTileX),
+            EditorMapSceneViewMode.Isometric => checked((((long)mapTileY + mapTileX) * mapTileWidth) + mapTileY),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
 
@@ -1765,57 +1765,53 @@ public static class EditorMapFloorRenderBuilder
     )
     {
         List<(double SortKey, EditorMapRenderQueueItemKind Kind, int Index)> queue = [];
-        var maxTileSortKey = double.NegativeInfinity;
+
         for (var index = 0; index < rawTiles.Count; index++)
         {
-            var sortKey = rawTiles[index].DrawOrder * 4096d;
+            var sortKey = -2_000_000_000d + (rawTiles[index].DrawOrder * 4096d);
             queue.Add((sortKey, EditorMapRenderQueueItemKind.FloorTile, index));
-            maxTileSortKey = Math.Max(maxTileSortKey, sortKey);
         }
 
-        var maxOverlaySortKey = double.NegativeInfinity;
         for (var index = 0; index < rawTileOverlays.Count; index++)
         {
-            var sortKey = rawTileOverlays[index].SortKey;
+            var sortKey = -1_000_000_000d + rawTileOverlays[index].SortKey;
             queue.Add((sortKey, EditorMapRenderQueueItemKind.TileOverlay, index));
-            maxOverlaySortKey = Math.Max(maxOverlaySortKey, sortKey);
         }
 
-        var objectStageBase = Math.Max(maxTileSortKey, maxOverlaySortKey);
-        if (!double.IsFinite(objectStageBase))
-            objectStageBase = 0d;
-
-        var nextSortKey = objectStageBase + 4096d;
+        var underlayCounter = 0d;
         for (var index = 0; index < rawAuxiliaries.Count; index++)
         {
             if (rawAuxiliaries[index].Layer is not EditorMapObjectAuxiliaryRenderLayer.Underlay)
                 continue;
 
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
+            queue.Add((0d + underlayCounter++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
         }
 
+        var underAllCounter = 0d;
         for (var index = 0; index < rawObjects.Count; index++)
         {
             if (!IsUnderAllScenery(rawObjects[index]))
                 continue;
 
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.Object, index));
+            queue.Add((100_000_000d + underAllCounter++, EditorMapRenderQueueItemKind.Object, index));
         }
 
+        var flatCounter = 0d;
         for (var index = 0; index < rawObjects.Count; index++)
         {
             if (!IsFlatObject(rawObjects[index]) || IsUnderAllScenery(rawObjects[index]))
                 continue;
 
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.Object, index));
+            queue.Add((200_000_000d + flatCounter++, EditorMapRenderQueueItemKind.Object, index));
         }
 
+        var shadowCounter = 0d;
         for (var index = 0; index < rawAuxiliaries.Count; index++)
         {
             if (rawAuxiliaries[index].Layer is not EditorMapObjectAuxiliaryRenderLayer.Shadow)
                 continue;
 
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
+            queue.Add((400_000_000d + shadowCounter++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
         }
 
         var nonFlatList = new List<NonFlatSortItem>();
@@ -1887,11 +1883,13 @@ public static class EditorMapFloorRenderBuilder
             }
         );
 
+        var nonFlatCounter = 0d;
         foreach (var item in nonFlatList)
         {
-            queue.Add((nextSortKey++, item.Kind, item.Index));
+            queue.Add((600_000_000d + nonFlatCounter++, item.Kind, item.Index));
         }
 
+        var overlayCounter = 0d;
         for (var index = 0; index < rawAuxiliaries.Count; index++)
         {
             var aux = rawAuxiliaries[index];
@@ -1909,11 +1907,12 @@ public static class EditorMapFloorRenderBuilder
             if (IsGhostOrArmorOverlay(aux))
                 continue;
 
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
+            queue.Add((700_000_000d + overlayCounter++, EditorMapRenderQueueItemKind.ObjectAuxiliary, index));
         }
 
+        var roofCounter = 0d;
         for (var index = 0; index < rawRoofs.Count; index++)
-            queue.Add((nextSortKey++, EditorMapRenderQueueItemKind.Roof, index));
+            queue.Add((800_000_000d + roofCounter++, EditorMapRenderQueueItemKind.Roof, index));
 
         return queue
             .OrderBy(static item => item.SortKey)

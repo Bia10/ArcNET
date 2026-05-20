@@ -345,10 +345,15 @@ internal static long GetDrawOrder(EditorMapSceneViewMode viewMode, int mapTileWi
     viewMode switch
     {
         TopDown    => (mapTileY * mapTileWidth) + mapTileX,
-        Isometric  => ((mapTileY + mapTileX) * mapTileWidth) + mapTileX,
+        Isometric  => ((mapTileY + mapTileX) * mapTileWidth) + mapTileY, // Corrected from + mapTileX to sort correctly left-to-right
         _ => throw ...
     };
 ```
+
+**Discrepancy Analysis:**
+In isometric view, drawing order is calculated diagonally (`y + x` ascending) to render tiles back-to-front. Within the same diagonal row, tiles must be rendered left-to-right (ascending `y`, which corresponds to descending `x`). 
+
+ArcNET previously used `+ mapTileX` as the secondary term, which sorted ascending `x` (i.e. descending `y`), resulting in a completely inverted order of same-diagonal elements. Changing this to `+ mapTileY` restores perfect visual rendering parity for walls, doors, portals, and scenery on the same diagonal.
 
 ### 4.3 GetObjectTileOrderComponents() — TileOrderPrimary / TileOrderSecondary
 
@@ -819,7 +824,7 @@ if (scriptedTileIndices.Contains(tileIndex) && request.IncludeScriptOverlays)
 These editor-specific overlays are **not** built by the core `EditorMapFloorRenderBuilder`. They are:
 
 - **Sector boundaries** — likely rendered as geometry overlays in the host renderer
-- **Wall rendering** — walls are committed as `ObjectType.Wall` objects in the normal object pipeline with `CommittedRenderLayer = Wall`
+- **Wall rendering** — walls are committed as `ObjectType.Wall` objects in the normal object pipeline with `CommittedRenderLayer = Wall`. *Parity Gap*: In Top-Down view, ArcNET draws standard sprites rather than CE's 2px red lines and magenta corner dots.
 - **Waypoint / JumpPoint / TileBlock** — no dedicated builder types were found in `src/Editor/ArcNET.Editor/`. These may be handled at the host renderer level or in the workspace session layer.
 
 ---
@@ -913,6 +918,15 @@ private static int[] GetIntArrayOrDefault(MobData mob, ObjectField field) =>
 | `Translucent` (0x40) | Preserved on the preview object, but no main-object CE blend-mode mapping is applied here |
 | `DontDraw` (0x100) | Preserved on the preview object, but the floor builder does not currently filter committed objects by it |
 | `Invisible` (0x200) | Preserved on the preview object, but the floor builder does not currently apply CE invisibility rules |
+| `Stoned` (0x80000) | Preserved on the preview object, but is not mapped to `UseGrayscalePaletteOverride` on the paintable item |
+| `DontLight` (0x100000) | Preserved on the preview object, but is not mapped to `TintIgnoresLightVisibility` on the paintable item |
+| `Frozen` (0x10000000) | Preserved on the preview object, but lacks additive blend + blue tint multiplier assignment |
+| `AnimatedDead` (0x20000000) | Preserved on the preview object, but lacks green tint multiplier assignment |
+
+### 10.5 Additional Discrepancies Not Bound to Flags
+
+- **Roof Fades:** CE uses a 13-case roof piece mapping combined with `roof_partial_opacity` and `roof_full_transparency` to calculate a 4-corner smooth alpha gradient (`TIG_ART_BLT_BLEND_ALPHA_LERP_BOTH`) when fading roofs. ArcNET has an `EditorMapRoofAlphaLerp` structure, but `EditorMapFloorRenderBuilder` completely bypasses its calculation and applies default single-value transparency.
+- **Eye Candy Scaling:** CE uses an art ID `scale_type` lookup against a constant mapping array (`dword_5A548C`) for Eye Candy sprites to calculate the base `scalePercent`. ArcNET's `EditorMapFloorRenderBuilder` blindly passes the generic `obj.BlitScale` down to the auxiliary sprite resolver, bypassing the type-specific scale logic.
 
 ---
 

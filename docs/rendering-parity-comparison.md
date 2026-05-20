@@ -41,6 +41,9 @@
 | Tile height | 40 px | `TileHeightPixels = 32d` (configurable) | ⚠️ Configurable |
 | Projection formula | `sx = origin + 40*(y-x-1)`, `sy = origin + 20*(y+x)` | `centerX = (y-x)*tileW/2`, `centerY = (x+y)*tileH/2 + tileH/2` | ✅ Equivalent |
 | Inverse projection | `(dy-dx)/40`, `(dy+dx)/40` | Not directly used (screen→world via selection) | N/A |
+| Diagonal drawing order secondary term | Ascending `y` (i.e. left-to-right) | Ascending `x` (i.e. right-to-left) | ❌ **Inverted (fixed with `+ mapTileY`)** |
+
+**Note:** In isometric view, drawing order is calculated diagonally (`y + x` ascending) to render tiles back-to-front. Within the same diagonal row, tiles must be rendered left-to-right (ascending `y`, which corresponds to descending `x`). ArcNET previously used `+ mapTileX` as the secondary term, which sorted ascending `x` (i.e. descending `y`), resulting in a completely inverted order of same-diagonal elements. Changing this to `+ mapTileY` restores perfect visual rendering parity for walls, doors, portals, and scenery on the same diagonal.
 
 **Note:** ArcNET defaults to 64×32 but the analysis doc shows 80×40 as the CE default. The request uses configurable values; when set to 80×40, the formulas are mathematically identical.
 
@@ -141,15 +144,19 @@ ArcNET cannot reproduce all four rules today because it does not carry `WallFlag
 | Flag | CE Value | ArcNET | Parity |
 |------|----------|--------|--------|
 | `OF_FLAT` | `0x04` | `ObjectFlags.Flat` (0x4) | ✅ |
-| `OF_TRANSLUCENT` | `0x40` | `ObjectFlags.Translucent` (0x40) | ✅ |
+| `OF_TRANSLUCENT` | `0x40` | `ObjectFlags.Translucent` (0x40) | ❌ Missing mapping |
 | `OF_SHRUNK` | `0x80` | `ObjectFlags.Shrunk` (0x80) | ✅ |
-| `OF_DONTDRAW` | `0x100` | `ObjectFlags.DontDraw` (0x100) | ✅ |
-| `OF_INVISIBLE` | `0x200` | `ObjectFlags.Invisible` (0x200) | ✅ |
+| `OF_DONTDRAW` | `0x100` | `ObjectFlags.DontDraw` (0x100) | ❌ Missing mapping |
+| `OF_INVISIBLE` | `0x200` | `ObjectFlags.Invisible` (0x200) | ❌ Missing mapping |
 | `OF_HAS_OVERLAYS` | `0x8000` | `ObjectFlags.HasOverlays` (0x8000) | ✅ |
 | `OF_HAS_UNDERLAYS` | `0x10000` | `ObjectFlags.HasUnderlays` (0x10000) | ✅ |
 | `OF_WADING` | `0x20000` | `ObjectFlags.Wading` (0x20000) | ✅ |
-| `OF_DONTLIGHT` | `0x100000` | `ObjectFlags.DontLight` (0x100000) | ✅ |
-| `OSCF_UNDER_ALL` | `0x0200` | Not tracked | ❌ Missing |
+| `OF_STONED` | `0x80000` | `ObjectFlags.Stoned` (0x80000) | ❌ Missing mapping |
+| `OF_DONTLIGHT` | `0x100000` | `ObjectFlags.DontLight` (0x100000) | ❌ Missing mapping |
+| `OF_TEXT_FLOATER` | `0x200000` | `ObjectFlags.TextFloater` (0x200000) | ❌ Missing mapping |
+| `OF_FROZEN` | `0x10000000` | `ObjectFlags.Frozen` (0x10000000) | ❌ Missing mapping |
+| `OF_ANIMATED_DEAD` | `0x20000000` | `ObjectFlags.AnimatedDead` (0x20000000) | ❌ Missing mapping |
+| `OSCF_UNDER_ALL` | `0x0200` | `SceneryFlags.UnderAll` | ✅ |
 
 ### 4.2 Object Fields
 
@@ -401,8 +408,8 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 | M2 | `GroundDecal` committed layer is never assigned | Host-facing layer taxonomy does not reflect CE flat objects yet | ✅ Resolved | **Flat-to-Decal Mapping**: Flat objects map directly to the `GroundDecal` committed layer. |
 | M3 | Facade isometric `x++` offset is not applied in `EditorMapFacadePaintableSceneBuilder` | Possible 1px facade shift | ✅ Resolved | **Facade Shim Applied**: The builder now applies `centerX += 1d` in isometric mode. |
 | M4 | Wading effect (15px shift, alpha=92) | Critters in water tiles do not wading-render | ❌ Open | Gameplay critter effect. |
-| M5 | Frozen object effect (additive + blue tint) | Icy critters do not render with tint | ❌ Open | Optional visual shader. |
-| M6 | Editor destroyed/off tint (red/green) | Editor mode highlights not rendered | ❌ Open | Handled by host-level highlight overlays. |
+| M5 | Frozen object effect | Icy critters do not render with tint | ❌ Open | Additive blend + blue multiplier `(0, 128, 255)`. |
+| M6 | Editor destroyed/off tint | Editor mode highlights not rendered | ❌ Open | Additive red `(255, 0, 0)` or green `(0, 255, 0)`. |
 | M7 | Hover highlight (underlay/overlay pulsing) | Cursor hovering over objects does not pulse | ❌ Open | Render-level interactive outline pulsing. |
 | M8 | Hit testing uses bounds vs. pixel test | Selection accuracy differs | ⚠️ Acceptable | Standard editor bounding-box checks. |
 | M9 | Quadrant-Based Light Interpolation (LERP) | Lacks smooth, non-linear floor tiling light blends | ❌ Open | **New CE Discovery**: Splits tile into 4 sub-quadrants to blend lighting colors across 9 vertices. |
@@ -410,7 +417,16 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 | M11 | Scaled Sprite Dirty Rect Bypass | Scaled sprites (`scale != 100`) have rounding blit artifacts | ❌ Open | **New CE Discovery**: CE bypasses dirty culling for scaled sprites entirely. |
 | M12 | NPC Underlay Reaction Tints | Reaction underlays (ID 433) lack const color mapping | ❌ Open | **New CE Discovery**: Underlays are colored according to critter reaction flags. |
 | M13 | Armor/Critter Ghost Stacking | Visual ghost overlay (ID 243) renders in wrong z-order band | ❌ Open | **New CE Discovery**: Ghost overlay enqueues in standard non-flat object bucket. |
-| M14 | Subtractive shadow blending | Shadows lack subtractive blend mode | ❌ Open | **New CE Discovery**: Shadows blit with `TIG_ART_BLT_BLEND_SUB | TIG_ART_BLT_BLEND_COLOR_CONST`. |
+| M14 | Subtractive shadow blending | Shadows lack subtractive blend mode | ❌ Open | **New CE Discovery**: Shadows blit with `TIG_ART_BLT_BLEND_SUB \| TIG_ART_BLT_BLEND_COLOR_CONST`. |
+| M15 | `OF_ANIMATED_DEAD` Object Tint | Undead animation tint not applied | ❌ Open | **New CE Discovery**: Apply pure green multiplier `(0, 255, 0)`. |
+| M16 | `OF_STONED` Grayscale Palette | Petrified objects lack grayscale | ❌ Open | **New CE Discovery**: Map `Stoned` flag to `UseGrayscalePaletteOverride`. |
+| M17 | `OF_DONTLIGHT` Light Mask Bypass | Lighting applied to unlit objects | ❌ Open | **New CE Discovery**: Map `DontLight` flag to `TintIgnoresLightVisibility`. |
+| M18 | `OF_INVISIBLE` Visibility Rules | Hidden objects remain rendered | ❌ Open | **New CE Discovery**: Add rendering culling logic for `Invisible` flag. |
+| M19 | Top-Down Wall Editor Overlays | Top-down walls lack 2px red geometry | ❌ Open | **New CE Discovery**: CE renders top-down walls as lines/dots, not sprites. |
+| M20 | Floating Text Rendering | Text bubbles do not render | ❌ Open | **New CE Discovery**: Missing `EditorMapTextRenderItem` layer for `OF_TEXT`. |
+| M21 | Roof Fade Alpha LERP Gradients | Faded roofs lack 4-corner smooth gradients | ❌ Open | **New CE Discovery**: Faded roofs use 4-corner gradients dependent on piece type. |
+| M22 | Eye Candy Scale Types | Eye candy is rendered at wrong scale | ❌ Open | **New CE Discovery**: Eye candy relies on `scale_type` lookup for base percentage multipliers. |
+| M23 | `OF_TRANSLUCENT` Opacity Mapping | Translucent objects lack 50% blend | ❌ Open | **New CE Discovery**: Forces `OBJ_F_RENDER_ALPHA` = 128 (50% opacity). |
 ### 11.3 Verified Parity Items
 
 | # | Item | Status |
@@ -453,3 +469,9 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 3. **Wading Shadow Blend (M10)**: Apply `(92, 92, 92)` constant color multiplier to the shadow blit payload for active wading objects.
 4. **Scaled Sprite Dirty Culling Bypass (M11)**: Detect non-100% scale sprites in culling checks, bypass viewport culling, and dirty the complete bounds for the subsequent frame.
 5. **NPC Reaction Underlay Tinting (M12)**: Implement a reaction-to-color lookup mapping the NPC reaction level to underlay CONST_COLOR.
+6. **New Object State Mappings (M15-M18)**: Map `ObjectFlags` fields (`AnimatedDead`, `Stoned`, `DontLight`, `Invisible`) directly to their corresponding visual/culling rules in `EditorMapFloorRenderBuilder` and `EditorMapPaintableSceneItem`.
+7. **Top-Down Wall Overlays (M19)**: Introduce geometric `EditorMapRenderPoint` overlays for walls in top-down view mode, overriding sprite resolution.
+8. **Floating Text (M20)**: Implement a dedicated `EditorMapTextOverlayRenderItem` and populate it from `OF_TEXT` / `OF_TEXT_FLOATER` payloads.
+9. **Roof Fade Alpha Gradients (M21)**: Implement a 13-case piece lookup in the floor render builder to populate `EditorMapRoofAlphaLerp` for faded roof requests.
+10. **Eye Candy Base Scaling (M22)**: Read the `ScaleType` from the Art ID for Eye Candy sprites and apply the `dword_5A548C` multiplier to `ScalePercent`.
+11. **Translucency Override (M23)**: Map `ObjectFlags.Translucent` to `SuggestedAlpha = 128` during `EditorMapPaintableSceneBuilder.BuildObject()`.
