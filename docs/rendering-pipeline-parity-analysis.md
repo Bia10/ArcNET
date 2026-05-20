@@ -910,23 +910,23 @@ private static int[] GetIntArrayOrDefault(MobData mob, ObjectField field) =>
 
 | Flag | Usage |
 |---|---|
-| `Flat` (0x4) | Preserved on the preview object, but the current main sort logic does not split flat and non-flat CE bands from it |
+| `Flat` (0x4) | Drives `CommittedRenderLayer = GroundDecal` and global flat band (200M) in `BuildRenderQueue` |
 | `Shrunk` (0x80) | Exposed as `IsShrunk` and passed through to object and auxiliary sprite requests |
-| `Wading` (0x20000) | Preserved on the preview object, but no CE wading offset/alpha behavior is emitted yet |
+| `Wading` (0x20000) | Used for shadow tint (`0xFF5C5C5C`). Main sprite wading effect (15px shift + alpha=92) not implemented |
 | `HasOverlays` (0x8000) | Preserved on the preview object; auxiliary generation actually keys off the overlay arrays rather than this flag |
 | `HasUnderlays` (0x10000) | Preserved on the preview object; auxiliary generation actually keys off the underlay array rather than this flag |
-| `Translucent` (0x40) | Preserved on the preview object, but no main-object CE blend-mode mapping is applied here |
-| `DontDraw` (0x100) | Preserved on the preview object, but the floor builder does not currently filter committed objects by it |
-| `Invisible` (0x200) | Preserved on the preview object, but the floor builder does not currently apply CE invisibility rules |
-| `Stoned` (0x80000) | Preserved on the preview object, but is not mapped to `UseGrayscalePaletteOverride` on the paintable item |
-| `DontLight` (0x100000) | Preserved on the preview object, but is not mapped to `TintIgnoresLightVisibility` on the paintable item |
-| `Frozen` (0x10000000) | Preserved on the preview object, but lacks additive blend + blue tint multiplier assignment |
-| `AnimatedDead` (0x20000000) | Preserved on the preview object, but lacks green tint multiplier assignment |
+| `Translucent` (0x40) | Mapped to `SuggestedOpacity = 0.5d` in `BuildObject()` |
+| `DontDraw` (0x100) | Preserved on the preview object; CE only uses this in gameplay mode (`dword_5E2EC8`), not in editor |
+| `Invisible` (0x200) | Preserved on the preview object; correctly NOT filtered in editor mode (CE editor shows all objects) |
+| `Stoned` (0x80000) | Mapped to `UseGrayscalePaletteOverride = true` in `CreateItem()` |
+| `DontLight` (0x100000) | Mapped to `TintIgnoresLightVisibility = true` in `CreateItem()` |
+| `Frozen` (0x10000000) | Preserved on the preview object, but lacks additive blend + blue tint multiplier assignment (M5) |
+| `AnimatedDead` (0x20000000) | Mapped to `SuggestedTintColor = 0xFF00FF00` (green) in `CreateItem()` |
 
 ### 10.5 Additional Discrepancies Not Bound to Flags
 
-- **Roof Fades:** CE uses a 13-case roof piece mapping combined with `roof_partial_opacity` and `roof_full_transparency` to calculate a 4-corner smooth alpha gradient (`TIG_ART_BLT_BLEND_ALPHA_LERP_BOTH`) when fading roofs. ArcNET has an `EditorMapRoofAlphaLerp` structure, but `EditorMapFloorRenderBuilder` completely bypasses its calculation and applies default single-value transparency.
-- **Eye Candy Scaling:** CE uses an art ID `scale_type` lookup against a constant mapping array (`dword_5A548C`) for Eye Candy sprites to calculate the base `scalePercent`. ArcNET's `EditorMapFloorRenderBuilder` blindly passes the generic `obj.BlitScale` down to the auxiliary sprite resolver, bypassing the type-specific scale logic.
+- **Roof Fades:** ✅ Resolved. `GetRoofAlphaLerp()` in `EditorMapPaintableScene.cs` implements all 13 roof piece types with correct 4-corner alpha values.
+- **Eye Candy Scaling:** ✅ Resolved. `AdjustEyeCandyRequest()` in `EditorMapPaintableScene.cs` applies the CE `dword_5A548C` multiplier table `[50,63,75,87,100,130,160,200]` for EyeCandy art types.
 
 ---
 
@@ -1254,103 +1254,71 @@ The following rendering behaviors have been verified correct through deep source
 | **Reaction underlay tint** | Underlays with art 433 get `SuggestedTintColor = obj.ReactionColor` and `ScalePercent = 100`. |
 | **Roof fade alpha gradients** | `GetRoofAlphaLerp` implements all 13 roof piece types with correct 4-corner alpha values. |
 
-### 17.2 Critical Bugs Found
+### 17.2 Remaining Open Bugs
 
-#### 17.2.1 Ghost Overlay SubOrder Inverted (M13)
-
-**Location:** `EditorMapFloorRenderBuilder.BuildRenderQueue()` lines ~1830-1870
-
-**Bug:** In the non-flat band (600M+), ghost overlays (art 243 on dead NPCs) are assigned `SubOrder = 0` while main objects get `SubOrder = 1`. The non-flat list sorts by `SubOrder` ascending, so ghost overlays render BEFORE their parent main objects.
-
-**CE behavior:** In `object_draw()`, the main sprite is enqueued at `non_flat_order++`, then the ghost overlay is enqueued at the next `non_flat_order++`. The ghost always has a HIGHER order than its parent, rendering on top.
-
-**Fix required:** Swap SubOrder values: main objects = 0, ghost/armor overlays = 1.
-
-```csharp
-// Current (wrong):
-// Ghost overlay: SubOrder = 0
-// Main object:   SubOrder = 1
-
-// Correct:
-// Main object:   SubOrder = 0
-// Ghost overlay: SubOrder = 1
-```
-
-#### 17.2.2 Armor Overlay Check Too Strict (M13)
-
-**Location:** `EditorMapFloorRenderBuilder.IsGhostOrArmorOverlay()` lines ~1130-1140
-
-**Bug:** `IsGhostOrArmorOverlay` requires `item.ArtId.ArtNum == 243` for ALL cases including Armor. CE's code:
-
-```c
-if (obj_type == OBJ_TYPE_ARMOR
-    || (obj_type == OBJ_TYPE_NPC && critter_is_dead(obj_node->obj) && tig_art_num_get(art_id) == 243))
-```
-
-CE unconditionally moves ALL Armor overlays to the non-flat band regardless of art ID. The art 243 check only applies to NPC dead overlays.
-
-**Fix required:** Split the check: Armor overlays always go to non-flat; NPC dead overlays with art 243 go to non-flat.
-
-#### 17.2.3 PC Ghost Overlay Incorrectly Included (M13)
-
-**Bug:** `IsGhostOrArmorOverlay` includes `ObjectType.Pc` in the dead overlay check. CE only checks `OBJ_TYPE_NPC`, not `OBJ_TYPE_PC`. Dead PCs with ghost overlay 243 should stay in the overlay band.
-
-#### 17.2.4 Invisible Objects Filtered in Editor Mode (M18)
-
-**Location:** `EditorMapFloorRenderBuilder.ProcessSector()` lines ~700
-
-**Bug:**
-```csharp
-if (obj.Flags.HasFlag(ObjectFlags.Invisible))
-    continue;
-```
-
-CE editor mode sets `dword_5E2F88 = 0` (no skip flags) and `dword_5E2EC8 = 0` (no dontdraw filter), meaning ALL objects are visible including `OF_INVISIBLE`. ArcNET unconditionally filters invisible objects even in editor mode.
-
-**Fix required:** Remove the invisible filter or make it conditional on a request flag (e.g., `request.FilterInvisible`).
-
-#### 17.2.5 OWAF_TRANS_DISALLOW Not Checked (M24)
-
-**Location:** `EditorMapFloorRenderBuilder.ShouldHideTransparentWallUnderFadedRoof()` lines ~1100
-
-**Bug:** The function checks `OWAF_TRANS_LEFT | OWAF_TRANS_RIGHT` but not `OWAF_TRANS_DISALLOW` (0x0001). Walls with this flag block transparency and should NOT be hidden even under faded roofs.
-
-**Fix required:** Add `&& (objectPreview.WallFlags & 0x0001) == 0` to the condition.
-
-#### 17.2.6 Frozen Object Effect Missing (M5)
+#### 17.2.1 Frozen Object Effect (M5)
 
 **Location:** `EditorMapPaintableScene.CreateItem()` lines ~800
 
-**Bug:** `ObjectFlags.Frozen` is not mapped. CE applies additive blend + blue tint `(0, 128, 255)` via `TIG_ART_BLT_BLEND_COLOR_CONST`.
+**Status:** ✅ Resolved
 
-**Fix required:** In `CreateItem`, check `ObjectFlags.Frozen` and set `BlendMode = Add` + `SuggestedTintColor = 0xFF0080FF`.
+**CE behavior:** `object_setup_blit()` (CE `object.c:4665`) sets `TIG_ART_BLT_BLEND_ADD | TIG_ART_BLT_BLEND_COLOR_CONST` for frozen objects. The blue tint color `(0, 128, 255)` is set by `sub_442520()` into `OBJ_F_COLOR` during palette recomputation, then read by `object_setup_blit()`.
+
+**ArcNET status:** `ObjectFlags.Frozen` is mapped in `CreateItem()`. It correctly sets `blendMode = EditorMapSpriteBlendMode.Add` and `finalTintColor = 0xFF0080FF` (blue multiplier matching CE).
+
+#### 17.2.2 Editor Destroyed/Off Tint (M6)
+
+**Location:** `EditorMapPaintableScene.CreateItem()` lines ~800
+
+**Status:** ✅ Resolved
+
+**CE behavior:** `object_setup_blit()` (CE `object.c:4770`) in editor mode checks `OF_DESTROYED | OF_OFF`:
+```c
+if (object_editor) {
+    if ((obj_flags & OF_DESTROYED) != 0) {
+        blit_info->color = tig_color_make(255, 0, 0);  // Red
+    } else {
+        blit_info->color = tig_color_make(0, 255, 0);  // Green
+    }
+}
+```
+Both use `TIG_ART_BLT_BLEND_ADD | TIG_ART_BLT_BLEND_COLOR_CONST`.
+
+**ArcNET status:** `CreateItem()` checks `ObjectFlags.Destroyed` and `ObjectFlags.Off`. Destroyed sets `blendMode = EditorMapSpriteBlendMode.Add` and `finalTintColor = 0xFFFF0000` (red); Off sets `blendMode = EditorMapSpriteBlendMode.Add` and `finalTintColor = 0xFF00FF00` (green), achieving perfect visual editor highlighting.
 
 ### 17.3 Corrected Status Summary
 
 | Item | Previous Status | Corrected Status | Evidence |
 |------|----------------|-----------------|----------|
+| M5 (Frozen Tint) | ❌ Open | ✅ Resolved | `CreateItem` sets `blendMode = Add` and `finalTintColor = 0xFF0080FF` when `Frozen` flag is set. |
+| M6 (Editor Highlight) | ❌ Open | ✅ Resolved | `CreateItem` sets `blendMode = Add` and `finalTintColor` to red or green for `Destroyed`/`Off`. |
 | M10 (Wading Shadow) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~530: `SuggestedTintColor: obj.IsWading ? 0xFF5C5C5C : null` |
 | M12 (Reaction Tints) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~490: `isReactionUnderlay ? obj.ReactionColor : null` |
+| M13 (Ghost Stacking) | ❌ Open | ✅ Resolved | `BuildRenderQueue` L1833: main `SubOrder: 0`, ghost `SubOrder: 1`. `IsGhostOrArmorOverlay` L1165: Armor unconditional, NPC dead + art 243, PC excluded. All match CE `object_draw()` at line ~695. |
 | M14 (Subtract Shadow) | ❌ Open | ✅ Resolved | `GenerateAuxiliaryItems` line ~535: `BlendMode: EditorMapSpriteBlendMode.Subtract` |
-| M15 (AnimatedDead) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `isAnimatedDead ? 0xFF00FF00 : suggestedTintColor` |
+| M15 (AnimatedDead) | ❌ Open | ✅ Resolved | `CreateItem` line ~802: `isAnimatedDead ? 0xFF00FF00 : suggestedTintColor` |
 | M16 (Stoned) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `UseGrayscalePaletteOverride = isStoned` |
-| M17 (DontLight) | ❌ Open | ✅ Resolved | `CreateItem` line ~800: `TintIgnoresLightVisibility = dontLight` |
+| M17 (DontLight) | ❌ Open | ✅ Resolved | `CreateItem` line ~798: `TintIgnoresLightVisibility = dontLight` |
+| M18 (Invisible) | ❌ Open | ✅ Resolved | `ProcessSector` L678: "Do not filter OF_INVISIBLE here — the flag is only meaningful in gameplay mode." |
 | M21 (Roof Alpha) | ❌ Open | ✅ Resolved | `GetRoofAlphaLerp` lines ~900-930: 13-piece switch expression |
 | M22 (EyeCandy Scale) | ❌ Open | ✅ Resolved | `AdjustEyeCandyRequest` lines ~870-890: `dword_5A548C` multiplier table |
-| M23 (Translucent) | ❌ Open | ✅ Resolved | `BuildObject` line ~580: `SuggestedOpacity = 0.5d` for Translucent flag |
-| M13 (Ghost Stacking) | ❌ Open | ⚠️ Partial | Correct non-flat band placement, but SubOrder inverted + Armor/PC checks wrong |
-| M18 (Invisible) | ❌ Open | ⚠️ Inverted | ArcNET hides invisible objects; CE editor shows them |
+| M23 (Translucent) | ❌ Open | ✅ Resolved | `BuildObject` line ~606: `SuggestedOpacity = 0.5d` for Translucent flag |
+| M24 (TRANS_DISALLOW) | ❌ Open | ✅ Resolved | `ShouldHideTransparentWallUnderFadedRoof` L1119: `(WallFlags & WallTransDisallow) == 0` |
 
 ### 17.4 Remaining Open Gaps
 
 | # | Gap | Priority | Details |
 |---|-----|----------|---------|
-| M4 | Wading effect (15px shift, alpha=92) | Low | Gameplay critter effect, not editor rendering. |
-| M5 | Frozen object effect | Medium | Missing `BlendMode = Add` + blue tint `0xFF0080FF`. |
-| M6 | Editor destroyed/off tint | Medium | Missing red `(255,0,0)` / green `(0,255,0)` additive tints for `OF_DESTROYED`/`OF_OFF`. |
-| M7 | Hover highlight pulsing | Low | Interactive render-level feature. |
-| M9 | Quadrant-Based Light LERP | Low | Floor tile light interpolation across 9 vertices. |
-| M11 | Scaled sprite dirty rect bypass | Low | CE bypasses dirty culling for `scale != 100`. |
-| M19 | Top-down wall overlays | Low | CE draws 2px red lines + magenta dots; ArcNET draws sprites. |
-| M20 | Floating text rendering | Low | `OF_TEXT`/`OF_TEXT_FLOATER` text bubble layer missing. |
-| M24 | OWAF_TRANS_DISALLOW flag | Medium | Walls with this flag incorrectly hidden under faded roofs. |
+| M4 | Wading main sprite effect | Low | CE: 15px Y-shift + bottom strip alpha=92 for non-flat; entire sprite alpha for flat. Also shifts all eye candy rects +15px Y via `sub_443620`. |
+| M5 | Frozen object blue tint | ✅ Resolved | Mapped `ObjectFlags.Frozen` to additive blue tint `0xFF0080FF` in `CreateItem()`. |
+| M6 | Editor destroyed/off tint | ✅ Resolved | Mapped `ObjectFlags.Destroyed` to additive red `0xFFFF0000` and `ObjectFlags.Off` to additive green `0xFF00FF00` in `CreateItem()`. |
+| M7 | Hover highlight system | Low | CE has `object_highlight_mode` (additive white at order+1 for non-wall/non-click-through) and hover underlay/overlay (animated art 467/468 at sort keys 99999999/INT_MAX with reaction coloring). |
+| M11 | Scaled sprite dirty rect bypass | Low | CE bypasses dirty culling for `scale != 100`. Less relevant in ArcNET's retained-mode pipeline. |
+| M19 | Top-down wall overlays | Low | CE `wall_draw()` renders 2px red lines + magenta dots; ArcNET draws standard sprites. |
+| M20 | Floating text rendering | Low | CE `tb_draw()`/`tf_draw()` for `OF_TEXT`/`OF_TEXT_FLOATER`; no ArcNET text layer. |
+| N1 | CE overlay scale check bug | Note | CE `object.c` ~L710 checks `scale_type != 100` instead of `overlay_scale != 100`. `scale_type` is an index (0-7), never 100, so overlay source rects are always scaled. ArcNET handles scale at the sprite request level via `AdjustEyeCandyRequest()`, producing slightly different results. |
+| N2 | `qsort` instability | Note | CE uses `qsort` (not guaranteed stable) for the blit queue. ArcNET uses stable `OrderBy().ThenBy()` with additional tie-breakers. |
+| N3 | Wading eye candy Y-offset | Low | CE `sub_443620()` adds `rect.y += 15` for wading objects when computing all eye candy rects (underlays, overlays, shadows). ArcNET only applies wading tint to shadows. |
+| N4 | Per-type object visibility toggles | Low | CE `object_type_visibility[18]` allows toggling specific object types. ArcNET has `request.IncludeObjects` (all-or-nothing). |
+| N5 | `BlitFlags`/`BlitAlpha`/`BlitColor` not mapped | Medium | CE objects can have per-object custom blend modes (`OBJ_F_BLIT_FLAGS`), alpha (`OBJ_F_BLIT_ALPHA`), and color (`OBJ_F_COLOR`). `EditorMapObjectPreview` does not carry these fields. |
+| N6 | `OBJ_F_RENDER_FLAGS` cached lighting state | Low | CE caches lighting/palette state per object. ArcNET delegates lighting to the host renderer. |

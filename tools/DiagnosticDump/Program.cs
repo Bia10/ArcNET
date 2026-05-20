@@ -3,6 +3,9 @@ using ArcNET.Archive;
 using ArcNET.Dumpers;
 using ArcNET.Formats;
 
+if (args.Length > 0 && string.Equals(args[0], "render-buffer", StringComparison.OrdinalIgnoreCase))
+    return await RenderBufferDumpCommand.RunAsync(args[1..]);
+
 if (args.Length < 1)
 {
     Console.Error.WriteLine("Usage: DiagnosticDump <game-root-dir>");

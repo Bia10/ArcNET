@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -99,6 +99,21 @@ public sealed class EditorMapObjectPreview
     /// Returns <see langword="true"/> when CE shrunk rendering applies to this object.
     /// </summary>
     public bool IsShrunk => Flags.HasFlag(ObjectFlags.Shrunk);
+
+    /// <summary>
+    /// CE per-object blit flags from <see cref="ObjectField.BlitFlags"/>. Controls custom blend mode (ADD, MUL, ALPHA_CONST).
+    /// </summary>
+    public int BlitFlags { get; init; }
+
+    /// <summary>
+    /// CE per-object blit color from <see cref="ObjectField.BlitColor"/>. Used with COLOR_CONST blend.
+    /// </summary>
+    public uint BlitColor { get; init; }
+
+    /// <summary>
+    /// CE per-object blit alpha from <see cref="ObjectField.BlitAlpha"/>. Used with ALPHA_CONST blend.
+    /// </summary>
+    public int BlitAlpha { get; init; }
 
     /// <summary>
     /// Returns <see langword="true"/> when CE flat-object ordering applies to this object.

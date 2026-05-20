@@ -116,13 +116,43 @@ namespace ArcNET.Core.Primitives
     public readonly struct ArtId : ArcNET.Core.IBinarySerializable<ArcNET.Core.Primitives.ArtId, ArcNET.Core.SpanReader>, System.IEquatable<ArcNET.Core.Primitives.ArtId>, System.IFormattable, System.ISpanFormattable, System.IUtf8SpanFormattable
     {
         public ArtId(uint Value) { }
+        public int ArtNum { get; }
+        public int FacadeNumber { get; }
+        public int FrameIndex { get; }
+        public bool IsEyeCandyTranslucent { get; }
+        public bool IsRoofFaded { get; }
+        public bool IsRoofFill { get; }
+        public bool IsRoofMirrored { get; }
+        public int RoofPieceIndex { get; }
+        public int TileType { get; }
+        public ArcNET.Core.Primitives.ArtId.TypeCode Type { get; }
         public uint Value { get; init; }
         public override string ToString() { }
         public string ToString(string? format, System.IFormatProvider? provider) { }
         public bool TryFormat(System.Span<byte> utf8Dest, out int written, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) { }
         public bool TryFormat(System.Span<char> dest, out int written, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) { }
+        public ArcNET.Core.Primitives.ArtId WithFrameIndex(int frameIndex) { }
         public void Write(ref ArcNET.Core.SpanWriter writer) { }
         public static ArcNET.Core.Primitives.ArtId Read(ref ArcNET.Core.SpanReader reader) { }
+        public enum TypeCode : uint
+        {
+            Tile = 0u,
+            None = 0u,
+            Wall = 1u,
+            Critter = 2u,
+            Portal = 3u,
+            Scenery = 4u,
+            Interface = 5u,
+            Item = 6u,
+            Container = 7u,
+            Misc = 8u,
+            Light = 9u,
+            Roof = 10u,
+            Facade = 11u,
+            Monster = 12u,
+            UniqueNpc = 13u,
+            EyeCandy = 14u,
+        }
     }
     public readonly struct Color : ArcNET.Core.IBinarySerializable<ArcNET.Core.Primitives.Color, ArcNET.Core.SpanReader>, System.IEquatable<ArcNET.Core.Primitives.Color>, System.IFormattable, System.ISpanFormattable
     {
@@ -260,6 +290,7 @@ namespace ArcNET.Formats
         public required uint FrameCount { get; init; }
         public required uint FrameRate { get; init; }
         public required ArcNET.Formats.ArtFrame[][] Frames { get; init; }
+        public bool IsMetadataOnly { get; init; }
         public required uint[] PaletteData1 { get; init; }
         public required uint[] PaletteData2 { get; init; }
         public required int[] PaletteIds { get; init; }
@@ -279,6 +310,8 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.ArtFile Parse([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
         public static ArcNET.Formats.ArtFile ParseFile(string path) { }
         public static ArcNET.Formats.ArtFile ParseMemory(System.ReadOnlyMemory<byte> memory) { }
+        public static ArcNET.Formats.ArtFile ParseMetadata([System.Runtime.CompilerServices.ScopedRef] ref ArcNET.Core.SpanReader reader) { }
+        public static ArcNET.Formats.ArtFile ParseMetadataMemory(System.ReadOnlyMemory<byte> memory) { }
         public static void Write(in ArcNET.Formats.ArtFile value, ref ArcNET.Core.SpanWriter writer) { }
         public static byte[] WriteToArray(in ArcNET.Formats.ArtFile value) { }
         public static void WriteToFile(in ArcNET.Formats.ArtFile value, string path) { }
@@ -1223,7 +1256,7 @@ namespace ArcNET.Formats
         ObjIsInvisible = 15,
         ObjHasMirrorImage = 16,
         ObjHasItemNamed = 17,
-        ObjFollowingPc = 18,
+        ollowingPc = 18,
         ObjIsMonsterOfType = 19,
         ObjIsNamed = 20,
         ObjIsWieldingItem = 21,
@@ -1516,10 +1549,116 @@ namespace ArcNET.Formats
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace ArcNET.GameObjects
 {
+    [System.Flags]
+    public enum ArmorFlags : uint
+    {
+        None = 0u,
+        SizeSmall = 1u,
+        SizeMedium = 2u,
+        SizeLarge = 4u,
+        MaleOnly = 8u,
+        FemaleOnly = 16u,
+    }
     public static class BitArrayObjectExtensions
     {
         public static bool HasField(this byte[] bitmap, ArcNET.GameObjects.ObjectField field) { }
         public static void SetField(this byte[] bitmap, ArcNET.GameObjects.ObjectField field, bool value) { }
+    }
+    [System.Flags]
+    public enum BlitFlags : uint
+    {
+        None = 0u,
+        BlendAdd = 16u,
+        BlendSub = 32u,
+        BlendMul = 64u,
+        BlendAlphaConst = 256u,
+        BlendAlphaSrc = 512u,
+        BlendColorConst = 8192u,
+    }
+    [System.Flags]
+    public enum ContainerFlags : uint
+    {
+        None = 0u,
+        Locked = 1u,
+        Jammed = 2u,
+        MagicallyHeld = 4u,
+        NeverLocked = 8u,
+        AlwaysLocked = 16u,
+        LockedDay = 32u,
+        LockedNight = 64u,
+        Busted = 128u,
+        Sticky = 256u,
+        InvenSpawnOnce = 512u,
+        InvenSpawnIndependent = 1024u,
+    }
+    [System.Flags]
+    public enum CritterFlags : uint
+    {
+        None = 0u,
+        IsConcealed = 1u,
+        MovingSilently = 2u,
+        Undead = 4u,
+        Animal = 8u,
+        Fleeing = 16u,
+        Stunned = 32u,
+        Paralyzed = 64u,
+        Blinded = 128u,
+        CrippledArmsOne = 256u,
+        CrippledArmsBoth = 512u,
+        CrippledLegsBoth = 1024u,
+        Unused = 2048u,
+        Sleeping = 4096u,
+        Mute = 8192u,
+        Surrendered = 16384u,
+        Monster = 32768u,
+        SpellFlee = 65536u,
+        Encounter = 131072u,
+        CombatModeActive = 262144u,
+        LightSmall = 524288u,
+        LightMedium = 1048576u,
+        LightLarge = 2097152u,
+        LightXLarge = 4194304u,
+        Unrevivifiable = 8388608u,
+        Unressurectable = 16777216u,
+        Demon = 33554432u,
+        FatigueImmune = 67108864u,
+        NoFlee = 134217728u,
+        NonLethalCombat = 268435456u,
+        Mechanical = 536870912u,
+        AnimalEnshroud = 1073741824u,
+        FatigueLimiting = 2147483648u,
+    }
+    [System.Flags]
+    public enum CritterFlags2 : uint
+    {
+        None = 0u,
+        ItemStolen = 1u,
+        AutoAnimates = 2u,
+        UsingBoomerang = 4u,
+        FatigueDraining = 8u,
+        SlowParty = 16u,
+        CombatToggleFx = 32u,
+        NoDecay = 64u,
+        NoPickpocket = 128u,
+        NoBloodSplotches = 256u,
+        NighInvulnerable = 512u,
+        Elemental = 1024u,
+        DarkSight = 2048u,
+        NoSlip = 4096u,
+        NoDisintegrate = 8192u,
+        Reaction0 = 16384u,
+        Reaction1 = 32768u,
+        Reaction2 = 65536u,
+        Reaction3 = 131072u,
+        Reaction4 = 262144u,
+        Reaction5 = 524288u,
+        Reaction6 = 1048576u,
+        TargetLock = 2097152u,
+        PermaPolymorph = 4194304u,
+        SafeOff = 8388608u,
+        CheckReactionBad = 16777216u,
+        CheckAlignGood = 33554432u,
+        CheckAlignBad = 67108864u,
     }
     public sealed class GameObject : ArcNET.GameObjects.IGameObject
     {
@@ -1572,108 +1711,376 @@ namespace ArcNET.GameObjects
         ArcNET.GameObjects.ObjectType Type { get; }
     }
     [System.Flags]
-    public enum ObjFArmorFlags : uint
+    public enum ItemFlags : uint
     {
         None = 0u,
-        SizeSmall = 1u,
-        SizeMedium = 2u,
-        SizeLarge = 4u,
-        MaleOnly = 8u,
-        FemaleOnly = 16u,
+        Identified = 1u,
+        WontSell = 2u,
+        IsMagical = 4u,
+        TransferLight = 8u,
+        NoDisplay = 16u,
+        NoDrop = 32u,
+        Hexed = 64u,
+        CanUseBox = 128u,
+        NeedsTarget = 256u,
+        LightSmall = 512u,
+        LightMedium = 1024u,
+        LightLarge = 2048u,
+        LightXLarge = 4096u,
+        Persistent = 8192u,
+        MtTriggered = 16384u,
+        Stolen = 32768u,
+        UseIsThrow = 65536u,
+        NoDecay = 131072u,
+        Uber = 262144u,
+        NoNpcPickup = 524288u,
+        NoRangedUse = 1048576u,
+        ValidAiAction = 2097152u,
+        MpInserted = 4194304u,
     }
     [System.Flags]
-    public enum ObjFBlitFlags : uint
+    public enum NpcFlags : uint
     {
         None = 0u,
-        BlendAdd = 1u,
+        Fighting = 1u,
+        WaypointsDay = 2u,
+        WaypointsNight = 4u,
+        AiWaitHere = 8u,
+        AiSpreadOut = 16u,
+        Jilted = 32u,
+        CheckWield = 64u,
+        CheckWeapon = 128u,
+        Kos = 256u,
+        WaypointsBed = 512u,
+        ForcedFollower = 1024u,
+        KosOverride = 2048u,
+        Wanders = 4096u,
+        WandersInDark = 8192u,
+        Fence = 16384u,
+        Familiar = 32768u,
+        CheckLeader = 65536u,
+        Aloof = 131072u,
+        CastHighest = 262144u,
+        Generator = 524288u,
+        Generated = 1048576u,
+        GeneratorRate1 = 2097152u,
+        GeneratorRate2 = 4194304u,
+        GeneratorRate3 = 8388608u,
+        DemaintainSpells = 16777216u,
+        LookForWeapon = 33554432u,
+        LookForArmor = 67108864u,
+        LookForAmmo = 134217728u,
+        BackingOff = 268435456u,
+        NoAttack = 536870912u,
     }
-    [System.Flags]
-    public enum ObjFContainerFlags : uint
+    public enum ObjectField : byte
     {
-        None = 0u,
-        Locked = 1u,
-        Jammed = 2u,
-        MagicallyHeld = 4u,
-        NeverLocked = 8u,
-        AlwaysLocked = 16u,
-        LockedDay = 32u,
-        LockedNight = 64u,
-        Busted = 128u,
-        Sticky = 256u,
-        InvenSpawnOnce = 512u,
-        InvenSpawnIndependent = 1024u,
+        CurrentAid = 0,
+        Location = 1,
+        OffsetX = 2,
+        OffsetY = 3,
+        Shadow = 4,
+        OverlayFore = 5,
+        OverlayBack = 6,
+        Underlay = 7,
+        BlitFlags = 8,
+        BlitColor = 9,
+        BlitAlpha = 10,
+        BlitScale = 11,
+        LightFlags = 12,
+        LightAid = 13,
+        LightColor = 14,
+        OverlayLightFlags = 15,
+        OverlayLightAid = 16,
+        OverlayLightColor = 17,
+        ObjectFlags = 18,
+        SpellFlags = 19,
+        BlockingMask = 20,
+        Name = 21,
+        Description = 22,
+        Aid = 23,
+        DestroyedAid = 24,
+        Ac = 25,
+        HpPts = 26,
+        HpAdj = 27,
+        HpDamage = 28,
+        Material = 29,
+        ResistanceIdx = 30,
+        ScriptsIdx = 31,
+        SoundEffect = 32,
+        Category = 33,
+        PadIas1 = 34,
+        PadI64As1 = 35,
+        SpeedRun = 36,
+        SpeedWalk = 37,
+        PadFloat1 = 38,
+        Radius = 39,
+        Height = 40,
+        Conditions = 41,
+        ConditionArg0 = 42,
+        PermanentMods = 43,
+        Initiative = 44,
+        Dispatcher = 45,
+        Subinitiative = 46,
+        SecretdoorFlags = 47,
+        SecretdoorEffectName = 48,
+        SecretdoorDc = 49,
+        PadI7 = 50,
+        PadI8 = 51,
+        PadI9 = 52,
+        PadI0 = 53,
+        OffsetZ = 54,
+        RotationPitch = 55,
+        PadF3 = 56,
+        PadF4 = 57,
+        PadF5 = 58,
+        PadF6 = 59,
+        PadF7 = 60,
+        PadF8 = 61,
+        PadF9 = 62,
+        PadF0 = 63,
+        WallFlags = 64,
+        WallPadI1 = 65,
+        WallPadI2 = 66,
+        WallPadIas1 = 67,
+        WallPadI64As1 = 68,
+        PortalFlags = 64,
+        PortalLockDifficulty = 65,
+        PortalKeyId = 66,
+        PortalNotifyNpc = 67,
+        PortalPadI1 = 68,
+        PortalPadI2 = 69,
+        PortalPadIas1 = 70,
+        PortalPadI64As1 = 71,
+        ContainerFlags = 64,
+        ContainerLockDifficulty = 65,
+        ContainerKeyId = 66,
+        ContainerInventoryNum = 67,
+        ContainerInventoryListIdx = 68,
+        ContainerInventorySource = 69,
+        ContainerNotifyNpc = 70,
+        ContainerPadI1 = 71,
+        ContainerPadI2 = 72,
+        ContainerPadIas1 = 73,
+        ContainerPadI64As1 = 74,
+        SceneryFlags = 64,
+        SceneryWhosInMe = 65,
+        SceneryRespawnDelay = 66,
+        SceneryPadI2 = 67,
+        SceneryPadIas1 = 68,
+        SceneryPadI64As1 = 69,
+        ProjectileFlagsCombat = 64,
+        ProjectileFlagsCombatDamage = 65,
+        ProjectileHitLoc = 66,
+        ProjectileParentWeapon = 67,
+        ProjectilePadI1 = 68,
+        ProjectilePadI2 = 69,
+        ProjectilePadIas1 = 70,
+        ProjectilePadI64As1 = 71,
+        TrapFlags = 64,
+        TrapDifficulty = 65,
+        TrapPadI2 = 66,
+        TrapPadIas1 = 67,
+        TrapPadI64As1 = 68,
+        ItemFlags = 64,
+        ItemParent = 65,
+        ItemWeight = 66,
+        ItemMagicWeightAdj = 67,
+        ItemWorth = 68,
+        ItemManaStore = 69,
+        ItemInvAid = 70,
+        ItemInvLocation = 71,
+        ItemUseAidFragment = 72,
+        ItemMagicTechComplexity = 73,
+        ItemDiscipline = 74,
+        ItemDescriptionUnknown = 75,
+        ItemDescriptionEffects = 76,
+        ItemSpell1 = 77,
+        ItemSpell2 = 78,
+        ItemSpell3 = 79,
+        ItemSpell4 = 80,
+        ItemSpell5 = 81,
+        ItemSpellManaStore = 82,
+        ItemAiAction = 83,
+        ItemPadI1 = 84,
+        ItemPadIas1 = 85,
+        ItemPadI64As1 = 86,
+        WeaponFlags = 96,
+        WeaponPaperDollAid = 97,
+        WeaponBonusToHit = 98,
+        WeaponMagicHitAdj = 99,
+        WeaponDamageLowerIdx = 100,
+        WeaponDamageUpperIdx = 101,
+        WeaponMagicDamageAdjIdx = 102,
+        WeaponSpeedFactor = 103,
+        WeaponMagicSpeedAdj = 104,
+        WeaponRange = 105,
+        WeaponMagicRangeAdj = 106,
+        WeaponMinStrength = 107,
+        WeaponMagicMinStrengthAdj = 108,
+        WeaponAmmoType = 109,
+        WeaponAmmoConsumption = 110,
+        WeaponMissileAid = 111,
+        WeaponVisualEffectAid = 112,
+        WeaponCritHitChart = 113,
+        WeaponMagicCritHitChance = 114,
+        WeaponMagicCritHitEffect = 115,
+        WeaponCritMissChart = 116,
+        WeaponMagicCritMissChance = 117,
+        WeaponMagicCritMissEffect = 118,
+        WeaponPadI1 = 119,
+        WeaponPadI2 = 120,
+        WeaponPadIas1 = 121,
+        WeaponPadI64As1 = 122,
+        AmmoFlags = 96,
+        AmmoQuantity = 97,
+        AmmoType = 98,
+        AmmoPadI1 = 99,
+        AmmoPadI2 = 100,
+        AmmoPadIas1 = 101,
+        AmmoPadI64As1 = 102,
+        ArmorFlags = 96,
+        ArmorPaperDollAid = 97,
+        ArmorAcAdj = 98,
+        ArmorMagicAcAdj = 99,
+        ArmorResistanceAdjIdx = 100,
+        ArmorMagicResistanceAdjIdx = 101,
+        ArmorSilentMoveAdj = 102,
+        ArmorMagicSilentMoveAdj = 103,
+        ArmorUnarmedBonusDamage = 104,
+        ArmorPadI2 = 105,
+        ArmorPadIas1 = 106,
+        ArmorPadI64As1 = 107,
+        GoldFlags = 96,
+        GoldQuantity = 97,
+        GoldPadI1 = 98,
+        GoldPadI2 = 99,
+        GoldPadIas1 = 100,
+        GoldPadI64As1 = 101,
+        FoodFlags = 96,
+        FoodPadI1 = 97,
+        FoodPadI2 = 98,
+        FoodPadIas1 = 99,
+        FoodPadI64As1 = 100,
+        ScrollFlags = 96,
+        ScrollPadI1 = 97,
+        ScrollPadI2 = 98,
+        ScrollPadIas1 = 99,
+        ScrollPadI64As1 = 100,
+        KeyKeyId = 96,
+        KeyPadI1 = 97,
+        KeyPadI2 = 98,
+        KeyPadIas1 = 99,
+        KeyPadI64As1 = 100,
+        KeyRingFlags = 96,
+        KeyRingListIdx = 97,
+        KeyRingPadI1 = 98,
+        KeyRingPadI2 = 99,
+        KeyRingPadIas1 = 100,
+        KeyRingPadI64As1 = 101,
+        WrittenFlags = 96,
+        WrittenSubtype = 97,
+        WrittenTextStartLine = 98,
+        WrittenTextEndLine = 99,
+        WrittenPadI1 = 100,
+        WrittenPadI2 = 101,
+        WrittenPadIas1 = 102,
+        WrittenPadI64As1 = 103,
+        GenericFlags = 96,
+        GenericUsageBonus = 97,
+        GenericUsageCountRemaining = 98,
+        GenericPadIas1 = 99,
+        GenericPadI64As1 = 100,
+        CritterFlags = 64,
+        CritterFlags2 = 65,
+        CritterStatBaseIdx = 66,
+        CritterBasicSkillIdx = 67,
+        CritterTechSkillIdx = 68,
+        CritterSpellTechIdx = 69,
+        CritterFatiguePts = 70,
+        CritterFatigueAdj = 71,
+        CritterFatigueDamage = 72,
+        CritterCritHitChart = 73,
+        CritterEffectsIdx = 74,
+        CritterEffectCauseIdx = 75,
+        CritterFleeingFrom = 76,
+        CritterPortrait = 77,
+        CritterGold = 78,
+        CritterArrows = 79,
+        CritterBullets = 80,
+        CritterPowerCells = 81,
+        CritterFuel = 82,
+        CritterInventoryNum = 83,
+        CritterInventoryListIdx = 84,
+        CritterInventorySource = 85,
+        CritterDescriptionUnknown = 86,
+        CritterFollowerIdx = 87,
+        CritterTeleportDest = 88,
+        CritterTeleportMap = 89,
+        CritterDeathTime = 90,
+        CritterAutoLevelScheme = 91,
+        CritterPadI1 = 92,
+        CritterPadI2 = 93,
+        CritterPadI3 = 94,
+        CritterPadIas1 = 95,
+        CritterPadI64As1 = 96,
+        PcFlags = 128,
+        PcFlagsFate = 129,
+        PcReputationIdx = 130,
+        PcReputationTsIdx = 131,
+        PcBackground = 132,
+        PcBackgroundText = 133,
+        PcQuestIdx = 134,
+        PcBlessingIdx = 135,
+        PcBlessingTsIdx = 136,
+        PcCurseIdx = 137,
+        PcCurseTsIdx = 138,
+        PcPartyId = 139,
+        PcRumorIdx = 140,
+        PcPadIas2 = 141,
+        PcSchematicsFoundIdx = 142,
+        PcLogbookEgoIdx = 143,
+        PcFogMask = 144,
+        PcPlayerName = 145,
+        PcBankMoney = 146,
+        PcGlobalFlags = 147,
+        PcGlobalVariables = 148,
+        PcPadI1 = 149,
+        PcPadI2 = 150,
+        PcPadIas1 = 151,
+        PcPadI64As1 = 152,
+        NpcFlags = 128,
+        NpcLeader = 129,
+        NpcAiData = 130,
+        NpcCombatFocus = 131,
+        NpcWhoHitMeLast = 132,
+        NpcExperienceWorth = 133,
+        NpcExperiencePool = 134,
+        NpcWaypointsIdx = 135,
+        NpcWaypointCurrent = 136,
+        NpcStandpointDay = 137,
+        NpcStandpointNight = 138,
+        NpcOrigin = 139,
+        NpcFaction = 140,
+        NpcRetailPriceMultiplier = 141,
+        NpcSubstituteInventory = 142,
+        NpcReactionBase = 143,
+        NpcSocialClass = 144,
+        NpcReactionPcIdx = 145,
+        NpcReactionLevelIdx = 146,
+        NpcReactionTimeIdx = 147,
+        NpcWait = 148,
+        NpcGeneratorData = 149,
+        NpcPadI1 = 150,
+        NpcDamageIdx = 151,
+        NpcHostileListIdx = 152,
     }
-    [System.Flags]
-    public enum ObjFCritterFlags : uint
+    public static class ObjectFieldBitmapSize
     {
-        None = 0u,
-        IsConcealed = 1u,
-        MovingSilently = 2u,
-        Undead = 4u,
-        Animal = 8u,
-        Fleeing = 16u,
-        Stunned = 32u,
-        Paralyzed = 64u,
-        Blinded = 128u,
-        CrippledArmsOne = 256u,
-        CrippledArmsBoth = 512u,
-        CrippledLegsBoth = 1024u,
-        Unused = 2048u,
-        Sleeping = 4096u,
-        Mute = 8192u,
-        Surrendered = 16384u,
-        Monster = 32768u,
-        SpellFlee = 65536u,
-        Encounter = 131072u,
-        CombatModeActive = 262144u,
-        LightSmall = 524288u,
-        LightMedium = 1048576u,
-        LightLarge = 2097152u,
-        LightXLarge = 4194304u,
-        Unrevivifiable = 8388608u,
-        Unressurectable = 16777216u,
-        Demon = 33554432u,
-        FatigueImmune = 67108864u,
-        NoFlee = 134217728u,
-        NonLethalCombat = 268435456u,
-        Mechanical = 536870912u,
-        AnimalEnshroud = 1073741824u,
-        FatigueLimiting = 2147483648u,
+        public static int For(ArcNET.GameObjects.ObjectType type) { }
     }
     [System.Flags]
-    public enum ObjFCritterFlags2 : uint
-    {
-        None = 0u,
-        ItemStolen = 1u,
-        AutoAnimates = 2u,
-        UsingBoomerang = 4u,
-        FatigueDraining = 8u,
-        SlowParty = 16u,
-        CombatToggleFx = 32u,
-        NoDecay = 64u,
-        NoPickpocket = 128u,
-        NoBloodSplotches = 256u,
-        NighInvulnerable = 512u,
-        Elemental = 1024u,
-        DarkSight = 2048u,
-        NoSlip = 4096u,
-        NoDisintegrate = 8192u,
-        Reaction0 = 16384u,
-        Reaction1 = 32768u,
-        Reaction2 = 65536u,
-        Reaction3 = 131072u,
-        Reaction4 = 262144u,
-        Reaction5 = 524288u,
-        Reaction6 = 1048576u,
-        TargetLock = 2097152u,
-        PermaPolymorph = 4194304u,
-        SafeOff = 8388608u,
-        CheckReactionBad = 16777216u,
-        CheckAlignGood = 33554432u,
-        CheckAlignBad = 67108864u,
-    }
-    [System.Flags]
-    public enum ObjFFlags : uint
+    public enum ObjectFlags : uint
     {
         None = 0u,
         Destroyed = 1u,
@@ -1708,71 +2115,29 @@ namespace ArcNET.GameObjects
         AnimatedDead = 536870912u,
         Teleported = 1073741824u,
     }
-    [System.Flags]
-    public enum ObjFItemFlags : uint
+    public enum ObjectType : byte
     {
-        None = 0u,
-        Identified = 1u,
-        WontSell = 2u,
-        IsMagical = 4u,
-        TransferLight = 8u,
-        NoDisplay = 16u,
-        NoDrop = 32u,
-        Hexed = 64u,
-        CanUseBox = 128u,
-        NeedsTarget = 256u,
-        LightSmall = 512u,
-        LightMedium = 1024u,
-        LightLarge = 2048u,
-        LightXLarge = 4096u,
-        Persistent = 8192u,
-        MtTriggered = 16384u,
-        Stolen = 32768u,
-        UseIsThrow = 65536u,
-        NoDecay = 131072u,
-        Uber = 262144u,
-        NoNpcPickup = 524288u,
-        NoRangedUse = 1048576u,
-        ValidAiAction = 2097152u,
-        MpInserted = 4194304u,
+        Wall = 0,
+        Portal = 1,
+        Container = 2,
+        Scenery = 3,
+        Projectile = 4,
+        Weapon = 5,
+        Ammo = 6,
+        Armor = 7,
+        Gold = 8,
+        Food = 9,
+        Scroll = 10,
+        Key = 11,
+        KeyRing = 12,
+        Written = 13,
+        Generic = 14,
+        Pc = 15,
+        Npc = 16,
+        Trap = 17,
     }
     [System.Flags]
-    public enum ObjFNpcFlags : uint
-    {
-        None = 0u,
-        Fighting = 1u,
-        WaypointsDay = 2u,
-        WaypointsNight = 4u,
-        AiWaitHere = 8u,
-        AiSpreadOut = 16u,
-        Jilted = 32u,
-        CheckWield = 64u,
-        CheckWeapon = 128u,
-        Kos = 256u,
-        WaypointsBed = 512u,
-        ForcedFollower = 1024u,
-        KosOverride = 2048u,
-        Wanders = 4096u,
-        WandersInDark = 8192u,
-        Fence = 16384u,
-        Familiar = 32768u,
-        CheckLeader = 65536u,
-        Aloof = 131072u,
-        CastHighest = 262144u,
-        Generator = 524288u,
-        Generated = 1048576u,
-        GeneratorRate1 = 2097152u,
-        GeneratorRate2 = 4194304u,
-        GeneratorRate3 = 8388608u,
-        DemaintainSpells = 16777216u,
-        LookForWeapon = 33554432u,
-        LookForArmor = 67108864u,
-        LookForAmmo = 134217728u,
-        BackingOff = 268435456u,
-        NoAttack = 536870912u,
-    }
-    [System.Flags]
-    public enum ObjFPortalFlags : uint
+    public enum PortalFlags : uint
     {
         None = 0u,
         Locked = 1u,
@@ -1786,7 +2151,7 @@ namespace ArcNET.GameObjects
         Sticky = 256u,
     }
     [System.Flags]
-    public enum ObjFSceneryFlags : uint
+    public enum SceneryFlags : uint
     {
         None = 0u,
         NoAutoAnimate = 1u,
@@ -1802,7 +2167,7 @@ namespace ArcNET.GameObjects
         Respawning = 1024u,
     }
     [System.Flags]
-    public enum ObjFSpellFlags : uint
+    public enum SpellFlags : uint
     {
         None = 0u,
         Invisible = 1u,
@@ -1839,7 +2204,7 @@ namespace ArcNET.GameObjects
         HardenedHands = 2147483648u,
     }
     [System.Flags]
-    public enum ObjFWeaponFlags : uint
+    public enum WeaponFlags : uint
     {
         None = 0u,
         Loud = 1u,
@@ -1852,333 +2217,6 @@ namespace ArcNET.GameObjects
         IgnoreResistance = 128u,
         DamageArmor = 256u,
         DefaultThrows = 512u,
-    }
-    public enum ObjectField : byte
-    {
-        ObjFCurrentAid = 0,
-        ObjFLocation = 1,
-        ObjFOffsetX = 2,
-        ObjFOffsetY = 3,
-        ObjFShadow = 4,
-        ObjFOverlayFore = 5,
-        ObjFOverlayBack = 6,
-        ObjFUnderlay = 7,
-        ObjFBlitFlags = 8,
-        ObjFBlitColor = 9,
-        ObjFBlitAlpha = 10,
-        ObjFBlitScale = 11,
-        ObjFLightFlags = 12,
-        ObjFLightAid = 13,
-        ObjFLightColor = 14,
-        ObjFOverlayLightFlags = 15,
-        ObjFOverlayLightAid = 16,
-        ObjFOverlayLightColor = 17,
-        ObjFFlags = 18,
-        ObjFSpellFlags = 19,
-        ObjFBlockingMask = 20,
-        ObjFName = 21,
-        ObjFDescription = 22,
-        ObjFAid = 23,
-        ObjFDestroyedAid = 24,
-        ObjFAc = 25,
-        ObjFHpPts = 26,
-        ObjFHpAdj = 27,
-        ObjFHpDamage = 28,
-        ObjFMaterial = 29,
-        ObjFResistanceIdx = 30,
-        ObjFScriptsIdx = 31,
-        ObjFSoundEffect = 32,
-        ObjFCategory = 33,
-        ObjFPadIas1 = 34,
-        ObjFPadI64As1 = 35,
-        ObjFSpeedRun = 36,
-        ObjFSpeedWalk = 37,
-        ObjFPadFloat1 = 38,
-        ObjFRadius = 39,
-        ObjFHeight = 40,
-        ObjFConditions = 41,
-        ObjFConditionArg0 = 42,
-        ObjFPermanentMods = 43,
-        ObjFInitiative = 44,
-        ObjFDispatcher = 45,
-        ObjFSubinitiative = 46,
-        ObjFSecretdoorFlags = 47,
-        ObjFSecretdoorEffectName = 48,
-        ObjFSecretdoorDc = 49,
-        ObjFPadI7 = 50,
-        ObjFPadI8 = 51,
-        ObjFPadI9 = 52,
-        ObjFPadI0 = 53,
-        ObjFOffsetZ = 54,
-        ObjFRotationPitch = 55,
-        ObjFPadF3 = 56,
-        ObjFPadF4 = 57,
-        ObjFPadF5 = 58,
-        ObjFPadF6 = 59,
-        ObjFPadF7 = 60,
-        ObjFPadF8 = 61,
-        ObjFPadF9 = 62,
-        ObjFPadF0 = 63,
-        ObjFWallFlags = 64,
-        ObjFWallPadI1 = 65,
-        ObjFWallPadI2 = 66,
-        ObjFWallPadIas1 = 67,
-        ObjFWallPadI64As1 = 68,
-        ObjFPortalFlags = 64,
-        ObjFPortalLockDifficulty = 65,
-        ObjFPortalKeyId = 66,
-        ObjFPortalNotifyNpc = 67,
-        ObjFPortalPadI1 = 68,
-        ObjFPortalPadI2 = 69,
-        ObjFPortalPadIas1 = 70,
-        ObjFPortalPadI64As1 = 71,
-        ObjFContainerFlags = 64,
-        ObjFContainerLockDifficulty = 65,
-        ObjFContainerKeyId = 66,
-        ObjFContainerInventoryNum = 67,
-        ObjFContainerInventoryListIdx = 68,
-        ObjFContainerInventorySource = 69,
-        ObjFContainerNotifyNpc = 70,
-        ObjFContainerPadI1 = 71,
-        ObjFContainerPadI2 = 72,
-        ObjFContainerPadIas1 = 73,
-        ObjFContainerPadI64As1 = 74,
-        ObjFSceneryFlags = 64,
-        ObjFSceneryWhosInMe = 65,
-        ObjFSceneryRespawnDelay = 66,
-        ObjFSceneryPadI2 = 67,
-        ObjFSceneryPadIas1 = 68,
-        ObjFSceneryPadI64As1 = 69,
-        ObjFProjectileFlagsCombat = 64,
-        ObjFProjectileFlagsCombatDamage = 65,
-        ObjFProjectileHitLoc = 66,
-        ObjFProjectileParentWeapon = 67,
-        ObjFProjectilePadI1 = 68,
-        ObjFProjectilePadI2 = 69,
-        ObjFProjectilePadIas1 = 70,
-        ObjFProjectilePadI64As1 = 71,
-        ObjFTrapFlags = 64,
-        ObjFTrapDifficulty = 65,
-        ObjFTrapPadI2 = 66,
-        ObjFTrapPadIas1 = 67,
-        ObjFTrapPadI64As1 = 68,
-        ObjFItemFlags = 64,
-        ObjFItemParent = 65,
-        ObjFItemWeight = 66,
-        ObjFItemMagicWeightAdj = 67,
-        ObjFItemWorth = 68,
-        ObjFItemManaStore = 69,
-        ObjFItemInvAid = 70,
-        ObjFItemInvLocation = 71,
-        ObjFItemUseAidFragment = 72,
-        ObjFItemMagicTechComplexity = 73,
-        ObjFItemDiscipline = 74,
-        ObjFItemDescriptionUnknown = 75,
-        ObjFItemDescriptionEffects = 76,
-        ObjFItemSpell1 = 77,
-        ObjFItemSpell2 = 78,
-        ObjFItemSpell3 = 79,
-        ObjFItemSpell4 = 80,
-        ObjFItemSpell5 = 81,
-        ObjFItemSpellManaStore = 82,
-        ObjFItemAiAction = 83,
-        ObjFItemPadI1 = 84,
-        ObjFItemPadIas1 = 85,
-        ObjFItemPadI64As1 = 86,
-        ObjFWeaponFlags = 96,
-        ObjFWeaponPaperDollAid = 97,
-        ObjFWeaponBonusToHit = 98,
-        ObjFWeaponMagicHitAdj = 99,
-        ObjFWeaponDamageLowerIdx = 100,
-        ObjFWeaponDamageUpperIdx = 101,
-        ObjFWeaponMagicDamageAdjIdx = 102,
-        ObjFWeaponSpeedFactor = 103,
-        ObjFWeaponMagicSpeedAdj = 104,
-        ObjFWeaponRange = 105,
-        ObjFWeaponMagicRangeAdj = 106,
-        ObjFWeaponMinStrength = 107,
-        ObjFWeaponMagicMinStrengthAdj = 108,
-        ObjFWeaponAmmoType = 109,
-        ObjFWeaponAmmoConsumption = 110,
-        ObjFWeaponMissileAid = 111,
-        ObjFWeaponVisualEffectAid = 112,
-        ObjFWeaponCritHitChart = 113,
-        ObjFWeaponMagicCritHitChance = 114,
-        ObjFWeaponMagicCritHitEffect = 115,
-        ObjFWeaponCritMissChart = 116,
-        ObjFWeaponMagicCritMissChance = 117,
-        ObjFWeaponMagicCritMissEffect = 118,
-        ObjFWeaponPadI1 = 119,
-        ObjFWeaponPadI2 = 120,
-        ObjFWeaponPadIas1 = 121,
-        ObjFWeaponPadI64As1 = 122,
-        ObjFAmmoFlags = 96,
-        ObjFAmmoQuantity = 97,
-        ObjFAmmoType = 98,
-        ObjFAmmoPadI1 = 99,
-        ObjFAmmoPadI2 = 100,
-        ObjFAmmoPadIas1 = 101,
-        ObjFAmmoPadI64As1 = 102,
-        ObjFArmorFlags = 96,
-        ObjFArmorPaperDollAid = 97,
-        ObjFArmorAcAdj = 98,
-        ObjFArmorMagicAcAdj = 99,
-        ObjFArmorResistanceAdjIdx = 100,
-        ObjFArmorMagicResistanceAdjIdx = 101,
-        ObjFArmorSilentMoveAdj = 102,
-        ObjFArmorMagicSilentMoveAdj = 103,
-        ObjFArmorUnarmedBonusDamage = 104,
-        ObjFArmorPadI2 = 105,
-        ObjFArmorPadIas1 = 106,
-        ObjFArmorPadI64As1 = 107,
-        ObjFGoldFlags = 96,
-        ObjFGoldQuantity = 97,
-        ObjFGoldPadI1 = 98,
-        ObjFGoldPadI2 = 99,
-        ObjFGoldPadIas1 = 100,
-        ObjFGoldPadI64As1 = 101,
-        ObjFFoodFlags = 96,
-        ObjFFoodPadI1 = 97,
-        ObjFFoodPadI2 = 98,
-        ObjFFoodPadIas1 = 99,
-        ObjFFoodPadI64As1 = 100,
-        ObjFScrollFlags = 96,
-        ObjFScrollPadI1 = 97,
-        ObjFScrollPadI2 = 98,
-        ObjFScrollPadIas1 = 99,
-        ObjFScrollPadI64As1 = 100,
-        ObjFKeyKeyId = 96,
-        ObjFKeyPadI1 = 97,
-        ObjFKeyPadI2 = 98,
-        ObjFKeyPadIas1 = 99,
-        ObjFKeyPadI64As1 = 100,
-        ObjFKeyRingFlags = 96,
-        ObjFKeyRingListIdx = 97,
-        ObjFKeyRingPadI1 = 98,
-        ObjFKeyRingPadI2 = 99,
-        ObjFKeyRingPadIas1 = 100,
-        ObjFKeyRingPadI64As1 = 101,
-        ObjFWrittenFlags = 96,
-        ObjFWrittenSubtype = 97,
-        ObjFWrittenTextStartLine = 98,
-        ObjFWrittenTextEndLine = 99,
-        ObjFWrittenPadI1 = 100,
-        ObjFWrittenPadI2 = 101,
-        ObjFWrittenPadIas1 = 102,
-        ObjFWrittenPadI64As1 = 103,
-        ObjFGenericFlags = 96,
-        ObjFGenericUsageBonus = 97,
-        ObjFGenericUsageCountRemaining = 98,
-        ObjFGenericPadIas1 = 99,
-        ObjFGenericPadI64As1 = 100,
-        ObjFCritterFlags = 64,
-        ObjFCritterFlags2 = 65,
-        ObjFCritterStatBaseIdx = 66,
-        ObjFCritterBasicSkillIdx = 67,
-        ObjFCritterTechSkillIdx = 68,
-        ObjFCritterSpellTechIdx = 69,
-        ObjFCritterFatiguePts = 70,
-        ObjFCritterFatigueAdj = 71,
-        ObjFCritterFatigueDamage = 72,
-        ObjFCritterCritHitChart = 73,
-        ObjFCritterEffectsIdx = 74,
-        ObjFCritterEffectCauseIdx = 75,
-        ObjFCritterFleeingFrom = 76,
-        ObjFCritterPortrait = 77,
-        ObjFCritterGold = 78,
-        ObjFCritterArrows = 79,
-        ObjFCritterBullets = 80,
-        ObjFCritterPowerCells = 81,
-        ObjFCritterFuel = 82,
-        ObjFCritterInventoryNum = 83,
-        ObjFCritterInventoryListIdx = 84,
-        ObjFCritterInventorySource = 85,
-        ObjFCritterDescriptionUnknown = 86,
-        ObjFCritterFollowerIdx = 87,
-        ObjFCritterTeleportDest = 88,
-        ObjFCritterTeleportMap = 89,
-        ObjFCritterDeathTime = 90,
-        ObjFCritterAutoLevelScheme = 91,
-        ObjFCritterPadI1 = 92,
-        ObjFCritterPadI2 = 93,
-        ObjFCritterPadI3 = 94,
-        ObjFCritterPadIas1 = 95,
-        ObjFCritterPadI64As1 = 96,
-        ObjFPcFlags = 128,
-        ObjFPcFlagsFate = 129,
-        ObjFPcReputationIdx = 130,
-        ObjFPcReputationTsIdx = 131,
-        ObjFPcBackground = 132,
-        ObjFPcBackgroundText = 133,
-        ObjFPcQuestIdx = 134,
-        ObjFPcBlessingIdx = 135,
-        ObjFPcBlessingTsIdx = 136,
-        ObjFPcCurseIdx = 137,
-        ObjFPcCurseTsIdx = 138,
-        ObjFPcPartyId = 139,
-        ObjFPcRumorIdx = 140,
-        ObjFPcPadIas2 = 141,
-        ObjFPcSchematicsFoundIdx = 142,
-        ObjFPcLogbookEgoIdx = 143,
-        ObjFPcFogMask = 144,
-        ObjFPcPlayerName = 145,
-        ObjFPcBankMoney = 146,
-        ObjFPcGlobalFlags = 147,
-        ObjFPcGlobalVariables = 148,
-        ObjFPcPadI1 = 149,
-        ObjFPcPadI2 = 150,
-        ObjFPcPadIas1 = 151,
-        ObjFPcPadI64As1 = 152,
-        ObjFNpcFlags = 128,
-        ObjFNpcLeader = 129,
-        ObjFNpcAiData = 130,
-        ObjFNpcCombatFocus = 131,
-        ObjFNpcWhoHitMeLast = 132,
-        ObjFNpcExperienceWorth = 133,
-        ObjFNpcExperiencePool = 134,
-        ObjFNpcWaypointsIdx = 135,
-        ObjFNpcWaypointCurrent = 136,
-        ObjFNpcStandpointDay = 137,
-        ObjFNpcStandpointNight = 138,
-        ObjFNpcOrigin = 139,
-        ObjFNpcFaction = 140,
-        ObjFNpcRetailPriceMultiplier = 141,
-        ObjFNpcSubstituteInventory = 142,
-        ObjFNpcReactionBase = 143,
-        ObjFNpcSocialClass = 144,
-        ObjFNpcReactionPcIdx = 145,
-        ObjFNpcReactionLevelIdx = 146,
-        ObjFNpcReactionTimeIdx = 147,
-        ObjFNpcWait = 148,
-        ObjFNpcGeneratorData = 149,
-        ObjFNpcPadI1 = 150,
-        ObjFNpcDamageIdx = 151,
-        ObjFNpcHostileListIdx = 152,
-    }
-    public static class ObjectFieldBitmapSize
-    {
-        public static int For(ArcNET.GameObjects.ObjectType type) { }
-    }
-    public enum ObjectType : byte
-    {
-        Wall = 0,
-        Portal = 1,
-        Container = 2,
-        Scenery = 3,
-        Projectile = 4,
-        Weapon = 5,
-        Ammo = 6,
-        Armor = 7,
-        Gold = 8,
-        Food = 9,
-        Scroll = 10,
-        Key = 11,
-        KeyRing = 12,
-        Written = 13,
-        Generic = 14,
-        Pc = 15,
-        Npc = 16,
-        Trap = 17,
     }
 }
 namespace ArcNET.GameObjects.Classes
@@ -2220,10 +2258,10 @@ namespace ArcNET.GameObjects.Classes
                 "Stat",
                 "Value"})]
         public System.Collections.Generic.List<System.ValueTuple<ArcNET.GameObjects.Classes.BasicStatType, int>> BasicStats { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFBlitFlags> BlitFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.BlitFlags> BlitFlags { get; init; }
         public int Category { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags> CritterFlags { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFCritterFlags2> CritterFlags2 { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.CritterFlags> CritterFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.CritterFlags2> CritterFlags2 { get; init; }
         [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Type",
                 "Min",
@@ -2241,8 +2279,8 @@ namespace ArcNET.GameObjects.Classes
         public int InventorySource { get; init; }
         public int Level { get; init; }
         public int Material { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFNpcFlags> NpcFlags { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFFlags> ObjectFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.NpcFlags> NpcFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.ObjectFlags> ObjectFlags { get; init; }
         [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Type",
                 "Value"})]
@@ -2257,7 +2295,7 @@ namespace ArcNET.GameObjects.Classes
                 "F"})]
         public System.Collections.Generic.List<System.ValueTuple<int, int, int, int, int, int>> Scripts { get; init; }
         public int SoundBank { get; init; }
-        public System.Collections.Generic.List<ArcNET.GameObjects.ObjFSpellFlags> SpellFlags { get; init; }
+        public System.Collections.Generic.List<ArcNET.GameObjects.SpellFlags> SpellFlags { get; init; }
         public System.Collections.Generic.List<string> Spells { get; init; }
     }
     public sealed class InventorySource
@@ -2315,7 +2353,7 @@ namespace ArcNET.GameObjects.Types
     {
         public ObjectArmor() { }
         public int AcAdj { get; }
-        public ArcNET.GameObjects.ObjFArmorFlags ArmorFlags { get; }
+        public ArcNET.GameObjects.ArmorFlags ArmorFlags { get; }
         public int MagicAcAdj { get; }
         public int[] MagicResistanceAdj { get; }
         public int MagicSilentMoveAdj { get; }
@@ -2347,7 +2385,7 @@ namespace ArcNET.GameObjects.Types
         public ArcNET.Core.Primitives.Location? Location { get; }
         public int Material { get; }
         public int Name { get; }
-        public ArcNET.GameObjects.ObjFFlags ObjectFlags { get; }
+        public ArcNET.GameObjects.ObjectFlags ObjectFlags { get; }
         public int OffsetX { get; }
         public int OffsetY { get; }
         public int[] OverlayBack { get; }
@@ -2359,7 +2397,7 @@ namespace ArcNET.GameObjects.Types
         public ArcNET.GameObjects.GameObjectScript[] ScriptsIdx { get; }
         public ArcNET.Core.Primitives.ArtId Shadow { get; }
         public int SoundEffect { get; }
-        public ArcNET.GameObjects.ObjFSpellFlags SpellFlags { get; }
+        public ArcNET.GameObjects.SpellFlags SpellFlags { get; }
         public int[] Underlay { get; }
         protected void ReadCommonFields(ref ArcNET.Core.SpanReader reader, byte[] bitmap, bool isPrototype) { }
         protected void WriteCommonFields(ref ArcNET.Core.SpanWriter writer, byte[] bitmap, bool isPrototype) { }
@@ -2367,7 +2405,7 @@ namespace ArcNET.GameObjects.Types
     public sealed class ObjectContainer : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectContainer() { }
-        public ArcNET.GameObjects.ObjFContainerFlags ContainerFlags { get; }
+        public ArcNET.GameObjects.ContainerFlags ContainerFlags { get; }
         public ArcNET.Core.Primitives.GameObjectGuid[] InventoryList { get; }
         public int InventorySource { get; }
         public int KeyId { get; }
@@ -2389,8 +2427,8 @@ namespace ArcNET.GameObjects.Types
         public int CritterFatigueAdj { get; }
         public int CritterFatigueDamage { get; }
         public int CritterFatiguePts { get; }
-        public ArcNET.GameObjects.ObjFCritterFlags CritterFlags { get; }
-        public ArcNET.GameObjects.ObjFCritterFlags2 CritterFlags2 { get; }
+        public ArcNET.GameObjects.CritterFlags CritterFlags { get; }
+        public ArcNET.GameObjects.CritterFlags2 CritterFlags2 { get; }
         public ArcNET.Core.Primitives.GameObjectGuid CritterFleeingFrom { get; }
         public ArcNET.Core.Primitives.GameObjectGuid[] CritterFollowers { get; }
         public int CritterFuel { get; }
@@ -2432,7 +2470,7 @@ namespace ArcNET.GameObjects.Types
         public int ItemDescriptionEffects { get; }
         public int ItemDescriptionUnknown { get; }
         public int ItemDiscipline { get; }
-        public ArcNET.GameObjects.ObjFItemFlags ItemFlags { get; }
+        public ArcNET.GameObjects.ItemFlags ItemFlags { get; }
         public int ItemInvAid { get; }
         public int ItemInvLocation { get; }
         public int ItemMagicTechComplexity { get; }
@@ -2474,7 +2512,7 @@ namespace ArcNET.GameObjects.Types
         public int GeneratorData { get; }
         public int[] HostileList { get; }
         public ArcNET.Core.Primitives.GameObjectGuid Leader { get; }
-        public ArcNET.GameObjects.ObjFNpcFlags NpcFlags { get; }
+        public ArcNET.GameObjects.NpcFlags NpcFlags { get; }
         public int Origin { get; }
         public int ReactionBase { get; }
         public int[] ReactionLevel { get; }
@@ -2520,7 +2558,7 @@ namespace ArcNET.GameObjects.Types
         public int KeyId { get; }
         public int LockDifficulty { get; }
         public int NotifyNpc { get; }
-        public ArcNET.GameObjects.ObjFPortalFlags PortalFlags { get; }
+        public ArcNET.GameObjects.PortalFlags PortalFlags { get; }
     }
     public sealed class ObjectProjectile : ArcNET.GameObjects.Types.ObjectCommon
     {
@@ -2534,7 +2572,7 @@ namespace ArcNET.GameObjects.Types
     {
         public ObjectScenery() { }
         public int RespawnDelay { get; }
-        public ArcNET.GameObjects.ObjFSceneryFlags SceneryFlags { get; }
+        public ArcNET.GameObjects.SceneryFlags SceneryFlags { get; }
         public ArcNET.Core.Primitives.GameObjectGuid WhosInMe { get; }
     }
     public sealed class ObjectScroll : ArcNET.GameObjects.Types.ObjectItem
@@ -2578,7 +2616,7 @@ namespace ArcNET.GameObjects.Types
         public int Range { get; }
         public int SpeedFactor { get; }
         public int VisualEffectAid { get; }
-        public ArcNET.GameObjects.ObjFWeaponFlags WeaponFlags { get; }
+        public ArcNET.GameObjects.WeaponFlags WeaponFlags { get; }
     }
     public sealed class ObjectWritten : ArcNET.GameObjects.Types.ObjectItem
     {
@@ -2618,11 +2656,42 @@ namespace ArcNET.GameData
         public static string ExportToJson(ArcNET.GameData.GameDataStore store) { }
         public static System.Threading.Tasks.Task ExportToJsonFileAsync(ArcNET.GameData.GameDataStore store, string outputPath, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class GameDataLoadEntry
+    {
+        public GameDataLoadEntry(ArcNET.Formats.FileFormat format, string sourcePath, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<System.ReadOnlyMemory<byte>>> loadContentAsync) { }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<System.ReadOnlyMemory<byte>>> LoadContentAsync { get; }
+        public string SourcePath { get; }
+        public static ArcNET.GameData.GameDataLoadEntry FromFile(ArcNET.Formats.FileFormat format, string sourcePath, string filePath) { }
+        public static ArcNET.GameData.GameDataLoadEntry FromMemory(ArcNET.Formats.FileFormat format, string sourcePath, System.ReadOnlyMemory<byte> memory) { }
+    }
+    public sealed class GameDataLoadFailure
+    {
+        public GameDataLoadFailure(string sourcePath, ArcNET.Formats.FileFormat format, string reason) { }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public string Reason { get; }
+        public string SourcePath { get; }
+    }
+    public sealed class GameDataLoadProgress
+    {
+        public GameDataLoadProgress(string activity, float progress, int? completedEntries = default, int? totalEntries = default) { }
+        public string Activity { get; }
+        public int? CompletedEntries { get; }
+        public float Progress { get; }
+        public int? TotalEntries { get; }
+    }
+    public sealed class GameDataLoadResult
+    {
+        public GameDataLoadResult(ArcNET.GameData.GameDataStore store, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadFailure> failures) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadFailure> Failures { get; }
+        public ArcNET.GameData.GameDataStore Store { get; }
+    }
     public static class GameDataLoader
     {
         public static System.Collections.Generic.IReadOnlyDictionary<ArcNET.Formats.FileFormat, System.Collections.Generic.IReadOnlyList<string>> DiscoverFiles(string dirPath) { }
-        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromDirectoryAsync(string dirPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default) { }
-        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromMemoryAsync(System.Collections.Generic.IReadOnlyDictionary<string, System.ReadOnlyMemory<byte>> files, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromDirectoryAsync(string dirPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataLoadResult> LoadFromEntriesAsync(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadEntry> entries, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromMemoryAsync(System.Collections.Generic.IReadOnlyDictionary<string, System.ReadOnlyMemory<byte>> files, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
         public static System.Collections.Generic.IReadOnlyDictionary<int, string> LoadMessages(string dirPath) { }
     }
     public static class GameDataSaver
@@ -2681,6 +2750,7 @@ namespace ArcNET.GameData
         public System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.GameObjectHeader> FindByProtoId(in ArcNET.Core.Primitives.GameObjectGuid protoId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.GameObjectHeader> FindByType(ArcNET.GameObjects.ObjectType type) { }
         public void MarkDirty(in ArcNET.Core.Primitives.GameObjectGuid id) { }
+        public static ArcNET.GameData.GameDataStore Overlay(ArcNET.GameData.GameDataStore baseStore, ArcNET.GameData.GameDataStore overlayStore) { }
     }
     public sealed class GameObjectHeaderDto : System.IEquatable<ArcNET.GameData.GameObjectHeaderDto>
     {
@@ -3104,6 +3174,7 @@ namespace ArcNET.Editor
     {
         None = 0,
         Conservative = 1,
+        ArcanumMessageTables = 2,
     }
     public sealed class EditorAssetCatalog
     {
@@ -3170,6 +3241,7 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorScriptReference> FindScriptReferences(int scriptId) { }
         public ArcNET.Editor.EditorSectorSummary? FindSectorSummary(string assetPath) { }
         public ArcNET.Editor.EditorTerrainDefinition? FindTerrainDetail(string assetPath) { }
+        public System.Collections.Generic.IReadOnlyCollection<uint> GetReferencedArtIds() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorArtDefinition> SearchArtDetails(string text) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorDialogDefinition> SearchDialogDetails(string text) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorFacadeWalkDefinition> SearchFacadeWalkDetails(string text) { }
@@ -3358,15 +3430,39 @@ namespace ArcNET.Editor
         public static double UnprojectTileX(ArcNET.Editor.EditorProjectMapCameraState camera, double viewportWidth, double viewportHeight, double pixelsPerTileAtZoom1, double viewportX) { }
         public static double UnprojectTileY(ArcNET.Editor.EditorProjectMapCameraState camera, double viewportWidth, double viewportHeight, double pixelsPerTileAtZoom1, double viewportY) { }
     }
+    public enum EditorMapCommittedRenderLayer
+    {
+        Ground = 0,
+        GroundDecal = 1,
+        Wall = 2,
+        Scenery = 3,
+        Mobile = 4,
+        Roof = 5,
+    }
+    public static class EditorMapFacadePaintableSceneBuilder
+    {
+        public static ArcNET.Editor.EditorMapPaintableScene? Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorTerrainPaletteEntry? terrainEntry, ArcNET.Formats.FacadeWalk? facadeWalk, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
+    }
     public static class EditorMapFloorRenderBuilder
     {
-        public static ArcNET.Editor.EditorMapFloorRenderPreview Build(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorMapFloorRenderRequest? request = null) { }
+        public static ArcNET.Editor.EditorMapFloorRenderPreview Build(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorMapFloorRenderRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static ArcNET.Editor.EditorMapFloorRenderPreview BuildDelta(ArcNET.Editor.EditorMapFloorRenderPreview existingPreview, ArcNET.Editor.EditorMapScenePreview scenePreview, string changedSectorAssetPath, ArcNET.Editor.EditorMapFloorRenderRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "CenterX",
+                "CenterY"})]
+        public static System.ValueTuple<int, int> GetLayoutSpriteCenter(ArcNET.Editor.EditorMapObjectPreview objectPreview, ArcNET.Editor.EditorMapObjectSpriteBounds spriteBounds) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "CenterX",
+                "CenterY"})]
+        public static System.ValueTuple<int, int> GetLayoutSpriteCenter(ArcNET.GameObjects.ObjectType objectType, ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapObjectSpriteBounds spriteBounds) { }
     }
     public sealed class EditorMapFloorRenderPreview
     {
         public EditorMapFloorRenderPreview() { }
         public required double HeightPixels { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightRenderItem> Lights { get; init; }
         public required string MapName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectAuxiliaryRenderItem> ObjectAuxiliaryItems { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectRenderItem> Objects { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapTileOverlayRenderItem> Overlays { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapRenderQueueItem> RenderQueue { get; init; }
@@ -3381,7 +3477,9 @@ namespace ArcNET.Editor
     {
         public EditorMapFloorRenderRequest() { }
         public bool IncludeBlockedTileOverlays { get; init; }
+        public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeEmptyTiles { get; init; }
+        public bool IncludeFloorLightTint { get; init; }
         public bool IncludeLightOverlays { get; init; }
         public bool IncludeObjects { get; init; }
         public bool IncludeRoofs { get; init; }
@@ -3402,10 +3500,31 @@ namespace ArcNET.Editor
         public required bool HasLight { get; init; }
         public required bool HasScript { get; init; }
         public required bool IsBlocked { get; init; }
+        public ArcNET.Editor.EditorMapTileLightDiagnostics? LightDiagnostics { get; init; }
         public required int MapTileX { get; init; }
         public required int MapTileY { get; init; }
         public ArcNET.Core.Primitives.Location RoofCell { get; }
         public required string SectorAssetPath { get; init; }
+        public uint? SuggestedTintColor { get; init; }
+        public required ArcNET.Core.Primitives.Location Tile { get; init; }
+    }
+    public static class EditorMapFocusLocator
+    {
+        public static ArcNET.Editor.EditorMapFocusTarget? FindTarget(ArcNET.Editor.EditorWorkspace workspace, string query) { }
+    }
+    public sealed class EditorMapFocusTarget
+    {
+        public EditorMapFocusTarget() { }
+        public required double CenterTileX { get; init; }
+        public required double CenterTileY { get; init; }
+        public string? FocusAssetPath { get; init; }
+        public required string MapName { get; init; }
+        public int MatchCount { get; init; }
+        public ArcNET.Core.Primitives.GameObjectGuid? ObjectId { get; init; }
+        public int? ProtoNumber { get; init; }
+        public required string Query { get; init; }
+        public required string SectorAssetPath { get; init; }
+        public string? SourceAssetPath { get; init; }
         public required ArcNET.Core.Primitives.Location Tile { get; init; }
     }
     public enum EditorMapLayerBrushMode
@@ -3446,6 +3565,56 @@ namespace ArcNET.Editor
         public required int TileY { get; init; }
         public required uint TintColor { get; init; }
     }
+    public sealed class EditorMapLightRenderItem
+    {
+        public EditorMapLightRenderItem() { }
+        public required double AnchorX { get; init; }
+        public required double AnchorY { get; init; }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public required int DrawOrder { get; init; }
+        public required ArcNET.Formats.SectorLightFlags Flags { get; init; }
+        public required int MapTileX { get; init; }
+        public required int MapTileY { get; init; }
+        public required string SectorAssetPath { get; init; }
+        public required double SuggestedOpacity { get; init; }
+        public required uint SuggestedTintColor { get; init; }
+        public required ArcNET.Core.Primitives.Location Tile { get; init; }
+    }
+    public readonly struct EditorMapObjectAlphaLerp : System.IEquatable<ArcNET.Editor.EditorMapObjectAlphaLerp>
+    {
+        public EditorMapObjectAlphaLerp(byte Left, byte Right) { }
+        public byte Left { get; init; }
+        public byte Right { get; init; }
+    }
+    public sealed class EditorMapObjectAuxiliaryRenderItem
+    {
+        public EditorMapObjectAuxiliaryRenderItem() { }
+        public required double AnchorX { get; init; }
+        public required double AnchorY { get; init; }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public ArcNET.Editor.EditorMapSpriteBlendMode BlendMode { get; init; }
+        public required ArcNET.Editor.EditorMapCommittedRenderLayer CommittedRenderLayer { get; init; }
+        public required int DrawOrder { get; init; }
+        public bool IsRoofCovered { get; init; }
+        public required bool IsShrunk { get; init; }
+        public required ArcNET.Editor.EditorMapObjectAuxiliaryRenderLayer Layer { get; init; }
+        public required int MapTileX { get; init; }
+        public required int MapTileY { get; init; }
+        public required ArcNET.Core.Primitives.GameObjectGuid ParentObjectId { get; init; }
+        public required ArcNET.GameObjects.ObjectType ParentObjectType { get; init; }
+        public required int RotationIndex { get; init; }
+        public required int ScalePercent { get; init; }
+        public required string SectorAssetPath { get; init; }
+        public uint? SuggestedTintColor { get; init; }
+        public required ArcNET.Core.Primitives.Location Tile { get; init; }
+    }
+    public enum EditorMapObjectAuxiliaryRenderLayer
+    {
+        Underlay = 0,
+        Shadow = 1,
+        OverlayBack = 2,
+        OverlayFore = 3,
+    }
     public enum EditorMapObjectBrushMode
     {
         StampFromProto = 0,
@@ -3482,6 +3651,16 @@ namespace ArcNET.Editor
         public int UpdatedObjectCount { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.GameObjectGuid> UpdatedObjectIds { get; init; }
     }
+    public sealed class EditorMapObjectColorArray : System.IEquatable<ArcNET.Editor.EditorMapObjectColorArray>
+    {
+        public EditorMapObjectColorArray(System.ReadOnlySpan<uint> colors) { }
+        public int Count { get; }
+        public uint this[int index] { get; }
+        public System.ReadOnlySpan<uint> AsSpan() { }
+        public bool Equals(ArcNET.Editor.EditorMapObjectColorArray? other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+    }
     public sealed class EditorMapObjectPaletteSummary
     {
         public EditorMapObjectPaletteSummary() { }
@@ -3511,36 +3690,65 @@ namespace ArcNET.Editor
     public sealed class EditorMapObjectPreview
     {
         public EditorMapObjectPreview() { }
+        public int BlitAlpha { get; init; }
+        public uint BlitColor { get; init; }
+        public int BlitFlags { get; init; }
+        public int BlitScale { get; init; }
         public float CollisionHeight { get; init; }
         public required ArcNET.Core.Primitives.ArtId CurrentArtId { get; init; }
+        public ArcNET.GameObjects.ObjectFlags Flags { get; init; }
+        public bool IsDead { get; init; }
+        public bool IsFlat { get; }
+        public bool IsShrunk { get; }
         public bool IsTileGridSnapped { get; }
+        public bool IsUnderAllScenery { get; }
+        public bool IsWading { get; }
         public ArcNET.Core.Primitives.Location? Location { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
         public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
         public int OffsetX { get; init; }
         public int OffsetY { get; init; }
         public float OffsetZ { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> OverlayBackArtIds { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> OverlayForeArtIds { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
+        public uint? ReactionColor { get; init; }
         public float Rotation { get; init; }
+        public int RotationIndex { get; init; }
         public required float RotationPitch { get; init; }
+        public ArcNET.GameObjects.SceneryFlags SceneryFlags { get; init; }
+        public ArcNET.Core.Primitives.ArtId ShadowArtId { get; init; }
+        public string? SourceAssetPath { get; init; }
         public ArcNET.Editor.EditorMapObjectSpriteBounds? SpriteBounds { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> UnderlayArtIds { get; init; }
+        public int WallFlags { get; init; }
     }
     public sealed class EditorMapObjectRenderItem
     {
         public EditorMapObjectRenderItem() { }
         public required double AnchorX { get; init; }
         public required double AnchorY { get; init; }
+        public int BlitScale { get; init; }
+        public ArcNET.Editor.EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
         public required ArcNET.Core.Primitives.ArtId CurrentArtId { get; init; }
         public required int DrawOrder { get; init; }
+        public ArcNET.GameObjects.ObjectFlags Flags { get; init; }
+        public bool IsRoofCovered { get; init; }
+        public bool IsShrunk { get; init; }
         public required bool IsTileGridSnapped { get; init; }
         public required int MapTileX { get; init; }
         public required int MapTileY { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
         public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
+        public required float Rotation { get; init; }
+        public int RotationIndex { get; init; }
+        public required float RotationPitch { get; init; }
+        public ArcNET.GameObjects.SceneryFlags SceneryFlags { get; init; }
         public required string SectorAssetPath { get; init; }
         public ArcNET.Editor.EditorMapObjectSpriteBounds? SpriteBounds { get; init; }
         public required ArcNET.Core.Primitives.Location Tile { get; init; }
+        public int WallFlags { get; init; }
     }
     public sealed class EditorMapObjectSelectionSummary
     {
@@ -3568,9 +3776,11 @@ namespace ArcNET.Editor
         public bool AlignToTileGrid { get; init; }
         public int DeltaTileX { get; init; }
         public int DeltaTileY { get; init; }
+        public float? EffectiveRotation { get; }
         public bool HasChanges { get; }
         public bool HasMoveOffset { get; }
         public float? Rotation { get; init; }
+        public int? RotationIndex { get; init; }
         public float? RotationPitch { get; init; }
         public static ArcNET.Editor.EditorMapObjectTransformRequest MoveByOffset(int deltaTileX, int deltaTileY) { }
         public static ArcNET.Editor.EditorMapObjectTransformRequest Rotate(float rotation) { }
@@ -3585,29 +3795,80 @@ namespace ArcNET.Editor
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapPaintableSceneItem> Items { get; init; }
         public required string MapName { get; init; }
         public required ArcNET.Editor.EditorMapRenderSpriteCoverage SpriteCoverage { get; init; }
+        public ArcNET.Editor.IEditorMapRenderSpriteSource? SpriteSource { get; init; }
         public required ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
         public required double WidthPixels { get; init; }
+        public System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapPaintableSceneItem> EnumerateVisibleItems(ArcNET.Editor.EditorMapSceneViewportLayout viewport) { }
     }
     public static class EditorMapPaintableSceneBuilder
     {
-        public static ArcNET.Editor.EditorMapPaintableScene Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview = null, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
+        public static ArcNET.Editor.EditorMapPaintableScene Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview = null, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static ArcNET.Editor.EditorMapPaintableScene BuildPlacementOverlay(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class EditorMapPaintableSceneItem
     {
         public EditorMapPaintableSceneItem() { }
         public required double AnchorX { get; init; }
         public required double AnchorY { get; init; }
+        public ArcNET.Editor.EditorMapSpriteBlendMode BlendMode { get; init; }
+        public ArcNET.Editor.EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
         public required int DrawOrder { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapRenderPoint>? GeometryPoints { get; init; }
         public required double Height { get; init; }
+        public bool IsRoofCovered { get; init; }
         public required ArcNET.Editor.EditorMapRenderQueueItemKind Kind { get; init; }
         public required double Left { get; init; }
+        public ArcNET.Editor.EditorMapObjectAlphaLerp? ObjectAlphaLerp { get; init; }
+        public ArcNET.Editor.EditorMapObjectColorArray? ObjectColorArray { get; init; }
+        public ArcNET.Editor.EditorMapRoofAlphaLerp? RoofAlphaLerp { get; init; }
         public required double SortKey { get; init; }
         public ArcNET.Editor.EditorMapRenderSprite? Sprite { get; init; }
+        public ArcNET.Editor.EditorMapPaintableSceneSpriteDestinationRect? SpriteDestinationRect { get; init; }
+        public ArcNET.Editor.EditorMapPaintableSceneSpriteReference? SpriteReference { get; init; }
+        public ArcNET.Editor.EditorMapPaintableSceneSpriteSourceRect? SpriteSourceRect { get; init; }
         public required double SuggestedOpacity { get; init; }
         public uint? SuggestedTintColor { get; init; }
+        public bool SuppressFallback { get; init; }
+        public ArcNET.Editor.EditorMapTileLightDiagnostics? TileLightDiagnostics { get; init; }
+        public ArcNET.Editor.EditorMapTileOverlayKind? TileOverlayKind { get; init; }
+        public bool TintIgnoresLightVisibility { get; init; }
         public required double Top { get; init; }
+        public bool UseGrayscalePaletteOverride { get; init; }
+        public bool UseLightMaskTint { get; init; }
+        public bool UseSubtractiveShadowBlend { get; init; }
         public required double Width { get; init; }
+    }
+    public readonly struct EditorMapPaintableSceneSpriteDestinationRect : System.IEquatable<ArcNET.Editor.EditorMapPaintableSceneSpriteDestinationRect>
+    {
+        public EditorMapPaintableSceneSpriteDestinationRect(double X, double Y, double Width, double Height) { }
+        public double Height { get; init; }
+        public double Width { get; init; }
+        public double X { get; init; }
+        public double Y { get; init; }
+    }
+    public sealed class EditorMapPaintableSceneSpriteReference
+    {
+        public EditorMapPaintableSceneSpriteReference() { }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public required int CenterX { get; init; }
+        public required int CenterY { get; init; }
+        public required int FrameIndex { get; init; }
+        public uint FrameRate { get; init; }
+        public int FramesPerRotation { get; init; }
+        public required int Height { get; init; }
+        public bool IsShrunk { get; init; }
+        public ArcNET.Editor.EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
+        public required int RotationIndex { get; init; }
+        public int ScalePercent { get; init; }
+        public required int Width { get; init; }
+    }
+    public readonly struct EditorMapPaintableSceneSpriteSourceRect : System.IEquatable<ArcNET.Editor.EditorMapPaintableSceneSpriteSourceRect>
+    {
+        public EditorMapPaintableSceneSpriteSourceRect(int X, int Y, int Width, int Height) { }
+        public int Height { get; init; }
+        public int Width { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
     }
     public sealed class EditorMapPlacementPreview
     {
@@ -3626,14 +3887,17 @@ namespace ArcNET.Editor
         public EditorMapPlacementPreviewObject() { }
         public required double AnchorX { get; init; }
         public required double AnchorY { get; init; }
+        public int BlitScale { get; init; }
         public required ArcNET.Core.Primitives.ArtId CurrentArtId { get; init; }
         public required int DrawOrder { get; init; }
+        public bool IsShrunk { get; init; }
         public required bool IsTileGridSnapped { get; init; }
         public required int MapTileX { get; init; }
         public required int MapTileY { get; init; }
         public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
         public required float Rotation { get; init; }
+        public int RotationIndex { get; init; }
         public required float RotationPitch { get; init; }
         public required string SectorAssetPath { get; init; }
         public ArcNET.Editor.EditorMapObjectSpriteBounds? SpriteBounds { get; init; }
@@ -3716,9 +3980,12 @@ namespace ArcNET.Editor
     public sealed class EditorMapRenderQueueItem
     {
         public EditorMapRenderQueueItem() { }
+        public ArcNET.Editor.EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
         public required int DrawOrder { get; init; }
         public required ArcNET.Editor.EditorMapRenderQueueItemKind Kind { get; init; }
+        public ArcNET.Editor.EditorMapLightRenderItem? Light { get; init; }
         public ArcNET.Editor.EditorMapObjectRenderItem? Object { get; init; }
+        public ArcNET.Editor.EditorMapObjectAuxiliaryRenderItem? ObjectAuxiliaryItem { get; init; }
         public ArcNET.Editor.EditorMapPlacementPreviewObject? PlacementPreviewObject { get; init; }
         public ArcNET.Editor.EditorMapRoofRenderItem? Roof { get; init; }
         public required double SortKey { get; init; }
@@ -3732,6 +3999,8 @@ namespace ArcNET.Editor
         Roof = 2,
         PlacementPreviewObject = 3,
         TileOverlay = 4,
+        ObjectAuxiliary = 5,
+        Light = 6,
     }
     public sealed class EditorMapRenderSprite
     {
@@ -3745,6 +4014,7 @@ namespace ArcNET.Editor
         public required int Height { get; init; }
         public required byte[] PixelData { get; init; }
         public required ArcNET.Editor.EditorArtPreviewPixelFormat PixelFormat { get; init; }
+        public ArcNET.Editor.EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
         public required int RotationIndex { get; init; }
         public required int Stride { get; init; }
         public required int Width { get; init; }
@@ -3754,14 +4024,31 @@ namespace ArcNET.Editor
         public EditorMapRenderSpriteCoverage() { }
         public bool IsComplete { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> ReferencedArtIds { get; init; }
+        public required int ReferencedSpriteReferenceCount { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> ResolvedArtIds { get; init; }
+        public required int ResolvedSpriteReferenceCount { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UnresolvedArtIds { get; init; }
+        public required int UnresolvedSpriteReferenceCount { get; init; }
+    }
+    public sealed class EditorMapRenderSpriteMetrics
+    {
+        public EditorMapRenderSpriteMetrics() { }
+        public required int CenterX { get; init; }
+        public required int CenterY { get; init; }
+        public int FrameIndex { get; init; }
+        public required int Height { get; init; }
+        public int RotationIndex { get; init; }
+        public required int Width { get; init; }
+        public static ArcNET.Editor.EditorMapRenderSpriteMetrics FromSprite(ArcNET.Editor.EditorMapRenderSprite sprite) { }
     }
     public sealed class EditorMapRenderSpriteRequest
     {
         public EditorMapRenderSpriteRequest() { }
         public int FrameIndex { get; init; }
+        public bool IsShrunk { get; init; }
+        public ArcNET.Editor.EditorMapRenderQueueItemKind? RenderItemKind { get; init; }
         public int RotationIndex { get; init; }
+        public int ScalePercent { get; init; }
     }
     public sealed class EditorMapRenderViewportState
     {
@@ -3769,6 +4056,14 @@ namespace ArcNET.Editor
         public double CenterRenderX { get; init; }
         public double CenterRenderY { get; init; }
         public double Zoom { get; init; }
+    }
+    public readonly struct EditorMapRoofAlphaLerp : System.IEquatable<ArcNET.Editor.EditorMapRoofAlphaLerp>
+    {
+        public EditorMapRoofAlphaLerp(byte TopLeft, byte TopRight, byte BottomLeft, byte BottomRight) { }
+        public byte BottomLeft { get; init; }
+        public byte BottomRight { get; init; }
+        public byte TopLeft { get; init; }
+        public byte TopRight { get; init; }
     }
     public sealed class EditorMapRoofRenderItem
     {
@@ -3891,6 +4186,7 @@ namespace ArcNET.Editor
         public required string AssetPath { get; init; }
         public required uint[] BlockMask { get; init; }
         public required ArcNET.Editor.EditorMapSectorDensityBand BlockedTileDensityBand { get; init; }
+        public System.Collections.Generic.HashSet<int> LightTileIndices { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightPreview> Lights { get; init; }
         public required int LocalX { get; init; }
         public required int LocalY { get; init; }
@@ -3899,16 +4195,26 @@ namespace ArcNET.Editor
         public required ArcNET.Editor.EditorMapSectorPreviewFlags PreviewFlags { get; init; }
         public uint[]? RoofArtIds { get; init; }
         public int RoofHeight { get; }
+        public ulong[]? RoofRowMasks { get; }
         public int RoofWidth { get; }
+        public System.Collections.Generic.HashSet<int> ScriptedTileIndices { get; }
         public required int SectorX { get; init; }
         public required int SectorY { get; init; }
         public required uint[] TileArtIds { get; init; }
         public int TileHeight { get; }
+        public ulong[] TileRowMasks { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapTileScriptPreview> TileScripts { get; init; }
         public int TileWidth { get; }
         public uint? GetRoofArtId(int roofX, int roofY) { }
         public uint GetTileArtId(int tileX, int tileY) { }
         public bool IsTileBlocked(int tileX, int tileY) { }
+    }
+    public enum EditorMapSpriteBlendMode
+    {
+        SourceOver = 0,
+        Add = 1,
+        Subtract = 2,
+        Multiply = 3,
     }
     public sealed class EditorMapTerrainPaletteSummary
     {
@@ -3940,6 +4246,21 @@ namespace ArcNET.Editor
         public required double MinTileX { get; init; }
         public required double MinTileY { get; init; }
         public double Width { get; }
+    }
+    public readonly struct EditorMapTileLightDiagnostics : System.IEquatable<ArcNET.Editor.EditorMapTileLightDiagnostics>
+    {
+        public EditorMapTileLightDiagnostics(uint? TopLeft, uint? TopCenter, uint? TopRight, uint? MiddleLeft, uint? MiddleCenter, uint? MiddleRight, uint? BottomLeft, uint? BottomCenter, uint? BottomRight) { }
+        public uint? BottomCenter { get; init; }
+        public uint? BottomLeft { get; init; }
+        public uint? BottomRight { get; init; }
+        public bool HasAnySample { get; }
+        public bool HasInterpolationVariance { get; }
+        public uint? MiddleCenter { get; init; }
+        public uint? MiddleLeft { get; init; }
+        public uint? MiddleRight { get; init; }
+        public uint? TopCenter { get; init; }
+        public uint? TopLeft { get; init; }
+        public uint? TopRight { get; init; }
     }
     public enum EditorMapTileOverlayKind
     {
@@ -3977,6 +4298,16 @@ namespace ArcNET.Editor
         public required int TileIndex { get; init; }
         public required int TileX { get; init; }
         public required int TileY { get; init; }
+    }
+    public sealed class EditorMapWorldEditComposeProgress
+    {
+        public EditorMapWorldEditComposeProgress() { }
+        public required string Activity { get; init; }
+        public string? DominantActivity { get; init; }
+        public System.TimeSpan? DominantElapsed { get; init; }
+        public required System.TimeSpan Elapsed { get; init; }
+        public required float Progress { get; init; }
+        public required System.TimeSpan StageElapsed { get; init; }
     }
     public sealed class EditorMapWorldEditScene
     {
@@ -4022,13 +4353,18 @@ namespace ArcNET.Editor
         public required ArcNET.Editor.EditorMapWorldEditScene Scene { get; init; }
         public required ArcNET.Editor.EditorMapTerrainPaletteSummary TerrainPalette { get; init; }
         public required ArcNET.Editor.EditorMapTerrainToolSummary TerrainTool { get; init; }
+        public ArcNET.Editor.EditorMapPaintableScene? TrackedPlacementPaintableScene { get; init; }
         public ArcNET.Editor.EditorMapPlacementPreview? TrackedPlacementPreview { get; init; }
+        public ArcNET.Editor.EditorMapPaintableScene? TrackedTerrainFacadePaintableScene { get; init; }
         public required ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
     }
     public sealed class EditorMapWorldEditShellRequest
     {
         public EditorMapWorldEditShellRequest() { }
         public ArcNET.Editor.EditorArtResolver? ArtResolver { get; init; }
+        public bool IncludeEditorObjectStateTint { get; init; }
+        public bool IncludeFloorLightTint { get; init; }
+        public bool IncludeFullObjectPaletteBrowse { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }
@@ -4052,7 +4388,7 @@ namespace ArcNET.Editor
         public EditorObjectInspectorBlendingSummary() { }
         public int BlitAlpha { get; init; }
         public ArcNET.Core.Primitives.Color BlitColor { get; init; }
-        public ArcNET.GameObjects.ObjFBlitFlags BlitFlags { get; init; }
+        public ArcNET.GameObjects.BlitFlags BlitFlags { get; init; }
         public int BlitScale { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorSummary Inspector { get; init; }
         public int Material { get; init; }
@@ -4062,7 +4398,7 @@ namespace ArcNET.Editor
         public EditorObjectInspectorBlendingUpdate() { }
         public int? BlitAlpha { get; init; }
         public ArcNET.Core.Primitives.Color? BlitColor { get; init; }
-        public ArcNET.GameObjects.ObjFBlitFlags? BlitFlags { get; init; }
+        public ArcNET.GameObjects.BlitFlags? BlitFlags { get; init; }
         public int? BlitScale { get; init; }
         public bool HasChanges { get; }
         public int? Material { get; init; }
@@ -4190,55 +4526,55 @@ namespace ArcNET.Editor
     {
         public EditorObjectInspectorFlagsSummary() { }
         public int? AmmoFlags { get; init; }
-        public ArcNET.GameObjects.ObjFArmorFlags? ArmorFlags { get; init; }
-        public ArcNET.GameObjects.ObjFContainerFlags? ContainerFlags { get; init; }
-        public ArcNET.GameObjects.ObjFCritterFlags? CritterFlags { get; init; }
-        public ArcNET.GameObjects.ObjFCritterFlags2? CritterFlags2 { get; init; }
+        public ArcNET.GameObjects.ArmorFlags? ArmorFlags { get; init; }
+        public ArcNET.GameObjects.ContainerFlags? ContainerFlags { get; init; }
+        public ArcNET.GameObjects.CritterFlags? CritterFlags { get; init; }
+        public ArcNET.GameObjects.CritterFlags2? CritterFlags2 { get; init; }
         public int? FoodFlags { get; init; }
         public int? GenericFlags { get; init; }
         public int? GoldFlags { get; init; }
         public bool HasTypeSpecificGroups { get; }
         public required ArcNET.Editor.EditorObjectInspectorSummary Inspector { get; init; }
-        public ArcNET.GameObjects.ObjFItemFlags? ItemFlags { get; init; }
+        public ArcNET.GameObjects.ItemFlags? ItemFlags { get; init; }
         public int? KeyRingFlags { get; init; }
-        public ArcNET.GameObjects.ObjFNpcFlags? NpcFlags { get; init; }
-        public ArcNET.GameObjects.ObjFFlags ObjectFlags { get; init; }
+        public ArcNET.GameObjects.NpcFlags? NpcFlags { get; init; }
+        public ArcNET.GameObjects.ObjectFlags ObjectFlags { get; init; }
         public int? PcFlags { get; init; }
-        public ArcNET.GameObjects.ObjFPortalFlags? PortalFlags { get; init; }
+        public ArcNET.GameObjects.PortalFlags? PortalFlags { get; init; }
         public int? ProjectileCombatFlags { get; init; }
-        public ArcNET.GameObjects.ObjFSceneryFlags? SceneryFlags { get; init; }
+        public ArcNET.GameObjects.SceneryFlags? SceneryFlags { get; init; }
         public int? ScrollFlags { get; init; }
-        public ArcNET.GameObjects.ObjFSpellFlags SpellFlags { get; init; }
+        public ArcNET.GameObjects.SpellFlags SpellFlags { get; init; }
         public int? TrapFlags { get; init; }
         public int? WallFlags { get; init; }
-        public ArcNET.GameObjects.ObjFWeaponFlags? WeaponFlags { get; init; }
+        public ArcNET.GameObjects.WeaponFlags? WeaponFlags { get; init; }
         public int? WrittenFlags { get; init; }
     }
     public sealed class EditorObjectInspectorFlagsUpdate
     {
         public EditorObjectInspectorFlagsUpdate() { }
         public int? AmmoFlags { get; init; }
-        public ArcNET.GameObjects.ObjFArmorFlags? ArmorFlags { get; init; }
-        public ArcNET.GameObjects.ObjFContainerFlags? ContainerFlags { get; init; }
-        public ArcNET.GameObjects.ObjFCritterFlags? CritterFlags { get; init; }
-        public ArcNET.GameObjects.ObjFCritterFlags2? CritterFlags2 { get; init; }
+        public ArcNET.GameObjects.ArmorFlags? ArmorFlags { get; init; }
+        public ArcNET.GameObjects.ContainerFlags? ContainerFlags { get; init; }
+        public ArcNET.GameObjects.CritterFlags? CritterFlags { get; init; }
+        public ArcNET.GameObjects.CritterFlags2? CritterFlags2 { get; init; }
         public int? FoodFlags { get; init; }
         public int? GenericFlags { get; init; }
         public int? GoldFlags { get; init; }
         public bool HasChanges { get; }
-        public ArcNET.GameObjects.ObjFItemFlags? ItemFlags { get; init; }
+        public ArcNET.GameObjects.ItemFlags? ItemFlags { get; init; }
         public int? KeyRingFlags { get; init; }
-        public ArcNET.GameObjects.ObjFNpcFlags? NpcFlags { get; init; }
-        public ArcNET.GameObjects.ObjFFlags? ObjectFlags { get; init; }
+        public ArcNET.GameObjects.NpcFlags? NpcFlags { get; init; }
+        public ArcNET.GameObjects.ObjectFlags? ObjectFlags { get; init; }
         public int? PcFlags { get; init; }
-        public ArcNET.GameObjects.ObjFPortalFlags? PortalFlags { get; init; }
+        public ArcNET.GameObjects.PortalFlags? PortalFlags { get; init; }
         public int? ProjectileCombatFlags { get; init; }
-        public ArcNET.GameObjects.ObjFSceneryFlags? SceneryFlags { get; init; }
+        public ArcNET.GameObjects.SceneryFlags? SceneryFlags { get; init; }
         public int? ScrollFlags { get; init; }
-        public ArcNET.GameObjects.ObjFSpellFlags? SpellFlags { get; init; }
+        public ArcNET.GameObjects.SpellFlags? SpellFlags { get; init; }
         public int? TrapFlags { get; init; }
         public int? WallFlags { get; init; }
-        public ArcNET.GameObjects.ObjFWeaponFlags? WeaponFlags { get; init; }
+        public ArcNET.GameObjects.WeaponFlags? WeaponFlags { get; init; }
         public int? WrittenFlags { get; init; }
     }
     public sealed class EditorObjectInspectorGeneratorSummary
@@ -4425,9 +4761,7 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState> ToolStates { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectViewState> ViewStates { get; init; }
         public required ArcNET.Editor.EditorProjectWorkspaceReference Workspace { get; init; }
-        public ArcNET.Editor.EditorWorkspaceSession LoadSession() { }
         public System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspaceSession> LoadSessionAsync(System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public ArcNET.Editor.EditorProjectLoadSessionResult LoadSessionWithRestoreResult() { }
         public System.Threading.Tasks.Task<ArcNET.Editor.EditorProjectLoadSessionResult> LoadSessionWithRestoreResultAsync(System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
         public static ArcNET.Editor.EditorProject Create(ArcNET.Editor.EditorProjectWorkspaceReference workspace) { }
         public static ArcNET.Editor.EditorProject FromWorkspace(ArcNET.Editor.EditorWorkspace workspace) { }
@@ -4629,7 +4963,6 @@ namespace ArcNET.Editor
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
         public ArcNET.Editor.EditorWorkspaceLoadOptions CreateLoadOptions() { }
-        public ArcNET.Editor.EditorWorkspace Load() { }
         public System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadAsync(System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
         public static ArcNET.Editor.EditorProjectWorkspaceReference ForContentDirectory(string contentDirectory, string? saveFolder = null, string? saveSlotName = null) { }
         public static ArcNET.Editor.EditorProjectWorkspaceReference ForGameInstall(string gameDirectory, string? moduleName = null, string? saveFolder = null, string? saveSlotName = null) { }
@@ -4954,7 +5287,7 @@ namespace ArcNET.Editor
         public required ulong PaletteY { get; init; }
         public ArcNET.Editor.EditorMapLayerBrushRequest CreateTileArtBrushRequest() { }
     }
-    public sealed class EditorWorkspace
+    public sealed class EditorWorkspace : System.IDisposable
     {
         public EditorWorkspace() { }
         public ArcNET.Editor.EditorAssetCatalog Assets { get; init; }
@@ -4966,6 +5299,8 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorAssetIndex Index { get; init; }
         public ArcNET.Core.ArcanumInstallationType? InstallationType { get; init; }
         public ArcNET.Editor.EditorWorkspaceLoadReport LoadReport { get; init; }
+        public int LoadedArtCacheEntryCount { get; }
+        public long LoadedArtCacheRetainedBytes { get; }
         public ArcNET.Editor.EditorWorkspaceModuleContext? Module { get; init; }
         public ArcNET.Editor.LoadedSave? Save { get; init; }
         public string? SaveFolder { get; init; }
@@ -4974,10 +5309,13 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorArtPreview CreateArtPreview(string assetPath, ArcNET.Editor.EditorArtPreviewOptions? options = null) { }
         public ArcNET.Editor.EditorArtResolver CreateArtResolver() { }
         public ArcNET.Editor.EditorArtResolver CreateArtResolver(ArcNET.Editor.EditorArtResolverBindingStrategy bindingStrategy) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorArtResolver> CreateArtResolverAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorArtResolver> CreateArtResolverAsync(ArcNET.Editor.EditorArtResolverBindingStrategy bindingStrategy, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorAudioPreview CreateAudioPreview(string assetPath) { }
         public ArcNET.Editor.DialogEditor CreateDialogEditor(string assetPath) { }
         public ArcNET.Editor.EditorWorkspaceMapRenderSpriteSource CreateMapRenderSpriteSource(ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions? previewOptions = null) { }
         public ArcNET.Editor.EditorWorkspaceMapRenderSpriteSource CreateMapRenderSpriteSource(ArcNET.Editor.EditorArtResolverBindingStrategy bindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? previewOptions = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspaceMapRenderSpriteSource> CreateMapRenderSpriteSourceAsync(ArcNET.Editor.EditorArtResolverBindingStrategy bindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? previewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName) { }
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, ArcNET.Editor.EditorArtResolver artResolver) { }
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy) { }
@@ -4986,6 +5324,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.SaveGameEditor CreateSaveEditor() { }
         public ArcNET.Editor.ScriptEditor CreateScriptEditor(string assetPath) { }
         public ArcNET.Editor.EditorWorkspaceSession CreateSession() { }
+        public void Dispose() { }
         public ArcNET.Formats.ArtFile? FindArt(string assetPath) { }
         public ArcNET.Editor.EditorAudioAssetEntry? FindAudioAsset(string assetPath) { }
         public ArcNET.Editor.EditorAudioDefinition? FindAudioDetail(string assetPath) { }
@@ -5022,11 +5361,22 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> GetObjectPalette(ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> GetObjectPalette(ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> GetObjectPalette(ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> GetObjectPaletteAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> GetObjectPaletteAsync(ArcNET.Editor.EditorArtResolver artResolver, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> GetObjectPaletteAsync(ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> GetObjectPaletteAsync(ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> GetObjectPaletteAsync(ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPalette(string mapPropertiesAssetPath) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPalette(string mapPropertiesAssetPath, ArcNET.Editor.EditorArtResolver? artResolver, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPalette(string mapPropertiesAssetPath, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteAsync(string mapPropertiesAssetPath, ArcNET.Editor.EditorArtResolver? artResolver, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteAsync(string mapPropertiesAssetPath, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPaletteForMap(string mapName) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPaletteForMap(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteForMapAsync(string mapName, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteForMapAsync(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public ArcNET.Editor.EditorWorldAreaCatalog GetWorldAreaCatalog() { }
+        public System.Threading.Tasks.Task PreloadArtsAsync(System.Collections.Generic.IEnumerable<string> assetPaths, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorWorkspaceDefaultMap? ResolveDefaultMap() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorAudioDefinition> SearchAudioDetails(string text) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMessageDefinition> SearchMessageDetails(string text) { }
@@ -5035,9 +5385,17 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> SearchObjectPalette(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> SearchObjectPalette(string text, ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry> SearchObjectPalette(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> SearchObjectPaletteAsync(string text, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> SearchObjectPaletteAsync(string text, ArcNET.Editor.EditorArtResolver artResolver, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> SearchObjectPaletteAsync(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> SearchObjectPaletteAsync(string text, ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPaletteEntry>> SearchObjectPaletteAsync(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> SearchTerrainPalette(string text) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> SearchTerrainPalette(string text, ArcNET.Editor.EditorArtResolver? artResolver, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> SearchTerrainPalette(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> SearchTerrainPaletteAsync(string text, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> SearchTerrainPaletteAsync(string text, ArcNET.Editor.EditorArtResolver? artResolver, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> SearchTerrainPaletteAsync(string text, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class EditorWorkspaceDefaultMap
     {
@@ -5062,6 +5420,18 @@ namespace ArcNET.Editor
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
     }
+    public sealed class EditorWorkspaceLoadProgress
+    {
+        public EditorWorkspaceLoadProgress() { }
+        public required string Activity { get; init; }
+        public int? CompletedUnits { get; init; }
+        public required System.TimeSpan Elapsed { get; init; }
+        public System.DateTimeOffset? EstimatedCompletionTime { get; init; }
+        public System.TimeSpan? EstimatedRemaining { get; init; }
+        public required float OverallProgress { get; init; }
+        public int? TotalUnits { get; init; }
+        public string? UnitLabel { get; init; }
+    }
     public sealed class EditorWorkspaceLoadReport
     {
         public EditorWorkspaceLoadReport() { }
@@ -5072,17 +5442,18 @@ namespace ArcNET.Editor
     }
     public static class EditorWorkspaceLoader
     {
-        public static ArcNET.Editor.EditorWorkspace Load(string contentDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadAsync(string contentDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static ArcNET.Editor.EditorWorkspace LoadFromGameInstall(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromGameInstallAsync(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static ArcNET.Editor.EditorWorkspace LoadFromModuleDirectory(string moduleDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromModuleDirectoryAsync(string moduleDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadAsync(string contentDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.Editor.EditorWorkspaceLoadProgress>? loadProgress = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromGameInstallAsync(string gameDir, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.Editor.EditorWorkspaceLoadProgress>? loadProgress = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.EditorWorkspace> LoadFromModuleDirectoryAsync(string moduleDirectory, ArcNET.Editor.EditorWorkspaceLoadOptions? options = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.Editor.EditorWorkspaceLoadProgress>? loadProgress = null) { }
     }
     public sealed class EditorWorkspaceMapRenderSpriteSource : ArcNET.Editor.IEditorMapRenderSpriteSource
     {
         public EditorWorkspaceMapRenderSpriteSource(ArcNET.Editor.EditorWorkspace workspace, ArcNET.Editor.EditorArtResolver artResolver, ArcNET.Editor.EditorArtPreviewOptions? previewOptions = null) { }
         public int CachedFrameCount { get; }
+        public long CachedFrameRetainedBytes { get; }
+        public bool CanResolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
+        public ArcNET.Editor.EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
+        public System.Threading.Tasks.Task PreloadAsync(System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> items, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapRenderSprite? Resolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
     }
     public sealed class EditorWorkspaceModuleContext
@@ -5113,6 +5484,7 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobData> AddSectorObjectsFromProto(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, int protoNumber) { }
         public ArcNET.Editor.EditorSessionChange AddSectorTileScript(string assetPath, ArcNET.Formats.TileScript tileScript) { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState AppendTrackedObjectPaletteSelectionToPlacementSet(string mapViewStateId, int deltaTileX = 0, int deltaTileY = 0, float? rotation = default, float? rotationPitch = default, bool alignToTileGrid = true, bool activateTool = true) { }
+        public ArcNET.Editor.EditorProjectMapViewState ApplyMapFocusTarget(string mapViewStateId, ArcNET.Editor.EditorMapFocusTarget target, string? viewId = null) { }
         public ArcNET.Editor.EditorWorkspace ApplyPendingChanges() { }
         public ArcNET.Editor.EditorWorkspace ApplyPendingChanges(ArcNET.Editor.EditorSessionStagedTransactionSummary stagedTransaction) { }
         public ArcNET.Editor.EditorWorkspace ApplyPendingChanges(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> stagedTransactions) { }
@@ -5139,6 +5511,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTerrainPaletteEntry(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapSelectionState selection, ArcNET.Editor.EditorTerrainPaletteEntry entry) { }
         public ArcNET.Editor.EditorMapObjectBrushResult ApplyTrackedObjectBrush(string mapViewStateId, ArcNET.Editor.EditorMapObjectBrushRequest request) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState selection) { }
         public ArcNET.Editor.EditorMapObjectBrushResult ApplyTrackedObjectTransform(string mapViewStateId, ArcNET.Editor.EditorMapObjectTransformRequest request) { }
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTrackedTerrainTool(string mapViewStateId) { }
         public ArcNET.Editor.EditorSessionChange ApplyValidationRepairCandidate(ArcNET.Editor.EditorSessionValidationRepairCandidate candidate) { }
@@ -5148,13 +5521,13 @@ namespace ArcNET.Editor
         public void CloseAllAssets(bool discardPendingChanges = false) { }
         public bool CloseAsset(string assetPath, bool discardPendingChanges = false) { }
         public ArcNET.Editor.EditorProjectMapViewState CreateDefaultMapViewState(string id, string? viewId = null) { }
-        public ArcNET.Editor.EditorMapWorldEditScene CreateDefaultMapWorldEditScene(string id = "default-map", string? viewId = null, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapWorldEditScene> CreateDefaultMapWorldEditSceneAsync(string id = "default-map", string? viewId = null, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapFloorRenderPreview CreateMapFloorRenderPreview(ArcNET.Editor.EditorProjectMapViewState mapViewState, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapFloorRenderPreview CreateMapFloorRenderPreview(string mapViewStateId, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
-        public ArcNET.Editor.EditorMapWorldEditScene CreateMapWorldEditScene(ArcNET.Editor.EditorProjectMapViewState mapViewState, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null) { }
-        public ArcNET.Editor.EditorMapWorldEditScene CreateMapWorldEditScene(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(ArcNET.Editor.EditorProjectMapViewState mapViewState, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapWorldEditScene> CreateMapWorldEditSceneAsync(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditSceneRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorProject CreateProject(string? activeAssetPath = null, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectOpenAsset>? openAssets = null, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectBookmark>? bookmarks = null, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectMapViewState>? mapViewStates = null, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectViewState>? viewStates = null, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState>? toolStates = null) { }
-        public ArcNET.Editor.EditorMapWorldEditShell CreateTrackedMapWorldEditShell(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest? request = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapWorldEditShell> CreateTrackedMapWorldEditShellAsync(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest? request = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.Editor.EditorMapWorldEditComposeProgress>? progress = null) { }
         public ArcNET.Editor.EditorWorkspaceSession DiscardPendingChanges() { }
         public ArcNET.Editor.EditorWorkspaceSession DiscardPendingChanges(ArcNET.Editor.EditorSessionStagedTransactionSummary stagedTransaction) { }
         public ArcNET.Editor.EditorWorkspaceSession DiscardPendingChanges(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> stagedTransactions) { }
@@ -5163,6 +5536,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorWorkspace ExecuteHistoryCommand(ArcNET.Editor.EditorSessionHistoryCommandSummary command) { }
         public ArcNET.Editor.EditorWorkspaceSession ExecuteStagedCommand(ArcNET.Editor.EditorSessionStagedCommandSummary command) { }
         public ArcNET.Editor.EditorObjectPalettePlacementPreset? FindTrackedObjectPlacementPreset(string mapViewStateId, string presetId) { }
+        public ArcNET.Editor.EditorMapFocusTarget FocusMapTarget(string mapViewStateId, string query, string? viewId = null) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedCommandSummary> GetAvailableStagedCommandSummaries() { }
         public ArcNET.Editor.EditorSessionBootstrapSummary GetBootstrapSummary() { }
         public ArcNET.Editor.EditorSessionBootstrapSummary GetBootstrapSummary(ArcNET.Editor.EditorProjectRestoreResult restore) { }
@@ -5196,22 +5570,35 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedHistoryScope> GetStagedHistoryScopes() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> GetStagedTransactionSummaries() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState> GetToolStates() { }
+        public ArcNET.Editor.EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorGeneratorSummary GetTrackedObjectInspectorGeneratorSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorGeneratorSummary GetTrackedObjectInspectorGeneratorSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorLightSummary GetTrackedObjectInspectorLightSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorLightSummary GetTrackedObjectInspectorLightSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorScriptAttachmentsSummary GetTrackedObjectInspectorScriptAttachmentsSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorScriptAttachmentsSummary GetTrackedObjectInspectorScriptAttachmentsSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorProjectMapObjectInspectorState GetTrackedObjectInspectorState(string mapViewStateId) { }
         public ArcNET.Editor.EditorObjectInspectorSummary GetTrackedObjectInspectorSummary(string mapViewStateId) { }
-        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, string? searchText = null, string? category = null) { }
-        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, string? searchText = null, string? category = null) { }
-        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, string? searchText = null, string? category = null) { }
+        public ArcNET.Editor.EditorObjectInspectorSummary GetTrackedObjectInspectorSummary(string mapViewStateId, ArcNET.Editor.EditorMapObjectSelectionSummary selectionSummary) { }
+        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false) { }
+        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false) { }
+        public ArcNET.Editor.EditorMapObjectPaletteSummary GetTrackedObjectPaletteSummary(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(string mapViewStateId, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapObjectPaletteSummary> GetTrackedObjectPaletteSummaryAsync(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions artPreviewOptions, string? searchText = null, string? category = null, bool includeFullPaletteWhenSearchIsEmpty = false, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorObjectPalettePlacementPreset> GetTrackedObjectPlacementPresetLibrary(string mapViewStateId) { }
         public ArcNET.Editor.EditorMapObjectPlacementToolSummary GetTrackedObjectPlacementToolSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorMapObjectSelectionSummary GetTrackedObjectSelectionSummary(string mapViewStateId, ArcNET.Editor.EditorMapFloorRenderPreview sceneRender) { }
         public ArcNET.Editor.EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorMapTerrainPaletteSummary GetTrackedTerrainPaletteSummary(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapTerrainPaletteSummary> GetTrackedTerrainPaletteSummaryAsync(string mapViewStateId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Editor.EditorMapTerrainPaletteSummary> GetTrackedTerrainPaletteSummaryAsync(string mapViewStateId, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapTerrainToolSummary GetTrackedTerrainToolSummary(string mapViewStateId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionHistoryEntry> GetUndoHistory() { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedCommandSummary> GetUndoStagedCommandSummaries() { }
@@ -5239,6 +5626,9 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapSelectionState selection, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(ArcNET.Editor.EditorMapScenePreview scenePreview, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
+        public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
+        public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementToolOverlay(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
+        public ArcNET.Editor.EditorMapPaintableScene? PreviewTrackedTerrainFacadePaintableScene(string mapViewStateId, ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
         public ArcNET.Editor.EditorWorkspace Redo() { }
         public ArcNET.Editor.EditorWorkspaceSession RedoDirectAssetChanges() { }
         public ArcNET.Editor.EditorWorkspaceSession RedoStagedChanges() { }
@@ -5341,6 +5731,38 @@ namespace ArcNET.Editor
         Warning = 1,
         Error = 2,
     }
+    public sealed class EditorWorldAreaCatalog
+    {
+        public EditorWorldAreaCatalog() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorWorldAreaEntry> Areas { get; init; }
+        public string? WorldSceneMapName { get; init; }
+        public ArcNET.Editor.EditorWorldAreaEntry? FindArea(int areaId) { }
+        public ArcNET.Editor.EditorWorldAreaEntry? FindAreaForMap(string mapName) { }
+    }
+    public sealed class EditorWorldAreaEntry
+    {
+        public EditorWorldAreaEntry() { }
+        public required int AreaId { get; init; }
+        public string? Description { get; init; }
+        public required string DisplayName { get; init; }
+        public bool HasWorldCoordinates { get; }
+        public bool IsWorldMapVisible { get; init; }
+        public int LabelOffsetX { get; init; }
+        public int LabelOffsetY { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorWorldAreaMapEntry> MapEntries { get; init; }
+        public int? Radius { get; init; }
+        public required int WorldX { get; init; }
+        public required int WorldY { get; init; }
+    }
+    public sealed class EditorWorldAreaMapEntry
+    {
+        public EditorWorldAreaMapEntry() { }
+        public int EntryTileX { get; init; }
+        public int EntryTileY { get; init; }
+        public required string MapName { get; init; }
+        public string? Type { get; init; }
+        public int? WorldMapId { get; init; }
+    }
     public interface IArtIndex
     {
         ArcNET.Editor.EditorArtDefinition? FindArtDetail(string assetPath);
@@ -5360,6 +5782,9 @@ namespace ArcNET.Editor
     }
     public interface IEditorMapRenderSpriteSource
     {
+        bool CanResolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
+        ArcNET.Editor.EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
+        System.Threading.Tasks.Task PreloadAsync(System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> items, System.Threading.CancellationToken cancellationToken = default);
         ArcNET.Editor.EditorMapRenderSprite? Resolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
     }
     public interface IFacadeWalkIndex

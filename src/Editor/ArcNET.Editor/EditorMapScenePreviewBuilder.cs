@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -473,6 +473,9 @@ public static class EditorMapScenePreviewBuilder
         var rotation = GetRotationOrDefault(mob, currentArtId);
         var rotationIndex = GetRotationIndex(mob, currentArtId, rotation);
         var blitScale = GetBlitScaleOrDefault(mob);
+        var blitFlags = GetInt32OrDefault(mob, ObjectField.BlitFlags);
+        var blitColor = unchecked((uint)GetInt32OrDefault(mob, ObjectField.BlitColor));
+        var blitAlpha = GetInt32OrDefault(mob, ObjectField.BlitAlpha);
         var rotationPitch = GetFloatOrDefault(mob, ObjectField.RotationPitch);
         var hpProp = mob.GetProperty(ObjectField.HpPts);
         var isDead =
@@ -519,6 +522,9 @@ public static class EditorMapScenePreviewBuilder
             Rotation = rotation,
             RotationIndex = rotationIndex,
             BlitScale = blitScale,
+            BlitFlags = blitFlags,
+            BlitColor = blitColor,
+            BlitAlpha = blitAlpha,
             RotationPitch = rotationPitch,
             WallFlags = wallFlags,
             SceneryFlags = sceneryFlags,

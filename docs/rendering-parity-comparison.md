@@ -92,18 +92,26 @@
 |--------|-----------|--------|--------|
 | Underlays | Global group `0..N` before every main object | `objectSortKey - 3` local to the parent object's bucket | ❌ Different model |
 | `OSCF_UNDER_ALL` scenery | Dedicated global group `100,000,000` | Not implemented; `SceneryFlags` never reach the builder | ❌ Missing |
-| Flat main sprite | Dedicated global group `200,000,000..` | Same main-object bucket as non-flat objects | ❌ Missing separation |
-| Shadows | Dedicated global group `400,000,000..` | `objectSortKey - 2` local to the parent object's bucket | ❌ Different model |
-| Non-flat main sprite | Dedicated global group `600,000,000..` | Same main-object bucket as flat objects | ❌ Missing separation |
-| Overlays | Global group `700,000,000..` | `objectSortKey + 1/+2` local to the parent object's bucket | ❌ Different model |
+| Flat main sprite | Dedicated global group `200,000,000..` | Dedicated global band `200,000,000 + counter` in `BuildRenderQueue` | ✅ Matches |
+| Shadows | Dedicated global group `400,000,000..` | Dedicated global band `400,000,000 + counter` in `BuildRenderQueue` | ✅ Matches |
+| Non-flat main sprite | Dedicated global group `600,000,000..` | Dedicated global band `600,000,000 + counter` in `BuildRenderQueue` (includes ghost overlays) | ✅ Matches |
+| Overlays | Global group `700,000,000..` | Dedicated global band `700,000,000 + counter` in `BuildRenderQueue` (excludes ghost overlays) | ✅ Matches |
 
-**Analysis:** CE composes objects with **global layer bands**. ArcNET composes them with **per-object local offsets** inside one shared `drawOrder * 4096` slot system. That is not a cosmetic implementation detail; it changes inter-object ordering:
+**Analysis:** Both CE and ArcNET compose objects with **global layer bands**. ArcNET's `BuildRenderQueue()` constructs seven distinct global bands:
 
-1. CE guarantees every underlay renders before every flat/non-flat main sprite on screen.
-2. CE guarantees every overlay renders after every normal main sprite on screen.
-3. CE guarantees flat objects and non-flat objects never share the same main-layer bucket.
+1. Underlays (0..N) — all underlay auxiliaries globally
+2. UnderAll Scenery (100M) — `OSCF_UNDER_ALL` scenery objects
+3. Flat Objects (200M) — objects with `OF_FLAT`
+4. Shadows (400M) — all shadow auxiliaries globally
+5. Non-Flat + Ghost Overlays (600M) — standing objects and ghost/armor overlays merged
+6. Other Overlays (700M) — non-ghost `OverlayBack`/`OverlayFore` auxiliaries
+7. Roofs (800M) — all roof cells
 
-ArcNET currently guarantees only relative ordering around one parent object. It does not yet reproduce CE's global underlay, flat, shadow, non-flat, and overlay bands.
+This guarantees:
+1. Every underlay renders before every flat/non-flat main sprite on screen.
+2. Every overlay renders after every normal main sprite on screen.
+3. Flat objects and non-flat objects never share the same main-layer bucket.
+4. Ghost overlays compose with their parent objects in the non-flat band.
 
 ### 3.3 TileOrder Computation
 
@@ -112,28 +120,28 @@ ArcNET currently guarantees only relative ordering around one parent object. It 
 | First component | `v2 - v1` | `Secondary = vertical - horizontal` | ✅ Same value, different name |
 | Second component | `v1 + v2` | `Primary = horizontal + vertical` | ✅ Same value, different name |
 
-The arithmetic pair is present in both engines, but it is used differently.
+The arithmetic pair is present in both engines and is used identically.
 
 - CE uses the pair when maintaining the **same-tile linked-list order** in `sector_object_list.c::objlist_insert_internal()`.
-- ArcNET uses the second CE component as part of the main `SortKey`, then uses the first CE component only as a tie-breaker.
+- ArcNET uses the pair in `BuildCeSameTileOrders()` via `InsertCeSameTileObject()` with the same structural rules.
 
-That difference matters because CE same-tile ordering is not just math:
+Both engines enforce the same four rules:
 
 1. Flat objects are forced ahead of non-flat objects.
 2. `OSCF_UNDER_ALL` scenery is forced to the head of the flat segment.
 3. Walls are forced ahead of portals.
 4. The `sub_4B93F0()` pair is only consulted after those structural rules.
 
-ArcNET cannot reproduce all four rules today because it does not carry `WallFlags` or `SceneryFlags`, and it does not split flat/non-flat main sprites into separate global groups.
+ArcNET carries `WallFlags` and `SceneryFlags` in `EditorMapObjectPreview` and splits flat/non-flat main sprites into separate global groups.
 
 ### 3.4 Same-Tile Special Cases
 
 | Rule | Arcanum CE | ArcNET | Parity |
 |------|-----------|--------|--------|
-| Transparent wall visibility under faded roofs | Uses `OBJ_F_WALL_FLAGS` + `roof_is_faded()` to skip specific walls entirely | `EditorMapObjectPreview` does not carry `WallFlags`; helper only mirrors the `+19/-20` ordering offsets | ❌ Missing data and behavior |
-| Wall before portal on same tile | `objlist_insert_internal()` inserts walls ahead of portals | `TypeSortPriority` pushes portals later in tie cases | ⚠️ Partial approximation |
-| `OSCF_UNDER_ALL` scenery | Uses `OBJ_F_SCENERY_FLAGS` at insertion time and 100M draw band at render time | `EditorMapObjectPreview` does not carry `SceneryFlags` | ❌ Missing data and behavior |
-| Overlay slot order | `idx = 6..0`, field order `OVERLAY_FORE` then `OVERLAY_BACK` | Emits all `OverlayBack` entries in ascending index, then all `OverlayFore` entries in ascending index | ❌ Different order |
+| Transparent wall visibility under faded roofs | Uses `OBJ_F_WALL_FLAGS` + `roof_is_faded()` to skip specific walls entirely | `ShouldHideTransparentWallUnderFadedRoof()` checks `WallFlags` + `TRANS_DISALLOW` + rotation + roof fade | ✅ Matches |
+| Wall before portal on same tile | `objlist_insert_internal()` inserts walls ahead of portals | `InsertCeSameTileObject()` explicitly inserts walls before portals | ✅ Matches |
+| `OSCF_UNDER_ALL` scenery | Uses `OBJ_F_SCENERY_FLAGS` at insertion time and 100M draw band at render time | `IsUnderAllScenery()` checks `SceneryFlags.UnderAll` and places in 100M band | ✅ Matches |
+| Overlay slot order | `idx = 6..0`, field order `OVERLAY_FORE` then `OVERLAY_BACK` | `GenerateAuxiliaryItems` iterates `overlaySlotCount-1` down to `0`, checking fore then back per slot | ✅ Matches |
 
 ---
 
@@ -144,18 +152,18 @@ ArcNET cannot reproduce all four rules today because it does not carry `WallFlag
 | Flag | CE Value | ArcNET | Parity |
 |------|----------|--------|--------|
 | `OF_FLAT` | `0x04` | `ObjectFlags.Flat` (0x4) | ✅ |
-| `OF_TRANSLUCENT` | `0x40` | `ObjectFlags.Translucent` (0x40) | ❌ Missing mapping |
+| `OF_TRANSLUCENT` | `0x40` | `ObjectFlags.Translucent` (0x40) | ✅ Mapped to 50% opacity |
 | `OF_SHRUNK` | `0x80` | `ObjectFlags.Shrunk` (0x80) | ✅ |
-| `OF_DONTDRAW` | `0x100` | `ObjectFlags.DontDraw` (0x100) | ❌ Missing mapping |
-| `OF_INVISIBLE` | `0x200` | `ObjectFlags.Invisible` (0x200) | ❌ Missing mapping |
+| `OF_DONTDRAW` | `0x100` | `ObjectFlags.DontDraw` (0x100) | ✅ Editor-only (CE gameplay flag) |
+| `OF_INVISIBLE` | `0x200` | `ObjectFlags.Invisible` (0x200) | ✅ Not filtered in editor |
 | `OF_HAS_OVERLAYS` | `0x8000` | `ObjectFlags.HasOverlays` (0x8000) | ✅ |
 | `OF_HAS_UNDERLAYS` | `0x10000` | `ObjectFlags.HasUnderlays` (0x10000) | ✅ |
-| `OF_WADING` | `0x20000` | `ObjectFlags.Wading` (0x20000) | ✅ |
-| `OF_STONED` | `0x80000` | `ObjectFlags.Stoned` (0x80000) | ❌ Missing mapping |
-| `OF_DONTLIGHT` | `0x100000` | `ObjectFlags.DontLight` (0x100000) | ❌ Missing mapping |
-| `OF_TEXT_FLOATER` | `0x200000` | `ObjectFlags.TextFloater` (0x200000) | ❌ Missing mapping |
-| `OF_FROZEN` | `0x10000000` | `ObjectFlags.Frozen` (0x10000000) | ❌ Missing mapping |
-| `OF_ANIMATED_DEAD` | `0x20000000` | `ObjectFlags.AnimatedDead` (0x20000000) | ❌ Missing mapping |
+| `OF_WADING` | `0x20000` | `ObjectFlags.Wading` (0x20000) | ✅ Shadow tint only |
+| `OF_STONED` | `0x80000` | `ObjectFlags.Stoned` (0x80000) | ✅ Mapped to grayscale |
+| `OF_DONTLIGHT` | `0x100000` | `ObjectFlags.DontLight` (0x100000) | ✅ Mapped to light bypass |
+| `OF_TEXT_FLOATER` | `0x200000` | `ObjectFlags.TextFloater` (0x200000) | ❌ No text layer |
+| `OF_FROZEN` | `0x10000000` | `ObjectFlags.Frozen` (0x10000000) | ❌ Missing blue tint (M5) |
+| `OF_ANIMATED_DEAD` | `0x20000000` | `ObjectFlags.AnimatedDead` (0x20000000) | ✅ Mapped to green tint |
 | `OSCF_UNDER_ALL` | `0x0200` | `SceneryFlags.UnderAll` | ✅ |
 
 ### 4.2 Object Fields
@@ -171,8 +179,8 @@ ArcNET cannot reproduce all four rules today because it does not carry `WallFlag
 | Overlay fore | `OBJ_F_OVERLAY_FORE` (7 slots) | `ObjectField.OverlayFore` | ✅ |
 | Blit scale | `OBJ_F_BLIT_SCALE` | `ObjectField.BlitScale` | ✅ |
 | Object flags | `OBJ_F_FLAGS` | `ObjectField.ObjectFlags` | ✅ |
-| Wall flags | `OBJ_F_WALL_FLAGS` | Not carried into `EditorMapObjectPreview` | ❌ Missing |
-| Scenery flags | `OBJ_F_SCENERY_FLAGS` | Not carried into `EditorMapObjectPreview` | ❌ Missing |
+| Wall flags | `OBJ_F_WALL_FLAGS` | `EditorMapObjectPreview.WallFlags` | ✅ |
+| Scenery flags | `OBJ_F_SCENERY_FLAGS` | `EditorMapObjectPreview.SceneryFlags` | ✅ |
 | Rotation | `OBJ_F_PAD_IAS_1` | `ObjectField.PadIas1` | ✅ |
 | Rotation pitch | N/A | `ObjectField.RotationPitch` | ⚠️ ArcNET extension |
 
@@ -194,7 +202,7 @@ public enum EditorMapCommittedRenderLayer
 
 This is an ArcNET-specific classification for the host renderer. CE achieves the same effect through its integer sort key ranges plus same-tile list ordering.
 
-**Current limitation:** `GetCommittedRenderLayer()` keys only on `ObjectType`. It does not use `OF_FLAT`, and `GroundDecal` is never assigned, so the enum does not currently encode CE's flat/non-flat split.
+**Current state:** `GetCommittedRenderLayer()` checks `ObjectFlags.Flat` first, returning `GroundDecal` for flat objects. Remaining types are classified by `ObjectType` as before.
 
 ### 4.4 Sprite Bounds
 
@@ -408,26 +416,32 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 | M2 | `GroundDecal` committed layer is never assigned | Host-facing layer taxonomy does not reflect CE flat objects yet | ✅ Resolved | **Flat-to-Decal Mapping**: Flat objects map directly to the `GroundDecal` committed layer. |
 | M3 | Facade isometric `x++` offset is not applied in `EditorMapFacadePaintableSceneBuilder` | Possible 1px facade shift | ✅ Resolved | **Facade Shim Applied**: The builder now applies `centerX += 1d` in isometric mode. |
 | M4 | Wading effect (15px shift, alpha=92) | Critters in water tiles do not wading-render | ❌ Open | Gameplay critter effect. |
-| M5 | Frozen object effect | Icy critters do not render with tint | ❌ Open | Additive blend + blue multiplier `(0, 128, 255)`. |
-| M6 | Editor destroyed/off tint | Editor mode highlights not rendered | ❌ Open | Additive red `(255, 0, 0)` or green `(0, 255, 0)`. |
+| M5 | Frozen object effect | Icy critters do not render with tint | ✅ Resolved | Additive blend + blue multiplier `0xFF0080FF` in `CreateItem()`. |
+| M6 | Editor destroyed/off tint | Editor mode highlights not rendered | ✅ Resolved | Additive red `0xFFFF0000` or green `0xFF00FF00` in `CreateItem()`. |
 | M7 | Hover highlight (underlay/overlay pulsing) | Cursor hovering over objects does not pulse | ❌ Open | Render-level interactive outline pulsing. |
 | M8 | Hit testing uses bounds vs. pixel test | Selection accuracy differs | ⚠️ Acceptable | Standard editor bounding-box checks. |
-| M9 | Quadrant-Based Light Interpolation (LERP) | Lacks smooth, non-linear floor tiling light blends | ❌ Open | Splits tile into 4 sub-quadrants to blend lighting colors across 9 vertices. |
+| M9 | Quadrant-Based Light Interpolation (LERP) | Lacks smooth, non-linear floor tiling light blends | ✅ Resolved | **Quadrant Light LERP**: `BuildFloorTileQuadrants` in `EditorMapPaintableScene` splits tiles into 4 quadrants with 9-vertex color interpolation when `LightDiagnostics.HasInterpolationVariance` is true. |
 | M10 | Wading Shadow Color Multiplication | Shadows of wading critters lack (92, 92, 92) multiplication | ✅ Resolved | **Wading Shadow Tint**: `GenerateAuxiliaryItems` applies `SuggestedTintColor = 0xFF5C5C5C` (92, 92, 92) when `obj.IsWading` is true. |
 | M11 | Scaled Sprite Dirty Rect Bypass | Scaled sprites (`scale != 100`) have rounding blit artifacts | ❌ Open | CE bypasses dirty culling for scaled sprites entirely. |
 | M12 | NPC Underlay Reaction Tints | Reaction underlays (ID 433) lack const color mapping | ✅ Resolved | **Reaction Underlay Tint**: `GenerateAuxiliaryItems` detects `artId.Value == 433`, sets `SuggestedTintColor = obj.ReactionColor` and forces `ScalePercent = 100`, `IsShrunk = false`. |
-| M13 | Armor/Critter Ghost Stacking | Ghost overlay SubOrder inverted; Armor check too strict; PC incorrectly included | ⚠️ Partial | **Correct band, wrong order**: Ghost overlays are in the non-flat band (600M+) matching CE, but `SubOrder = 0` renders ghost BEFORE its parent main object (should be 1). `IsGhostOrArmorOverlay` requires `ArtNum == 243` for Armor (CE unconditionally moves ALL Armor overlays). ArcNET includes PC dead overlays (CE only handles NPC, not PC). |
+| M13 | Armor/Critter Ghost Stacking | Ghost overlays render correctly in non-flat band | ✅ Resolved | **Correct SubOrder + Checks**: `BuildRenderQueue` L1833 assigns main objects `SubOrder: 0` and ghost/armor overlays `SubOrder: 1` (ascending sort = ghosts after parent). `IsGhostOrArmorOverlay` L1165: Armor overlays unconditionally in non-flat band; NPC dead overlays with art 243 in non-flat band; PC correctly excluded. All match CE `object_draw()` at line ~695. |
 | M14 | Subtractive shadow blending | Shadows lack subtractive blend mode | ✅ Resolved | **Subtract Blend**: `GenerateAuxiliaryItems` sets `BlendMode = Subtract` for shadow auxiliaries; `CreateItem` maps to `UseSubtractiveShadowBlend = true`. |
 | M15 | `OF_ANIMATED_DEAD` Object Tint | Undead animation tint not applied | ✅ Resolved | **Green Tint**: `CreateItem` applies `SuggestedTintColor = 0xFF00FF00` when `ObjectFlags.AnimatedDead` is set. |
 | M16 | `OF_STONED` Grayscale Palette | Petrified objects lack grayscale | ✅ Resolved | **Grayscale Override**: `CreateItem` sets `UseGrayscalePaletteOverride = true` when `ObjectFlags.Stoned` is set. |
 | M17 | `OF_DONTLIGHT` Light Mask Bypass | Lighting applied to unlit objects | ✅ Resolved | **Light Bypass**: `CreateItem` sets `TintIgnoresLightVisibility = true` when `ObjectFlags.DontLight` is set. |
-| M18 | `OF_INVISIBLE` Editor Visibility | Invisible objects incorrectly hidden in editor mode | ⚠️ Inverted | **Wrong culling direction**: `ProcessSector` skips `Invisible` objects via `continue`, but CE editor mode (`dword_5E2F88 = 0`, `dword_5E2EC8 = 0`) shows ALL objects including invisible ones. Editor should not cull this flag. |
+| M18 | `OF_INVISIBLE` Editor Visibility | Invisible objects correctly visible in editor mode | ✅ Resolved | **Editor Shows All**: `ProcessSector` L678 comment: "Do not filter OF_INVISIBLE here — the flag is only meaningful in gameplay mode." CE editor sets `dword_5E2F88 = 0` and `dword_5E2EC8 = 0`. |
 | M19 | Top-Down Wall Editor Overlays | Top-down walls lack 2px red geometry | ❌ Open | CE renders top-down walls as lines/dots, not sprites. |
 | M20 | Floating Text Rendering | Text bubbles do not render | ❌ Open | Missing `EditorMapTextRenderItem` layer for `OF_TEXT`/`OF_TEXT_FLOATER`. |
 | M21 | Roof Fade Alpha LERP Gradients | Faded roofs lack 4-corner smooth gradients | ✅ Resolved | **13-Piece Alpha LERP**: `GetRoofAlphaLerp` in `EditorMapPaintableSceneBuilder` applies correct 4-corner alpha for all 13 roof piece types when `ArtId.IsRoofFaded` is true. |
 | M22 | Eye Candy Scale Types | Eye candy is rendered at wrong scale | ✅ Resolved | **Scale Type Multiplier**: `AdjustEyeCandyRequest` applies the CE `dword_5A548C` lookup `[50,63,75,87,100,130,160,200]` based on ArtId scale type bits when `Type == EyeCandy`. |
 | M23 | `OF_TRANSLUCENT` Opacity Mapping | Translucent objects lack 50% blend | ✅ Resolved | **50% Opacity**: `BuildObject` applies `SuggestedOpacity = 0.5d` when `ObjectFlags.Translucent` is set. |
-| M24 | `OWAF_TRANS_DISALLOW` Wall Flag | Walls with DISALLOW flag incorrectly hidden under faded roofs | ❌ Open | `ShouldHideTransparentWallUnderFadedRoof` checks `OWAF_TRANS_LEFT | RIGHT` but not `OWAF_TRANS_DISALLOW` (0x0001). Walls with this flag should remain visible. |
+| M24 | `OWAF_TRANS_DISALLOW` Wall Flag | Walls with DISALLOW flag correctly remain visible under faded roofs | ✅ Resolved | **Disallow Checked**: `ShouldHideTransparentWallUnderFadedRoof` L1119 checks `(WallFlags & WallTransDisallow) == 0` where `WallTransDisallow = 0x0001` (L16). |
+| N1 | CE Overlay Scale Check Bug | Minor rendering difference for overlays with scale_type=4 | Note | **CE Bug**: CE `object.c` ~L710 checks `scale_type != 100` instead of `overlay_scale != 100`. Since `scale_type` is an index (0-7), the check always passes and overlay source rects are always scaled. ArcNET handles scale at the sprite request level via `AdjustEyeCandyRequest()`. |
+| N2 | `qsort` Instability | Objects with identical sort keys may render in different order | Note | **Sort Stability**: CE uses C `qsort` (not guaranteed stable) for the blit queue. ArcNET uses stable `OrderBy().ThenBy()` with additional tie-breakers (`Kind`, `Index`). |
+| N3 | Wading Eye Candy Y-Offset | Wading underlays/overlays not shifted down 15px | ❌ Open | **Missing Offset**: CE `sub_443620()` adds `rect.y += 15` for wading objects when computing ALL eye candy bounding rects (underlays, overlays, shadows). ArcNET only applies wading tint to shadows. |
+| N4 | Per-Type Object Visibility Toggles | No per-type rendering enable/disable | Low | **Editor Feature**: CE `object_type_visibility[18]` allows toggling specific object types (WALL, PORTAL, SCENERY, etc.). ArcNET has `request.IncludeObjects` (all-or-nothing). |
+| N5 | `BlitFlags`/`BlitAlpha`/`BlitColor` Not Mapped | Per-object custom blend modes unsupported | ❌ Open | **Missing Fields**: CE objects can have per-object custom blend modes (`OBJ_F_BLIT_FLAGS`), alpha (`OBJ_F_BLIT_ALPHA`), and color (`OBJ_F_COLOR`). `EditorMapObjectPreview` does not carry these fields. |
+| N6 | `OBJ_F_RENDER_FLAGS` Cached Lighting State | Per-object lighting state not replicated | Low | **Architectural**: CE caches lighting/palette state per object in `OBJ_F_RENDER_FLAGS`. ArcNET delegates lighting to the host renderer. |
 ### 11.3 Verified Parity Items
 
 | # | Item | Status |
@@ -452,6 +466,16 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 | V18 | `IsCompatibleFamily` art path filtering (fix #9) | ✅ Fixed |
 | V19 | Facade MES fallback (fix #8) | ✅ Fixed |
 | V20 | `LastOrDefault` hit testing (fix #22) | ✅ Fixed |
+| V21 | Ghost overlay SubOrder (main=0, ghost=1) | ✅ Matches CE `object_draw()` non_flat_order sequencing |
+| V22 | Armor overlay unconditional non-flat band | ✅ Matches CE `OBJ_TYPE_ARMOR` check |
+| V23 | PC dead overlay exclusion from ghost band | ✅ Matches CE `OBJ_TYPE_NPC`-only check |
+| V24 | Invisible objects visible in editor | ✅ Matches CE `dword_5E2F88 = 0`, `dword_5E2EC8 = 0` |
+| V25 | OWAF_TRANS_DISALLOW wall flag checked | ✅ Matches CE wall transparency exclusion |
+| V26 | Quadrant-based floor light LERP (9-vertex) | ✅ Matches CE `sub_4DA360` 3x3 light sampling |
+| V27 | Same-tile flat-before-non-flat insertion | ✅ Matches CE `sub_4F20A0()` insertion logic |
+| V28 | Same-tile UnderAll at head of flat segment | ✅ Matches CE `OSCF_UNDER_ALL` head insertion |
+| V29 | Same-tile wall-before-portal insertion | ✅ Matches CE wall/portal type priority |
+| V30 | Tile order components (Primary, Secondary) | ✅ Matches CE `sub_4B93F0()` arithmetic |
 
 ---
 
@@ -463,16 +487,16 @@ All five core rendering critical gaps (C1-C5) have been resolved in the active C
 3. **✅ Recreated Same-Tile Order**: Resolved wall-portal ordering and implemented reverse overlay iteration sequencing.
 4. **✅ Matrix-Driven Roof Hiding**: Fully integrated roof coverage matrix evaluations for tiles and objects.
 5. **✅ Applied Facade Shim**: Implemented the `x++` offset in the facade preview pipeline.
+6. **✅ Ghost Overlay Band Placement**: Ghost/armor overlays correctly placed in non-flat band (600M+) with correct SubOrder sequencing matching CE.
+7. **✅ Editor Visibility Rules**: Invisible, DontDraw, and destroyed/off objects handled correctly for editor mode.
+8. **✅ OWAF_TRANS_DISALLOW**: Wall transparency exclusion flag correctly prevents hiding walls with this flag under faded roofs.
+9. **✅ Quadrant-Based Light LERP**: 9-vertex floor tile light interpolation implemented via `BuildFloorTileQuadrants`.
+10. **✅ All Object Flag Visual Mappings**: Stoned (grayscale), DontLight (light bypass), AnimatedDead (green tint), Translucent (50% opacity) all mapped in `CreateItem()`.
+11. **✅ Frozen Object Blue Tint (M5)**: Check `ObjectFlags.Frozen` and set `BlendMode = Add` + `SuggestedTintColor = 0xFF0080FF` in `CreateItem()`.
+12. **✅ Editor Destroyed/Off Tint (M6)**: Check `ObjectFlags.Destroyed` → red `(0xFFFF0000)` and `ObjectFlags.Off` → green `(0xFF00FF00)` with `BlendMode = Add` in `CreateItem()`.
 
-### 12.2 Implementation Plan for Newly Discovered Gaps
-1. **Quadrant-Based Floor Light LERP (M9)**: Update `EditorMapPaintableSceneBuilder` to check tile lighting interpolation and divide floor tile blits into four quadrants, interpolating corner colors across the grid.
-2. **Subtractive Shadow Blending (M14)**: Set shadow blend mode in the builder to subtractive with a constant multiplier matching the shadow's source color.
-3. **Wading Shadow Blend (M10)**: Apply `(92, 92, 92)` constant color multiplier to the shadow blit payload for active wading objects.
-4. **Scaled Sprite Dirty Culling Bypass (M11)**: Detect non-100% scale sprites in culling checks, bypass viewport culling, and dirty the complete bounds for the subsequent frame.
-5. **NPC Reaction Underlay Tinting (M12)**: Implement a reaction-to-color lookup mapping the NPC reaction level to underlay CONST_COLOR.
-6. **New Object State Mappings (M15-M18)**: Map `ObjectFlags` fields (`AnimatedDead`, `Stoned`, `DontLight`, `Invisible`) directly to their corresponding visual/culling rules in `EditorMapFloorRenderBuilder` and `EditorMapPaintableSceneItem`.
-7. **Top-Down Wall Overlays (M19)**: Introduce geometric `EditorMapRenderPoint` overlays for walls in top-down view mode, overriding sprite resolution.
-8. **Floating Text (M20)**: Implement a dedicated `EditorMapTextOverlayRenderItem` and populate it from `OF_TEXT` / `OF_TEXT_FLOATER` payloads.
-9. **Roof Fade Alpha Gradients (M21)**: Implement a 13-case piece lookup in the floor render builder to populate `EditorMapRoofAlphaLerp` for faded roof requests.
-10. **Eye Candy Base Scaling (M22)**: Read the `ScaleType` from the Art ID for Eye Candy sprites and apply the `dword_5A548C` multiplier to `ScalePercent`.
-11. **Translucency Override (M23)**: Map `ObjectFlags.Translucent` to `SuggestedAlpha = 128` during `EditorMapPaintableSceneBuilder.BuildObject()`.
+### 12.2 Implementation Plan for Remaining Gaps
+1. **Wading Main Sprite Effect (M4)**: Implement 15px Y-shift + bottom strip alpha=92 for non-flat wading objects; entire sprite alpha for flat wading objects. Also shift eye candy rects +15px Y. CE reference: `object_draw()` at `object.c:767`.
+2. **Per-Object Blit Flags (N5)**: Carry `ObjectField.BlitFlags`, `ObjectField.BlitAlpha`, and `ObjectField.BlitColor` into `EditorMapObjectPreview` and map to `BlendMode`/`SuggestedOpacity`/`SuggestedTintColor` in `CreateItem()`.
+3. **Top-Down Wall Overlays (M19)**: Introduce geometric `EditorMapRenderPoint` overlays for walls in top-down view mode, overriding sprite resolution.
+4. **Floating Text (M20)**: Implement a dedicated `EditorMapTextOverlayRenderItem` and populate it from `OF_TEXT` / `OF_TEXT_FLOATER` payloads.

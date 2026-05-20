@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
     <ProjectReference Include="..\..\src\Dumpers\ArcNET.Dumpers\ArcNET.Dumpers.csproj" />
+    <ProjectReference Include="..\..\src\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-using ArcNET.Core.Primitives;
+﻿using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -591,6 +591,9 @@ public static class EditorMapPaintableSceneBuilder
             spriteSource,
             CreateFallbackSpriteMetrics(obj.ObjectType, obj.CurrentArtId, obj.SpriteBounds)
         );
+        var (layoutCenterX, layoutCenterY) = obj.SpriteBounds is null
+            ? ((double?)null, (double?)null)
+            : EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(obj.ObjectType, obj.CurrentArtId, obj.SpriteBounds);
 
         return CreateItem(
             queueItem,
@@ -602,6 +605,8 @@ public static class EditorMapPaintableSceneBuilder
             geometryPoints: null,
             suggestedOpacity: obj.Flags.HasFlag(ObjectFlags.Translucent) ? 0.5d : 1d,
             suggestedTintColor: null,
+            layoutCenterX: layoutCenterX,
+            layoutCenterY: layoutCenterY,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
@@ -725,6 +730,13 @@ public static class EditorMapPaintableSceneBuilder
                 previewObject.SpriteBounds
             )
         );
+        var (layoutCenterX, layoutCenterY) = previewObject.SpriteBounds is null
+            ? ((double?)null, (double?)null)
+            : EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(
+                previewObject.ObjectType,
+                previewObject.CurrentArtId,
+                previewObject.SpriteBounds
+            );
 
         return CreateItem(
             queueItem,
@@ -736,6 +748,8 @@ public static class EditorMapPaintableSceneBuilder
             geometryPoints: null,
             previewObject.SuggestedOpacity,
             previewObject.SuggestedTintColor,
+            layoutCenterX: layoutCenterX,
+            layoutCenterY: layoutCenterY,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
@@ -751,6 +765,8 @@ public static class EditorMapPaintableSceneBuilder
         IReadOnlyList<EditorMapRenderPoint>? geometryPoints,
         double suggestedOpacity,
         uint? suggestedTintColor,
+        double? layoutCenterX = null,
+        double? layoutCenterY = null,
         EditorMapRoofAlphaLerp? roofAlphaLerp = null,
         double sceneScaleX = 1d,
         double sceneScaleY = 1d
@@ -758,8 +774,12 @@ public static class EditorMapPaintableSceneBuilder
     {
         var width = (spriteReference?.Width ?? fallbackWidth) * sceneScaleX;
         var height = (spriteReference?.Height ?? fallbackHeight) * sceneScaleY;
-        var left = spriteReference is null ? anchorX - (width / 2d) : anchorX - (spriteReference.CenterX * sceneScaleX);
-        var top = spriteReference is null ? anchorY - (height / 2d) : anchorY - (spriteReference.CenterY * sceneScaleY);
+        var left = spriteReference is null
+            ? anchorX - (width / 2d)
+            : anchorX - ((layoutCenterX ?? spriteReference.CenterX) * sceneScaleX);
+        var top = spriteReference is null
+            ? anchorY - (height / 2d)
+            : anchorY - ((layoutCenterY ?? spriteReference.CenterY) * sceneScaleY);
         EditorMapPaintableSceneSpriteSourceRect? spriteSourceRect = spriteReference is null
             ? null
             : new EditorMapPaintableSceneSpriteSourceRect(0, 0, spriteReference.Width, spriteReference.Height);
@@ -780,7 +800,36 @@ public static class EditorMapPaintableSceneBuilder
         var isStoned = queueItem.Object?.Flags.HasFlag(ObjectFlags.Stoned) == true;
 
         var isAnimatedDead = queueItem.Object?.Flags.HasFlag(ObjectFlags.AnimatedDead) == true;
-        var finalTintColor = isAnimatedDead ? 0xFF00FF00 : suggestedTintColor;
+        var isFrozen = queueItem.Object?.Flags.HasFlag(ObjectFlags.Frozen) == true;
+        var isDestroyed = queueItem.Object?.Flags.HasFlag(ObjectFlags.Destroyed) == true;
+        var isOff = queueItem.Object?.Flags.HasFlag(ObjectFlags.Off) == true;
+
+        // CE object_setup_blit() priority chain:
+        // 1. Frozen → ADD + COLOR_CONST with blue tint (0, 128, 255)
+        // 2. Eye candy translucency → ADD
+        // 3. AnimatedDead → green tint (0, 255, 0)
+        // 4. Editor destroyed/off → ADD + COLOR_CONST with red/green tint (highest priority override)
+        var finalTintColor = suggestedTintColor;
+        if (isFrozen)
+        {
+            blendMode = EditorMapSpriteBlendMode.Add;
+            finalTintColor = 0xFF0080FF; // CE tig_color_make(0, 128, 255)
+        }
+
+        if (isAnimatedDead)
+            finalTintColor = 0xFF00FF00;
+
+        // Editor state tints override everything (CE object_setup_blit last check).
+        if (isDestroyed)
+        {
+            blendMode = EditorMapSpriteBlendMode.Add;
+            finalTintColor = 0xFFFF0000; // CE tig_color_make(255, 0, 0)
+        }
+        else if (isOff)
+        {
+            blendMode = EditorMapSpriteBlendMode.Add;
+            finalTintColor = 0xFF00FF00; // CE tig_color_make(0, 255, 0)
+        }
 
         return new EditorMapPaintableSceneItem
         {

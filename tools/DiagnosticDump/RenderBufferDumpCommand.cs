@@ -214,7 +214,7 @@ internal static class RenderBufferDumpCommand
             '\t',
             index.ToString(CultureInfo.InvariantCulture),
             item.Kind.ToString(),
-            FormatNullable(item.CommittedRenderLayer),
+            FormatNullable(GetCommittedRenderLayer(item)),
             item.DrawOrder.ToString(CultureInfo.InvariantCulture),
             FormatDouble(item.SortKey),
             GetObjectType(item),
@@ -399,7 +399,7 @@ internal static class RenderBufferDumpCommand
             EditorMapRenderQueueItemKind.Object => item.Object?.CurrentArtId.Value ?? 0u,
             EditorMapRenderQueueItemKind.Roof => item.Roof?.ArtId.Value ?? 0u,
             EditorMapRenderQueueItemKind.Light => item.Light?.ArtId.Value ?? 0u,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.ArtId.Value ?? 0u,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.ArtId.Value ?? 0u,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.CurrentArtId.Value
                 ?? 0u,
             _ => 0u,
@@ -409,13 +409,15 @@ internal static class RenderBufferDumpCommand
         item.Sprite?.AssetPath ?? item.SpriteReference?.ArtId.ToString();
 
     private static EditorMapCommittedRenderLayer? GetCommittedRenderLayer(EditorMapRenderQueueItem item) =>
-        item.CommittedRenderLayer;
+        item.CommittedRenderLayer
+        ?? item.Object?.CommittedRenderLayer
+        ?? item.ObjectAuxiliaryItem?.CommittedRenderLayer;
 
     private static string GetObjectType(EditorMapRenderQueueItem item) =>
         item.Kind switch
         {
             EditorMapRenderQueueItemKind.Object => item.Object?.ObjectType.ToString() ?? string.Empty,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.ParentObjectType.ToString()
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.ParentObjectType.ToString()
                 ?? string.Empty,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.ObjectType.ToString()
                 ?? string.Empty,
@@ -423,19 +425,17 @@ internal static class RenderBufferDumpCommand
         };
 
     private static string GetAuxiliaryLayer(EditorMapRenderQueueItem item) =>
-        item.ObjectAuxiliary?.Layer.ToString() ?? string.Empty;
+        item.ObjectAuxiliaryItem?.Layer.ToString() ?? string.Empty;
 
-    private static string GetTileOrderSecondary(EditorMapRenderQueueItem item) =>
-        item.Object?.TileOrderSecondary.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string GetTileOrderSecondary(EditorMapRenderQueueItem item) => string.Empty;
 
-    private static string GetTypeSortPriority(EditorMapRenderQueueItem item) =>
-        item.Object?.TypeSortPriority.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string GetTypeSortPriority(EditorMapRenderQueueItem item) => string.Empty;
 
     private static string GetBlendMode(EditorMapRenderQueueItem item) =>
         item.Kind switch
         {
-            EditorMapRenderQueueItemKind.Object => item.Object?.BlendMode.ToString() ?? string.Empty,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.BlendMode.ToString() ?? string.Empty,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.BlendMode.ToString()
+                ?? string.Empty,
             _ => string.Empty,
         };
 
@@ -443,9 +443,7 @@ internal static class RenderBufferDumpCommand
         item.Kind switch
         {
             EditorMapRenderQueueItemKind.FloorTile => item.Tile?.SuggestedTintColor,
-            EditorMapRenderQueueItemKind.Object => item.Object?.SuggestedTintColor,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.SuggestedTintColor,
-            EditorMapRenderQueueItemKind.Roof => item.Roof?.SuggestedTintColor,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.SuggestedTintColor,
             EditorMapRenderQueueItemKind.Light => item.Light?.SuggestedTintColor,
             EditorMapRenderQueueItemKind.TileOverlay => item.TileOverlay?.SuggestedTintColor,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.SuggestedTintColor,
@@ -455,9 +453,10 @@ internal static class RenderBufferDumpCommand
     private static double GetSuggestedOpacity(EditorMapRenderQueueItem item) =>
         item.Kind switch
         {
-            EditorMapRenderQueueItemKind.Object => 1d,
+            EditorMapRenderQueueItemKind.Object => item.Object?.Flags.HasFlag(ObjectFlags.Translucent) == true
+                ? 0.5d
+                : 1d,
             EditorMapRenderQueueItemKind.ObjectAuxiliary => 1d,
-            EditorMapRenderQueueItemKind.Roof => item.Roof?.SuggestedOpacity ?? 1d,
             EditorMapRenderQueueItemKind.Light => item.Light?.SuggestedOpacity ?? 1d,
             EditorMapRenderQueueItemKind.TileOverlay => item.TileOverlay?.SuggestedOpacity ?? 1d,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.SuggestedOpacity ?? 1d,
@@ -469,7 +468,7 @@ internal static class RenderBufferDumpCommand
         {
             EditorMapRenderQueueItemKind.FloorTile => item.Tile?.SectorAssetPath ?? string.Empty,
             EditorMapRenderQueueItemKind.Object => item.Object?.SectorAssetPath ?? string.Empty,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.SectorAssetPath ?? string.Empty,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.SectorAssetPath ?? string.Empty,
             EditorMapRenderQueueItemKind.Roof => item.Roof?.SectorAssetPath ?? string.Empty,
             EditorMapRenderQueueItemKind.TileOverlay => item.TileOverlay?.SectorAssetPath ?? string.Empty,
             EditorMapRenderQueueItemKind.Light => item.Light?.SectorAssetPath ?? string.Empty,
@@ -484,8 +483,8 @@ internal static class RenderBufferDumpCommand
             EditorMapRenderQueueItemKind.FloorTile => FormatTile(item.Tile?.MapTileX, item.Tile?.MapTileY),
             EditorMapRenderQueueItemKind.Object => FormatTile(item.Object?.MapTileX, item.Object?.MapTileY),
             EditorMapRenderQueueItemKind.ObjectAuxiliary => FormatTile(
-                item.ObjectAuxiliary?.MapTileX,
-                item.ObjectAuxiliary?.MapTileY
+                item.ObjectAuxiliaryItem?.MapTileX,
+                item.ObjectAuxiliaryItem?.MapTileY
             ),
             EditorMapRenderQueueItemKind.Roof => FormatTile(item.Roof?.MapTileX, item.Roof?.MapTileY),
             EditorMapRenderQueueItemKind.TileOverlay => FormatTile(
@@ -506,8 +505,8 @@ internal static class RenderBufferDumpCommand
             EditorMapRenderQueueItemKind.FloorTile => FormatPoint(item.Tile?.CenterX, item.Tile?.CenterY),
             EditorMapRenderQueueItemKind.Object => FormatPoint(item.Object?.AnchorX, item.Object?.AnchorY),
             EditorMapRenderQueueItemKind.ObjectAuxiliary => FormatPoint(
-                item.ObjectAuxiliary?.AnchorX,
-                item.ObjectAuxiliary?.AnchorY
+                item.ObjectAuxiliaryItem?.AnchorX,
+                item.ObjectAuxiliaryItem?.AnchorY
             ),
             EditorMapRenderQueueItemKind.Roof => FormatPoint(item.Roof?.AnchorX, item.Roof?.AnchorY),
             EditorMapRenderQueueItemKind.TileOverlay => FormatPoint(
@@ -535,9 +534,8 @@ internal static class RenderBufferDumpCommand
     private static string GetIsRoofCovered(EditorMapRenderQueueItem item) =>
         item.Kind switch
         {
-            EditorMapRenderQueueItemKind.FloorTile => item.Tile?.IsRoofCovered.ToString() ?? string.Empty,
             EditorMapRenderQueueItemKind.Object => item.Object?.IsRoofCovered.ToString() ?? string.Empty,
-            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliary?.IsRoofCovered.ToString()
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.IsRoofCovered.ToString()
                 ?? string.Empty,
             _ => string.Empty,
         };
@@ -562,16 +560,12 @@ internal static class RenderBufferDumpCommand
             ),
             EditorMapRenderQueueItemKind.ObjectAuxiliary => string.Join(
                 ';',
-                $"parent={item.ObjectAuxiliary?.ParentObjectId}",
-                $"rotation={item.ObjectAuxiliary?.RotationIndex}",
-                $"scale={item.ObjectAuxiliary?.ScalePercent}",
-                $"shrunk={item.ObjectAuxiliary?.IsShrunk}"
+                $"parent={item.ObjectAuxiliaryItem?.ParentObjectId}",
+                $"rotation={item.ObjectAuxiliaryItem?.RotationIndex}",
+                $"scale={item.ObjectAuxiliaryItem?.ScalePercent}",
+                $"shrunk={item.ObjectAuxiliaryItem?.IsShrunk}"
             ),
-            EditorMapRenderQueueItemKind.Roof => string.Join(
-                ';',
-                $"faded={item.Roof?.IsFaded}",
-                $"alphaLerp={item.Roof?.AlphaLerp}"
-            ),
+            EditorMapRenderQueueItemKind.Roof => string.Join(';', $"faded={item.Roof?.ArtId.IsRoofFaded}"),
             EditorMapRenderQueueItemKind.Light => $"flags={item.Light?.Flags}",
             EditorMapRenderQueueItemKind.TileOverlay => $"overlayKind={item.TileOverlay?.Kind}",
             EditorMapRenderQueueItemKind.PlacementPreviewObject => string.Join(

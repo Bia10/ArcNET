@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Numerics;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -145,6 +145,9 @@ public static class EditorMapFloorRenderBuilder
         float Rotation,
         int RotationIndex,
         int BlitScale,
+        int BlitFlags,
+        uint BlitColor,
+        int BlitAlpha,
         bool IsShrunk,
         float RotationPitch,
         bool IsRoofCovered = false
@@ -737,6 +740,9 @@ public static class EditorMapFloorRenderBuilder
                         Rotation: obj.Rotation,
                         RotationIndex: obj.RotationIndex,
                         BlitScale: obj.BlitScale,
+                        BlitFlags: obj.BlitFlags,
+                        BlitColor: obj.BlitColor,
+                        BlitAlpha: obj.BlitAlpha,
                         IsShrunk: obj.IsShrunk,
                         RotationPitch: obj.RotationPitch,
                         IsRoofCovered: isRoofCovered
@@ -744,6 +750,12 @@ public static class EditorMapFloorRenderBuilder
                 );
 
                 // Generate auxiliary layer items (underlays, shadows, overlays).
+                // CE sub_443620() applies rect->y += 15 for wading objects to ALL eye candy rects.
+                // Scale the 15px CE offset to ArcNET's tile height.
+                var auxiliaryAnchorY =
+                    obj.IsWading && !obj.Flags.HasFlag(ObjectFlags.WaterWalking)
+                        ? anchorY + (15d * request.TileHeightPixels / 40d)
+                        : anchorY;
                 GenerateAuxiliaryItems(
                     sector.AssetPath,
                     obj,
@@ -752,7 +764,7 @@ public static class EditorMapFloorRenderBuilder
                     mapTileY,
                     location,
                     anchorX,
-                    anchorY,
+                    auxiliaryAnchorY,
                     baseTileDrawOrder,
                     sameTileOrders[objectIndex],
                     local,

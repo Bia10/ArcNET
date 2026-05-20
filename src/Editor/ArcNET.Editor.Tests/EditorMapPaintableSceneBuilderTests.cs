@@ -224,6 +224,79 @@ public sealed class EditorMapPaintableSceneBuilderTests
         await Assert.That(roofItem.RoofAlphaLerp).IsEqualTo(new EditorMapRoofAlphaLerp(255, 128, 128, 255));
     }
 
+    [Test]
+    public async Task Build_UsesLayoutSpriteCenterForObjectPlacementWhenSpriteMetricsDiffer()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 77, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var spriteBounds = new EditorMapObjectSpriteBounds
+        {
+            MaxFrameWidth = 100,
+            MaxFrameHeight = 80,
+            MaxFrameCenterX = 60,
+            MaxFrameCenterY = 50,
+        };
+        var renderItem = new EditorMapObjectRenderItem
+        {
+            SectorAssetPath = "maps/map01/sector_a.sec",
+            ObjectId = objectId,
+            ProtoId = protoId,
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x40003000u),
+            MapTileX = 0,
+            MapTileY = 0,
+            Tile = new Location(0, 0),
+            DrawOrder = 0,
+            AnchorX = 200d,
+            AnchorY = 150d,
+            SpriteBounds = spriteBounds,
+            IsTileGridSnapped = false,
+            Rotation = 0f,
+            RotationPitch = 0f,
+        };
+        var sceneRender = new EditorMapFloorRenderPreview
+        {
+            MapName = "map01",
+            ViewMode = EditorMapSceneViewMode.TopDown,
+            TileWidthPixels = 32d,
+            TileHeightPixels = 32d,
+            WidthPixels = 400d,
+            HeightPixels = 300d,
+            Tiles = [],
+            Objects = [renderItem],
+            Overlays = [],
+            Roofs = [],
+            RenderQueue =
+            [
+                new EditorMapRenderQueueItem
+                {
+                    Kind = EditorMapRenderQueueItemKind.Object,
+                    DrawOrder = 0,
+                    SortKey = 0d,
+                    Object = renderItem,
+                },
+            ],
+        };
+
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            spriteSource: new StubSpriteSource(
+                rotationIndex: 0,
+                frameIndex: 0,
+                width: 90,
+                height: 70,
+                centerX: 40,
+                centerY: 30
+            )
+        );
+
+        var objectItem = paintableScene.Items.Single();
+        await Assert.That(objectItem.Left).IsEqualTo(140d);
+        await Assert.That(objectItem.Top).IsEqualTo(100d);
+        await Assert.That(objectItem.Width).IsEqualTo(90d);
+        await Assert.That(objectItem.Height).IsEqualTo(70d);
+    }
+
     private sealed class StubSpriteSource(
         int rotationIndex,
         int frameIndex,
