@@ -1471,8 +1471,8 @@ public static class EditorMapFloorRenderBuilder
     internal static long GetDrawOrder(EditorMapSceneViewMode viewMode, int mapTileWidth, int mapTileX, int mapTileY) =>
         viewMode switch
         {
-            EditorMapSceneViewMode.TopDown => checked((((long)mapTileY * mapTileWidth) + mapTileX)),
-            EditorMapSceneViewMode.Isometric => checked((((long)mapTileY + mapTileX) * mapTileWidth) + mapTileY),
+            EditorMapSceneViewMode.TopDown => checked((((long)mapTileY * 10_000_000L) + mapTileX)),
+            EditorMapSceneViewMode.Isometric => checked((((long)mapTileY + mapTileX) * 10_000_000L) + mapTileY),
             _ => throw new ArgumentOutOfRangeException(nameof(viewMode), viewMode, "Unsupported scene view mode."),
         };
 
@@ -1758,16 +1758,24 @@ public static class EditorMapFloorRenderBuilder
     {
         List<(double SortKey, EditorMapRenderQueueItemKind Kind, int Index)> queue = [];
 
-        for (var index = 0; index < rawTiles.Count; index++)
+        var sortedTiles = rawTiles
+            .Select(static (tile, idx) => (tile, idx))
+            .OrderBy(static t => t.tile.DrawOrder)
+            .ToArray();
+        for (var i = 0; i < sortedTiles.Length; i++)
         {
-            var sortKey = -2_000_000_000d + (rawTiles[index].DrawOrder * 4096d);
-            queue.Add((sortKey, EditorMapRenderQueueItemKind.FloorTile, index));
+            var sortKey = -2_000_000_000d + (i * 4096d);
+            queue.Add((sortKey, EditorMapRenderQueueItemKind.FloorTile, sortedTiles[i].idx));
         }
 
-        for (var index = 0; index < rawTileOverlays.Count; index++)
+        var sortedOverlays = rawTileOverlays
+            .Select(static (overlay, idx) => (overlay, idx))
+            .OrderBy(static o => o.overlay.SortKey)
+            .ToArray();
+        for (var i = 0; i < sortedOverlays.Length; i++)
         {
-            var sortKey = -1_000_000_000d + rawTileOverlays[index].SortKey;
-            queue.Add((sortKey, EditorMapRenderQueueItemKind.TileOverlay, index));
+            var sortKey = -1_000_000_000d + (i * 4096d) + (int)sortedOverlays[i].overlay.Kind;
+            queue.Add((sortKey, EditorMapRenderQueueItemKind.TileOverlay, sortedOverlays[i].idx));
         }
 
         var underlayCounter = 0d;
