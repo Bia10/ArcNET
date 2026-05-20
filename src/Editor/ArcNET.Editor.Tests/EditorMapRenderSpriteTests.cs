@@ -79,4 +79,23 @@ public sealed class EditorMapRenderSpriteTests
         await Assert.That(centerX).IsEqualTo(30);
         await Assert.That(centerY).IsEqualTo(40);
     }
+
+    [Test]
+    public async Task AdjustSpriteCenter_FloorTileAssetAppliesCorrectIsometricParityOffsets()
+    {
+        var artId = new ArtId(0x00000101u);
+
+        var (centerX, centerY) = EditorWorkspaceMapRenderSpriteSource.AdjustSpriteCenter(
+            EditorMapRenderQueueItemKind.FloorTile,
+            "art/tile/test.art",
+            artId,
+            effectiveRotationIndex: 0,
+            width: 78,
+            centerX: 39,
+            centerY: 0
+        );
+
+        await Assert.That(centerX).IsEqualTo(39);
+        await Assert.That(centerY).IsEqualTo(20);
+    }
 }

@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -506,7 +506,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             && !assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
         )
         {
-            return (centerX - 40, centerY - 20);
+            return (centerX, centerY + 20);
         }
 
         if (
