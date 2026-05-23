@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Numerics;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
@@ -150,7 +150,9 @@ public static class EditorMapFloorRenderBuilder
         int BlitAlpha,
         bool IsShrunk,
         float RotationPitch,
-        bool IsRoofCovered = false
+        bool IsRoofCovered = false,
+        ArtId LightAid = default,
+        Color? LightColor = null
     );
 
     private sealed record RawRoofRenderItem(
@@ -478,6 +480,20 @@ public static class EditorMapFloorRenderBuilder
                 continue;
 
             var isReactionUnderlay = artId.Value == 433;
+            uint? suggestedTintColor = isReactionUnderlay ? obj.ReactionColor : null;
+            var blendMode = EditorMapSpriteBlendMode.SourceOver;
+
+            if (artId.Type is ArtId.TypeCode.Light)
+            {
+                blendMode = EditorMapSpriteBlendMode.Add;
+                suggestedTintColor = obj.LightColor is not null
+                    ? 0xFF000000u
+                        | ((uint)obj.LightColor.Value.R << 16)
+                        | ((uint)obj.LightColor.Value.G << 8)
+                        | (uint)obj.LightColor.Value.B
+                    : 0xFFFFFFFFu;
+            }
+
             local.RawAuxiliaries.Add(
                 new RawAuxiliaryRenderItem(
                     SectorAssetPath: sectorAssetPath,
@@ -499,7 +515,8 @@ public static class EditorMapFloorRenderBuilder
                     IsShrunk: !isReactionUnderlay && isShrunk,
                     IsParentDead: obj.IsDead,
                     IsRoofCovered: isRoofCovered,
-                    SuggestedTintColor: isReactionUnderlay ? obj.ReactionColor : null
+                    SuggestedTintColor: suggestedTintColor,
+                    BlendMode: blendMode
                 )
             );
         }
@@ -543,6 +560,20 @@ public static class EditorMapFloorRenderBuilder
                     : default;
             if (foreArtId.Value != 0)
             {
+                uint? suggestedTintColor = null;
+                var blendMode = EditorMapSpriteBlendMode.SourceOver;
+
+                if (foreArtId.Type is ArtId.TypeCode.Light)
+                {
+                    blendMode = EditorMapSpriteBlendMode.Add;
+                    suggestedTintColor = obj.LightColor is not null
+                        ? 0xFF000000u
+                            | ((uint)obj.LightColor.Value.R << 16)
+                            | ((uint)obj.LightColor.Value.G << 8)
+                            | (uint)obj.LightColor.Value.B
+                        : 0xFFFFFFFFu;
+                }
+
                 local.RawAuxiliaries.Add(
                     new RawAuxiliaryRenderItem(
                         SectorAssetPath: sectorAssetPath,
@@ -563,7 +594,9 @@ public static class EditorMapFloorRenderBuilder
                         ScalePercent: scalePercent,
                         IsShrunk: isShrunk,
                         IsParentDead: obj.IsDead,
-                        IsRoofCovered: isRoofCovered
+                        IsRoofCovered: isRoofCovered,
+                        SuggestedTintColor: suggestedTintColor,
+                        BlendMode: blendMode
                     )
                 );
             }
@@ -574,6 +607,20 @@ public static class EditorMapFloorRenderBuilder
                     : default;
             if (backArtId.Value == 0)
                 continue;
+
+            uint? backSuggestedTintColor = null;
+            var backBlendMode = EditorMapSpriteBlendMode.SourceOver;
+
+            if (backArtId.Type is ArtId.TypeCode.Light)
+            {
+                backBlendMode = EditorMapSpriteBlendMode.Add;
+                backSuggestedTintColor = obj.LightColor is not null
+                    ? 0xFF000000u
+                        | ((uint)obj.LightColor.Value.R << 16)
+                        | ((uint)obj.LightColor.Value.G << 8)
+                        | (uint)obj.LightColor.Value.B
+                    : 0xFFFFFFFFu;
+            }
 
             local.RawAuxiliaries.Add(
                 new RawAuxiliaryRenderItem(
@@ -595,7 +642,49 @@ public static class EditorMapFloorRenderBuilder
                     ScalePercent: scalePercent,
                     IsShrunk: isShrunk,
                     IsParentDead: obj.IsDead,
-                    IsRoofCovered: isRoofCovered
+                    IsRoofCovered: isRoofCovered,
+                    SuggestedTintColor: backSuggestedTintColor,
+                    BlendMode: backBlendMode
+                )
+            );
+        }
+
+        // Scenery objects with a non-zero LightAid emit a standalone additive light bloom.
+        // In CE, light_set_custom_color() attaches a separate Light struct to the object
+        // at its location, whose art is rendered additively into the lighter/darker buffers.
+        // We replicate this by queuing a dedicated OverlayFore auxiliary with Add blending.
+        if (obj.ObjectType is ObjectType.Scenery && obj.LightAid.Value != 0)
+        {
+            var lightBloomTintColor = obj.LightColor is not null
+                ? 0xFF000000u
+                    | ((uint)obj.LightColor.Value.R << 16)
+                    | ((uint)obj.LightColor.Value.G << 8)
+                    | (uint)obj.LightColor.Value.B
+                : 0xFFFFFFFFu; // white — preserved unmodified via the white-light bypass in CreateTintedPixelData
+
+            local.RawAuxiliaries.Add(
+                new RawAuxiliaryRenderItem(
+                    SectorAssetPath: sectorAssetPath,
+                    ParentObjectId: obj.ObjectId,
+                    ParentObjectType: obj.ObjectType,
+                    CommittedRenderLayer: committedLayer,
+                    ArtId: obj.LightAid,
+                    Layer: EditorMapObjectAuxiliaryRenderLayer.OverlayFore,
+                    SlotOrder: int.MaxValue, // sort after all other overlays
+                    MapTileX: mapTileX,
+                    MapTileY: mapTileY,
+                    Tile: tile,
+                    ParentBaseTileDrawOrder: parentBaseTileDrawOrder,
+                    ParentSameTileOrder: parentSameTileOrder,
+                    AnchorX: anchorX,
+                    AnchorY: anchorY,
+                    RotationIndex: rotationIndex,
+                    ScalePercent: scalePercent,
+                    IsShrunk: isShrunk,
+                    IsParentDead: obj.IsDead,
+                    IsRoofCovered: isRoofCovered,
+                    SuggestedTintColor: lightBloomTintColor,
+                    BlendMode: EditorMapSpriteBlendMode.Add
                 )
             );
         }
@@ -745,7 +834,9 @@ public static class EditorMapFloorRenderBuilder
                         BlitAlpha: obj.BlitAlpha,
                         IsShrunk: obj.IsShrunk,
                         RotationPitch: obj.RotationPitch,
-                        IsRoofCovered: isRoofCovered
+                        IsRoofCovered: isRoofCovered,
+                        LightAid: obj.LightAid,
+                        LightColor: obj.LightColor
                     )
                 );
 
@@ -1002,6 +1093,8 @@ public static class EditorMapFloorRenderBuilder
             Overlays = [],
             Roofs = [],
             RenderQueue = [],
+            IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = request.IncludeFloorLightTint,
         };
 
     private static int[] BuildCeSameTileOrders(IReadOnlyList<EditorMapObjectPreview> objects)
@@ -1333,9 +1426,14 @@ public static class EditorMapFloorRenderBuilder
                 Rotation = o.Rotation,
                 RotationIndex = o.RotationIndex,
                 BlitScale = o.BlitScale,
+                BlitFlags = o.BlitFlags,
+                BlitColor = o.BlitColor,
+                BlitAlpha = o.BlitAlpha,
                 IsShrunk = o.IsShrunk,
                 RotationPitch = o.RotationPitch,
                 IsRoofCovered = o.IsRoofCovered,
+                LightAid = o.LightAid,
+                LightColor = o.LightColor,
             };
         }
 
@@ -1429,6 +1527,8 @@ public static class EditorMapFloorRenderBuilder
             Roofs = roofs,
             ObjectAuxiliaryItems = auxiliaries,
             RenderQueue = renderQueue,
+            IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = request.IncludeFloorLightTint,
             OffsetX = offsetX,
             OffsetY = offsetY,
             RawMinLeft = minLeft,
@@ -1672,14 +1772,22 @@ public static class EditorMapFloorRenderBuilder
         if (objectType is not ObjectType.Wall and not ObjectType.Portal)
             return (spriteBounds.MaxFrameCenterX, spriteBounds.MaxFrameCenterY);
 
-        // CE uses the raw hotspot from the art frame without any rotation-based adjustment.
-        // Only the mirror flag (bit 0) requires a horizontal hotspot flip for wall/portal objects.
+        var rotationIndex = NormalizeWallPortalRotationIndex((int)((artId.Value >> 11) & 0x7u));
         var adjustedCenterX = spriteBounds.MaxFrameCenterX;
+        var adjustedCenterY = spriteBounds.MaxFrameCenterY;
+
+        // CE tig_art_frame_data applies an extra hotspot shift for the north/south-facing wall and portal
+        // families before any mirror flip is evaluated.
+        if (rotationIndex is < 2 or > 5)
+        {
+            adjustedCenterX -= 40;
+            adjustedCenterY += 20;
+        }
 
         if ((artId.Value & 0x1u) != 0)
             adjustedCenterX = spriteBounds.MaxFrameWidth - adjustedCenterX - 2;
 
-        return (adjustedCenterX, spriteBounds.MaxFrameCenterY);
+        return (adjustedCenterX, adjustedCenterY);
     }
 
     private static int NormalizeWallPortalRotationIndex(int rotationIndex)
@@ -1776,7 +1884,8 @@ public static class EditorMapFloorRenderBuilder
             .ToArray();
         for (var i = 0; i < sortedTiles.Length; i++)
         {
-            var sortKey = -2_000_000_000d + (i * 4096d);
+            // Keep world-map floor phases compact so millions of tiles cannot spill into later object bands.
+            var sortKey = -2_000_000_000d + i;
             queue.Add((sortKey, EditorMapRenderQueueItemKind.FloorTile, sortedTiles[i].idx));
         }
 
@@ -1786,7 +1895,7 @@ public static class EditorMapFloorRenderBuilder
             .ToArray();
         for (var i = 0; i < sortedOverlays.Length; i++)
         {
-            var sortKey = -1_000_000_000d + (i * 4096d) + (int)sortedOverlays[i].overlay.Kind;
+            var sortKey = -1_000_000_000d + (i * 4d) + (int)sortedOverlays[i].overlay.Kind;
             queue.Add((sortKey, EditorMapRenderQueueItemKind.TileOverlay, sortedOverlays[i].idx));
         }
 

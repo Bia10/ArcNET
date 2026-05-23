@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -57,6 +57,8 @@ public sealed class EditorMapPaintableSceneSpriteReference
     public required int Height { get; init; }
     public required int CenterX { get; init; }
     public required int CenterY { get; init; }
+    public int DeltaX { get; init; }
+    public int DeltaY { get; init; }
 }
 
 /// <summary>
@@ -317,6 +319,7 @@ public static class EditorMapPaintableSceneBuilder
             CreateSpriteRequest(EditorMapRenderQueueItemKind.FloorTile),
             spriteSource
         );
+        var suppressFallback = ShouldSuppressFloorTileFallback(tile.ArtId, spriteReference);
 
         var w = sceneRender.TileWidthPixels;
         var h = sceneRender.TileHeightPixels;
@@ -398,6 +401,7 @@ public static class EditorMapPaintableSceneBuilder
                 TileLightDiagnostics = tile.LightDiagnostics,
                 SpriteSourceRect = sourceRect,
                 SpriteDestinationRect = destRect,
+                SuppressFallback = suppressFallback,
                 SpriteReference = spriteReference,
                 GeometryPoints = geomPoints,
             };
@@ -537,10 +541,16 @@ public static class EditorMapPaintableSceneBuilder
             geometry,
             suggestedOpacity: 1d,
             suggestedTintColor: tile.SuggestedTintColor,
+            suppressFallback: ShouldSuppressFloorTileFallback(tile.ArtId, spriteReference),
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
     }
+
+    private static bool ShouldSuppressFloorTileFallback(
+        ArtId artId,
+        EditorMapPaintableSceneSpriteReference? spriteReference
+    ) => artId.Value == 0u && spriteReference is null;
 
     private static EditorMapPaintableSceneItem BuildTileOverlay(
         EditorMapFloorRenderPreview sceneRender,
@@ -591,9 +601,17 @@ public static class EditorMapPaintableSceneBuilder
             spriteSource,
             CreateFallbackSpriteMetrics(obj.ObjectType, obj.CurrentArtId, obj.SpriteBounds)
         );
-        var (layoutCenterX, layoutCenterY) = obj.SpriteBounds is null
-            ? ((double?)null, (double?)null)
-            : EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(obj.ObjectType, obj.CurrentArtId, obj.SpriteBounds);
+
+        var blitFlags = (BlitFlags)unchecked((uint)obj.BlitFlags);
+        var suggestedOpacity = 1.0d;
+        if ((blitFlags & BlitFlags.BlendAlphaConst) != 0)
+        {
+            // CE's sub_442520 only injects a 128-alpha fallback for translucent or invisible
+            // objects when the object is already on an alpha-blended render path.
+            suggestedOpacity = obj.BlitAlpha / 255.0d;
+        }
+
+        var suggestedTintColor = (blitFlags & BlitFlags.BlendColorConst) != 0 ? (uint?)obj.BlitColor : null;
 
         return CreateItem(
             queueItem,
@@ -603,10 +621,9 @@ public static class EditorMapPaintableSceneBuilder
             obj.SpriteBounds?.MaxFrameHeight ?? spriteReference?.Height ?? 0d,
             spriteReference,
             geometryPoints: null,
-            suggestedOpacity: obj.Flags.HasFlag(ObjectFlags.Translucent) ? 0.5d : 1d,
-            suggestedTintColor: null,
-            layoutCenterX: layoutCenterX,
-            layoutCenterY: layoutCenterY,
+            suggestedOpacity,
+            suggestedTintColor,
+            includeEditorObjectStateTint: sceneRender.IncludeEditorObjectStateTint,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
@@ -730,13 +747,6 @@ public static class EditorMapPaintableSceneBuilder
                 previewObject.SpriteBounds
             )
         );
-        var (layoutCenterX, layoutCenterY) = previewObject.SpriteBounds is null
-            ? ((double?)null, (double?)null)
-            : EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(
-                previewObject.ObjectType,
-                previewObject.CurrentArtId,
-                previewObject.SpriteBounds
-            );
 
         return CreateItem(
             queueItem,
@@ -748,8 +758,6 @@ public static class EditorMapPaintableSceneBuilder
             geometryPoints: null,
             previewObject.SuggestedOpacity,
             previewObject.SuggestedTintColor,
-            layoutCenterX: layoutCenterX,
-            layoutCenterY: layoutCenterY,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
@@ -765,9 +773,11 @@ public static class EditorMapPaintableSceneBuilder
         IReadOnlyList<EditorMapRenderPoint>? geometryPoints,
         double suggestedOpacity,
         uint? suggestedTintColor,
+        bool includeEditorObjectStateTint = false,
         double? layoutCenterX = null,
         double? layoutCenterY = null,
         EditorMapRoofAlphaLerp? roofAlphaLerp = null,
+        bool suppressFallback = false,
         double sceneScaleX = 1d,
         double sceneScaleY = 1d
     )
@@ -791,9 +801,25 @@ public static class EditorMapPaintableSceneBuilder
             queueItem.Object?.CurrentArtId.IsEyeCandyTranslucent == true
             || queueItem.ObjectAuxiliaryItem?.ArtId.IsEyeCandyTranslucent == true
             || queueItem.PlacementPreviewObject?.CurrentArtId.IsEyeCandyTranslucent == true;
-        var blendMode = isEyeCandyTranslucent
-            ? EditorMapSpriteBlendMode.Add
-            : (queueItem.ObjectAuxiliaryItem?.BlendMode ?? EditorMapSpriteBlendMode.SourceOver);
+        var blendMode = EditorMapSpriteBlendMode.SourceOver;
+        if (isEyeCandyTranslucent)
+        {
+            blendMode = EditorMapSpriteBlendMode.Add;
+        }
+        else if (queueItem.ObjectAuxiliaryItem is not null)
+        {
+            blendMode = queueItem.ObjectAuxiliaryItem.BlendMode;
+        }
+        else if (queueItem.Object is not null)
+        {
+            var blitFlags = (BlitFlags)unchecked((uint)queueItem.Object.BlitFlags);
+            if ((blitFlags & BlitFlags.BlendAdd) != 0)
+                blendMode = EditorMapSpriteBlendMode.Add;
+            else if ((blitFlags & BlitFlags.BlendSub) != 0)
+                blendMode = EditorMapSpriteBlendMode.Subtract;
+            else if ((blitFlags & BlitFlags.BlendMul) != 0)
+                blendMode = EditorMapSpriteBlendMode.Multiply;
+        }
 
         var dontLight = queueItem.Object?.Flags.HasFlag(ObjectFlags.DontLight) == true;
 
@@ -819,16 +845,19 @@ public static class EditorMapPaintableSceneBuilder
         if (isAnimatedDead)
             finalTintColor = 0xFF00FF00;
 
-        // Editor state tints override everything (CE object_setup_blit last check).
-        if (isDestroyed)
+        if (includeEditorObjectStateTint)
         {
-            blendMode = EditorMapSpriteBlendMode.Add;
-            finalTintColor = 0xFFFF0000; // CE tig_color_make(255, 0, 0)
-        }
-        else if (isOff)
-        {
-            blendMode = EditorMapSpriteBlendMode.Add;
-            finalTintColor = 0xFF00FF00; // CE tig_color_make(0, 255, 0)
+            // Editor state tints override everything (CE object_setup_blit last check).
+            if (isDestroyed)
+            {
+                blendMode = EditorMapSpriteBlendMode.Add;
+                finalTintColor = 0xFFFF0000; // CE tig_color_make(255, 0, 0)
+            }
+            else if (isOff)
+            {
+                blendMode = EditorMapSpriteBlendMode.Add;
+                finalTintColor = 0xFF00FF00; // CE tig_color_make(0, 255, 0)
+            }
         }
 
         return new EditorMapPaintableSceneItem
@@ -848,7 +877,11 @@ public static class EditorMapPaintableSceneBuilder
             SuggestedTintColor = finalTintColor,
             TintIgnoresLightVisibility = dontLight,
             UseGrayscalePaletteOverride = isStoned,
+            // Only auxiliary items whose ArtId type is TypeCode.Light are light-bloom masks.
+            // The physical scenery body (lamp post etc.) must render normally — its LightAid
+            // bloom is emitted as a separate additive auxiliary item by GenerateAuxiliaryItems.
             UseLightMaskTint = queueItem.ObjectAuxiliaryItem?.ArtId.Type is ArtId.TypeCode.Light,
+            SuppressFallback = suppressFallback,
             TileLightDiagnostics = queueItem.Tile?.LightDiagnostics,
             TileOverlayKind = queueItem.TileOverlay?.Kind,
             SpriteSourceRect = spriteSourceRect,
@@ -889,6 +922,8 @@ public static class EditorMapPaintableSceneBuilder
             Height = metrics.Height,
             CenterX = metrics.CenterX,
             CenterY = metrics.CenterY,
+            DeltaX = metrics.DeltaX,
+            DeltaY = metrics.DeltaY,
         };
     }
 
