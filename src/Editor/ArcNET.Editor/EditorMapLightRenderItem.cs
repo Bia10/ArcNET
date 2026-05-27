@@ -4,7 +4,7 @@ using ArcNET.Formats;
 namespace ArcNET.Editor;
 
 /// <summary>
-/// Render-ready sector light mask projected into the normalized scene render space.
+/// Render-ready CE light-system mask projected into the normalized scene render space.
 /// </summary>
 public sealed class EditorMapLightRenderItem
 {

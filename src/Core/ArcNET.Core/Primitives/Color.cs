@@ -3,6 +3,10 @@
 /// <summary>An RGB color triplet stored as bytes.</summary>
 public readonly record struct Color(byte R, byte G, byte B) : IBinarySerializable<Color, SpanReader>, ISpanFormattable
 {
+    /// <summary>Creates a color from CE/TIG packed <c>0x00RRGGBB</c> storage.</summary>
+    public static Color FromPackedRgb(int packedColor) =>
+        new((byte)((packedColor >> 16) & 0xFF), (byte)((packedColor >> 8) & 0xFF), (byte)(packedColor & 0xFF));
+
     /// <summary>Reads an RGBA color where the 4th byte (alpha) is discarded.</summary>
     public static Color ReadRgba(ref SpanReader reader)
     {
@@ -23,6 +27,9 @@ public readonly record struct Color(byte R, byte G, byte B) : IBinarySerializabl
         writer.WriteByte(G);
         writer.WriteByte(B);
     }
+
+    /// <summary>Converts this color to CE/TIG packed <c>0x00RRGGBB</c> storage.</summary>
+    public int ToPackedRgb() => (R << 16) | (G << 8) | B;
 
     /// <inheritdoc/>
     public bool TryFormat(Span<char> dest, out int written, ReadOnlySpan<char> format, IFormatProvider? provider) =>

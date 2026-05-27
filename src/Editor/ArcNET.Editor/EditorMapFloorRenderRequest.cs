@@ -6,6 +6,11 @@
 public sealed class EditorMapFloorRenderRequest
 {
     /// <summary>
+    /// Optional ART resolver used when light-pass sampling needs access to CE light mask pixels.
+    /// </summary>
+    public EditorArtResolver? ArtResolver { get; init; }
+
+    /// <summary>
     /// Requested scene view mode.
     /// </summary>
     public EditorMapSceneViewMode ViewMode { get; init; } = EditorMapSceneViewMode.Isometric;
@@ -71,6 +76,7 @@ public sealed class EditorMapFloorRenderRequest
 
         return new EditorMapFloorRenderRequest
         {
+            ArtResolver = ArtResolver,
             ViewMode = ViewMode,
             TileWidthPixels = TileWidthPixels,
             TileHeightPixels = TileHeightPixels,
@@ -84,6 +90,26 @@ public sealed class EditorMapFloorRenderRequest
             IncludeFloorLightTint = IncludeFloorLightTint,
         };
     }
+
+    /// <summary>
+    /// Returns one cloned request with a different ART resolver.
+    /// </summary>
+    public EditorMapFloorRenderRequest WithArtResolver(EditorArtResolver? artResolver) =>
+        new()
+        {
+            ArtResolver = artResolver,
+            ViewMode = ViewMode,
+            TileWidthPixels = TileWidthPixels,
+            TileHeightPixels = TileHeightPixels,
+            IncludeEmptyTiles = IncludeEmptyTiles,
+            IncludeObjects = IncludeObjects,
+            IncludeRoofs = IncludeRoofs,
+            IncludeBlockedTileOverlays = IncludeBlockedTileOverlays,
+            IncludeLightOverlays = IncludeLightOverlays,
+            IncludeScriptOverlays = IncludeScriptOverlays,
+            IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = IncludeFloorLightTint,
+        };
 
     /// <summary>
     /// Creates one opinionated world-edit scene render request for the supplied view mode.

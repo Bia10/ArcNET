@@ -123,6 +123,7 @@ namespace ArcNET.Core.Primitives
         public bool IsRoofFaded { get; }
         public bool IsRoofFill { get; }
         public bool IsRoofMirrored { get; }
+        public int PaletteIndex { get; }
         public int RoofPieceIndex { get; }
         public int TileType { get; }
         public ArcNET.Core.Primitives.ArtId.TypeCode Type { get; }
@@ -335,7 +336,8 @@ namespace ArcNET.Formats
     }
     public readonly struct ArtPaletteEntry : System.IEquatable<ArcNET.Formats.ArtPaletteEntry>
     {
-        public ArtPaletteEntry(byte Blue, byte Green, byte Red) { }
+        public ArtPaletteEntry(byte Blue, byte Green, byte Red, byte Alpha = 255) { }
+        public byte Alpha { get; init; }
         public byte Blue { get; init; }
         public byte Green { get; init; }
         public byte Red { get; init; }
@@ -3460,6 +3462,8 @@ namespace ArcNET.Editor
     {
         public EditorMapFloorRenderPreview() { }
         public required double HeightPixels { get; init; }
+        public bool IncludeEditorObjectStateTint { get; init; }
+        public bool IncludeFloorLightTint { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightRenderItem> Lights { get; init; }
         public required string MapName { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectAuxiliaryRenderItem> ObjectAuxiliaryItems { get; init; }
@@ -3703,6 +3707,8 @@ namespace ArcNET.Editor
         public bool IsTileGridSnapped { get; }
         public bool IsUnderAllScenery { get; }
         public bool IsWading { get; }
+        public ArcNET.Core.Primitives.ArtId LightAid { get; init; }
+        public ArcNET.Core.Primitives.Color? LightColor { get; init; }
         public ArcNET.Core.Primitives.Location? Location { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
         public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
@@ -3728,6 +3734,9 @@ namespace ArcNET.Editor
         public EditorMapObjectRenderItem() { }
         public required double AnchorX { get; init; }
         public required double AnchorY { get; init; }
+        public int BlitAlpha { get; init; }
+        public uint BlitColor { get; init; }
+        public int BlitFlags { get; init; }
         public int BlitScale { get; init; }
         public ArcNET.Editor.EditorMapCommittedRenderLayer? CommittedRenderLayer { get; init; }
         public required ArcNET.Core.Primitives.ArtId CurrentArtId { get; init; }
@@ -3736,6 +3745,8 @@ namespace ArcNET.Editor
         public bool IsRoofCovered { get; init; }
         public bool IsShrunk { get; init; }
         public required bool IsTileGridSnapped { get; init; }
+        public ArcNET.Core.Primitives.ArtId LightAid { get; init; }
+        public ArcNET.Core.Primitives.Color? LightColor { get; init; }
         public required int MapTileX { get; init; }
         public required int MapTileY { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
@@ -3852,6 +3863,8 @@ namespace ArcNET.Editor
         public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
         public required int CenterX { get; init; }
         public required int CenterY { get; init; }
+        public int DeltaX { get; init; }
+        public int DeltaY { get; init; }
         public required int FrameIndex { get; init; }
         public uint FrameRate { get; init; }
         public int FramesPerRotation { get; init; }
@@ -4009,6 +4022,8 @@ namespace ArcNET.Editor
         public required string AssetPath { get; init; }
         public required int CenterX { get; init; }
         public required int CenterY { get; init; }
+        public int DeltaX { get; init; }
+        public int DeltaY { get; init; }
         public required int FrameIndex { get; init; }
         public required uint FrameRate { get; init; }
         public required int Height { get; init; }
@@ -4035,6 +4050,8 @@ namespace ArcNET.Editor
         public EditorMapRenderSpriteMetrics() { }
         public required int CenterX { get; init; }
         public required int CenterY { get; init; }
+        public int DeltaX { get; init; }
+        public int DeltaY { get; init; }
         public int FrameIndex { get; init; }
         public required int Height { get; init; }
         public int RotationIndex { get; init; }
@@ -4892,6 +4909,8 @@ namespace ArcNET.Editor
     public sealed class EditorProjectMapWorldEditShellState
     {
         public EditorProjectMapWorldEditShellState() { }
+        public bool IncludeEditorObjectStateTint { get; init; }
+        public bool IncludeFloorLightTint { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }

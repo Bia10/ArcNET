@@ -199,6 +199,10 @@ internal sealed class EditorMapPaintableSceneViewportIndex
 public static class EditorMapPaintableSceneBuilder
 {
     private const int ParallelItemBuildThreshold = 512;
+    private const double CeTerrainBlitWidth = 78d;
+    private const double CeTerrainBlitHeight = 40d;
+    private const double CeTerrainLayoutCenterX = 39d;
+    private const double CeTerrainLayoutCenterY = 20d;
 
     private readonly record struct SpriteReference(
         ArtId ArtId,
@@ -320,14 +324,27 @@ public static class EditorMapPaintableSceneBuilder
             spriteSource
         );
         var suppressFallback = ShouldSuppressFloorTileFallback(tile.ArtId, spriteReference);
+        var (left, top, fullWidth, fullHeight, sourceWidth, sourceHeight) = GetTerrainBlitLayout(
+            sceneRender,
+            tile.CenterX,
+            tile.CenterY,
+            spriteReference
+        );
+        var leftSourceWidth = Math.Max(1, sourceWidth / 2);
+        var rightSourceWidth = Math.Max(1, sourceWidth - leftSourceWidth);
+        var topSourceHeight = Math.Max(1, sourceHeight / 2);
+        var bottomSourceHeight = Math.Max(1, sourceHeight - topSourceHeight);
+        var leftDestinationWidth = fullWidth * leftSourceWidth / sourceWidth;
+        var rightDestinationWidth = fullWidth - leftDestinationWidth;
+        var topDestinationHeight = fullHeight * topSourceHeight / sourceHeight;
+        var bottomDestinationHeight = fullHeight - topDestinationHeight;
 
-        var w = sceneRender.TileWidthPixels;
-        var h = sceneRender.TileHeightPixels;
-        var halfW = w / 2d;
-        var halfH = h / 2d;
-
-        var left = tile.CenterX - (w / 2d);
-        var top = tile.CenterY - (h / 2d);
+        var footprintWidth = sceneRender.TileWidthPixels;
+        var footprintHeight = sceneRender.TileHeightPixels;
+        var halfFootprintWidth = footprintWidth / 2d;
+        var halfFootprintHeight = footprintHeight / 2d;
+        var footprintLeft = tile.CenterX - halfFootprintWidth;
+        var footprintTop = tile.CenterY - halfFootprintHeight;
 
         var g = tile.LightDiagnostics!.Value;
         var defaultColor = tile.SuggestedTintColor ?? 0xFFFFFFFF;
@@ -352,36 +369,65 @@ public static class EditorMapPaintableSceneBuilder
         var results = new EditorMapPaintableSceneItem[4];
         for (int i = 0; i < 4; i++)
         {
-            var qLeft = left + (i % 2 == 1 ? halfW : 0d);
-            var qTop = top + (i >= 2 ? halfH : 0d);
+            var isRight = i % 2 == 1;
+            var isBottom = i >= 2;
+            var sourceX = isRight ? leftSourceWidth : 0;
+            var sourceY = isBottom ? topSourceHeight : 0;
+            var destinationWidth = isRight ? rightDestinationWidth : leftDestinationWidth;
+            var destinationHeight = isBottom ? bottomDestinationHeight : topDestinationHeight;
+            var qLeft = left + (isRight ? leftDestinationWidth : 0d);
+            var qTop = top + (isBottom ? topDestinationHeight : 0d);
 
             var sourceRect = new EditorMapPaintableSceneSpriteSourceRect(
-                (int)(i % 2 == 1 ? halfW : 0d),
-                (int)(i >= 2 ? halfH : 0d),
-                (int)halfW,
-                (int)halfH
+                sourceX,
+                sourceY,
+                isRight ? rightSourceWidth : leftSourceWidth,
+                isBottom ? bottomSourceHeight : topSourceHeight
             );
 
-            var destRect = new EditorMapPaintableSceneSpriteDestinationRect(qLeft, qTop, halfW, halfH);
+            var destRect = new EditorMapPaintableSceneSpriteDestinationRect(
+                qLeft,
+                qTop,
+                destinationWidth,
+                destinationHeight
+            );
 
-            var qCenterX = qLeft + (halfW / 2d);
-            var qCenterY = qTop + (halfH / 2d);
+            var qCenterX = qLeft + (destinationWidth / 2d);
+            var qCenterY = qTop + (destinationHeight / 2d);
+
+            var footprintQuadrantLeft = footprintLeft + (isRight ? halfFootprintWidth : 0d);
+            var footprintQuadrantTop = footprintTop + (isBottom ? halfFootprintHeight : 0d);
 
             var geomPoints =
                 sceneRender.ViewMode is EditorMapSceneViewMode.TopDown
                     ? (IReadOnlyList<EditorMapRenderPoint>)
                         [
-                            new EditorMapRenderPoint(qLeft, qTop),
-                            new EditorMapRenderPoint(qLeft + halfW, qTop),
-                            new EditorMapRenderPoint(qLeft + halfW, qTop + halfH),
-                            new EditorMapRenderPoint(qLeft, qTop + halfH),
+                            new EditorMapRenderPoint(footprintQuadrantLeft, footprintQuadrantTop),
+                            new EditorMapRenderPoint(footprintQuadrantLeft + halfFootprintWidth, footprintQuadrantTop),
+                            new EditorMapRenderPoint(
+                                footprintQuadrantLeft + halfFootprintWidth,
+                                footprintQuadrantTop + halfFootprintHeight
+                            ),
+                            new EditorMapRenderPoint(footprintQuadrantLeft, footprintQuadrantTop + halfFootprintHeight),
                         ]
                     : (IReadOnlyList<EditorMapRenderPoint>)
                         [
-                            new EditorMapRenderPoint(qLeft + (halfW / 2d), qTop),
-                            new EditorMapRenderPoint(qLeft + halfW, qTop + (halfH / 2d)),
-                            new EditorMapRenderPoint(qLeft + (halfW / 2d), qTop + halfH),
-                            new EditorMapRenderPoint(qLeft, qTop + (halfH / 2d)),
+                            new EditorMapRenderPoint(
+                                footprintQuadrantLeft + (halfFootprintWidth / 2d),
+                                footprintQuadrantTop
+                            ),
+                            new EditorMapRenderPoint(
+                                footprintQuadrantLeft + halfFootprintWidth,
+                                footprintQuadrantTop + (halfFootprintHeight / 2d)
+                            ),
+                            new EditorMapRenderPoint(
+                                footprintQuadrantLeft + (halfFootprintWidth / 2d),
+                                footprintQuadrantTop + halfFootprintHeight
+                            ),
+                            new EditorMapRenderPoint(
+                                footprintQuadrantLeft,
+                                footprintQuadrantTop + (halfFootprintHeight / 2d)
+                            ),
                         ];
 
             results[i] = new EditorMapPaintableSceneItem
@@ -391,8 +437,8 @@ public static class EditorMapPaintableSceneBuilder
                 SortKey = queueItem.SortKey,
                 Left = qLeft,
                 Top = qTop,
-                Width = halfW,
-                Height = halfH,
+                Width = destinationWidth,
+                Height = destinationHeight,
                 AnchorX = qCenterX,
                 AnchorY = qCenterY,
                 SuggestedOpacity = 1d,
@@ -542,6 +588,8 @@ public static class EditorMapPaintableSceneBuilder
             suggestedOpacity: 1d,
             suggestedTintColor: tile.SuggestedTintColor,
             suppressFallback: ShouldSuppressFloorTileFallback(tile.ArtId, spriteReference),
+            layoutCenterX: sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? CeTerrainLayoutCenterX : null,
+            layoutCenterY: sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? CeTerrainLayoutCenterY : null,
             sceneScaleX: GetSceneSpriteScaleX(sceneRender),
             sceneScaleY: GetSceneSpriteScaleY(sceneRender)
         );
@@ -612,6 +660,8 @@ public static class EditorMapPaintableSceneBuilder
         }
 
         var suggestedTintColor = (blitFlags & BlitFlags.BlendColorConst) != 0 ? (uint?)obj.BlitColor : null;
+        if (suggestedTintColor is null && obj.CurrentArtId.Type is ArtId.TypeCode.Light)
+            suggestedTintColor = PackPrimaryLightMaskTintColor(obj.LightColor);
 
         return CreateItem(
             queueItem,
@@ -763,6 +813,11 @@ public static class EditorMapPaintableSceneBuilder
         );
     }
 
+    private static uint PackPrimaryLightMaskTintColor(Color? lightColor) =>
+        lightColor is null
+            ? 0xFFFFFFFFu
+            : 0xFF000000u | ((uint)lightColor.Value.R << 16) | ((uint)lightColor.Value.G << 8) | lightColor.Value.B;
+
     private static EditorMapPaintableSceneItem CreateItem(
         EditorMapRenderQueueItem queueItem,
         double anchorX,
@@ -860,6 +915,13 @@ public static class EditorMapPaintableSceneBuilder
             }
         }
 
+        var isAuxiliaryLightMask =
+            queueItem.ObjectAuxiliaryItem?.UseLightMaskTint == true
+            || queueItem.ObjectAuxiliaryItem?.ArtId.Type is ArtId.TypeCode.Light;
+        var isPrimaryLightMask =
+            queueItem.Object?.CurrentArtId.Type is ArtId.TypeCode.Light
+            || queueItem.PlacementPreviewObject?.CurrentArtId.Type is ArtId.TypeCode.Light;
+
         return new EditorMapPaintableSceneItem
         {
             Kind = queueItem.Kind,
@@ -877,10 +939,10 @@ public static class EditorMapPaintableSceneBuilder
             SuggestedTintColor = finalTintColor,
             TintIgnoresLightVisibility = dontLight,
             UseGrayscalePaletteOverride = isStoned,
-            // Only auxiliary items whose ArtId type is TypeCode.Light are light-bloom masks.
-            // The physical scenery body (lamp post etc.) must render normally — its LightAid
-            // bloom is emitted as a separate additive auxiliary item by GenerateAuxiliaryItems.
-            UseLightMaskTint = queueItem.ObjectAuxiliaryItem?.ArtId.Type is ArtId.TypeCode.Light,
+            // Light-mask tinting is reserved for visible light art on the object queues.
+            // CE object-created lights (LightAid / overlay lights) are projected separately
+            // as Kind.Light items so they stay distinct from the parent object sprite.
+            UseLightMaskTint = !isFrozen && !isDestroyed && !isOff && (isAuxiliaryLightMask || isPrimaryLightMask),
             SuppressFallback = suppressFallback,
             TileLightDiagnostics = queueItem.Tile?.LightDiagnostics,
             TileOverlayKind = queueItem.TileOverlay?.Kind,
@@ -916,6 +978,8 @@ public static class EditorMapPaintableSceneBuilder
             RenderItemKind = request.RenderItemKind,
             RotationIndex = metrics.RotationIndex,
             FrameIndex = metrics.FrameIndex,
+            FramesPerRotation = metrics.FramesPerRotation,
+            FrameRate = metrics.FrameRate,
             ScalePercent = request.ScalePercent,
             IsShrunk = request.IsShrunk,
             Width = metrics.Width,
@@ -983,6 +1047,56 @@ public static class EditorMapPaintableSceneBuilder
 
     private static double GetSceneSpriteScaleY(EditorMapFloorRenderPreview sceneRender) =>
         sceneRender.ViewMode is EditorMapSceneViewMode.Isometric ? sceneRender.TileHeightPixels / 40d : 1d;
+
+    private static (
+        double Left,
+        double Top,
+        double Width,
+        double Height,
+        int SourceWidth,
+        int SourceHeight
+    ) GetTerrainBlitLayout(
+        EditorMapFloorRenderPreview sceneRender,
+        double anchorX,
+        double anchorY,
+        EditorMapPaintableSceneSpriteReference? spriteReference
+    )
+    {
+        if (sceneRender.ViewMode is not EditorMapSceneViewMode.Isometric)
+        {
+            var nonIsometricWidth =
+                (spriteReference?.Width ?? sceneRender.TileWidthPixels) * GetSceneSpriteScaleX(sceneRender);
+            var nonIsometricHeight =
+                (spriteReference?.Height ?? sceneRender.TileHeightPixels) * GetSceneSpriteScaleY(sceneRender);
+            var left = spriteReference is null
+                ? anchorX - (nonIsometricWidth / 2d)
+                : anchorX - (spriteReference.CenterX * GetSceneSpriteScaleX(sceneRender));
+            var top = spriteReference is null
+                ? anchorY - (nonIsometricHeight / 2d)
+                : anchorY - (spriteReference.CenterY * GetSceneSpriteScaleY(sceneRender));
+            return (
+                left,
+                top,
+                nonIsometricWidth,
+                nonIsometricHeight,
+                Math.Max(1, spriteReference?.Width ?? (int)Math.Round(sceneRender.TileWidthPixels)),
+                Math.Max(1, spriteReference?.Height ?? (int)Math.Round(sceneRender.TileHeightPixels))
+            );
+        }
+
+        var scaleX = GetSceneSpriteScaleX(sceneRender);
+        var scaleY = GetSceneSpriteScaleY(sceneRender);
+        var isometricWidth = (spriteReference?.Width ?? CeTerrainBlitWidth) * scaleX;
+        var isometricHeight = (spriteReference?.Height ?? CeTerrainBlitHeight) * scaleY;
+        return (
+            anchorX - (CeTerrainLayoutCenterX * scaleX),
+            anchorY - (CeTerrainLayoutCenterY * scaleY),
+            isometricWidth,
+            isometricHeight,
+            Math.Max(1, spriteReference?.Width ?? (int)CeTerrainBlitWidth),
+            Math.Max(1, spriteReference?.Height ?? (int)CeTerrainBlitHeight)
+        );
+    }
 
     private static EditorMapRoofAlphaLerp? GetRoofAlphaLerp(ArtId artId)
     {

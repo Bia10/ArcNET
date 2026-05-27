@@ -1,4 +1,4 @@
-﻿using ArcNET.Archive;
+using ArcNET.Archive;
 
 namespace ArcNET.Editor;
 
@@ -14,11 +14,12 @@ internal static class EditorAudioAssetLoader
         if (!Directory.Exists(contentDirectory))
             throw new DirectoryNotFoundException($"Content directory not found: {contentDirectory}");
 
+        var aggregator = new ProgressAggregator(progress);
         var overlaySource = await LoadLooseFilesAsync(
                 contentDirectory,
                 skipSaveDirectory: false,
                 cancellationToken,
-                progress,
+                aggregator.CreateSubProgress("looseFiles"),
                 "Loading audio assets"
             )
             .ConfigureAwait(false);
@@ -36,14 +37,22 @@ internal static class EditorAudioAssetLoader
         if (!Directory.Exists(gameDir))
             throw new DirectoryNotFoundException($"Game directory not found: {gameDir}");
 
+        var aggregator = new ProgressAggregator(progress);
         var sourceTasks = DiscoverArchivePaths(gameDir)
-            .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
+            .Select(archivePath =>
+                LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
+            )
             .ToList();
 
         var looseDataDirectory = Path.Combine(gameDir, "data");
         if (Directory.Exists(looseDataDirectory))
             sourceTasks.Add(
-                LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken, progress)
+                LoadLooseFilesAsync(
+                    looseDataDirectory,
+                    skipSaveDirectory: false,
+                    cancellationToken,
+                    aggregator.CreateSubProgress("looseFiles")
+                )
             );
 
         var overlaySources = await Task.WhenAll(sourceTasks).ConfigureAwait(false);
@@ -60,6 +69,7 @@ internal static class EditorAudioAssetLoader
         if (!Directory.Exists(moduleDirectory))
             throw new DirectoryNotFoundException($"Module directory not found: {moduleDirectory}");
 
+        var aggregator = new ProgressAggregator(progress);
         var sourceTasks = new List<Task<AudioOverlaySource>>();
 
         var gameDirectory = ResolveOwningGameDirectory(moduleDirectory);
@@ -67,21 +77,37 @@ internal static class EditorAudioAssetLoader
         {
             sourceTasks.AddRange(
                 DiscoverArchivePaths(gameDirectory)
-                    .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
+                    .Select(archivePath =>
+                        LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
+                    )
             );
 
             var looseDataDirectory = Path.Combine(gameDirectory, "data");
             if (Directory.Exists(looseDataDirectory))
                 sourceTasks.Add(
-                    LoadLooseFilesAsync(looseDataDirectory, skipSaveDirectory: false, cancellationToken, progress)
+                    LoadLooseFilesAsync(
+                        looseDataDirectory,
+                        skipSaveDirectory: false,
+                        cancellationToken,
+                        aggregator.CreateSubProgress("looseFiles")
+                    )
                 );
         }
 
         sourceTasks.AddRange(
             DiscoverModuleArchivePaths(moduleDirectory)
-                .Select(archivePath => LoadArchiveAsync(archivePath, cancellationToken, progress))
+                .Select(archivePath =>
+                    LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
+                )
         );
-        sourceTasks.Add(LoadLooseFilesAsync(moduleDirectory, skipSaveDirectory: true, cancellationToken, progress));
+        sourceTasks.Add(
+            LoadLooseFilesAsync(
+                moduleDirectory,
+                skipSaveDirectory: true,
+                cancellationToken,
+                aggregator.CreateSubProgress("looseFiles")
+            )
+        );
 
         var overlaySources = await Task.WhenAll(sourceTasks).ConfigureAwait(false);
         return CreateLoadResult(overlaySources);
@@ -372,5 +398,53 @@ internal static class EditorAudioAssetLoader
         public EditorAudioAssetCatalog Catalog { get; } = catalog;
 
         public IReadOnlyDictionary<string, ReadOnlyMemory<byte>> DataByPath { get; } = dataByPath;
+    }
+
+    private sealed class ProgressAggregator(
+        IProgress<EditorAssetLoadProgress>? destination,
+        string activity = "Loading audio assets"
+    )
+    {
+        private readonly object _gate = new();
+        private readonly Dictionary<string, (int Completed, int Total)> _progressMap = [];
+
+        public IProgress<EditorAssetLoadProgress> CreateSubProgress(string key)
+        {
+            lock (_gate)
+            {
+                _progressMap[key] = (0, 0);
+            }
+            return new DirectProgress(update =>
+            {
+                lock (_gate)
+                {
+                    _progressMap[key] = (update.CompletedUnits ?? 0, update.TotalUnits ?? 0);
+
+                    var totalCompleted = 0;
+                    var totalUnits = 0;
+                    foreach (var pair in _progressMap.Values)
+                    {
+                        totalCompleted += pair.Completed;
+                        totalUnits += pair.Total;
+                    }
+
+                    var overallProgress = totalUnits > 0 ? (float)totalCompleted / totalUnits : 1f;
+                    destination?.Report(
+                        new EditorAssetLoadProgress(
+                            activity,
+                            overallProgress,
+                            totalCompleted,
+                            totalUnits,
+                            "audio files"
+                        )
+                    );
+                }
+            });
+        }
+
+        private sealed class DirectProgress(Action<EditorAssetLoadProgress> report) : IProgress<EditorAssetLoadProgress>
+        {
+            public void Report(EditorAssetLoadProgress value) => report(value);
+        }
     }
 }

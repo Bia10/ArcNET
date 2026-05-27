@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Options that control how an <see cref="ArcNET.Formats.ArtFile"/> is projected into
@@ -21,4 +21,10 @@ public sealed class EditorArtPreviewOptions
     /// When <see langword="false"/>, output preserves the native CE-compatible top-to-bottom row order.
     /// </summary>
     public bool FlipVertically { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the asset is treated as a light mask/bloom where the pixel's palette index
+    /// represents the light intensity (decoded as the alpha channel if the palette has no explicit alpha).
+    /// </summary>
+    public bool IsLightMask { get; init; }
 }

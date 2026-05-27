@@ -2148,7 +2148,7 @@ public sealed class EditorProjectTests
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));
 
     private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
-        new() { Field = field, RawBytes = [r, g, b] };
+        ObjectPropertyFactory.ForPackedRgbColor(field, new Color(r, g, b));
 
     private static Sector MakeSector(params MobData[] objects) =>
         new()

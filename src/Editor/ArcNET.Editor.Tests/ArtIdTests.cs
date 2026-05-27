@@ -54,4 +54,20 @@ public sealed class ArtIdTests
         await Assert.That(opaqueEyeCandy.IsEyeCandyTranslucent).IsFalse();
         await Assert.That(nonEyeCandyWithBit.IsEyeCandyTranslucent).IsFalse();
     }
+
+    [Test]
+    public async Task PaletteIndex_DecodesOnlyPaletteAwareArtIds()
+    {
+        var scenery = new ArtId(0x40000020u);
+        var roof = new ArtId(0xA0000030u);
+        var sectorTile = new ArtId(0x00000030u);
+        var light = new ArtId(0x90000030u);
+        var facade = new ArtId(0xB0000030u);
+
+        await Assert.That(scenery.PaletteIndex).IsEqualTo(2);
+        await Assert.That(roof.PaletteIndex).IsEqualTo(3);
+        await Assert.That(sectorTile.PaletteIndex).IsEqualTo(0);
+        await Assert.That(light.PaletteIndex).IsEqualTo(0);
+        await Assert.That(facade.PaletteIndex).IsEqualTo(0);
+    }
 }

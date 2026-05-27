@@ -505,6 +505,37 @@ public sealed class EditorMapScenePreviewBuilderTests
         await Assert.That(sceneryPreview.IsUnderAllScenery).IsTrue();
     }
 
+    [Test]
+    public async Task BuildObjectPreview_DecodesPackedLightColorAndOverlayLightsLikeCe()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 43, Guid.NewGuid());
+        var mob = CreateEmptyMob(ObjectType.Scenery, objectId, MakeProtoId(1))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightAid, unchecked((int)0x90001000u)))
+            .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.LightColor, 0x00AA5522))
+            .WithProperty(
+                ObjectPropertyFactory.ForInt32Array(
+                    ObjectField.OverlayLightAid,
+                    [unchecked((int)0x90002000u), -1, unchecked((int)0x90003000u)]
+                )
+            )
+            .WithProperty(ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightFlags, [7, 8, 9]))
+            .WithProperty(
+                ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightColor, [0x00112233, 0x00445566, 0x00778899])
+            );
+
+        var preview = EditorMapScenePreviewBuilder.BuildObjectPreview(mob);
+
+        await Assert.That(preview.LightAid).IsEqualTo(new ArtId(0x90001000u));
+        await Assert.That(preview.LightColor).IsEqualTo(new Color(0xAA, 0x55, 0x22));
+        await Assert.That(preview.OverlayLights.Count).IsEqualTo(2);
+        await Assert.That(preview.OverlayLights[0].ArtId).IsEqualTo(new ArtId(0x90002000u));
+        await Assert.That(preview.OverlayLights[0].Flags).IsEqualTo(7);
+        await Assert.That(preview.OverlayLights[0].Color).IsEqualTo(new Color(0x11, 0x22, 0x33));
+        await Assert.That(preview.OverlayLights[1].ArtId).IsEqualTo(new ArtId(0x90003000u));
+        await Assert.That(preview.OverlayLights[1].Flags).IsEqualTo(9);
+        await Assert.That(preview.OverlayLights[1].Color).IsEqualTo(new Color(0x77, 0x88, 0x99));
+    }
+
     private static MobData CreateEmptyMob(ObjectType objectType, GameObjectGuid objectId, GameObjectGuid protoId) =>
         new()
         {

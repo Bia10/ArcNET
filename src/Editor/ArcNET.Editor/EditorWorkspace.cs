@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using ArcNET.Archive;
@@ -1225,7 +1225,7 @@ public sealed class EditorWorkspace : IDisposable
     /// Asynchronously preloads multiple ART sprite files by their asset paths using concurrent batching.
     /// This prevents thread pool starvation when resolving many sprites during parallel scene construction.
     /// </summary>
-    public async Task PreloadArtsAsync(IEnumerable<string> assetPaths, CancellationToken cancellationToken = default)
+    public Task PreloadArtsAsync(IEnumerable<string> assetPaths, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(assetPaths);
 
@@ -1235,19 +1235,23 @@ public sealed class EditorWorkspace : IDisposable
             .ToArray();
 
         if (distinctPaths.Length == 0)
-            return;
+            return Task.CompletedTask;
 
-        await Parallel
-            .ForEachAsync(
-                distinctPaths,
-                new ParallelOptions { CancellationToken = cancellationToken },
-                (path, _) =>
-                {
-                    FindArt(path);
-                    return ValueTask.CompletedTask;
-                }
-            )
-            .ConfigureAwait(false);
+        return Task.Run(
+            () =>
+            {
+                Parallel.ForEach(
+                    distinctPaths,
+                    new ParallelOptions
+                    {
+                        CancellationToken = cancellationToken,
+                        MaxDegreeOfParallelism = Environment.ProcessorCount,
+                    },
+                    path => FindArt(path)
+                );
+            },
+            cancellationToken
+        );
     }
 
     private ArtFile? LoadFullArt(string assetPath)
@@ -2121,7 +2125,9 @@ public sealed class EditorWorkspace : IDisposable
             LightSchemeIdx = mapSector.LightSchemeIdx,
             SoundList = mapSector.SoundList,
             BlockMask = MergeBlockMask(terrainSector.BlockMask, mapSector.BlockMask),
-            Objects = MergeTerrainObjects(terrainSector.Objects, mapSector.Objects),
+            // Terrain base sectors provide fallback tiles, roofs, and walkability, but inheriting
+            // their placed scenery pollutes interior maps with unrelated outdoor props.
+            Objects = [.. mapSector.Objects],
         };
     }
 
@@ -2165,29 +2171,6 @@ public sealed class EditorWorkspace : IDisposable
             mergedBlockMask[index] = terrainBlockMask[index] | mapBlockMask[index];
 
         return mergedBlockMask;
-    }
-
-    private static IReadOnlyList<MobData> MergeTerrainObjects(
-        IReadOnlyList<MobData> terrainObjects,
-        IReadOnlyList<MobData> mapObjects
-    )
-    {
-        if (terrainObjects.Count == 0)
-            return mapObjects;
-
-        if (mapObjects.Count == 0)
-            return terrainObjects;
-
-        HashSet<GameObjectGuid> mapObjectIds = [.. mapObjects.Select(static mob => mob.Header.ObjectId)];
-        List<MobData> mergedObjects = [];
-        foreach (var mob in terrainObjects)
-        {
-            if (!mapObjectIds.Contains(mob.Header.ObjectId))
-                mergedObjects.Add(mob);
-        }
-
-        mergedObjects.AddRange(mapObjects);
-        return mergedObjects;
     }
 
     private ArtId? ResolveSceneObjectCurrentArtIdFallback(MobData mob)
@@ -2561,23 +2544,23 @@ public sealed class EditorWorkspace : IDisposable
             }
         }
 
-        Dictionary<string, int> outdoorOrderByName = new(StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index < outdoorFlippableNames.Count; index++)
+        Dictionary<string, int> orderByName = new(StringComparer.OrdinalIgnoreCase);
+        for (var entryIndex = 0; entryIndex < outdoorFlippableNames.Count; entryIndex++)
         {
-            outdoorOrderByName.TryAdd(outdoorFlippableNames[index], index);
+            orderByName.TryAdd(outdoorFlippableNames[entryIndex], entryIndex);
         }
 
-        for (var index = 0; index < outdoorNonFlippableNames.Count; index++)
+        for (var entryIndex = 0; entryIndex < outdoorNonFlippableNames.Count; entryIndex++)
         {
-            outdoorOrderByName.TryAdd(outdoorNonFlippableNames[index], outdoorFlippableNames.Count + index);
+            orderByName.TryAdd(outdoorNonFlippableNames[entryIndex], outdoorFlippableNames.Count + entryIndex);
         }
 
         return new TileNameLookupData(
-            outdoorFlippableNames,
-            outdoorNonFlippableNames,
-            indoorFlippableNames,
-            indoorNonFlippableNames,
-            outdoorOrderByName
+            outdoorFlippableNames.ToArray(),
+            outdoorNonFlippableNames.ToArray(),
+            indoorFlippableNames.ToArray(),
+            indoorNonFlippableNames.ToArray(),
+            orderByName
         );
     }
 
@@ -3126,7 +3109,7 @@ public sealed class EditorWorkspace : IDisposable
         }
 
         name = tileNames[number];
-        return true;
+        return !string.IsNullOrEmpty(name);
     }
 
     private static string BuildTileArtAssetPath(
@@ -3149,10 +3132,10 @@ public sealed class EditorWorkspace : IDisposable
         if (edge == 0)
             return NormalizeAssetPath($"art/tile/{name2}bse{s_tileEdgeCodes[0]}{frameCode}.art");
 
-        if (!lookupData.OutdoorOrderByName.TryGetValue(name1, out var name1Order))
+        if (!lookupData.OrderByName.TryGetValue(name1, out var name1Order))
             return NormalizeAssetPath($"art/tile/{name1}bse{edgeCode}{frameCode}.art");
 
-        if (!lookupData.OutdoorOrderByName.TryGetValue(name2, out var name2Order))
+        if (!lookupData.OrderByName.TryGetValue(name2, out var name2Order))
             return NormalizeAssetPath($"art/tile/{name2}bse{s_tileEdgeCodes[15 - edge]}{frameCode}.art");
 
         return name1Order < name2Order
@@ -3689,30 +3672,31 @@ public sealed class EditorWorkspace : IDisposable
 
     private static int DecodeTileArtFlippable2(uint artIdValue) => checked((int)((artIdValue >> 6) & 1u));
 
-    private static int DecodeTileArtRawEdge(uint artIdValue) => checked((int)((artIdValue >> 12) & 0xFu));
+    internal static int DecodeTileArtRawEdge(uint artIdValue) => checked((int)((artIdValue >> 12) & 0xFu));
 
-    private static int DecodeTileArtEdge(uint artIdValue, bool useAlternateEdgeTable = false)
+    internal static int DecodeTileArtEdge(uint artIdValue, bool useAlternateEdgeTable = false)
     {
         var rawEdge = DecodeTileArtRawEdge(artIdValue);
-        return (IsTileArtMirrored(artIdValue), useAlternateEdgeTable) switch
+        if (useAlternateEdgeTable)
         {
-            (true, false) => s_tileEdgeDecodeWhenFlagsSet[rawEdge],
-            (true, true) => s_tileEdgeDecodeWhenFlagsClear[rawEdge],
-            (false, false) => s_tileEdgeDecodeWhenFlagsClear[rawEdge],
-            _ => s_tileEdgeDecodeWhenFlagsSet[rawEdge],
-        };
+            return IsTileArtMirrored(artIdValue)
+                ? s_tileEdgeDecodeWhenFlagsClear[rawEdge]
+                : s_tileEdgeDecodeWhenFlagsSet[rawEdge];
+        }
+
+        return IsTileArtMirrored(artIdValue) ? s_tileEdgeDecodeWhenFlagsSet[rawEdge] : rawEdge;
     }
 
-    private static int DecodeTileArtFrame(uint artIdValue, bool useAlternateEdgeTable = false)
+    internal static int DecodeTileArtFrame(uint artIdValue, bool useAlternateEdgeTable = false)
     {
         var frame = checked((int)((artIdValue >> 9) & 0x7u));
         if (useAlternateEdgeTable)
             return frame;
 
-        var rawEdge = DecodeTileArtRawEdge(artIdValue);
+        var decodedEdge = DecodeTileArtEdge(artIdValue, useAlternateEdgeTable: false);
         if (
             IsTileArtMirrored(artIdValue)
-            && s_tileEdgeDecodeWhenFlagsSet[rawEdge] == s_tileEdgeDecodeWhenFlagsClear[rawEdge]
+            && s_tileEdgeDecodeWhenFlagsSet[decodedEdge] == s_tileEdgeDecodeWhenFlagsClear[decodedEdge]
         )
         {
             frame += 8;
@@ -3987,17 +3971,8 @@ public sealed class EditorWorkspace : IDisposable
 
     private string? TryGetMessageText(string assetPath, int messageIndex)
     {
-        var messageFile = FindMessageFile(assetPath);
-        if (messageFile is null)
-            return null;
-
-        for (var entryIndex = 0; entryIndex < messageFile.Entries.Count; entryIndex++)
-        {
-            var entry = messageFile.Entries[entryIndex];
-            if (entry.Index == messageIndex)
-                return entry.Text;
-        }
-
+        if (TryGetMessageEntryText(assetPath, messageIndex, out var entryText))
+            return entryText;
         return null;
     }
 
@@ -4058,7 +4033,7 @@ public sealed class EditorWorkspace : IDisposable
         IReadOnlyList<string> outdoorNonFlippableNames,
         IReadOnlyList<string> indoorFlippableNames,
         IReadOnlyList<string> indoorNonFlippableNames,
-        IReadOnlyDictionary<string, int> outdoorOrderByName
+        IReadOnlyDictionary<string, int> orderByName
     )
     {
         public static TileNameLookupData Empty { get; } = new([], [], [], [], new Dictionary<string, int>());
@@ -4071,7 +4046,7 @@ public sealed class EditorWorkspace : IDisposable
 
         public IReadOnlyList<string> IndoorNonFlippableNames { get; } = indoorNonFlippableNames;
 
-        public IReadOnlyDictionary<string, int> OutdoorOrderByName { get; } = outdoorOrderByName;
+        public IReadOnlyDictionary<string, int> OrderByName { get; } = orderByName;
 
         public bool HasNames =>
             OutdoorFlippableNames.Count > 0

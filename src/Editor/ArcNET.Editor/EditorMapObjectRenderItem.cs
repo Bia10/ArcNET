@@ -109,6 +109,21 @@ public sealed class EditorMapObjectRenderItem
     public int BlitScale { get; init; } = 100;
 
     /// <summary>
+    /// CE per-object blit flags.
+    /// </summary>
+    public int BlitFlags { get; init; }
+
+    /// <summary>
+    /// CE per-object blit color tint.
+    /// </summary>
+    public uint BlitColor { get; init; }
+
+    /// <summary>
+    /// CE per-object blit alpha constant.
+    /// </summary>
+    public int BlitAlpha { get; init; }
+
+    /// <summary>
     /// Returns <see langword="true"/> when CE shrunk rendering applies to this sprite.
     /// </summary>
     public bool IsShrunk { get; init; }
@@ -122,4 +137,14 @@ public sealed class EditorMapObjectRenderItem
     /// Returns <see langword="true"/> when the object is visually covered by a roof tile.
     /// </summary>
     public bool IsRoofCovered { get; init; }
+
+    /// <summary>
+    /// Light art identifier from <see cref="ObjectField.LightAid"/>.
+    /// </summary>
+    public ArtId LightAid { get; init; }
+
+    /// <summary>
+    /// Light color from <see cref="ObjectField.LightColor"/>.
+    /// </summary>
+    public Color? LightColor { get; init; }
 }

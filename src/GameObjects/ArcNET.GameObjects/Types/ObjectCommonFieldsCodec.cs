@@ -42,7 +42,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.BlitFlags))
             obj.BlitFlags = reader.ReadInt32();
         if (Bit(ObjectField.BlitColor))
-            obj.BlitColor = Color.Read(ref reader);
+            obj.BlitColor = Color.FromPackedRgb(reader.ReadInt32());
         if (Bit(ObjectField.BlitAlpha))
             obj.BlitAlpha = reader.ReadInt32();
         if (Bit(ObjectField.BlitScale))
@@ -58,13 +58,13 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.LightAid))
             obj.LightAid = reader.ReadArtId();
         if (Bit(ObjectField.LightColor))
-            obj.LightColor = Color.Read(ref reader);
+            obj.LightColor = Color.FromPackedRgb(reader.ReadInt32());
         if (Bit(ObjectField.OverlayLightFlags))
-            obj.OverlayLightFlags = reader.ReadInt32();
+            obj.OverlayLightFlags = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.OverlayLightAid))
             obj.OverlayLightAid = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.OverlayLightColor))
-            obj.OverlayLightColor = reader.ReadInt32();
+            obj.OverlayLightColor = ObjectCommon.ReadIndexedInts(ref reader);
     }
 
     private static void ReadStateFields(ObjectCommon obj, ref SpanReader reader, byte[] bitmap, bool isPrototype)
@@ -141,7 +141,7 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.BlitFlags))
             writer.WriteInt32(obj.BlitFlags);
         if (Bit(ObjectField.BlitColor))
-            obj.BlitColor.Write(ref writer);
+            writer.WriteInt32(obj.BlitColor.ToPackedRgb());
         if (Bit(ObjectField.BlitAlpha))
             writer.WriteInt32(obj.BlitAlpha);
         if (Bit(ObjectField.BlitScale))
@@ -157,13 +157,13 @@ internal static class ObjectCommonFieldsCodec
         if (Bit(ObjectField.LightAid))
             obj.LightAid.Write(ref writer);
         if (Bit(ObjectField.LightColor))
-            obj.LightColor.Write(ref writer);
+            writer.WriteInt32(obj.LightColor.ToPackedRgb());
         if (Bit(ObjectField.OverlayLightFlags))
-            writer.WriteInt32(obj.OverlayLightFlags);
+            ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayLightFlags);
         if (Bit(ObjectField.OverlayLightAid))
             ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayLightAid);
         if (Bit(ObjectField.OverlayLightColor))
-            writer.WriteInt32(obj.OverlayLightColor);
+            ObjectCommon.WriteIndexedInts(ref writer, obj.OverlayLightColor);
     }
 
     private static void WriteStateFields(ObjectCommon obj, ref SpanWriter writer, byte[] bitmap, bool isPrototype)

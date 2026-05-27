@@ -33,6 +33,8 @@ public readonly record struct ArtId(uint Value)
     private const uint ArtTypeMask = 0xFu << ArtTypeShift;
     private const int GenericFrameShift = 14;
     private const uint GenericFrameMask = 0x1Fu;
+    private const int PaletteShift = 4;
+    private const uint PaletteMask = 0x3u;
     private const int InterfaceFrameShift = 8;
     private const uint InterfaceFrameMask = 0xFFu;
     private const int FacadeNumberLowShift = 17;
@@ -82,6 +84,14 @@ public readonly record struct ArtId(uint Value)
             TypeCode.Light => checked((int)((Value >> LightFrameShift) & LightFrameMask)),
             TypeCode.EyeCandy => checked((int)((Value >> EyeCandyFrameShift) & EyeCandyFrameMask)),
             _ => checked((int)((Value >> GenericFrameShift) & GenericFrameMask)),
+        };
+
+    /// <summary>Decoded palette slot using the CE layout for palette-aware art ids.</summary>
+    public int PaletteIndex =>
+        Type switch
+        {
+            TypeCode.Tile or TypeCode.Light or TypeCode.Facade => 0,
+            _ => checked((int)((Value >> PaletteShift) & PaletteMask)),
         };
 
     /// <summary>Returns <see langword="true"/> when this AID is one roof fill piece.</summary>

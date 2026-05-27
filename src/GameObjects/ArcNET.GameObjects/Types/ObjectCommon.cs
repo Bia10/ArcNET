@@ -34,14 +34,19 @@ public abstract class ObjectCommon
 
     private struct LightingFields
     {
-        public LightingFields() => OverlayLightAid = [];
+        public LightingFields()
+        {
+            OverlayLightFlags = [];
+            OverlayLightAid = [];
+            OverlayLightColor = [];
+        }
 
         public int LightFlags { get; set; }
         public ArtId LightAid { get; set; }
         public Color LightColor { get; set; }
-        public int OverlayLightFlags { get; set; }
+        public int[] OverlayLightFlags { get; set; } = [];
         public int[] OverlayLightAid { get; set; } = [];
-        public int OverlayLightColor { get; set; }
+        public int[] OverlayLightColor { get; set; } = [];
     }
 
     private struct CombatFields
@@ -175,7 +180,7 @@ public abstract class ObjectCommon
         get => _lighting.LightColor;
         internal set => _lighting.LightColor = value;
     }
-    public int OverlayLightFlags
+    public int[] OverlayLightFlags
     {
         get => _lighting.OverlayLightFlags;
         internal set => _lighting.OverlayLightFlags = value;
@@ -185,7 +190,7 @@ public abstract class ObjectCommon
         get => _lighting.OverlayLightAid;
         internal set => _lighting.OverlayLightAid = value;
     }
-    public int OverlayLightColor
+    public int[] OverlayLightColor
     {
         get => _lighting.OverlayLightColor;
         internal set => _lighting.OverlayLightColor = value;

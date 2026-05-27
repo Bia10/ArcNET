@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor.Tests;
@@ -116,10 +116,59 @@ public class EditorArtPreviewBuilderTests
     }
 
     [Test]
-    public async Task Build_MissingPaletteSlot_Throws()
+    public async Task BuildFrame_AllZeroLegacyPaletteAlpha_UsesOpaqueAlphaForVisiblePixels()
+    {
+        var legacyPalette = new ArtPaletteEntry[256];
+        legacyPalette[1] = new ArtPaletteEntry(10, 20, 30, 0);
+        var art = CreateArtFile(1, 1, [1], [legacyPalette, null, null, null]);
+
+        var frame = EditorArtPreviewBuilder.BuildFrame(art, 0, 0);
+
+        await Assert.That(frame.PixelData.SequenceEqual(new byte[] { 30, 20, 10, 255 })).IsTrue();
+    }
+
+    [Test]
+    public async Task BuildFrame_ExplicitPaletteAlpha_PreservesStoredAlpha()
+    {
+        var palette = new ArtPaletteEntry[256];
+        palette[1] = new ArtPaletteEntry(10, 20, 30, 96);
+        var art = CreateArtFile(1, 1, [1], [palette, null, null, null]);
+
+        var frame = EditorArtPreviewBuilder.BuildFrame(art, 0, 0);
+
+        await Assert.That(frame.PixelData.SequenceEqual(new byte[] { 30, 20, 10, 96 })).IsTrue();
+    }
+
+    [Test]
+    public async Task BuildFrame_LightMaskWithoutExplicitPaletteAlpha_UsesOpaqueVisiblePixels()
+    {
+        var palette = CreatePalette((10, 20, 30));
+        var art = CreateArtFile(1, 1, [1], [palette, null, null, null]);
+
+        var frame = EditorArtPreviewBuilder.BuildFrame(art, 0, 0, new EditorArtPreviewOptions { IsLightMask = true });
+
+        await Assert.That(frame.PixelData.SequenceEqual(new byte[] { 30, 20, 10, 255 })).IsTrue();
+    }
+
+    [Test]
+    public async Task Build_MissingSlotZero_Throws()
     {
         var art = CreateArtFile(1, 1, [1], [null, null, null, null]);
 
         await Assert.That(() => EditorArtPreviewBuilder.Build(art)).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task BuildFrame_NonZeroPaletteSlotAbsentInFile_FallsBackToSlotZero()
+    {
+        // Palette slot 1 is null — this is the normal case for most ART files that only ship slot 0.
+        // An ART ID encoding palette slot 1 must not crash the renderer; it should silently use slot 0.
+        var slot0 = CreatePalette((10, 20, 30));
+        var art = CreateArtFile(1, 1, [1], [slot0, null, null, null]);
+
+        var frame = EditorArtPreviewBuilder.BuildFrame(art, 0, 0, new EditorArtPreviewOptions { PaletteSlot = 1 });
+
+        // Slot 0 color: palette entry 1 is (B=10, G=20, R=30) → RGBA = (30, 20, 10, 255).
+        await Assert.That(frame.PixelData.SequenceEqual(new byte[] { 30, 20, 10, 255 })).IsTrue();
     }
 }

@@ -117,8 +117,6 @@ public static class EditorMapFacadePaintableSceneBuilder
                 entry.MapTileX,
                 entry.MapTileY
             );
-            if (sceneRender.ViewMode is EditorMapSceneViewMode.Isometric)
-                centerX += 1d;
 
             overlayTiles[index] = new EditorMapFloorTileRenderItem
             {

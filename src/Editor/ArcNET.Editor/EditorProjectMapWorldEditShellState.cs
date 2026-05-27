@@ -35,4 +35,14 @@ public sealed class EditorProjectMapWorldEditShellState
     /// Indicates whether tracked object-placement preview should be included by default.
     /// </summary>
     public bool IncludeTrackedPlacementPreview { get; init; } = true;
+
+    /// <summary>
+    /// Indicates whether committed object renders should expose editor-state tint diagnostics.
+    /// </summary>
+    public bool IncludeEditorObjectStateTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
+    /// </summary>
+    public bool IncludeFloorLightTint { get; init; }
 }

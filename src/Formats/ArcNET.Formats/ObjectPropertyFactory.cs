@@ -50,6 +50,13 @@ public static class ObjectPropertyFactory
     }
 
     /// <summary>
+    /// Creates a property with <paramref name="value"/> encoded as a CE/TIG packed
+    /// <c>0x00RRGGBB</c> <see cref="int"/>.
+    /// </summary>
+    public static ObjectProperty ForPackedRgbColor(ObjectField field, Color value) =>
+        ForInt32(field, value.ToPackedRgb());
+
+    /// <summary>
     /// Creates a property with <paramref name="value"/> encoded as an ASCII string
     /// (1-byte presence + int32 length + (length+1) bytes including NUL, <c>OD_TYPE_STRING</c>).
     /// </summary>

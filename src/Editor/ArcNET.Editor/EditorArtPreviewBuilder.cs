@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 
 namespace ArcNET.Editor;
 
@@ -77,6 +77,7 @@ public static class EditorArtPreviewBuilder
         }
 
         var pixelData = new byte[checked(expectedPixels * 4)];
+        var usePaletteAlpha = UsesExplicitPaletteAlpha(palette);
         for (var destinationRow = 0; destinationRow < height; destinationRow++)
         {
             var sourceRow = options.FlipVertically ? height - 1 - destinationRow : destinationRow;
@@ -84,7 +85,7 @@ public static class EditorArtPreviewBuilder
             {
                 var sourceIndex = sourceRow * width + column;
                 var destinationIndex = checked((destinationRow * width + column) * 4);
-                WritePixel(pixelData, destinationIndex, frame.Pixels[sourceIndex], palette, options.PixelFormat);
+                WritePixel(pixelData, destinationIndex, frame.Pixels[sourceIndex], palette, options, usePaletteAlpha);
             }
         }
 
@@ -102,34 +103,50 @@ public static class EditorArtPreviewBuilder
         int destinationIndex,
         byte paletteIndex,
         ArtPaletteEntry[] palette,
-        EditorArtPreviewPixelFormat pixelFormat
+        EditorArtPreviewOptions options,
+        bool usePaletteAlpha
     )
     {
         if (paletteIndex == 0)
             return;
 
         var color = palette[paletteIndex];
-        switch (pixelFormat)
+        // CE light rendering treats ART pixels as palette-indexed colors plus a color-key at index 0;
+        // it does not synthesize per-pixel alpha from the palette index. For preview projection we keep
+        // visible pixels opaque unless the ART palette explicitly stores alpha.
+        var alpha = usePaletteAlpha ? color.Alpha : byte.MaxValue;
+        switch (options.PixelFormat)
         {
             case EditorArtPreviewPixelFormat.Rgba32:
                 pixelData[destinationIndex] = color.Red;
                 pixelData[destinationIndex + 1] = color.Green;
                 pixelData[destinationIndex + 2] = color.Blue;
-                pixelData[destinationIndex + 3] = byte.MaxValue;
+                pixelData[destinationIndex + 3] = alpha;
                 break;
             case EditorArtPreviewPixelFormat.Bgra32:
                 pixelData[destinationIndex] = color.Blue;
                 pixelData[destinationIndex + 1] = color.Green;
                 pixelData[destinationIndex + 2] = color.Red;
-                pixelData[destinationIndex + 3] = byte.MaxValue;
+                pixelData[destinationIndex + 3] = alpha;
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
-                    nameof(pixelFormat),
-                    pixelFormat,
+                    nameof(options.PixelFormat),
+                    options.PixelFormat,
                     "Unsupported ART preview pixel format."
                 );
         }
+    }
+
+    private static bool UsesExplicitPaletteAlpha(ArtPaletteEntry[] palette)
+    {
+        for (var index = 1; index < palette.Length; index++)
+        {
+            if (palette[index].Alpha != 0)
+                return true;
+        }
+
+        return false;
     }
 
     private static ArtPaletteEntry[] GetPalette(ArtFile art, int paletteSlot)
@@ -144,8 +161,19 @@ public static class EditorArtPreviewBuilder
             );
         }
 
-        return art.Palettes[paletteSlot]
-            ?? throw new InvalidOperationException($"ART file does not define palette slot {paletteSlot}.");
+        // Many ART files only define palette slot 0. When the requested slot is encoded in
+        // the ART ID but absent from the file, fall back to slot 0 — matching CE behaviour.
+        // Only slot 0 being null indicates a corrupt file and warrants an exception.
+        if (art.Palettes[paletteSlot] is { } requestedPalette)
+            return requestedPalette;
+
+        if (paletteSlot != 0)
+            return art.Palettes[0]
+                ?? throw new InvalidOperationException(
+                    $"ART file does not define palette slot {paletteSlot} and the slot 0 fallback is also absent."
+                );
+
+        throw new InvalidOperationException($"ART file does not define palette slot 0.");
     }
 
     private static void ValidateFrameIndices(ArtFile art, int rotationIndex, int frameIndex)

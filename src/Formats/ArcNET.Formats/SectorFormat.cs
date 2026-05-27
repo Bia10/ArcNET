@@ -179,6 +179,7 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
     private const int LatestVersion = 0xAA0004;
     private const int OriginalObjectVersion = 0x08;
     private const int CeObjectVersion = 0x77;
+    private const int ObjectResyncWindowBytes = 4;
 
     /// <inheritdoc/>
     public static Sector Parse(scoped ref SpanReader reader)
@@ -402,11 +403,10 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
         var objects = new List<MobData>(count);
         for (var i = 0; i < count && reader.Remaining > 4; i++)
         {
-            // Some live sectors advertise more object records than the remaining bytes can
-            // actually support. Stop locally when the next record no longer begins with a
-            // recognized object header version so the rest of the sector still loads.
-            var nextVersion = reader.PeekInt32At(0);
-            if (nextVersion != OriginalObjectVersion && nextVersion != CeObjectVersion)
+            // Some live sectors contain stray bytes between serialized object records.
+            // When the next object version is no longer aligned, probe a tiny forward
+            // window and resume from the first offset that can parse one whole object.
+            if (!HasRecognizedObjectVersion(in reader, 0) && !TryResynchronizeObjectReader(ref reader))
                 break;
 
             objects.Add(MobFormat.Parse(ref reader));
@@ -417,6 +417,37 @@ public sealed class SectorFormat : IFormatFileReader<Sector>, IFormatFileWriter<
             reader.ReadInt32();
 
         return [.. objects];
+    }
+
+    private static bool TryResynchronizeObjectReader(ref SpanReader reader)
+    {
+        var maxSkip = Math.Min(ObjectResyncWindowBytes, reader.Remaining - 4);
+        for (var skip = 1; skip <= maxSkip; skip++)
+        {
+            if (!HasRecognizedObjectVersion(in reader, skip))
+                continue;
+
+            var probe = new SpanReader(reader.RemainingSpan[skip..]);
+            try
+            {
+                _ = MobFormat.Parse(ref probe);
+                reader.Skip(skip);
+                return true;
+            }
+            catch (InvalidDataException) { }
+            catch (IndexOutOfRangeException) { }
+        }
+
+        return false;
+    }
+
+    private static bool HasRecognizedObjectVersion(scoped in SpanReader reader, int offset)
+    {
+        if (offset < 0 || reader.Remaining < offset + 4)
+            return false;
+
+        var version = reader.PeekInt32At(offset);
+        return version is OriginalObjectVersion or CeObjectVersion;
     }
 
     // ── Writers ───────────────────────────────────────────────────────────────

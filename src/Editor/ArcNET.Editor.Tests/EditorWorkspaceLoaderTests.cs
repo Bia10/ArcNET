@@ -170,7 +170,7 @@ public class EditorWorkspaceLoaderTests
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));
 
     private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
-        new() { Field = field, RawBytes = [r, g, b] };
+        ObjectPropertyFactory.ForPackedRgbColor(field, new Color(r, g, b));
 
     private static ushort MakeTerrainId(int baseTerrainType, int secondaryTerrainType, int edge, int variant) =>
         (ushort)((baseTerrainType << 11) | (secondaryTerrainType << 6) | (edge << 2) | variant);
@@ -1947,6 +1947,78 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_FallsBackToAlternateMirroredCeTileEdgeFamilyForIndoorTiles()
+    {
+        var artId = new ArtId(0x000030C1u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(200, "rug")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "rugbse4a.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/rugbse4a.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_IndoorCompositeTileArtIdsPreferCeSingleBaseNaming()
+    {
+        var artId = new ArtId(0x00012000u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "tile"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(300, "rug"), new MessageEntry(301, "stair")] },
+                Path.Combine(contentDir, "art", "tile", "tilename.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "tile", "rugbseba.art"));
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12),
+                Path.Combine(contentDir, "art", "tile", "rugstairba.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(
+                workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables)
+            );
+
+            var floorSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.FloorTile }
+            );
+
+            await Assert.That(floorSprite).IsNotNull();
+            await Assert.That(floorSprite!.AssetPath).IsEqualTo("art/tile/rugbseba.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_CreateMapRenderSpriteSource_FallsBackToAlternateNonMirroredCeTileEdgeFamilyWhenPrimaryCandidateMissing()
     {
         var artId = new ArtId(0x0001C980u);
@@ -3125,9 +3197,9 @@ public class EditorWorkspaceLoaderTests
                 ObjectPropertyFactory.ForInt32(ObjectField.LightFlags, 12),
                 MakeArtProperty(ObjectField.LightAid, 0x1234u),
                 MakeColorProperty(ObjectField.LightColor, 0x11, 0x22, 0x33),
-                ObjectPropertyFactory.ForInt32(ObjectField.OverlayLightFlags, 7),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightFlags, [7]),
                 ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightAid, [4, 5, 6]),
-                ObjectPropertyFactory.ForInt32(ObjectField.OverlayLightColor, 9),
+                ObjectPropertyFactory.ForInt32Array(ObjectField.OverlayLightColor, [9]),
                 ObjectPropertyFactory.ForInt32(ObjectField.NpcGeneratorData, 42),
                 ObjectPropertyFactory.ForInt32(ObjectField.BlitFlags, unchecked((int)BlitFlags.BlendAdd)),
                 MakeColorProperty(ObjectField.BlitColor, 0x44, 0x55, 0x66),
@@ -3967,7 +4039,7 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
-    public async Task LoadAsync_CreateMapScenePreview_ComposesTerrainBaseSectorTilesAndObjects()
+    public async Task LoadAsync_CreateMapScenePreview_ComposesTerrainBaseSectorTilesWithoutTerrainObjects()
     {
         const int terrainBaseType = 0;
         const ulong sectorKey = 0UL;
@@ -4025,8 +4097,8 @@ public class EditorWorkspaceLoaderTests
 
             await Assert.That(preview.Sectors.Count).IsEqualTo(1);
             await Assert.That(preview.Sectors[0].GetTileArtId(0, 0)).IsEqualTo(terrainTileArtId);
-            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(2);
-            await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == terrainObjectId)).IsTrue();
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == terrainObjectId)).IsFalse();
             await Assert.That(preview.Sectors[0].Objects.Any(obj => obj.ObjectId == mapObjectId)).IsTrue();
         }
         finally
@@ -4123,6 +4195,46 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(preview.Sectors[0].Objects[0].ObjectId).IsEqualTo(npcObjectId);
             await Assert.That(preview.Sectors[0].Objects[0].ObjectType).IsEqualTo(ObjectType.Npc);
             await Assert.That(preview.Sectors[0].Objects[0].Location).IsEqualTo(new Location(localTileX, localTileY));
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_CreateMapScenePreview_SkipsLooseInventoryFlaggedMapMobs()
+    {
+        const int sectorX = 970;
+        const int sectorY = 1025;
+        const int localTileX = 5;
+        const int localTileY = 6;
+        var sectorKey = ((ulong)sectorY << 26) | (uint)sectorX;
+        var globalTileX = (sectorX * 64) + localTileX;
+        var globalTileY = (sectorY * 64) + localTileY;
+        var itemProtoId = MakeProtoId(2002);
+        var itemObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2002, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            var looseInventoryItem = WithProperties(
+                new MobDataBuilder(ObjectType.Food, itemObjectId, itemProtoId).Build(),
+                ObjectPropertyFactory.ForLocation(ObjectField.Location, globalTileX, globalTileY),
+                ObjectPropertyFactory.ForInt32(ObjectField.ObjectFlags, unchecked((int)ObjectFlags.Inventory))
+            );
+
+            SectorFormat.WriteToFile(MakeSector(), Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+            MobFormat.WriteToFile(looseInventoryItem, Path.Combine(contentDir, "maps", "map01", "G_test_item.mob"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+
+            var preview = workspace.CreateMapScenePreview("map01");
+
+            await Assert.That(preview.Sectors.Count).IsEqualTo(1);
+            await Assert.That(preview.Sectors[0].Objects.Count).IsEqualTo(0);
         }
         finally
         {

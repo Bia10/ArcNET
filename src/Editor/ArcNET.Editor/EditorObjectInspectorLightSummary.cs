@@ -39,9 +39,9 @@ public sealed class EditorObjectInspectorLightSummary
             LightFlags = ReadInt32(properties, ObjectField.LightFlags),
             LightArtId = new ArtId(unchecked((uint)ReadInt32(properties, ObjectField.LightAid))),
             LightColor = ReadColor(properties, ObjectField.LightColor),
-            OverlayLightFlags = ReadInt32(properties, ObjectField.OverlayLightFlags),
+            OverlayLightFlags = ReadFirstInt32Value(properties, ObjectField.OverlayLightFlags),
             OverlayLightArtIds = ReadInt32Array(properties, ObjectField.OverlayLightAid),
-            OverlayLightColor = ReadInt32(properties, ObjectField.OverlayLightColor),
+            OverlayLightColor = ReadFirstInt32Value(properties, ObjectField.OverlayLightColor),
         };
     }
 
@@ -57,6 +57,28 @@ public sealed class EditorObjectInspectorLightSummary
         return 0;
     }
 
+    private static int ReadFirstInt32Value(IReadOnlyList<ObjectProperty> properties, ObjectField field)
+    {
+        for (var propertyIndex = 0; propertyIndex < properties.Count; propertyIndex++)
+        {
+            var property = properties[propertyIndex];
+            if (property.Field != field)
+                continue;
+
+            try
+            {
+                return property.GetInt32();
+            }
+            catch (InvalidOperationException)
+            {
+                var values = property.GetInt32Array();
+                return values.Length == 0 ? 0 : values[0];
+            }
+        }
+
+        return 0;
+    }
+
     private static Color ReadColor(IReadOnlyList<ObjectProperty> properties, ObjectField field)
     {
         for (var propertyIndex = 0; propertyIndex < properties.Count; propertyIndex++)
@@ -65,8 +87,7 @@ public sealed class EditorObjectInspectorLightSummary
             if (property.Field != field)
                 continue;
 
-            var bytes = property.RawBytes;
-            return bytes.Length >= 3 ? new Color(bytes[0], bytes[1], bytes[2]) : default;
+            return property.GetPackedRgbColor();
         }
 
         return default;
@@ -78,7 +99,16 @@ public sealed class EditorObjectInspectorLightSummary
         {
             var property = properties[propertyIndex];
             if (property.Field == field)
-                return property.GetInt32Array();
+            {
+                try
+                {
+                    return property.GetInt32Array();
+                }
+                catch (InvalidOperationException)
+                {
+                    return [property.GetInt32()];
+                }
+            }
         }
 
         return [];

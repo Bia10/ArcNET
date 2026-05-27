@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Runtime.InteropServices;
 using ArcNET.Core;
 using Bia.ValueBuffers;
@@ -6,11 +6,10 @@ using Bia.ValueBuffers;
 namespace ArcNET.Formats;
 
 /// <summary>
-/// One 4-byte BGR palette entry from an ART file.
-/// The fourth byte (reserved) is always 0 and is written as 0.
+/// One 4-byte BGRA palette entry from an ART file.
 /// Palette index 0 is always the transparency colour.
 /// </summary>
-public readonly record struct ArtPaletteEntry(byte Blue, byte Green, byte Red);
+public readonly record struct ArtPaletteEntry(byte Blue, byte Green, byte Red, byte Alpha = byte.MaxValue);
 
 /// <summary>
 /// Per-frame metadata block (28 bytes) from an ART file.
@@ -165,10 +164,9 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
 
             var entries = new ArtPaletteEntry[PaletteEntries];
             // Read all 256 × 4-byte BGRA entries in one zero-copy span slice.
-            // Stride is 4 (B, G, R, reserved); only first 3 bytes per entry are used.
             var raw = reader.ReadBytes(PaletteEntries * 4);
             for (var e = 0; e < PaletteEntries; e++)
-                entries[e] = new ArtPaletteEntry(raw[e * 4], raw[e * 4 + 1], raw[e * 4 + 2]);
+                entries[e] = new ArtPaletteEntry(raw[e * 4], raw[e * 4 + 1], raw[e * 4 + 2], raw[e * 4 + 3]);
 
             palettes[slot] = entries;
         }
@@ -332,7 +330,7 @@ public sealed class ArtFormat : IFormatFileReader<ArtFile>, IFormatFileWriter<Ar
                 writer.WriteByte(entry.Blue);
                 writer.WriteByte(entry.Green);
                 writer.WriteByte(entry.Red);
-                writer.WriteByte(0); // reserved
+                writer.WriteByte(entry.Alpha);
             }
         }
 

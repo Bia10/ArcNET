@@ -49,6 +49,22 @@ public sealed class ObjectPropertySchemaProviderTests
     }
 
     [Test]
+    public async Task ResolveWireType_CommonLightingAndBlitBits_MatchCePackedStorage()
+    {
+        var blitColor = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Scenery, 9);
+        var lightColor = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Scenery, 14);
+        var overlayLightFlags = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Scenery, 15);
+        var overlayLightAid = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Scenery, 16);
+        var overlayLightColor = ObjectPropertySchemaProvider.Default.ResolveWireType(ObjectType.Scenery, 17);
+
+        await Assert.That(blitColor).IsEqualTo(ObjectWireType.Int32);
+        await Assert.That(lightColor).IsEqualTo(ObjectWireType.Int32);
+        await Assert.That(overlayLightFlags).IsEqualTo(ObjectWireType.UInt32Array);
+        await Assert.That(overlayLightAid).IsEqualTo(ObjectWireType.UInt32Array);
+        await Assert.That(overlayLightColor).IsEqualTo(ObjectWireType.UInt32Array);
+    }
+
+    [Test]
     public async Task ResolveWireType_UnknownBit_Throws()
     {
         await Assert

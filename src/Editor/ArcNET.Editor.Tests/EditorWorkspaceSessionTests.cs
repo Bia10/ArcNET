@@ -8888,14 +8888,14 @@ public sealed class EditorWorkspaceSessionTests
                 .That(GetColor(appliedSector.Objects[0].Properties, ObjectField.LightColor))
                 .IsEqualTo(new Color(0x10, 0x20, 0x30));
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.OverlayLightFlags)!.GetInt32())
-                .IsEqualTo(4);
+                .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.OverlayLightFlags))
+                .IsEquivalentTo([4]);
             await Assert
                 .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.OverlayLightAid))
                 .IsEquivalentTo([7, 8]);
             await Assert
-                .That(appliedSector.Objects[0].GetProperty(ObjectField.OverlayLightColor)!.GetInt32())
-                .IsEqualTo(12);
+                .That(GetInt32Array(appliedSector.Objects[0].Properties, ObjectField.OverlayLightColor))
+                .IsEquivalentTo([12]);
             await Assert
                 .That(appliedSector.Objects[0].GetProperty(ObjectField.NpcGeneratorData)!.GetInt32())
                 .IsEqualTo(42);
@@ -10282,6 +10282,8 @@ public sealed class EditorWorkspaceSessionTests
                     ObjectPaletteSearchText = "wolf",
                     ObjectPaletteCategory = "pc",
                     IncludeTrackedPlacementPreview = false,
+                    IncludeEditorObjectStateTint = true,
+                    IncludeFloorLightTint = true,
                 }
             );
 
@@ -10293,6 +10295,8 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(persistedShellState.ObjectPaletteSearchText).IsEqualTo("wolf");
             await Assert.That(persistedShellState.ObjectPaletteCategory).IsEqualTo("pc");
             await Assert.That(persistedShellState.IncludeTrackedPlacementPreview).IsFalse();
+            await Assert.That(persistedShellState.IncludeEditorObjectStateTint).IsTrue();
+            await Assert.That(persistedShellState.IncludeFloorLightTint).IsTrue();
             await Assert
                 .That(session.GetMapViewStates()[0].WorldEdit.Shell.ViewMode)
                 .IsEqualTo(EditorMapSceneViewMode.TopDown);
@@ -10307,6 +10311,10 @@ public sealed class EditorWorkspaceSessionTests
                 .IsEqualTo(wolfProtoNumber);
             await Assert.That(shell.ViewMode).IsEqualTo(EditorMapSceneViewMode.TopDown);
             await Assert.That(shell.Scene.SceneRender.ViewMode).IsEqualTo(EditorMapSceneViewMode.TopDown);
+            await Assert.That(shell.RenderRequest.IncludeEditorObjectStateTint).IsTrue();
+            await Assert.That(shell.RenderRequest.IncludeFloorLightTint).IsTrue();
+            await Assert.That(shell.Scene.SceneRender.IncludeEditorObjectStateTint).IsTrue();
+            await Assert.That(shell.Scene.SceneRender.IncludeFloorLightTint).IsTrue();
             await Assert.That(shell.Scene.ViewportLayout.ViewportWidth).IsEqualTo(320d);
             await Assert.That(shell.Scene.ViewportLayout.ViewportHeight).IsEqualTo(200d);
             await Assert.That(shell.HasTrackedPlacementPreview).IsFalse();
@@ -11987,7 +11995,7 @@ public sealed class EditorWorkspaceSessionTests
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));
 
     private static ObjectProperty MakeColorProperty(ObjectField field, byte r, byte g, byte b) =>
-        new() { Field = field, RawBytes = [r, g, b] };
+        ObjectPropertyFactory.ForPackedRgbColor(field, new Color(r, g, b));
 
     private static MobData WithProperties(MobData mob, params ObjectProperty[] properties)
     {
@@ -12374,8 +12382,7 @@ public sealed class EditorWorkspaceSessionTests
 
     private static Color GetColor(IReadOnlyList<ObjectProperty> properties, ObjectField field)
     {
-        var bytes = properties.Single(property => property.Field == field).RawBytes;
-        return new Color(bytes[0], bytes[1], bytes[2]);
+        return properties.Single(property => property.Field == field).GetPackedRgbColor();
     }
 
     private static uint[] GetArtIds(IReadOnlyList<ObjectProperty> properties) =>

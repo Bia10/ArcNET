@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -175,4 +175,25 @@ public sealed class EditorMapObjectPreview
     /// Returns <see langword="true"/> when this object is a dead critter/PC.
     /// </summary>
     public bool IsDead { get; init; }
+
+    /// <summary>
+    /// Light flags from <see cref="ObjectField.LightFlags"/>.
+    /// </summary>
+    public int LightFlags { get; init; }
+
+    /// <summary>
+    /// Light art identifier from <see cref="ObjectField.LightAid"/>.
+    /// </summary>
+    public ArtId LightAid { get; init; }
+
+    /// <summary>
+    /// Light color from <see cref="ObjectField.LightColor"/>.
+    /// </summary>
+    public Color? LightColor { get; init; }
+
+    /// <summary>
+    /// CE overlay lights from <see cref="ObjectField.OverlayLightAid"/>, <see cref="ObjectField.OverlayLightFlags"/>,
+    /// and <see cref="ObjectField.OverlayLightColor"/>.
+    /// </summary>
+    public IReadOnlyList<EditorMapObjectOverlayLightPreview> OverlayLights { get; init; } = [];
 }

@@ -60,8 +60,7 @@ public sealed class EditorObjectInspectorBlendingSummary
             if (property.Field != field)
                 continue;
 
-            var bytes = property.RawBytes;
-            return bytes.Length >= 3 ? new Color(bytes[0], bytes[1], bytes[2]) : default;
+            return property.GetPackedRgbColor();
         }
 
         return default;

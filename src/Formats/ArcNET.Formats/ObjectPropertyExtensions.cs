@@ -83,6 +83,24 @@ public static class ObjectPropertyExtensions
     }
 
     /// <summary>
+    /// Returns the property value as a CE/TIG packed RGB color.
+    /// Accepts both the canonical 4-byte <c>OD_TYPE_INT32</c> representation and legacy
+    /// 3-byte editor fixtures used before the schema was aligned with CE.
+    /// </summary>
+    public static Color GetPackedRgbColor(this ObjectProperty property)
+    {
+        if (property.RawBytes.Length == 4)
+            return Color.FromPackedRgb(BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes));
+
+        if (property.RawBytes.Length >= 3)
+            return new Color(property.RawBytes[0], property.RawBytes[1], property.RawBytes[2]);
+
+        throw new InvalidOperationException(
+            $"Field {property.Field} has {property.RawBytes.Length} bytes; expected 4 for packed RGB or 3 for legacy RGB24."
+        );
+    }
+
+    /// <summary>
     /// Returns the property value as an ASCII string.
     /// Only valid for <c>OD_TYPE_STRING</c> fields (1-byte presence + int32 length + (length+1) bytes).
     /// </summary>
@@ -151,6 +169,13 @@ public static class ObjectPropertyExtensions
         BinaryPrimitives.WriteSingleLittleEndian(bytes, value);
         return new ObjectProperty { Field = property.Field, RawBytes = bytes };
     }
+
+    /// <summary>
+    /// Returns a new <see cref="ObjectProperty"/> with <paramref name="value"/> encoded as a CE/TIG packed
+    /// <c>0x00RRGGBB</c> <see cref="int"/>.
+    /// </summary>
+    public static ObjectProperty WithPackedRgbColor(this ObjectProperty property, Color value) =>
+        property.WithInt32(value.ToPackedRgb());
 
     /// <summary>
     /// Returns a new <see cref="ObjectProperty"/> with <paramref name="value"/> encoded as

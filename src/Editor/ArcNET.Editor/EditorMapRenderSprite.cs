@@ -51,7 +51,10 @@ public sealed class EditorMapRenderSprite
     public required int Stride { get; init; }
     public required int CenterX { get; init; }
     public required int CenterY { get; init; }
+    public int DeltaX { get; init; }
+    public int DeltaY { get; init; }
     public required uint FrameRate { get; init; }
+    public int FramesPerRotation { get; init; } = 1;
     public required EditorArtPreviewPixelFormat PixelFormat { get; init; }
     public required byte[] PixelData { get; init; }
 }
@@ -67,6 +70,10 @@ public sealed class EditorMapRenderSpriteMetrics
     public required int Height { get; init; }
     public required int CenterX { get; init; }
     public required int CenterY { get; init; }
+    public int DeltaX { get; init; }
+    public int DeltaY { get; init; }
+    public int FramesPerRotation { get; init; } = 1;
+    public uint FrameRate { get; init; }
 
     public static EditorMapRenderSpriteMetrics FromSprite(EditorMapRenderSprite sprite)
     {
@@ -80,6 +87,10 @@ public sealed class EditorMapRenderSpriteMetrics
             Height = sprite.Height,
             CenterX = sprite.CenterX,
             CenterY = sprite.CenterY,
+            DeltaX = sprite.DeltaX,
+            DeltaY = sprite.DeltaY,
+            FrameRate = sprite.FrameRate,
+            FramesPerRotation = sprite.FramesPerRotation,
         };
     }
 
@@ -98,6 +109,8 @@ public sealed class EditorMapRenderSpriteMetrics
         var height = metrics.Height;
         var centerX = metrics.CenterX;
         var centerY = metrics.CenterY;
+        var deltaX = metrics.DeltaX;
+        var deltaY = metrics.DeltaY;
 
         if (scalePercent != 100)
         {
@@ -105,6 +118,8 @@ public sealed class EditorMapRenderSpriteMetrics
             height = (int)((float)height * scalePercent / 100f);
             centerX = (int)((float)centerX * scalePercent / 100f);
             centerY = (int)((float)centerY * scalePercent / 100f);
+            deltaX = (int)((float)deltaX * scalePercent / 100f);
+            deltaY = (int)((float)deltaY * scalePercent / 100f);
         }
 
         if (isShrunk)
@@ -113,6 +128,8 @@ public sealed class EditorMapRenderSpriteMetrics
             height /= 2;
             centerX /= 2;
             centerY /= 2;
+            deltaX /= 2;
+            deltaY /= 2;
         }
 
         return new EditorMapRenderSpriteMetrics
@@ -123,6 +140,10 @@ public sealed class EditorMapRenderSpriteMetrics
             Height = height,
             CenterX = centerX,
             CenterY = centerY,
+            DeltaX = deltaX,
+            DeltaY = deltaY,
+            FrameRate = metrics.FrameRate,
+            FramesPerRotation = metrics.FramesPerRotation,
         };
     }
 }
@@ -167,6 +188,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     private const uint WallArtType = 0x10000000u;
     private const uint PortalArtType = 0x30000000u;
     private const uint SceneryArtType = 0x40000000u;
+    private const int ArtIdRotationShift = 11;
     private const uint InterfaceArtType = 0x50000000u;
     private const uint ItemArtType = 0x60000000u;
     private const uint MiscArtType = 0x80000000u;
@@ -416,18 +438,25 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         var rotationIndex = NormalizeFrameIndex(effectiveRotationIndex, art.EffectiveRotationCount);
         var effectiveFrameIndex = ResolveEffectiveFrameIndex(artId, request.FrameIndex);
         var frameIndex = NormalizeFrameIndex(effectiveFrameIndex, checked((int)art.FrameCount));
-        var frame = EditorArtPreviewBuilder.BuildFrame(art, rotationIndex, frameIndex, _previewOptions);
+        var frame = EditorArtPreviewBuilder.BuildFrame(
+            art,
+            rotationIndex,
+            frameIndex,
+            ApplyArtIdPalette(_previewOptions, artId)
+        );
+
         var (centerX, centerY) = AdjustSpriteCenter(
             request.RenderItemKind,
             assetPath,
             artId,
             effectiveRotationIndex,
             frame.Width,
+            frame.Height,
             frame.Header.CenterX,
             frame.Header.CenterY
         );
 
-        return new EditorMapRenderSprite
+        var sprite = new EditorMapRenderSprite
         {
             ArtId = artId,
             AssetPath = assetPath,
@@ -439,9 +468,35 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             Stride = frame.Stride,
             CenterX = centerX,
             CenterY = centerY,
+            DeltaX = frame.Header.DeltaX,
+            DeltaY = frame.Header.DeltaY,
             FrameRate = art.FrameRate,
+            FramesPerRotation = checked((int)art.FrameCount),
             PixelFormat = _previewOptions.PixelFormat,
             PixelData = frame.PixelData,
+        };
+
+        ApplyCeHorizontalTileMirror(request.RenderItemKind, artId, sprite.PixelData, sprite.Width, sprite.Height);
+
+        return sprite;
+    }
+
+    internal static EditorArtPreviewOptions ApplyArtIdPalette(EditorArtPreviewOptions previewOptions, ArtId artId)
+    {
+        ArgumentNullException.ThrowIfNull(previewOptions);
+
+        var isLight = artId.Type is ArtId.TypeCode.Light;
+        // CE's tig_art_id_palette_get returns palette slot 0 for light and facade ART IDs.
+        // art_anim_data.palette1 refers to the cache's modified version of the selected slot,
+        // not a hard-coded "palette 1" ART file slot.
+        var paletteSlot = artId.PaletteIndex;
+
+        return new EditorArtPreviewOptions
+        {
+            PaletteSlot = paletteSlot,
+            PixelFormat = previewOptions.PixelFormat,
+            FlipVertically = previewOptions.FlipVertically,
+            IsLightMask = isLight,
         };
     }
 
@@ -466,6 +521,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             artId,
             effectiveRotationIndex,
             checked((int)header.Width),
+            checked((int)header.Height),
             header.CenterX,
             header.CenterY
         );
@@ -478,6 +534,10 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             Height = checked((int)header.Height),
             CenterX = centerX,
             CenterY = centerY,
+            DeltaX = header.DeltaX,
+            DeltaY = header.DeltaY,
+            FrameRate = art.FrameRate,
+            FramesPerRotation = checked((int)art.FrameCount),
         };
     }
 
@@ -495,10 +555,21 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         ArtId artId,
         int effectiveRotationIndex,
         int width,
+        int height,
         int centerX,
         int centerY
     )
     {
+        if (
+            renderItemKind is EditorMapRenderQueueItemKind.Roof
+            && artId.Type is ArtId.TypeCode.Roof
+            && assetPath.StartsWith("art/roof/", StringComparison.OrdinalIgnoreCase)
+            && artId.IsRoofMirrored
+        )
+        {
+            return (0, centerY);
+        }
+
         if (
             renderItemKind is EditorMapRenderQueueItemKind.FloorTile
             && artId.Type is ArtId.TypeCode.Tile or ArtId.TypeCode.Facade
@@ -506,7 +577,9 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             && !assetPath.StartsWith("art/portal/", StringComparison.OrdinalIgnoreCase)
         )
         {
-            return (centerX, centerY + 20);
+            return ShouldApplyCeMirroredTileHotspot(renderItemKind, artId)
+                ? ApplyCeMirroredHotspotOffsets(width, centerX, centerY)
+                : (centerX, centerY);
         }
 
         if (
@@ -517,16 +590,12 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             return (centerX, centerY);
         }
 
-        // CE uses the raw hotspot from the art frame without any rotation-based adjustment.
-        // Only the mirror flag (bit 0) requires a horizontal hotspot flip for wall/portal objects.
-        return (renderItemKind, artId.Type) switch
-        {
-            (not EditorMapRenderQueueItemKind.FloorTile, ArtId.TypeCode.Wall or ArtId.TypeCode.Portal) => (
-                (artId.Value & 0x1u) != 0 ? width - centerX - 2 : centerX,
-                centerY
-            ),
-            _ => (centerX, centerY),
-        };
+        if (renderItemKind is EditorMapRenderQueueItemKind.FloorTile)
+            return (centerX, centerY);
+
+        return artId.Type is ArtId.TypeCode.Wall or ArtId.TypeCode.Portal
+            ? ApplyCeWallPortalHotspotOffsets(artId, width, centerX, centerY)
+            : (centerX, centerY);
     }
 
     private static (int CenterX, int CenterY) AdjustSpriteCenter(
@@ -534,7 +603,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         int requestedRotationIndex,
         int centerX,
         int centerY
-    ) => AdjustSpriteCenter(null, assetPath, default, requestedRotationIndex, width: 0, centerX, centerY);
+    ) => AdjustSpriteCenter(null, assetPath, default, requestedRotationIndex, width: 0, height: 0, centerX, centerY);
 
     private static bool UsesArtIdRotation(ArtId artId) =>
         (artId.Value & ArtTypeMask) is WallArtType or PortalArtType or SceneryArtType;
@@ -543,6 +612,83 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     {
         var normalizedRotationIndex = rotationIndex % 8;
         return normalizedRotationIndex < 0 ? normalizedRotationIndex + 8 : normalizedRotationIndex;
+    }
+
+    private static bool ShouldApplyCeMirroredTileHotspot(EditorMapRenderQueueItemKind? renderItemKind, ArtId artId) =>
+        renderItemKind is EditorMapRenderQueueItemKind.FloorTile
+        // CE only treats the low bit as a mirror flag for true tile AIDs. Facade AIDs use that
+        // bit for walkability, so applying the tile mirror path there scrambles rug/stair pieces.
+        && (artId.Value & 0x1u) != 0
+        && artId.Type is ArtId.TypeCode.Tile;
+
+    private static bool ShouldApplyCeHorizontalTileMirror(EditorMapRenderQueueItemKind? renderItemKind, ArtId artId) =>
+        renderItemKind is EditorMapRenderQueueItemKind.FloorTile
+        && ShouldApplyCeMirroredTileHotspot(renderItemKind, artId);
+
+    internal static void ApplyCeHorizontalTileMirror(
+        EditorMapRenderQueueItemKind? renderItemKind,
+        ArtId artId,
+        byte[] pixelData,
+        int width,
+        int height
+    )
+    {
+        ArgumentNullException.ThrowIfNull(pixelData);
+
+        if (!ShouldApplyCeHorizontalTileMirror(renderItemKind, artId))
+            return;
+
+        FlipPixelDataHorizontally(pixelData, width, height);
+    }
+
+    private static void FlipPixelDataHorizontally(byte[] pixelData, int width, int height)
+    {
+        const int bytesPerPixel = 4;
+        if (width <= 1 || height <= 0)
+            return;
+
+        for (var row = 0; row < height; row++)
+        {
+            var rowStart = checked(row * width * bytesPerPixel);
+            for (int left = 0, right = width - 1; left < right; left++, right--)
+            {
+                var leftIndex = rowStart + (left * bytesPerPixel);
+                var rightIndex = rowStart + (right * bytesPerPixel);
+                for (var channel = 0; channel < bytesPerPixel; channel++)
+                    (pixelData[leftIndex + channel], pixelData[rightIndex + channel]) = (
+                        pixelData[rightIndex + channel],
+                        pixelData[leftIndex + channel]
+                    );
+            }
+        }
+    }
+
+    private static (int CenterX, int CenterY) ApplyCeMirroredHotspotOffsets(int width, int centerX, int centerY) =>
+        (width - centerX - 2, centerY);
+
+    private static (int CenterX, int CenterY) ApplyCeWallPortalHotspotOffsets(
+        ArtId artId,
+        int width,
+        int centerX,
+        int centerY
+    )
+    {
+        var rotationIndex = NormalizeWallPortalRotationIndex((int)((artId.Value >> ArtIdRotationShift) & 0x7u));
+        var adjustedCenterX = centerX;
+        var adjustedCenterY = centerY;
+
+        // CE tig_art_frame_data applies an extra hotspot shift for the north/south-facing wall and portal
+        // families before any mirror flip is evaluated.
+        if (rotationIndex is < 2 or > 5)
+        {
+            adjustedCenterX -= 40;
+            adjustedCenterY += 20;
+        }
+
+        if ((artId.Value & 0x1u) != 0)
+            adjustedCenterX = width - adjustedCenterX - 2;
+
+        return (adjustedCenterX, adjustedCenterY);
     }
 
     private ArtFile? TryGetResolvedArt(string assetPath)

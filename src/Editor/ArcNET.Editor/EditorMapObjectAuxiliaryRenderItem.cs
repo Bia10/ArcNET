@@ -69,6 +69,11 @@ public sealed class EditorMapObjectAuxiliaryRenderItem
     public required double AnchorY { get; init; }
 
     /// <summary>
+    /// Returns <see langword="true"/> when this auxiliary should use CE-style light-mask tinting.
+    /// </summary>
+    public bool UseLightMaskTint { get; init; }
+
+    /// <summary>
     /// Conservative CE-style light tint sampled at the parent object's render anchor.
     /// </summary>
     public uint? SuggestedTintColor { get; init; }

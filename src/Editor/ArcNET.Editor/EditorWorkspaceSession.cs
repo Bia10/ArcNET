@@ -2887,7 +2887,8 @@ public sealed class EditorWorkspaceSession
     {
         var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
         var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState);
-        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest);
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, renderRequest)
+            .WithArtResolver(renderRequest?.ArtResolver ?? GetOrCreateRenderableArtResolver());
         return EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest, cancellationToken);
     }
 
@@ -3199,7 +3200,21 @@ public sealed class EditorWorkspaceSession
                 cancellationToken.ThrowIfCancellationRequested();
                 var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
                 var effectiveRequest = request ?? CreateWorldEditShellRequest(mapViewState.WorldEdit.Shell);
-                var renderRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
+                var renderPreset = EditorMapFloorRenderRequest.CreateWorldEditPreset(effectiveRequest.ViewMode);
+                var renderRequest = new EditorMapFloorRenderRequest
+                {
+                    ViewMode = renderPreset.ViewMode,
+                    TileWidthPixels = renderPreset.TileWidthPixels,
+                    TileHeightPixels = renderPreset.TileHeightPixels,
+                    IncludeEmptyTiles = renderPreset.IncludeEmptyTiles,
+                    IncludeObjects = renderPreset.IncludeObjects,
+                    IncludeRoofs = renderPreset.IncludeRoofs,
+                    IncludeBlockedTileOverlays = renderPreset.IncludeBlockedTileOverlays,
+                    IncludeLightOverlays = renderPreset.IncludeLightOverlays,
+                    IncludeScriptOverlays = renderPreset.IncludeScriptOverlays,
+                    IncludeEditorObjectStateTint = effectiveRequest.IncludeEditorObjectStateTint,
+                    IncludeFloorLightTint = effectiveRequest.IncludeFloorLightTint,
+                };
 
                 // Phase 1 — Resolve render assets (I/O-bound; single await).
                 progressReporter.Report("Preparing shell render assets", 0.14f);
@@ -5531,6 +5546,8 @@ public sealed class EditorWorkspaceSession
             ObjectPaletteSearchText = normalizedShellState.ObjectPaletteSearchText,
             ObjectPaletteCategory = normalizedShellState.ObjectPaletteCategory,
             IncludeTrackedPlacementPreview = normalizedShellState.IncludeTrackedPlacementPreview,
+            IncludeEditorObjectStateTint = normalizedShellState.IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = normalizedShellState.IncludeFloorLightTint,
         };
     }
 
@@ -5548,6 +5565,8 @@ public sealed class EditorWorkspaceSession
             ObjectPaletteSearchText = NormalizeOptionalText(request.ObjectPaletteSearchText),
             ObjectPaletteCategory = NormalizeOptionalText(request.ObjectPaletteCategory),
             IncludeTrackedPlacementPreview = request.IncludeTrackedPlacementPreview,
+            IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = request.IncludeFloorLightTint,
         };
     }
 
@@ -6461,6 +6480,9 @@ public sealed class EditorWorkspaceSession
                 Rotation = obj.Rotation,
                 RotationIndex = obj.RotationIndex,
                 BlitScale = obj.BlitScale,
+                BlitFlags = obj.BlitFlags,
+                BlitColor = obj.BlitColor,
+                BlitAlpha = obj.BlitAlpha,
                 IsShrunk = obj.IsShrunk,
                 RotationPitch = obj.RotationPitch,
             };
@@ -6486,6 +6508,7 @@ public sealed class EditorWorkspaceSession
                 DrawOrder = obj.DrawOrder,
                 AnchorX = obj.AnchorX + shiftX,
                 AnchorY = obj.AnchorY + shiftY,
+                UseLightMaskTint = obj.UseLightMaskTint,
                 SuggestedTintColor = obj.SuggestedTintColor,
                 RotationIndex = obj.RotationIndex,
                 ScalePercent = obj.ScalePercent,
@@ -9002,6 +9025,8 @@ public sealed class EditorWorkspaceSession
             ObjectPaletteSearchText = NormalizeOptionalText(shellState?.ObjectPaletteSearchText),
             ObjectPaletteCategory = NormalizeOptionalText(shellState?.ObjectPaletteCategory),
             IncludeTrackedPlacementPreview = shellState?.IncludeTrackedPlacementPreview ?? true,
+            IncludeEditorObjectStateTint = shellState?.IncludeEditorObjectStateTint ?? false,
+            IncludeFloorLightTint = shellState?.IncludeFloorLightTint ?? false,
         };
 
     private static EditorProjectMapTerrainToolState NormalizeProjectMapTerrainToolState(
@@ -9963,6 +9988,12 @@ public sealed class EditorWorkspaceSession
             && hpProp is not null
             && hpProp.GetInt32() <= 0;
 
+        var lightAidVal = (uint)(mob.GetProperty(ObjectField.LightAid)?.GetInt32() ?? 0);
+        var lightAid = new ArtId(lightAidVal);
+        var lightColorProp = mob.GetProperty(ObjectField.LightColor);
+        Color? lightColor =
+            lightColorProp is null || lightColorProp.ParseNote is not null ? null : lightColorProp.GetPackedRgbColor();
+
         return new EditorMapObjectPreview
         {
             ObjectId = mob.Header.ObjectId,
@@ -9978,6 +10009,8 @@ public sealed class EditorWorkspaceSession
             Rotation = mob.GetProperty(ObjectField.PadIas1)?.GetFloat() ?? 0f,
             RotationPitch = mob.GetProperty(ObjectField.RotationPitch)?.GetFloat() ?? 0f,
             IsDead = isDead,
+            LightAid = lightAid,
+            LightColor = lightColor,
         };
     }
 
@@ -10576,13 +10609,21 @@ public sealed class EditorWorkspaceSession
         changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.LightFlags, update.LightFlags);
         changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.LightAid, update.LightArtId);
         changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.LightColor, update.LightColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyFirstInt32ArrayValuePropertyUpdate(
+            ref updated,
+            ObjectField.OverlayLightFlags,
+            update.OverlayLightFlags
+        );
         changed |= ApplyWholeInt32ArrayPropertyUpdate(
             ref updated,
             ObjectField.OverlayLightAid,
             update.OverlayLightArtIds
         );
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightColor, update.OverlayLightColor);
+        changed |= ApplyFirstInt32ArrayValuePropertyUpdate(
+            ref updated,
+            ObjectField.OverlayLightColor,
+            update.OverlayLightColor
+        );
 
         return changed ? updated : null;
     }
@@ -10598,13 +10639,21 @@ public sealed class EditorWorkspaceSession
         changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.LightFlags, update.LightFlags);
         changed |= ApplyArtIdPropertyUpdate(ref updated, ObjectField.LightAid, update.LightArtId);
         changed |= ApplyColorPropertyUpdate(ref updated, ObjectField.LightColor, update.LightColor);
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightFlags, update.OverlayLightFlags);
+        changed |= ApplyFirstInt32ArrayValuePropertyUpdate(
+            ref updated,
+            ObjectField.OverlayLightFlags,
+            update.OverlayLightFlags
+        );
         changed |= ApplyWholeInt32ArrayPropertyUpdate(
             ref updated,
             ObjectField.OverlayLightAid,
             update.OverlayLightArtIds
         );
-        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.OverlayLightColor, update.OverlayLightColor);
+        changed |= ApplyFirstInt32ArrayValuePropertyUpdate(
+            ref updated,
+            ObjectField.OverlayLightColor,
+            update.OverlayLightColor
+        );
 
         return changed ? updated : null;
     }
@@ -10896,6 +10945,12 @@ public sealed class EditorWorkspaceSession
         return true;
     }
 
+    private static bool ApplyFirstInt32ArrayValuePropertyUpdate(ref ProtoData proto, ObjectField field, int? value) =>
+        ApplyInt32ArrayPropertyUpdate(ref proto, field, minimumLength: 1, [(0, value)]);
+
+    private static bool ApplyFirstInt32ArrayValuePropertyUpdate(ref MobData mob, ObjectField field, int? value) =>
+        ApplyInt32ArrayPropertyUpdate(ref mob, field, minimumLength: 1, [(0, value)]);
+
     private static bool ApplyWholeInt32ArrayPropertyUpdate(
         ref ProtoData proto,
         ObjectField field,
@@ -10906,7 +10961,7 @@ public sealed class EditorWorkspaceSession
             return false;
 
         var updatedValues = values.ToArray();
-        var currentValues = proto.GetProperty(field)?.GetInt32Array() ?? [];
+        var currentValues = ReadInt32ArrayProperty(proto.GetProperty(field));
         if (currentValues.AsSpan().SequenceEqual(updatedValues))
             return false;
 
@@ -10927,7 +10982,7 @@ public sealed class EditorWorkspaceSession
             return false;
 
         var updatedValues = values.ToArray();
-        var currentValues = mob.GetProperty(field)?.GetInt32Array() ?? [];
+        var currentValues = ReadInt32ArrayProperty(mob.GetProperty(field));
         if (currentValues.AsSpan().SequenceEqual(updatedValues))
             return false;
 
@@ -10957,7 +11012,7 @@ public sealed class EditorWorkspaceSession
         if (!hasAnyUpdates)
             return null;
 
-        var currentValues = currentProperty?.GetInt32Array() ?? [];
+        var currentValues = ReadInt32ArrayProperty(currentProperty);
         var updatedValues = new int[Math.Max(currentValues.Length, minimumLength)];
         currentValues.CopyTo(updatedValues, 0);
 
@@ -10982,16 +11037,38 @@ public sealed class EditorWorkspaceSession
         ReadOnlySpan<int> values
     ) => (currentProperty ?? new ObjectProperty { Field = field, RawBytes = [0] }).WithInt32Array(values);
 
+    private static int[] ReadInt32ArrayProperty(ObjectProperty? property)
+    {
+        if (property is null)
+            return [];
+
+        try
+        {
+            return property.GetInt32Array();
+        }
+        catch (InvalidOperationException)
+        {
+            return [property.GetInt32()];
+        }
+    }
+
     private static Color ReadColorProperty(ObjectProperty? property)
     {
-        if (property is null || property.RawBytes.Length < 3)
+        if (property is null)
             return default;
 
-        return new Color(property.RawBytes[0], property.RawBytes[1], property.RawBytes[2]);
+        try
+        {
+            return property.GetPackedRgbColor();
+        }
+        catch (InvalidOperationException)
+        {
+            return default;
+        }
     }
 
     private static ObjectProperty CreateColorProperty(ObjectField field, Color value) =>
-        new() { Field = field, RawBytes = [value.R, value.G, value.B] };
+        ObjectPropertyFactory.ForPackedRgbColor(field, value);
 
     private EditorSessionChange? SetTrackedObjectInspectorScriptAttachment(
         string mapViewStateId,

@@ -50,6 +50,75 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task Build_KeepsNonFlatObjectsAfterFloorsOnLargeWorldMaps()
+    {
+        const int sectorCount = 37;
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 911, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        List<EditorMapSectorScenePreview> sectors = [];
+
+        for (var localX = 0; localX < sectorCount; localX++)
+        {
+            sectors.Add(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = $"maps/map01/{localX}.sec",
+                    SectorX = localX,
+                    SectorY = 0,
+                    LocalX = localX,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = CreateFilledMapTileArtIds(),
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects =
+                    [
+                        .. (
+                            localX == 0
+                                ? [CreateObjectPreview(objectId, protoId, ObjectType.Scenery, new ArtId(0x40000000u))]
+                                : Array.Empty<EditorMapObjectPreview>()
+                        ),
+                    ],
+                }
+            );
+        }
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            new EditorMapScenePreview
+            {
+                MapName = "map01",
+                Width = sectorCount,
+                Height = 1,
+                UnpositionedSectorCount = 0,
+                Sectors = sectors,
+            },
+            EditorMapFloorRenderRequest.CreateWorldEditPreset()
+        );
+
+        var lastFloorIndex = -1;
+        var objectIndex = -1;
+        for (var index = 0; index < preview.RenderQueue.Count; index++)
+        {
+            var item = preview.RenderQueue[index];
+            if (item.Kind is EditorMapRenderQueueItemKind.FloorTile)
+                lastFloorIndex = index;
+
+            if (item.Kind is EditorMapRenderQueueItemKind.Object && item.Object?.ObjectId == objectId)
+            {
+                objectIndex = index;
+            }
+        }
+
+        await Assert.That(preview.Tiles.Count).IsEqualTo(sectorCount * 64 * 64);
+        await Assert.That(lastFloorIndex).IsGreaterThanOrEqualTo(0);
+        await Assert.That(objectIndex).IsGreaterThan(lastFloorIndex);
+    }
+
+    [Test]
     public async Task Build_Isometric_ProjectsTilesInStableDrawOrderWithNormalizedBounds()
     {
         var tileArtIds = new uint[64 * 64];
@@ -165,7 +234,9 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Overlays[2].CenterY).IsEqualTo(48d);
         await Assert.That(preview.Overlays[2].SuggestedTintColor).IsEqualTo(0x88996CCCu);
 
-        await Assert.That(preview.RenderQueue.Count).IsEqualTo(6);
+        await Assert.That(preview.Lights).HasSingleItem();
+        await Assert.That(preview.Lights[0].ArtId).IsEqualTo(new ArtId(0x01020304u));
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(7);
         await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
         await Assert.That(preview.RenderQueue[0].Tile?.ArtId).IsEqualTo(new ArtId(200u));
         await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
@@ -178,6 +249,8 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue[4].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
         await Assert.That(preview.RenderQueue[5].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
         await Assert.That(preview.RenderQueue[5].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
+        await Assert.That(preview.RenderQueue[6].Kind).IsEqualTo(EditorMapRenderQueueItemKind.Light);
+        await Assert.That(preview.RenderQueue[6].Light?.ArtId).IsEqualTo(new ArtId(0x01020304u));
     }
 
     [Test]
@@ -216,6 +289,70 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(plusY.MapTileY - origin.MapTileY).IsEqualTo(1);
         await Assert.That(plusY.CenterX - origin.CenterX).IsEqualTo(32d);
         await Assert.That(plusY.CenterY - origin.CenterY).IsEqualTo(16d);
+    }
+
+    [Test]
+    public async Task Build_Isometric_UsesAbsoluteSectorLightCoordinatesWithoutDoubleOffset()
+    {
+        const int localX = 10;
+        const int localY = 20;
+        const int tileX = 5;
+        const int tileY = 7;
+        var absoluteTileX = (localX * 64) + tileX;
+        var absoluteTileY = (localY * 64) + tileY;
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[(tileY * 64) + tileX] = 100u;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_abs_light.sec",
+                    SectorX = localX,
+                    SectorY = localY,
+                    LocalX = localX,
+                    LocalY = localY,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = tileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights =
+                    [
+                        new EditorMapLightPreview
+                        {
+                            TileX = absoluteTileX,
+                            TileY = absoluteTileY,
+                            OffsetX = 0,
+                            OffsetY = 0,
+                            ArtId = new ArtId(0x90100000u),
+                            Flags = 0,
+                            Palette = 0,
+                            Red = 0xFF,
+                            Green = 0xAA,
+                            Blue = 0x55,
+                            TintColor = 0x00FFAA55u,
+                        },
+                    ],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Lights).HasSingleItem();
+        await Assert.That(preview.Lights[0].MapTileX).IsEqualTo(absoluteTileX);
+        await Assert.That(preview.Lights[0].MapTileY).IsEqualTo(absoluteTileY);
+        await Assert.That(preview.Lights[0].Tile).IsEqualTo(new Location(tileX, tileY));
+        await Assert.That(preview.Lights[0].SuggestedTintColor).IsEqualTo(0xFFFFAA55u);
+        await Assert.That(preview.RenderQueue.Any(item => item.Kind is EditorMapRenderQueueItemKind.Light)).IsTrue();
     }
 
     [Test]
@@ -915,9 +1052,30 @@ public sealed class EditorMapFloorRenderBuilderTests
             }
         );
 
-        await Assert.That(preview.HeightPixels).IsCloseTo(121.6d, 0.001d);
+        await Assert.That(preview.HeightPixels).IsCloseTo(136.8d, 0.001d);
         await Assert.That(preview.Objects).HasSingleItem();
-        await Assert.That(preview.Objects[0].AnchorY).IsCloseTo(104.8d, 0.001d);
+        await Assert.That(preview.Objects[0].AnchorY).IsCloseTo(120.8d, 0.001d);
+    }
+
+    [Test]
+    public async Task GetLayoutSpriteCenter_WallRotationZeroAppliesCeNorthSouthHotspotShift()
+    {
+        var spriteBounds = new EditorMapObjectSpriteBounds
+        {
+            MaxFrameWidth = 100,
+            MaxFrameHeight = 80,
+            MaxFrameCenterX = 30,
+            MaxFrameCenterY = 40,
+        };
+
+        var (centerX, centerY) = EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(
+            ObjectType.Wall,
+            CreateWallArtId(rotation: 0),
+            spriteBounds
+        );
+
+        await Assert.That(centerX).IsEqualTo(-10);
+        await Assert.That(centerY).IsEqualTo(60);
     }
 
     [Test]
@@ -1363,6 +1521,13 @@ public sealed class EditorMapFloorRenderBuilderTests
         return tileArtIds;
     }
 
+    private static uint[] CreateFilledMapTileArtIds(uint artId = 100u)
+    {
+        var tileArtIds = new uint[64 * 64];
+        Array.Fill(tileArtIds, artId);
+        return tileArtIds;
+    }
+
     private static ArtId CreateWallArtId(int rotation) => new(0x10000000u | ((uint)(rotation & 0x7) << 11));
 
     private static uint CreateRoofArtId(int piece, bool faded = false, bool fill = false)
@@ -1480,6 +1645,169 @@ public sealed class EditorMapFloorRenderBuilderTests
 
         await Assert.That(previewWithRoof.Objects.Count).IsEqualTo(1);
         await Assert.That(previewWithRoof.Objects[0].IsRoofCovered).IsTrue();
+    }
+
+    [Test]
+    public async Task Build_FloorLightShadingPass_PopulatesBilinearLightGridDiagnostics()
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[0] = 0x00000001u; // ArtType = Tile (0), TileType = 0 (bits 24-27 => indoor)
+
+        var scenePreview = CreateScenePreview(
+            new EditorMapSectorScenePreview
+            {
+                AssetPath = "maps/map01/sector_a.sec",
+                SectorX = 0,
+                SectorY = 0,
+                LocalX = 0,
+                LocalY = 0,
+                PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                ObjectDensityBand = EditorMapSectorDensityBand.None,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                TileArtIds = tileArtIds,
+                RoofArtIds = null,
+                BlockMask = new uint[128],
+                Lights =
+                [
+                    new EditorMapLightPreview
+                    {
+                        TileX = 0,
+                        TileY = 0,
+                        OffsetX = 0,
+                        OffsetY = 0,
+                        ArtId = new ArtId(0x01020304u),
+                        Flags = 0,
+                        Palette = 0,
+                        Red = 100,
+                        Green = 50,
+                        Blue = 20,
+                        TintColor = 0xFF000000u | (100u << 16) | (50u << 8) | 20u,
+                    },
+                ],
+                TileScripts = [],
+                Objects = [],
+            }
+        );
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+                IncludeFloorLightTint = true,
+                IncludeEmptyTiles = true,
+            }
+        );
+
+        var targetTile = preview.Tiles.Single(tile => tile.MapTileX == 0 && tile.MapTileY == 0);
+        await Assert.That(targetTile.SuggestedTintColor).IsNotNull();
+        await Assert.That(targetTile.LightDiagnostics).IsNotNull();
+        await Assert.That(targetTile.LightDiagnostics.Value.MiddleCenter).IsNotNull();
+        // Since CenterX and CenterY are equal to lx and ly, middleCenter should have maximum light intensity added to ambient 128:
+        // Math.Clamp(128 + 100, 0, 255) = 228 (E4)
+        // Math.Clamp(128 + 50, 0, 255) = 178 (B2)
+        // Math.Clamp(128 + 20, 0, 255) = 148 (94)
+        // pointColor: 0xFFE4B294
+        await Assert.That(targetTile.LightDiagnostics.Value.MiddleCenter!.Value).IsEqualTo(0xFFE4B294u);
+    }
+
+    [Test]
+    public async Task Build_ObjectOverlayLights_ContributeFloorTintAndVisibleLightQueueItems()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1003, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var overlayLightArtId = new ArtId(0x90002000u);
+        var scenePreview = CreateSingleTileObjectScene(
+            new EditorMapObjectPreview
+            {
+                ObjectId = objectId,
+                ProtoId = protoId,
+                ObjectType = ObjectType.Scenery,
+                CurrentArtId = new ArtId(0x40000000u),
+                Location = new Location(0, 63),
+                RotationPitch = 0f,
+                OverlayLights =
+                [
+                    new EditorMapObjectOverlayLightPreview
+                    {
+                        Flags = 7,
+                        ArtId = overlayLightArtId,
+                        Color = new Color(0xAA, 0x55, 0x22),
+                    },
+                ],
+            }
+        );
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+                IncludeFloorLightTint = true,
+            }
+        );
+
+        await Assert.That(preview.ObjectAuxiliaryItems.Any(item => item.ArtId == overlayLightArtId)).IsFalse();
+        await Assert
+            .That(preview.RenderQueue.Any(item => item.Kind is EditorMapRenderQueueItemKind.ObjectAuxiliary))
+            .IsFalse();
+        await Assert.That(preview.Lights.Count).IsEqualTo(1);
+        await Assert.That(preview.Lights[0].ArtId).IsEqualTo(overlayLightArtId);
+        await Assert
+            .That(preview.RenderQueue.Count(item => item.Kind is EditorMapRenderQueueItemKind.Light))
+            .IsEqualTo(1);
+        var litTile = preview.Tiles.Single(tile => tile.MapTileX == 0 && tile.MapTileY == 63);
+        await Assert.That(litTile.SuggestedTintColor).IsNotNull();
+        await Assert.That(litTile.LightDiagnostics).IsNotNull();
+    }
+
+    [Test]
+    public async Task Build_ObjectLightAid_ContributesFloorTintAndVisibleLightQueueItems()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1004, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var lightAidArtId = new ArtId(0x90001000u);
+        var scenePreview = CreateSingleTileObjectScene(
+            new EditorMapObjectPreview
+            {
+                ObjectId = objectId,
+                ProtoId = protoId,
+                ObjectType = ObjectType.Scenery,
+                CurrentArtId = new ArtId(0x40000000u),
+                LightAid = lightAidArtId,
+                LightColor = new Color(0xD0, 0x90, 0x40),
+                Location = new Location(0, 63),
+                RotationPitch = 0f,
+            }
+        );
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            scenePreview,
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+                IncludeFloorLightTint = true,
+            }
+        );
+
+        await Assert.That(preview.ObjectAuxiliaryItems.Any(item => item.ArtId == lightAidArtId)).IsFalse();
+        await Assert
+            .That(preview.RenderQueue.Any(item => item.Kind is EditorMapRenderQueueItemKind.ObjectAuxiliary))
+            .IsFalse();
+        await Assert.That(preview.Lights.Count).IsEqualTo(1);
+        await Assert.That(preview.Lights[0].ArtId).IsEqualTo(lightAidArtId);
+        await Assert
+            .That(preview.RenderQueue.Count(item => item.Kind is EditorMapRenderQueueItemKind.Light))
+            .IsEqualTo(1);
+        var litTile = preview.Tiles.Single(tile => tile.MapTileX == 0 && tile.MapTileY == 63);
+        await Assert.That(litTile.SuggestedTintColor).IsNotNull();
+        await Assert.That(litTile.LightDiagnostics).IsNotNull();
     }
 
     private static uint[] CreateBlockMask(params (int TileX, int TileY)[] blockedTiles)

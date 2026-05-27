@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -323,6 +323,9 @@ public static class EditorMapScenePreviewBuilder
         IReadOnlySet<Guid> containedObjectGuids
     )
     {
+        if (GetObjectFlagsOrDefault(mob).HasFlag(ObjectFlags.Inventory))
+            return true;
+
         if (mob.Header.ObjectId.OidType != GameObjectGuid.OidTypeGuid)
             return false;
 
@@ -505,6 +508,11 @@ public static class EditorMapScenePreviewBuilder
                 reactionColor = 0xFFFF0000; // Reaction6: Love/Hostile
         }
 
+        var lightFlags = GetInt32OrDefault(mob, ObjectField.LightFlags);
+        var lightAid = GetArtIdOrDefault(mob, ObjectField.LightAid);
+        var lightColor = GetPackedRgbColorOrDefault(mob.GetProperty(ObjectField.LightColor));
+        var overlayLights = GetOverlayLights(mob);
+
         return new EditorMapObjectPreview
         {
             ObjectId = mob.Header.ObjectId,
@@ -534,6 +542,10 @@ public static class EditorMapScenePreviewBuilder
             OverlayForeArtIds = GetIntArrayOrDefault(mob, ObjectField.OverlayFore),
             IsDead = isDead,
             ReactionColor = reactionColor,
+            LightFlags = lightFlags,
+            LightAid = lightAid,
+            LightColor = lightColor,
+            OverlayLights = overlayLights,
         };
     }
 
@@ -542,6 +554,84 @@ public static class EditorMapScenePreviewBuilder
 
     private static int[] GetIntArrayOrDefault(MobData mob, ObjectField field) =>
         mob.GetProperty(field) is { ParseNote: null } property ? property.GetInt32Array() : [];
+
+    private static int[] GetInt32ValuesOrDefault(ObjectProperty? property)
+    {
+        if (property is null || property.ParseNote is not null)
+            return [];
+
+        try
+        {
+            return property.GetInt32Array();
+        }
+        catch (InvalidOperationException)
+        {
+            try
+            {
+                return [property.GetInt32()];
+            }
+            catch (InvalidOperationException)
+            {
+                return [];
+            }
+        }
+    }
+
+    private static IReadOnlyList<EditorMapObjectOverlayLightPreview> GetOverlayLights(MobData mob)
+    {
+        var artIds = GetInt32ValuesOrDefault(mob.GetProperty(ObjectField.OverlayLightAid));
+        if (artIds.Length == 0)
+            return [];
+
+        var flags = GetInt32ValuesOrDefault(mob.GetProperty(ObjectField.OverlayLightFlags));
+        var colors = GetInt32ValuesOrDefault(mob.GetProperty(ObjectField.OverlayLightColor));
+        List<EditorMapObjectOverlayLightPreview>? overlayLights = null;
+
+        for (var index = 0; index < artIds.Length; index++)
+        {
+            var artId = new ArtId(unchecked((uint)artIds[index]));
+            if (artId.Value is 0u or uint.MaxValue)
+                continue;
+
+            overlayLights ??= [];
+            overlayLights.Add(
+                new EditorMapObjectOverlayLightPreview
+                {
+                    Flags = GetIndexedInt32ValueOrDefault(flags, index),
+                    ArtId = artId,
+                    Color = colors.Length == 0 ? null : GetPackedRgbColor(GetIndexedInt32ValueOrDefault(colors, index)),
+                }
+            );
+        }
+
+        return overlayLights ?? [];
+    }
+
+    private static int GetIndexedInt32ValueOrDefault(IReadOnlyList<int> values, int index) =>
+        values.Count switch
+        {
+            0 => 0,
+            1 => values[0],
+            _ when index < values.Count => values[index],
+            _ => 0,
+        };
+
+    private static Color? GetPackedRgbColorOrDefault(ObjectProperty? property)
+    {
+        if (property is null || property.ParseNote is not null)
+            return null;
+
+        try
+        {
+            return property.GetPackedRgbColor();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private static Color GetPackedRgbColor(int packedColor) => Color.FromPackedRgb(packedColor);
 
     private static ObjectFlags GetObjectFlagsOrDefault(MobData mob) =>
         mob.GetProperty(ObjectField.ObjectFlags) is { ParseNote: null } property

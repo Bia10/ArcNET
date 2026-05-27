@@ -86,6 +86,38 @@ public sealed class SectorFormatTests
         });
     }
 
+    private static byte[] BuildMinimalSectorWithObjects(params byte[][] objectBytes)
+    {
+        return BuildBytes(w =>
+        {
+            w.WriteInt32(0);
+
+            for (var i = 0; i < 4096; i++)
+                w.WriteUInt32(0);
+
+            w.WriteInt32(1);
+            w.WriteInt32(0xAA0004);
+            w.WriteInt32(0);
+            w.WriteUInt32(0);
+            w.WriteUInt32(0);
+            w.WriteInt32(0);
+            w.WriteInt32(0);
+            w.WriteInt32(0);
+            w.WriteInt32(0);
+            w.WriteUInt32(0);
+            w.WriteInt32(-1);
+            w.WriteInt32(-1);
+
+            for (var i = 0; i < 128; i++)
+                w.WriteUInt32(0);
+
+            foreach (var objectBytesItem in objectBytes)
+                w.WriteBytes(objectBytesItem);
+
+            w.WriteInt32(objectBytes.Length);
+        });
+    }
+
     [Test]
     public async Task Parse_EmptySector_NoLightsOrObjects()
     {
@@ -96,6 +128,20 @@ public sealed class SectorFormatTests
         await Assert.That(sector.Objects.Count).IsEqualTo(0);
         await Assert.That(sector.Tiles.Length).IsEqualTo(4096);
         await Assert.That(sector.HasRoofs).IsFalse();
+    }
+
+    [Test]
+    public async Task Parse_ResynchronizesSectorObjectStreamAfterStrayByte()
+    {
+        var firstObject = BuildMinimalWallMob();
+        var secondObject = BuildMinimalWallMob();
+        var bytes = BuildMinimalSectorWithObjects([.. firstObject, 0xFF], secondObject);
+
+        var sector = SectorFormat.ParseMemory(bytes);
+
+        await Assert.That(sector.Objects.Count).IsEqualTo(2);
+        await Assert.That(sector.Objects[0].Header.GameObjectType).IsEqualTo(ObjectType.Wall);
+        await Assert.That(sector.Objects[1].Header.GameObjectType).IsEqualTo(ObjectType.Wall);
     }
 
     [Test]

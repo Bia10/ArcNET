@@ -365,8 +365,11 @@ public static class EditorMapSceneRenderSpaceMath
             return renderX >= left && renderX <= left + 16d && renderY >= top && renderY <= top + 16d;
         }
 
-        var centerX = spriteBounds.MaxFrameCenterX;
-        var centerY = spriteBounds.MaxFrameCenterY;
+        var (centerX, centerY) = EditorMapFloorRenderBuilder.GetLayoutSpriteCenter(
+            obj.ObjectType,
+            obj.CurrentArtId,
+            spriteBounds
+        );
         var spriteLeft = obj.AnchorX - centerX;
         var spriteTop = obj.AnchorY - centerY;
         return renderX >= spriteLeft

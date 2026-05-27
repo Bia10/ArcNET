@@ -56,7 +56,7 @@ public sealed class EditorMapFloorRenderPreview
     public required IReadOnlyList<EditorMapTileOverlayRenderItem> Overlays { get; init; }
 
     /// <summary>
-    /// Render-ready sector light masks in the same normalized render space as <see cref="Tiles"/>.
+    /// Render-ready CE light-system masks in the same normalized render space as <see cref="Tiles"/>.
     /// </summary>
     public IReadOnlyList<EditorMapLightRenderItem> Lights { get; init; } = [];
 
@@ -69,6 +69,16 @@ public sealed class EditorMapFloorRenderPreview
     /// Unified render queue for <see cref="Tiles"/>, <see cref="Overlays"/>, <see cref="Objects"/>, and <see cref="Roofs"/>.
     /// </summary>
     public required IReadOnlyList<EditorMapRenderQueueItem> RenderQueue { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed object renders should expose editor-state tint diagnostics.
+    /// </summary>
+    public bool IncludeEditorObjectStateTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
+    /// </summary>
+    public bool IncludeFloorLightTint { get; init; }
 
     /// <summary>
     /// X offset applied to center/anchor coordinates when normalizing into the preview space.

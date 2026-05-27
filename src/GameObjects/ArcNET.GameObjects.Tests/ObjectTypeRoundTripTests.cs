@@ -43,9 +43,9 @@ public class ObjectTypeRoundTripTests
         obj.LightFlags = 3;
         obj.LightAid = TestArtId;
         obj.LightColor = TestColor;
-        obj.OverlayLightFlags = 1;
+        obj.OverlayLightFlags = [1];
         obj.OverlayLightAid = [11, 22];
-        obj.OverlayLightColor = 0x112233;
+        obj.OverlayLightColor = [0x112233];
         obj.ObjectFlags = ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory;
         obj.SpellFlags = SpellFlags.Invisible | SpellFlags.DetectingMagic | SpellFlags.Shielded;
         obj.BlockingMask = 0xAA;
@@ -619,6 +619,11 @@ public class ObjectTypeRoundTripTests
         var restored = ObjectCritter.Read(ref reader, bitmap, isPrototype: true);
 
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
+        await Assert.That(restored.BlitColor).IsEqualTo(TestColor);
+        await Assert.That(restored.LightColor).IsEqualTo(TestColor);
+        await Assert.That(restored.OverlayLightFlags).IsEquivalentTo([1]);
+        await Assert.That(restored.OverlayLightAid).IsEquivalentTo([11, 22]);
+        await Assert.That(restored.OverlayLightColor).IsEquivalentTo([0x112233]);
         await Assert
             .That(restored.ObjectFlags)
             .IsEqualTo(ObjectFlags.Flat | ObjectFlags.Translucent | ObjectFlags.Inventory);

@@ -98,6 +98,91 @@ public sealed class EditorMapSceneRenderSpaceMathTests
         await Assert.That(hit.Tile).IsEqualTo(new Location(0, 1));
     }
 
+    [Test]
+    public async Task HitTestScene_UsesCeWallLayoutCenterForObjectHits()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 42, Guid.NewGuid());
+        var sceneRender = new EditorMapFloorRenderPreview
+        {
+            MapName = "map01",
+            ViewMode = EditorMapSceneViewMode.TopDown,
+            TileWidthPixels = 512d,
+            TileHeightPixels = 512d,
+            WidthPixels = 512d,
+            HeightPixels = 512d,
+            Tiles =
+            [
+                new EditorMapFloorTileRenderItem
+                {
+                    SectorAssetPath = "maps/map01/sector_1.sec",
+                    MapTileX = 0,
+                    MapTileY = 0,
+                    Tile = new Location(0, 0),
+                    ArtId = new ArtId(100u),
+                    IsBlocked = false,
+                    HasLight = false,
+                    HasScript = false,
+                    DrawOrder = 0,
+                    CenterX = 256d,
+                    CenterY = 256d,
+                },
+            ],
+            Objects =
+            [
+                new EditorMapObjectRenderItem
+                {
+                    SectorAssetPath = "maps/map01/sector_1.sec",
+                    ObjectId = objectId,
+                    ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 2001, Guid.Empty),
+                    ObjectType = ObjectType.Wall,
+                    CurrentArtId = new ArtId(0x10000000u),
+                    MapTileX = 0,
+                    MapTileY = 0,
+                    Tile = new Location(0, 0),
+                    DrawOrder = 1,
+                    AnchorX = 100d,
+                    AnchorY = 100d,
+                    SpriteBounds = new EditorMapObjectSpriteBounds
+                    {
+                        MaxFrameWidth = 100,
+                        MaxFrameHeight = 80,
+                        MaxFrameCenterX = 30,
+                        MaxFrameCenterY = 40,
+                    },
+                    IsTileGridSnapped = true,
+                    Rotation = 0f,
+                    RotationPitch = 0f,
+                },
+            ],
+            Overlays = [],
+            Roofs = [],
+            RenderQueue = [],
+        };
+        var viewportState = EditorMapSceneRenderSpaceMath.CreateViewportState(
+            sceneRender,
+            new EditorProjectMapCameraState
+            {
+                CenterTileX = 0d,
+                CenterTileY = 0d,
+                Zoom = 1d,
+            }
+        );
+        var layout = EditorMapSceneRenderSpaceMath.CreateViewportLayout(
+            sceneRender,
+            viewportWidth: 512d,
+            viewportHeight: 512d,
+            viewportState
+        );
+        var viewportX = EditorMapSceneRenderSpaceMath.RenderToViewportX(layout, 190d);
+        var viewportY = EditorMapSceneRenderSpaceMath.RenderToViewportY(layout, 100d);
+
+        var hit = EditorMapSceneRenderSpaceMath.HitTestScene(sceneRender, layout, viewportX, viewportY);
+
+        await Assert.That(hit).IsNotNull();
+        await Assert.That(hit!.ObjectHits.Count).IsEqualTo(1);
+        await Assert.That(hit.ObjectHits[0].ObjectId).IsEqualTo(objectId);
+    }
+
     private static EditorMapFloorRenderPreview CreateIsometricSceneRender()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 41, Guid.NewGuid());
