@@ -161,10 +161,12 @@ namespace ArcNET.Core.Primitives
         public byte B { get; init; }
         public byte G { get; init; }
         public byte R { get; init; }
+        public int ToPackedRgb() { }
         public override string ToString() { }
         public string ToString(string? format, System.IFormatProvider? provider) { }
         public bool TryFormat(System.Span<char> dest, out int written, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) { }
         public void Write(ref ArcNET.Core.SpanWriter writer) { }
+        public static ArcNET.Core.Primitives.Color FromPackedRgb(int packedColor) { }
         public static ArcNET.Core.Primitives.Color Read(ref ArcNET.Core.SpanReader reader) { }
         public static ArcNET.Core.Primitives.Color ReadRgba(ref ArcNET.Core.SpanReader reader) { }
     }
@@ -851,6 +853,7 @@ namespace ArcNET.Formats
                 "ProtoOrData1",
                 "Id"})]
         public static System.ValueTuple<short, int, System.Guid>[] GetObjectIdArrayFull(this ArcNET.Formats.ObjectProperty property) { }
+        public static ArcNET.Core.Primitives.Color GetPackedRgbColor(this ArcNET.Formats.ObjectProperty property) { }
         public static ArcNET.Formats.ObjectPropertyScript[] GetScriptArray(this ArcNET.Formats.ObjectProperty property) { }
         public static string GetString(this ArcNET.Formats.ObjectProperty property) { }
         public static uint[] GetUInt32Array(this ArcNET.Formats.ObjectProperty property) { }
@@ -866,6 +869,7 @@ namespace ArcNET.Formats
                 "OidType",
                 "ProtoOrData1",
                 "Id"})] System.ReadOnlySpan<System.ValueTuple<short, int, System.Guid>> ids) { }
+        public static ArcNET.Formats.ObjectProperty WithPackedRgbColor(this ArcNET.Formats.ObjectProperty property, ArcNET.Core.Primitives.Color value) { }
         public static ArcNET.Formats.ObjectProperty WithScriptArray(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<ArcNET.Formats.ObjectPropertyScript> scripts) { }
         public static ArcNET.Formats.ObjectProperty WithString(this ArcNET.Formats.ObjectProperty property, string value) { }
         public static ArcNET.Formats.ObjectProperty WithUInt32Array(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<uint> values) { }
@@ -880,6 +884,7 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.ObjectProperty ForInt64Array(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<long> values) { }
         public static ArcNET.Formats.ObjectProperty ForLocation(ArcNET.GameObjects.ObjectField field, int tileX, int tileY) { }
         public static ArcNET.Formats.ObjectProperty ForObjectIdArray(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<System.Guid> ids) { }
+        public static ArcNET.Formats.ObjectProperty ForPackedRgbColor(ArcNET.GameObjects.ObjectField field, ArcNET.Core.Primitives.Color value) { }
         public static ArcNET.Formats.ObjectProperty ForString(ArcNET.GameObjects.ObjectField field, string value) { }
     }
     public readonly struct ObjectPropertyScript : System.IEquatable<ArcNET.Formats.ObjectPropertyScript>
@@ -2393,8 +2398,8 @@ namespace ArcNET.GameObjects.Types
         public int[] OverlayBack { get; }
         public int[] OverlayFore { get; }
         public int[] OverlayLightAid { get; }
-        public int OverlayLightColor { get; }
-        public int OverlayLightFlags { get; }
+        public int[] OverlayLightColor { get; }
+        public int[] OverlayLightFlags { get; }
         public int[] ResistanceIdx { get; }
         public ArcNET.GameObjects.GameObjectScript[] ScriptsIdx { get; }
         public ArcNET.Core.Primitives.ArtId Shadow { get; }
@@ -3148,6 +3153,7 @@ namespace ArcNET.Editor
     {
         public EditorArtPreviewOptions() { }
         public bool FlipVertically { get; init; }
+        public bool IsLightMask { get; init; }
         public int PaletteSlot { get; init; }
         public ArcNET.Editor.EditorArtPreviewPixelFormat PixelFormat { get; init; }
     }
@@ -3480,6 +3486,7 @@ namespace ArcNET.Editor
     public sealed class EditorMapFloorRenderRequest
     {
         public EditorMapFloorRenderRequest() { }
+        public ArcNET.Editor.EditorArtResolver? ArtResolver { get; init; }
         public bool IncludeBlockedTileOverlays { get; init; }
         public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeEmptyTiles { get; init; }
@@ -3491,6 +3498,7 @@ namespace ArcNET.Editor
         public double TileHeightPixels { get; init; }
         public double TileWidthPixels { get; init; }
         public ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
+        public ArcNET.Editor.EditorMapFloorRenderRequest WithArtResolver(ArcNET.Editor.EditorArtResolver? artResolver) { }
         public ArcNET.Editor.EditorMapFloorRenderRequest WithPreviewState(ArcNET.Editor.EditorProjectMapPreviewState previewState) { }
         public static ArcNET.Editor.EditorMapFloorRenderRequest CreateWorldEditPreset(ArcNET.Editor.EditorMapSceneViewMode viewMode = 1) { }
     }
@@ -3611,6 +3619,7 @@ namespace ArcNET.Editor
         public required string SectorAssetPath { get; init; }
         public uint? SuggestedTintColor { get; init; }
         public required ArcNET.Core.Primitives.Location Tile { get; init; }
+        public bool UseLightMaskTint { get; init; }
     }
     public enum EditorMapObjectAuxiliaryRenderLayer
     {
@@ -3665,6 +3674,13 @@ namespace ArcNET.Editor
         public override bool Equals(object? obj) { }
         public override int GetHashCode() { }
     }
+    public sealed class EditorMapObjectOverlayLightPreview
+    {
+        public EditorMapObjectOverlayLightPreview() { }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public ArcNET.Core.Primitives.Color? Color { get; init; }
+        public int Flags { get; init; }
+    }
     public sealed class EditorMapObjectPaletteSummary
     {
         public EditorMapObjectPaletteSummary() { }
@@ -3709,6 +3725,7 @@ namespace ArcNET.Editor
         public bool IsWading { get; }
         public ArcNET.Core.Primitives.ArtId LightAid { get; init; }
         public ArcNET.Core.Primitives.Color? LightColor { get; init; }
+        public int LightFlags { get; init; }
         public ArcNET.Core.Primitives.Location? Location { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ObjectId { get; init; }
         public required ArcNET.GameObjects.ObjectType ObjectType { get; init; }
@@ -3717,6 +3734,7 @@ namespace ArcNET.Editor
         public float OffsetZ { get; init; }
         public System.Collections.Generic.IReadOnlyList<int> OverlayBackArtIds { get; init; }
         public System.Collections.Generic.IReadOnlyList<int> OverlayForeArtIds { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectOverlayLightPreview> OverlayLights { get; init; }
         public required ArcNET.Core.Primitives.GameObjectGuid ProtoId { get; init; }
         public uint? ReactionColor { get; init; }
         public float Rotation { get; init; }
@@ -4026,6 +4044,7 @@ namespace ArcNET.Editor
         public int DeltaY { get; init; }
         public required int FrameIndex { get; init; }
         public required uint FrameRate { get; init; }
+        public int FramesPerRotation { get; init; }
         public required int Height { get; init; }
         public required byte[] PixelData { get; init; }
         public required ArcNET.Editor.EditorArtPreviewPixelFormat PixelFormat { get; init; }
@@ -4053,6 +4072,8 @@ namespace ArcNET.Editor
         public int DeltaX { get; init; }
         public int DeltaY { get; init; }
         public int FrameIndex { get; init; }
+        public uint FrameRate { get; init; }
+        public int FramesPerRotation { get; init; }
         public required int Height { get; init; }
         public int RotationIndex { get; init; }
         public required int Width { get; init; }
@@ -4353,6 +4374,7 @@ namespace ArcNET.Editor
         public EditorMapWorldEditShell() { }
         public required ArcNET.Editor.EditorProjectMapWorldEditActiveTool ActiveTool { get; init; }
         public bool HasTrackedPlacementPreview { get; }
+        public ArcNET.Formats.JmpFile? JumpPoints { get; init; }
         public required string MapName { get; init; }
         public required string MapViewStateId { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorSummary ObjectInspector { get; init; }

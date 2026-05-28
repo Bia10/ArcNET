@@ -1,4 +1,4 @@
-﻿using ArcNET.GameObjects;
+using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
 
@@ -56,11 +56,13 @@ public sealed class EditorObjectInspectorPaneSummary
                 ),
                 Create(EditorObjectInspectorPane.Generator, isApplicable: false, hasContract: true, unavailableReason),
                 Create(EditorObjectInspectorPane.Blending, isApplicable: false, hasContract: true, unavailableReason),
+                Create(EditorObjectInspectorPane.Container, isApplicable: false, hasContract: true, unavailableReason),
             ];
         }
 
         var isCritterTarget = objectType is ObjectType.Pc or ObjectType.Npc;
         var isGeneratorTarget = objectType is ObjectType.Npc;
+        var isContainerTarget = objectType is ObjectType.Container;
 
         return
         [
@@ -79,6 +81,12 @@ public sealed class EditorObjectInspectorPaneSummary
                 isApplicable: isGeneratorTarget,
                 hasContract: true,
                 isGeneratorTarget ? null : "Generator settings only apply to Npc targets."
+            ),
+            Create(
+                EditorObjectInspectorPane.Container,
+                isApplicable: isContainerTarget,
+                hasContract: true,
+                isContainerTarget ? null : "Container settings only apply to Container targets."
             ),
             Create(EditorObjectInspectorPane.Blending, isApplicable: true, hasContract: true),
         ];

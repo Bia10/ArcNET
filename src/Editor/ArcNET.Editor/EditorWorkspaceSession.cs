@@ -1937,6 +1937,98 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Returns one typed container-pane contract for the current persisted inspector target on one tracked map view.
+    /// The summary reflects the current staged object or proto state.
+    /// </summary>
+    public EditorObjectInspectorContainerSummary GetTrackedObjectInspectorContainerSummary(string mapViewStateId)
+    {
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+
+        return CreateTrackedObjectInspectorContainerSummary(inspector);
+    }
+
+    /// <summary>
+    /// Returns one typed container-pane contract from the supplied pre-resolved inspector.
+    /// </summary>
+    public EditorObjectInspectorContainerSummary GetTrackedObjectInspectorContainerSummary(
+        EditorObjectInspectorSummary inspector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+        return CreateTrackedObjectInspectorContainerSummary(inspector);
+    }
+
+    /// <summary>
+    /// Stages one typed container-pane update for the current persisted inspector target on one tracked map view.
+    /// Selected-object targets rewrite the owning sector object in place; shared-proto targets rewrite the proto asset.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetTrackedObjectInspectorContainer(
+        string mapViewStateId,
+        EditorObjectInspectorContainerUpdate update
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var inspector = GetTrackedObjectInspectorSummary(mapViewStateId);
+        if (!inspector.CanInspect)
+        {
+            throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one inspectable object or shared proto target."
+            );
+        }
+
+        if (inspector.TargetObjectType is not ObjectType.Container)
+            throw new InvalidOperationException("Container settings only apply to Container targets.");
+
+        return inspector.TargetKind switch
+        {
+            EditorObjectInspectorTargetKind.SelectedObject
+                when inspector.SelectionSummary is not null && inspector.SelectedObject is not null =>
+                StageTrackedSelectedInspectorObjectChange(
+                    inspector.SelectionSummary,
+                    inspector.SelectedObject,
+                    mob => ApplyContainerUpdate(mob, update)
+                ),
+            EditorObjectInspectorTargetKind.ProtoDefinition when inspector.Proto is not null => StageProtoChange(
+                NormalizeAssetPath(inspector.Proto.Asset.AssetPath),
+                proto => ApplyContainerUpdate(proto, update)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Tracked map view '{mapViewStateId}' does not currently resolve to one writable inspector target."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Stages one typed container-pane update for the proto-backed inspector target identified by <paramref name="protoNumber"/>.
+    /// Returns <see langword="null"/> when the requested update already matches the current staged state.
+    /// </summary>
+    public EditorSessionChange? SetProtoInspectorContainer(int protoNumber, EditorObjectInspectorContainerUpdate update)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(protoNumber);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (!update.HasChanges)
+            return null;
+
+        var protoAsset =
+            Workspace.Index.FindProtoDefinition(protoNumber)
+            ?? throw new InvalidOperationException(
+                $"No loaded proto-backed inspector target matched proto number {protoNumber}."
+            );
+        var normalizedPath = NormalizeAssetPath(protoAsset.AssetPath);
+
+        if (GetCurrentProtoAsset(normalizedPath).Header.GameObjectType is not ObjectType.Container)
+            throw new InvalidOperationException("Container settings only apply to Container targets.");
+
+        return StageProtoChange(normalizedPath, proto => ApplyContainerUpdate(proto, update));
+    }
+
+    /// <summary>
     /// Returns one typed script-attachments contract for the current persisted inspector target on one tracked map view.
     /// The summary reflects the current staged object/proto and script-editor state.
     /// </summary>
@@ -1971,6 +2063,10 @@ public sealed class EditorWorkspaceSession
             inspector,
             GetCurrentTrackedObjectInspectorProperties(inspector)
         );
+
+    private EditorObjectInspectorContainerSummary CreateTrackedObjectInspectorContainerSummary(
+        EditorObjectInspectorSummary inspector
+    ) => EditorObjectInspectorContainerSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
 
     private EditorObjectInspectorLightSummary CreateTrackedObjectInspectorLightSummary(
         EditorObjectInspectorSummary inspector
@@ -3271,6 +3367,7 @@ public sealed class EditorWorkspaceSession
                 EditorObjectInspectorLightSummary objectInspectorLight = null!;
                 EditorObjectInspectorGeneratorSummary objectInspectorGenerator = null!;
                 EditorObjectInspectorBlendingSummary objectInspectorBlending = null!;
+                EditorObjectInspectorContainerSummary objectInspectorContainer = null!;
                 EditorMapObjectPaletteSummary objectPalette = null!;
                 EditorMapTerrainToolSummary terrainTool = null!;
                 EditorMapTerrainPaletteSummary terrainPalette = null!;
@@ -3297,6 +3394,10 @@ public sealed class EditorWorkspaceSession
                                     ),
                                 () =>
                                     objectInspectorBlending = CreateTrackedObjectInspectorBlendingSummary(
+                                        objectInspector
+                                    ),
+                                () =>
+                                    objectInspectorContainer = CreateTrackedObjectInspectorContainerSummary(
                                         objectInspector
                                     ),
                                 () =>
@@ -3358,6 +3459,7 @@ public sealed class EditorWorkspaceSession
                     ObjectInspectorLight = objectInspectorLight,
                     ObjectInspectorGenerator = objectInspectorGenerator,
                     ObjectInspectorBlending = objectInspectorBlending,
+                    ObjectInspectorContainer = objectInspectorContainer,
                     JumpPoints = Workspace.FindJumpFile($"maps/{mapViewState.MapName}/map.jmp"),
                 };
             },
@@ -10599,6 +10701,22 @@ public sealed class EditorWorkspaceSession
         return changed ? updated : null;
     }
 
+    private static ProtoData? ApplyContainerUpdate(ProtoData proto, EditorObjectInspectorContainerUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(proto);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = proto;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerLockDifficulty, update.LockDifficulty);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerKeyId, update.KeyId);
+        if (update.ContainerFlags is { } flags)
+            changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerFlags, (int)flags);
+
+        return changed ? updated : null;
+    }
+
     private static ProtoData? ApplyLightUpdate(ProtoData proto, EditorObjectInspectorLightUpdate update)
     {
         ArgumentNullException.ThrowIfNull(proto);
@@ -10758,6 +10876,22 @@ public sealed class EditorWorkspaceSession
             25,
             CreateCritterSpellTechUpdates(update)
         );
+
+        return changed ? updated : null;
+    }
+
+    private static MobData? ApplyContainerUpdate(MobData mob, EditorObjectInspectorContainerUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var updated = mob;
+        var changed = false;
+
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerLockDifficulty, update.LockDifficulty);
+        changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerKeyId, update.KeyId);
+        if (update.ContainerFlags is { } flags)
+            changed |= ApplyInt32PropertyUpdate(ref updated, ObjectField.ContainerFlags, (int)flags);
 
         return changed ? updated : null;
     }

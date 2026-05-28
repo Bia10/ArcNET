@@ -184,6 +184,11 @@ public sealed class EditorMapWorldEditShell
     public required EditorObjectInspectorBlendingSummary ObjectInspectorBlending { get; init; }
 
     /// <summary>
+    /// Typed container contract for the shell's current inspector target.
+    /// </summary>
+    public required EditorObjectInspectorContainerSummary ObjectInspectorContainer { get; init; }
+
+    /// <summary>
     /// Optional loaded jump points (portals) for the current map.
     /// </summary>
     public JmpFile? JumpPoints { get; init; }

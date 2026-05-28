@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Stable pane identifiers for the host-facing object/proto inspector shell.
@@ -12,4 +12,5 @@ public enum EditorObjectInspectorPane
     CritterProgression = 4,
     Generator = 5,
     Blending = 6,
+    Container = 7,
 }
