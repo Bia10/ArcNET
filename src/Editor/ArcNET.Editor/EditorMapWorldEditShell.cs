@@ -1,4 +1,6 @@
-﻿namespace ArcNET.Editor;
+using ArcNET.Formats;
+
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Request used when composing one opinionated tracked world-edit shell for a host map editor.
@@ -180,6 +182,11 @@ public sealed class EditorMapWorldEditShell
     /// Typed blending contract for the shell's current inspector target.
     /// </summary>
     public required EditorObjectInspectorBlendingSummary ObjectInspectorBlending { get; init; }
+
+    /// <summary>
+    /// Optional loaded jump points (portals) for the current map.
+    /// </summary>
+    public JmpFile? JumpPoints { get; init; }
 
     /// <summary>
     /// Returns <see langword="true"/> when the shell includes one live tracked placement preview overlay.

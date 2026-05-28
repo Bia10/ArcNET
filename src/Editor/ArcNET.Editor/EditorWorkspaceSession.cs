@@ -3358,6 +3358,7 @@ public sealed class EditorWorkspaceSession
                     ObjectInspectorLight = objectInspectorLight,
                     ObjectInspectorGenerator = objectInspectorGenerator,
                     ObjectInspectorBlending = objectInspectorBlending,
+                    JumpPoints = Workspace.FindJumpFile($"maps/{mapViewState.MapName}/map.jmp"),
                 };
             },
             cancellationToken
