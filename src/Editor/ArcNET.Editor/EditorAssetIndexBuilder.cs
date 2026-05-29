@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -44,15 +44,25 @@ internal static partial class EditorAssetIndexBuilder
         var mapPropertiesDetailsByAssetPath = BuildMapPropertiesDetailsByAssetPath(gameData, assetsByPath);
         var terrainDetailsByAssetPath = BuildTerrainDetailsByAssetPath(gameData, assetsByPath);
         var facadeWalkDetailsByAssetPath = BuildFacadeWalkDetailsByAssetPath(gameData, assetsByPath);
-        var protoReferencesByNumber = EditorAssetReferenceCounter.CountProtoReferences(gameData, assetsByPath);
-        var scriptReferencesById = EditorAssetReferenceCounter.CountScriptReferences(gameData, assetsByPath);
-        var artReferencesById = EditorAssetReferenceCounter.CountArtReferences(gameData, assetsByPath);
+        EditorAssetReferenceCounter.CountReferences(
+            gameData,
+            assetsByPath,
+            out var protoReferencesByNumber,
+            out var protoReferencesByAssetPath,
+            out var scriptReferencesById,
+            out var scriptReferencesByAssetPath,
+            out var artReferencesById,
+            out var artReferencesByAssetPath
+        );
         var assetDependencySummariesByAssetPath = BuildAssetDependencySummaries(
             assets.Entries,
             mapNameByAssetPath,
             protoReferencesByNumber,
+            protoReferencesByAssetPath,
             scriptReferencesById,
-            artReferencesById
+            scriptReferencesByAssetPath,
+            artReferencesById,
+            artReferencesByAssetPath
         );
 
         var index = EditorAssetIndex.Create(
@@ -205,40 +215,13 @@ internal static partial class EditorAssetIndexBuilder
         IReadOnlyList<EditorAssetEntry> assets,
         IReadOnlyDictionary<string, string> mapNameByAssetPath,
         IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>> protoReferencesByNumber,
+        IReadOnlyDictionary<string, IReadOnlyList<EditorProtoReference>> protoReferencesByAssetPath,
         IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> scriptReferencesById,
-        IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> artReferencesById
+        IReadOnlyDictionary<string, IReadOnlyList<EditorScriptReference>> scriptReferencesByAssetPath,
+        IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> artReferencesById,
+        IReadOnlyDictionary<string, IReadOnlyList<EditorArtReference>> artReferencesByAssetPath
     )
     {
-        var protoReferencesByAssetPath = protoReferencesByNumber
-            .Values.SelectMany(static references => references)
-            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group =>
-                    (IReadOnlyList<EditorProtoReference>)
-                        group.OrderBy(static reference => reference.ProtoNumber).ToArray(),
-                StringComparer.OrdinalIgnoreCase
-            );
-        var scriptReferencesByAssetPath = scriptReferencesById
-            .Values.SelectMany(static references => references)
-            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group =>
-                    (IReadOnlyList<EditorScriptReference>)
-                        group.OrderBy(static reference => reference.ScriptId).ToArray(),
-                StringComparer.OrdinalIgnoreCase
-            );
-        var artReferencesByAssetPath = artReferencesById
-            .Values.SelectMany(static references => references)
-            .GroupBy(static reference => reference.Asset.AssetPath, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group =>
-                    (IReadOnlyList<EditorArtReference>)group.OrderBy(static reference => reference.ArtId).ToArray(),
-                StringComparer.OrdinalIgnoreCase
-            );
-
         return assets.ToDictionary(
             asset => asset.AssetPath,
             asset =>
@@ -765,16 +748,31 @@ internal static partial class EditorAssetIndexBuilder
 
     private static bool TryGetProtoNumberFromAssetPath(string assetPath, out int protoNumber)
     {
+        if (!assetPath.EndsWith(".pro", StringComparison.OrdinalIgnoreCase))
+        {
+            protoNumber = 0;
+            return false;
+        }
         return TryGetAssetNumberFromPath(assetPath, s_protoAssetPathPattern, out protoNumber);
     }
 
     private static bool TryGetScriptIdFromAssetPath(string assetPath, out int scriptId)
     {
+        if (!assetPath.EndsWith(".scr", StringComparison.OrdinalIgnoreCase))
+        {
+            scriptId = 0;
+            return false;
+        }
         return TryGetAssetNumberFromPath(assetPath, s_scriptAssetPathPattern, out scriptId);
     }
 
     private static bool TryGetDialogIdFromAssetPath(string assetPath, out int dialogId)
     {
+        if (!assetPath.EndsWith(".dlg", StringComparison.OrdinalIgnoreCase))
+        {
+            dialogId = 0;
+            return false;
+        }
         return TryGetAssetNumberFromPath(assetPath, s_dialogAssetPathPattern, out dialogId);
     }
 
