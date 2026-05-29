@@ -768,6 +768,15 @@ namespace ArcNET.Formats
         public static byte[] WriteToArray(in ArcNET.Formats.MobData value) { }
         public static void WriteToFile(in ArcNET.Formats.MobData value, string path) { }
     }
+    public static class MobGoldResolver
+    {
+        public static System.Collections.Generic.IReadOnlyList<System.Guid> GetContainerInventoryObjectIds(ArcNET.Formats.MobData mob) { }
+        public static ArcNET.Core.Primitives.GameObjectGuid? GetCritterGoldHandle(ArcNET.Formats.MobData mob) { }
+        public static int? GetGoldQuantity(ArcNET.Formats.MobData mob) { }
+        public static int? ResolveContainerGoldQuantity(ArcNET.Formats.MobData container, System.Func<ArcNET.Core.Primitives.GameObjectGuid, ArcNET.Formats.MobData?> mobResolver) { }
+        public static int? ResolveCritterGoldQuantity(ArcNET.Formats.MobData critter, System.Func<ArcNET.Core.Primitives.GameObjectGuid, ArcNET.Formats.MobData?> mobResolver) { }
+        public static int? ResolveGoldQuantity(ArcNET.Core.Primitives.GameObjectGuid goldHandle, System.Func<ArcNET.Core.Primitives.GameObjectGuid, ArcNET.Formats.MobData?> mobResolver) { }
+    }
     public sealed class MobileMdFile
     {
         public MobileMdFile() { }
@@ -847,6 +856,7 @@ namespace ArcNET.Formats
                 "X",
                 "Y"})]
         public static System.ValueTuple<int, int> GetLocation(this ArcNET.Formats.ObjectProperty property) { }
+        public static ArcNET.Core.Primitives.GameObjectGuid GetObjectId(this ArcNET.Formats.ObjectProperty property) { }
         public static System.Guid[] GetObjectIdArray(this ArcNET.Formats.ObjectProperty property) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "OidType",
@@ -864,6 +874,7 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.ObjectProperty WithInt64(this ArcNET.Formats.ObjectProperty property, long value) { }
         public static ArcNET.Formats.ObjectProperty WithInt64Array(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<long> values) { }
         public static ArcNET.Formats.ObjectProperty WithLocation(this ArcNET.Formats.ObjectProperty property, int x, int y) { }
+        public static ArcNET.Formats.ObjectProperty WithObjectId(this ArcNET.Formats.ObjectProperty property, ArcNET.Core.Primitives.GameObjectGuid value) { }
         public static ArcNET.Formats.ObjectProperty WithObjectIdArray(this ArcNET.Formats.ObjectProperty property, System.ReadOnlySpan<System.Guid> ids) { }
         public static ArcNET.Formats.ObjectProperty WithObjectIdArrayFull(this ArcNET.Formats.ObjectProperty property, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "OidType",
@@ -883,6 +894,7 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.ObjectProperty ForInt64(ArcNET.GameObjects.ObjectField field, long value) { }
         public static ArcNET.Formats.ObjectProperty ForInt64Array(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<long> values) { }
         public static ArcNET.Formats.ObjectProperty ForLocation(ArcNET.GameObjects.ObjectField field, int tileX, int tileY) { }
+        public static ArcNET.Formats.ObjectProperty ForObjectId(ArcNET.GameObjects.ObjectField field, ArcNET.Core.Primitives.GameObjectGuid value) { }
         public static ArcNET.Formats.ObjectProperty ForObjectIdArray(ArcNET.GameObjects.ObjectField field, System.ReadOnlySpan<System.Guid> ids) { }
         public static ArcNET.Formats.ObjectProperty ForPackedRgbColor(ArcNET.GameObjects.ObjectField field, ArcNET.Core.Primitives.Color value) { }
         public static ArcNET.Formats.ObjectProperty ForString(ArcNET.GameObjects.ObjectField field, string value) { }
@@ -2422,10 +2434,10 @@ namespace ArcNET.GameObjects.Types
     public class ObjectCritter : ArcNET.GameObjects.Types.ObjectCommon
     {
         public ObjectCritter() { }
-        public int CritterArrows { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterArrows { get; }
         public int CritterAutoLevelScheme { get; }
         public int[] CritterBasicSkill { get; }
-        public int CritterBullets { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterBullets { get; }
         public int CritterCritHitChart { get; }
         public long CritterDeathTime { get; }
         public int CritterDescriptionUnknown { get; }
@@ -2438,12 +2450,12 @@ namespace ArcNET.GameObjects.Types
         public ArcNET.GameObjects.CritterFlags2 CritterFlags2 { get; }
         public ArcNET.Core.Primitives.GameObjectGuid CritterFleeingFrom { get; }
         public ArcNET.Core.Primitives.GameObjectGuid[] CritterFollowers { get; }
-        public int CritterFuel { get; }
-        public int CritterGold { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterFuel { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterGold { get; }
         public ArcNET.Core.Primitives.GameObjectGuid[] CritterInventoryList { get; }
         public int CritterInventorySource { get; }
         public int CritterPortrait { get; }
-        public int CritterPowerCells { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid CritterPowerCells { get; }
         public int[] CritterSpellTech { get; }
         public int[] CritterStatBase { get; }
         public int[] CritterTechSkill { get; }
@@ -2826,7 +2838,10 @@ namespace ArcNET.Editor
         public ArcNET.Editor.CharacterBuilder WithBasicSkills(System.ReadOnlySpan<int> skills) { }
         public ArcNET.Editor.CharacterBuilder WithFatigue(int pts, int adj = 0) { }
         public ArcNET.Editor.CharacterBuilder WithFollowers(System.ReadOnlySpan<System.Guid> followerIds) { }
+        [System.Obsolete("CritterGold is a handle, not a quantity. Use WithGoldHandle for MOB data or edit " +
+            "the mobile.mdy character record.")]
         public ArcNET.Editor.CharacterBuilder WithGold(int amount) { }
+        public ArcNET.Editor.CharacterBuilder WithGoldHandle(ArcNET.Core.Primitives.GameObjectGuid goldHandle) { }
         public ArcNET.Editor.CharacterBuilder WithHitPoints(int pts, int adj = 0) { }
         public ArcNET.Editor.CharacterBuilder WithHpDamage(int damage) { }
         public ArcNET.Editor.CharacterBuilder WithInventory(System.ReadOnlySpan<System.Guid> itemIds) { }
@@ -4446,6 +4461,7 @@ namespace ArcNET.Editor
     public sealed class EditorObjectInspectorContainerSummary
     {
         public EditorObjectInspectorContainerSummary() { }
+        public int? ContainedGoldQuantity { get; init; }
         public ArcNET.GameObjects.ContainerFlags ContainerFlags { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorSummary Inspector { get; init; }
         public System.Collections.Generic.IReadOnlyList<System.Guid> Inventory { get; init; }
@@ -4466,6 +4482,8 @@ namespace ArcNET.Editor
         public EditorObjectInspectorCritterProgressionSummary() { }
         public int Age { get; init; }
         public int Alignment { get; init; }
+        public ArcNET.Core.Primitives.GameObjectGuid? CarriedGoldHandle { get; init; }
+        public int? CarriedGoldQuantity { get; init; }
         public int ExperiencePoints { get; init; }
         public int FatePoints { get; init; }
         public int FatigueAdjustment { get; init; }
