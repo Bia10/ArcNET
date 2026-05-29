@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 
 namespace ArcNET.GameData;
 
@@ -34,5 +34,8 @@ public sealed class GameDataLoadEntry(
     ) => await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
 
     private static string NormalizeSourcePath(string sourcePath) =>
-        sourcePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        sourcePath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }

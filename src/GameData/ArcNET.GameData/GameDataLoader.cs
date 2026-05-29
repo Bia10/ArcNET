@@ -418,5 +418,8 @@ public static class GameDataLoader
     );
 
     private static string NormalizeSourcePath(string sourcePath) =>
-        sourcePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        sourcePath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }
