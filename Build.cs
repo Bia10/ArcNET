@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 
 var repoRoot = RepoRoot();
-var solutionPath = Path.Combine(repoRoot, "ArcNET.Build.slnx");
+var solutionPath = Path.Combine(repoRoot, "ArcNET.slnx");
 var packageVersionManifestPath = Path.Combine(repoRoot, "src", "ArcNET.PackageVersions.props");
 var benchmarkProject = Path.Combine(repoRoot, "src", "Benchmarks", "ArcNET.Benchmarks", "ArcNET.Benchmarks.csproj");
 var docTestProject = Path.Combine(repoRoot, "src", "DocTest", "ArcNET.DocTest", "ArcNET.DocTest.csproj");

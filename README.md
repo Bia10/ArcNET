@@ -111,7 +111,7 @@ ArcNET.App (exe)
 
 ```shell
 dotnet tool restore
-dotnet build ArcNET.Build.slnx -c Release
+dotnet build ArcNET.slnx -c Release
 ```
 
 ## NuGet Packaging
@@ -139,9 +139,9 @@ dotnet dotnet-coverage collect "dotnet run --project src/Core/ArcNET.Core.Tests 
 ## Formatting
 
 ```shell
-dotnet csharpier format .                    # whitespace + brace style (run first)
-dotnet format style ArcNET.Build.slnx        # naming conventions, usings
-dotnet format analyzers ArcNET.Build.slnx    # Roslyn analyzer violations
+dotnet csharpier format .               # whitespace + brace style (run first)
+dotnet format style ArcNET.slnx         # naming conventions, usings
+dotnet format analyzers ArcNET.slnx     # Roslyn analyzer violations
 ```
 
 ---

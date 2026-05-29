@@ -41,7 +41,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Build
-        run: dotnet build ArcNET.Build.slnx -c Release
+        run: dotnet build ArcNET.slnx -c Release
 
       - name: Test
         run: dotnet Build.cs test
@@ -98,6 +98,9 @@ jobs:
       - name: Restore tools
         run: dotnet tool restore
 
+      - name: Build coverage binaries
+        run: dotnet build ArcNET.slnx -c Release
+
       - name: Collect coverage
         shell: pwsh
         run: |
@@ -116,7 +119,8 @@ jobs:
           )
 
           foreach ($coverageRun in $coverageRuns) {
-            dotnet dotnet-coverage collect "dotnet run --project $($coverageRun.Project) -c Release" --output "artifacts/TestResults/$($coverageRun.Name).coverage.cobertura.xml" --output-format cobertura
+            Write-Host "Collecting coverage for $($coverageRun.Name) from $($coverageRun.Project)"
+            dotnet dotnet-coverage collect "dotnet run --project $($coverageRun.Project) -c Release --no-build --no-restore" --output "artifacts/TestResults/$($coverageRun.Name).coverage.cobertura.xml" --output-format cobertura
             if ($LASTEXITCODE -ne 0) {
               exit $LASTEXITCODE
             }
@@ -159,7 +163,7 @@ jobs:
         run: dotnet csharpier check .
 
       - name: dotnet format style
-        run: dotnet format style ArcNET.Build.slnx --verify-no-changes
+        run: dotnet format style ArcNET.slnx --verify-no-changes
 
       - name: dotnet format analyzers
-        run: dotnet format analyzers ArcNET.Build.slnx --verify-no-changes
+        run: dotnet format analyzers ArcNET.slnx --verify-no-changes
