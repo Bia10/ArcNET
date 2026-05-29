@@ -1351,7 +1351,7 @@ public sealed class EditorWorkspaceSession
                 mapViewState.MapName,
                 effectiveWorkspace.ResolveMapRenderArt
             );
-            selectedObjects = ResolveSelectedObjectPreviews(scenePreview, selection);
+            selectedObjects = ResolveSelectedObjectPreviews(effectiveWorkspace, scenePreview, selection);
             sectorAssetPaths = selectedObjects
                 .Select(candidate => FindSceneObjectSectorAssetPath(scenePreview, candidate.ObjectId))
                 .Where(static assetPath => assetPath is not null)
@@ -1453,6 +1453,49 @@ public sealed class EditorWorkspaceSession
         if (selectionSummary.SelectedObjects.Count == 1)
         {
             var selectedObject = selectionSummary.SelectedObjects[0];
+            var targetObjectId = selectionSummary.Selection.ObjectId;
+            if (targetObjectId is not null && targetObjectId != selectedObject.ObjectId)
+            {
+                var targetIdValue = targetObjectId.Value;
+                MobData? subItemMob = null;
+                foreach (var (mobAssetPath, mobs) in Workspace.GameData.MobsBySource)
+                {
+                    foreach (var mob in mobs)
+                    {
+                        if (mob.Header.ObjectId.Id == targetIdValue.Id)
+                        {
+                            subItemMob = mob;
+                            break;
+                        }
+                    }
+                    if (subItemMob is not null)
+                        break;
+                }
+
+                if (subItemMob is not null)
+                {
+                    var subItemObject = CreateFallbackObjectPreview(subItemMob);
+                    var subProtoNumber = subItemObject.ProtoId.GetProtoNumber();
+                    var subProtoEntry = subProtoNumber.HasValue
+                        ? FindCurrentObjectInspectorProtoEntry(subProtoNumber.Value)
+                        : null;
+
+                    return new EditorObjectInspectorSummary
+                    {
+                        TargetKind = EditorObjectInspectorTargetKind.SelectedObject,
+                        SelectionSummary = selectionSummary,
+                        SelectedObject = subItemObject,
+                        Proto = subProtoEntry,
+                        ProtoNumber = subProtoNumber,
+                        TargetObjectType = subItemObject.ObjectType,
+                        Panes = EditorObjectInspectorPaneSummary.CreateList(
+                            EditorObjectInspectorTargetKind.SelectedObject,
+                            subItemObject.ObjectType
+                        ),
+                    };
+                }
+            }
+
             var protoNumber = selectedObject.ProtoId.GetProtoNumber();
             var protoEntry = protoNumber.HasValue ? FindCurrentObjectInspectorProtoEntry(protoNumber.Value) : null;
 
@@ -2058,15 +2101,29 @@ public sealed class EditorWorkspaceSession
 
     private EditorObjectInspectorCritterProgressionSummary CreateTrackedObjectInspectorCritterProgressionSummary(
         EditorObjectInspectorSummary inspector
-    ) =>
-        EditorObjectInspectorCritterProgressionSummary.Create(
+    )
+    {
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
+
+        return EditorObjectInspectorCritterProgressionSummary.Create(
             inspector,
-            GetCurrentTrackedObjectInspectorProperties(inspector)
+            GetCurrentTrackedObjectInspectorProperties(inspector),
+            objectId => FindWorkspaceMobByObjectId(effectiveWorkspace, objectId)
         );
+    }
 
     private EditorObjectInspectorContainerSummary CreateTrackedObjectInspectorContainerSummary(
         EditorObjectInspectorSummary inspector
-    ) => EditorObjectInspectorContainerSummary.Create(inspector, GetCurrentTrackedObjectInspectorProperties(inspector));
+    )
+    {
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
+
+        return EditorObjectInspectorContainerSummary.Create(
+            inspector,
+            GetCurrentTrackedObjectInspectorProperties(inspector),
+            objectId => FindWorkspaceMobByObjectId(effectiveWorkspace, objectId)
+        );
+    }
 
     private EditorObjectInspectorLightSummary CreateTrackedObjectInspectorLightSummary(
         EditorObjectInspectorSummary inspector
@@ -9994,10 +10051,12 @@ public sealed class EditorWorkspaceSession
     }
 
     private static IReadOnlyList<EditorMapObjectPreview> ResolveSelectedObjectPreviews(
+        EditorWorkspace workspace,
         EditorMapScenePreview scenePreview,
         EditorProjectMapSelectionState selection
     )
     {
+        ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(scenePreview);
         ArgumentNullException.ThrowIfNull(selection);
 
@@ -10028,13 +10087,67 @@ public sealed class EditorWorkspaceSession
 
         var tile = selection.Tile.Value;
         var selectedObjectIds = selection.GetSelectedObjectIds();
-        return selectedObjectIds.Count == 0
-            ? []
-            : sector
-                .Objects.Where(candidate =>
-                    candidate.Location == tile && selectedObjectIds.Contains(candidate.ObjectId)
-                )
-                .ToArray();
+        if (selectedObjectIds.Count == 0)
+            return [];
+
+        var directObjects = sector
+            .Objects.Where(candidate => candidate.Location == tile && selectedObjectIds.Contains(candidate.ObjectId))
+            .ToArray();
+
+        if (directObjects.Length > 0)
+            return directObjects;
+
+        var fullSector = workspace.FindSector(selection.SectorAssetPath);
+        if (fullSector is not null)
+        {
+            var matchedParentIds = new List<GameObjectGuid>();
+            foreach (var mob in fullSector.Objects)
+            {
+                var mobLoc = mob.GetProperty(ObjectField.Location)?.GetLocation();
+                if (mobLoc == (tile.X, tile.Y))
+                {
+                    var invField =
+                        mob.Header.GameObjectType == ObjectType.Container
+                            ? ObjectField.ContainerInventoryListIdx
+                            : (
+                                mob.Header.GameObjectType is ObjectType.Pc or ObjectType.Npc
+                                    ? ObjectField.CritterInventoryListIdx
+                                    : (ObjectField?)null
+                            );
+
+                    if (invField is not null)
+                    {
+                        var invProp = mob.GetProperty(invField.Value);
+                        if (invProp is not null && invProp.RawBytes.Length > 1)
+                        {
+                            try
+                            {
+                                var items = invProp.GetObjectIdArrayFull();
+                                if (items.Any(item => selectedObjectIds.Any(selId => selId.Id == item.Id)))
+                                {
+                                    matchedParentIds.Add(mob.Header.ObjectId);
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore decode failures
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (matchedParentIds.Count > 0)
+            {
+                return sector
+                    .Objects.Where(candidate =>
+                        candidate.Location == tile && matchedParentIds.Contains(candidate.ObjectId)
+                    )
+                    .ToArray();
+            }
+        }
+
+        return [];
     }
 
     private static bool CanFallbackTrackedObjectSelectionSummary(EditorProjectMapSelectionState selection)
@@ -10064,15 +10177,63 @@ public sealed class EditorWorkspaceSession
 
         var tile = selection.Tile.Value;
         var selectedObjectIds = selection.GetSelectedObjectIds();
-        return selectedObjectIds.Count == 0
-            ? []
-            : sector
-                .Objects.Where(candidate =>
-                    candidate.GetProperty(ObjectField.Location)?.GetLocation() == (tile.X, tile.Y)
-                    && selectedObjectIds.Contains(candidate.Header.ObjectId)
-                )
-                .Select(CreateFallbackObjectPreview)
-                .ToArray();
+        if (selectedObjectIds.Count == 0)
+            return [];
+
+        var directObjects = sector
+            .Objects.Where(candidate =>
+                candidate.GetProperty(ObjectField.Location)?.GetLocation() == (tile.X, tile.Y)
+                && selectedObjectIds.Contains(candidate.Header.ObjectId)
+            )
+            .Select(CreateFallbackObjectPreview)
+            .ToArray();
+
+        if (directObjects.Length > 0)
+            return directObjects;
+
+        var matchedParents = new List<MobData>();
+        foreach (var mob in sector.Objects)
+        {
+            var mobLoc = mob.GetProperty(ObjectField.Location)?.GetLocation();
+            if (mobLoc == (tile.X, tile.Y))
+            {
+                var invField =
+                    mob.Header.GameObjectType == ObjectType.Container
+                        ? ObjectField.ContainerInventoryListIdx
+                        : (
+                            mob.Header.GameObjectType is ObjectType.Pc or ObjectType.Npc
+                                ? ObjectField.CritterInventoryListIdx
+                                : (ObjectField?)null
+                        );
+
+                if (invField is not null)
+                {
+                    var invProp = mob.GetProperty(invField.Value);
+                    if (invProp is not null && invProp.RawBytes.Length > 1)
+                    {
+                        try
+                        {
+                            var items = invProp.GetObjectIdArrayFull();
+                            if (items.Any(item => selectedObjectIds.Any(selId => selId.Id == item.Id)))
+                            {
+                                matchedParents.Add(mob);
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore decode failures
+                        }
+                    }
+                }
+            }
+        }
+
+        if (matchedParents.Count > 0)
+        {
+            return matchedParents.Select(CreateFallbackObjectPreview).ToArray();
+        }
+
+        return [];
     }
 
     private static EditorMapObjectPreview CreateFallbackObjectPreview(MobData mob)
@@ -11396,9 +11557,26 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(selectedObject);
 
         var normalizedPath = NormalizeOptionalAssetPath(selectedObject.SourceAssetPath);
-        return normalizedPath is not null && Workspace.Assets.Find(normalizedPath)?.Format == FileFormat.Mob
-            ? normalizedPath
-            : null;
+        if (normalizedPath is not null && Workspace.Assets.Find(normalizedPath)?.Format == FileFormat.Mob)
+            return normalizedPath;
+
+        if (selectedObject.ObjectId.OidType == GameObjectGuid.OidTypeGuid)
+        {
+            foreach (var (mobAssetPath, mobs) in Workspace.GameData.MobsBySource)
+            {
+                foreach (var mob in mobs)
+                {
+                    if (mob.Header.ObjectId.Id == selectedObject.ObjectId.Id)
+                    {
+                        var normPath = NormalizeOptionalAssetPath(mobAssetPath);
+                        if (normPath is not null)
+                            return normPath;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private static string ResolveTrackedSelectedInspectorSectorAssetPath(
@@ -12882,6 +13060,45 @@ public sealed class EditorWorkspaceSession
         return Workspace.FindSector(normalizedPath)
             ?? throw new InvalidOperationException($"No loaded sector asset matched '{normalizedPath}'.");
     }
+
+    private static MobData? FindWorkspaceMobByObjectId(EditorWorkspace workspace, GameObjectGuid objectId)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        if (workspace.Save is not null)
+        {
+            foreach (var mob in workspace.Save.Mobiles.Values)
+            {
+                if (ObjectIdsMatch(mob.Header.ObjectId, objectId))
+                    return mob;
+            }
+        }
+
+        foreach (var mob in workspace.GameData.Mobs)
+        {
+            if (ObjectIdsMatch(mob.Header.ObjectId, objectId))
+                return mob;
+        }
+
+        foreach (var sector in workspace.GameData.Sectors)
+        {
+            foreach (var mob in sector.Objects)
+            {
+                if (ObjectIdsMatch(mob.Header.ObjectId, objectId))
+                    return mob;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ObjectIdsMatch(GameObjectGuid candidate, GameObjectGuid requested) =>
+        candidate == requested
+        || (
+            candidate.OidType == GameObjectGuid.OidTypeGuid
+            && requested.OidType == GameObjectGuid.OidTypeGuid
+            && candidate.Id == requested.Id
+        );
 
     private static EditorSessionChange CreateDirectAssetChange(ProtoRetargetTarget target) =>
         CreateDirectAssetChange(target.AssetPath, target.Format);

@@ -8391,6 +8391,91 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_GetTrackedObjectInspectorSummary_ResolvesParentContainerWhenTargetIsInventorySubItem()
+    {
+        const int containerProtoNum = 1003;
+        const int itemProtoNum = 9056;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var containerObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 0, Guid.NewGuid());
+        var subItemObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 0, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(containerProtoNum),
+                Path.Combine(contentDir, "proto", "001003 - Container.pro")
+            );
+            ProtoFormat.WriteToFile(MakeProto(itemProtoNum), Path.Combine(contentDir, "proto", "009056 - Gold.pro"));
+
+            var containerMob = new MobDataBuilder(
+                ObjectType.Container,
+                containerObjectId,
+                MakeProtoId(containerProtoNum)
+            )
+                .WithLocation(5, 6)
+                .WithProperty(
+                    new ObjectProperty
+                    {
+                        Field = ObjectField.ContainerInventoryListIdx,
+                        RawBytes = [],
+                    }.WithObjectIdArray([subItemObjectId.Id])
+                )
+                .Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(containerMob),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var itemMob = new MobDataBuilder(ObjectType.Gold, subItemObjectId, MakeProtoId(itemProtoNum))
+                .WithProperty(new ObjectProperty { Field = ObjectField.GoldQuantity, RawBytes = [] }.WithInt32(100))
+                .Build();
+
+            var guidStr = subItemObjectId.Id.ToString("N").ToUpperInvariant();
+            var subItemFileName =
+                $"G_{guidStr[..8]}_{guidStr[8..12]}_{guidStr[12..16]}_{guidStr[16..20]}_{guidStr[20..32]}.mob";
+            MobFormat.WriteToFile(itemMob, Path.Combine(contentDir, "maps", "map01", subItemFileName));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = subItemObjectId,
+                    },
+                }
+            );
+
+            var selectionSummary = session.GetTrackedObjectSelectionSummary("map-view-1");
+            var inspector = session.GetTrackedObjectInspectorSummary("map-view-1");
+
+            await Assert.That(selectionSummary.SelectedObjects.Count).IsEqualTo(1);
+            await Assert.That(selectionSummary.SelectedObjects[0].ObjectId).IsEqualTo(containerObjectId);
+
+            await Assert.That(inspector.TargetKind).IsEqualTo(EditorObjectInspectorTargetKind.SelectedObject);
+            await Assert.That(inspector.SelectedObject).IsNotNull();
+            await Assert.That(inspector.SelectedObject!.ObjectId).IsEqualTo(subItemObjectId);
+            await Assert.That(inspector.ProtoNumber).IsEqualTo(itemProtoNum);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorState_PinsProtoAndFeedsShell()
     {
         const int selectedProtoNumber = 1001;
@@ -8681,6 +8766,86 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task GetTrackedObjectInspectorContainerSummary_ResolvesContainedGoldQuantity()
+    {
+        const int containerProtoNum = 1003;
+        const int goldProtoNum = 9056;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var containerObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 0, Guid.NewGuid());
+        var goldObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 0, Guid.NewGuid());
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(containerProtoNum),
+                Path.Combine(contentDir, "proto", "001003 - Container.pro")
+            );
+            ProtoFormat.WriteToFile(MakeProto(goldProtoNum), Path.Combine(contentDir, "proto", "009056 - Gold.pro"));
+
+            var containerMob = new MobDataBuilder(
+                ObjectType.Container,
+                containerObjectId,
+                MakeProtoId(containerProtoNum)
+            )
+                .WithLocation(5, 6)
+                .WithProperty(
+                    new ObjectProperty
+                    {
+                        Field = ObjectField.ContainerInventoryListIdx,
+                        RawBytes = [],
+                    }.WithObjectIdArray([goldObjectId.Id])
+                )
+                .Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(containerMob),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var goldMob = new MobDataBuilder(ObjectType.Gold, goldObjectId, MakeProtoId(goldProtoNum))
+                .WithProperty(new ObjectProperty { Field = ObjectField.GoldQuantity, RawBytes = [] }.WithInt32(250))
+                .Build();
+
+            var guidStr = goldObjectId.Id.ToString("N").ToUpperInvariant();
+            var goldFileName =
+                $"G_{guidStr[..8]}_{guidStr[8..12]}_{guidStr[12..16]}_{guidStr[16..20]}_{guidStr[20..32]}.mob";
+            MobFormat.WriteToFile(goldMob, Path.Combine(contentDir, "maps", "map01", goldFileName));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = containerObjectId,
+                    },
+                }
+            );
+
+            var summary = session.GetTrackedObjectInspectorContainerSummary("map-view-1");
+
+            await Assert.That(summary.IsContainerTarget).IsTrue();
+            await Assert.That(summary.Inventory).IsEquivalentTo([goldObjectId.Id]);
+            await Assert.That(summary.ContainedGoldQuantity).IsEqualTo(250);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorCritterProgression_StagesSelectedObjectProgressionEdits()
     {
         const int protoNumber = 1001;
@@ -8775,6 +8940,79 @@ public sealed class EditorWorkspaceSessionTests
             await Assert.That(appliedTechSkills[0]).IsEqualTo(30);
             await Assert.That(appliedSpellTech[15]).IsEqualTo(99);
             await Assert.That(appliedSpellTech[24]).IsEqualTo(55);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task GetTrackedObjectInspectorCritterProgressionSummary_ResolvesCarriedGoldQuantityFromGoldMob()
+    {
+        const int protoNumber = 1001;
+        const int goldProtoNumber = 9056;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeNpcProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorGoldTarget.pro")
+            );
+            ProtoFormat.WriteToFile(MakeProto(goldProtoNumber), Path.Combine(contentDir, "proto", "009056 - Gold.pro"));
+
+            var goldObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, goldProtoNumber, Guid.NewGuid());
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .WithGoldHandle(goldObjectId)
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var goldMob = new MobDataBuilder(ObjectType.Gold, goldObjectId, MakeProtoId(goldProtoNumber))
+                .WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.GoldQuantity, 1234))
+                .Build();
+
+            var guidStr = goldObjectId.Id.ToString("N").ToUpperInvariant();
+            var goldFileName =
+                $"G_{guidStr[..8]}_{guidStr[8..12]}_{guidStr[12..16]}_{guidStr[16..20]}_{guidStr[20..32]}.mob";
+            MobFormat.WriteToFile(goldMob, Path.Combine(contentDir, "maps", "map01", goldFileName));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var progression = session.GetTrackedObjectInspectorCritterProgressionSummary("map-view-1");
+
+            await Assert.That(progression.IsCritterTarget).IsTrue();
+            await Assert.That(progression.CarriedGoldHandle).IsEqualTo(goldObjectId);
+            await Assert.That(progression.CarriedGoldQuantity).IsEqualTo(1234);
         }
         finally
         {

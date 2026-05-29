@@ -1,3 +1,4 @@
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -18,11 +19,14 @@ public sealed class EditorObjectInspectorContainerSummary
 
     public IReadOnlyList<Guid> Inventory { get; init; } = [];
 
+    public int? ContainedGoldQuantity { get; init; }
+
     public bool IsContainerTarget => Inspector.TargetObjectType is ObjectType.Container;
 
     internal static EditorObjectInspectorContainerSummary Create(
         EditorObjectInspectorSummary inspector,
-        IReadOnlyList<ObjectProperty> properties
+        IReadOnlyList<ObjectProperty> properties,
+        Func<GameObjectGuid, MobData?>? mobResolver = null
     )
     {
         ArgumentNullException.ThrowIfNull(inspector);
@@ -38,6 +42,24 @@ public sealed class EditorObjectInspectorContainerSummary
             LockDifficulty = ReadInt32(properties, ObjectField.ContainerLockDifficulty),
             KeyId = ReadInt32(properties, ObjectField.ContainerKeyId),
             Inventory = ReadObjectIdArray(properties, ObjectField.ContainerInventoryListIdx),
+            ContainedGoldQuantity = mobResolver is null
+                ? null
+                : MobGoldResolver.ResolveContainerGoldQuantity(
+                    new MobData
+                    {
+                        Header = new GameObjectHeader
+                        {
+                            Version = 0,
+                            ProtoId = default,
+                            ObjectId = default,
+                            GameObjectType = ObjectType.Container,
+                            PropCollectionItems = 0,
+                            Bitmap = [],
+                        },
+                        Properties = properties,
+                    },
+                    mobResolver
+                ),
         };
     }
 

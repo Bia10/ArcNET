@@ -4379,6 +4379,7 @@ namespace ArcNET.Editor
         public required string MapViewStateId { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorSummary ObjectInspector { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorBlendingSummary ObjectInspectorBlending { get; init; }
+        public required ArcNET.Editor.EditorObjectInspectorContainerSummary ObjectInspectorContainer { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary ObjectInspectorCritterProgression { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorFlagsSummary ObjectInspectorFlags { get; init; }
         public required ArcNET.Editor.EditorObjectInspectorGeneratorSummary ObjectInspectorGenerator { get; init; }
@@ -4441,6 +4442,24 @@ namespace ArcNET.Editor
         public int? BlitScale { get; init; }
         public bool HasChanges { get; }
         public int? Material { get; init; }
+    }
+    public sealed class EditorObjectInspectorContainerSummary
+    {
+        public EditorObjectInspectorContainerSummary() { }
+        public ArcNET.GameObjects.ContainerFlags ContainerFlags { get; init; }
+        public required ArcNET.Editor.EditorObjectInspectorSummary Inspector { get; init; }
+        public System.Collections.Generic.IReadOnlyList<System.Guid> Inventory { get; init; }
+        public bool IsContainerTarget { get; }
+        public int KeyId { get; init; }
+        public int LockDifficulty { get; init; }
+    }
+    public sealed class EditorObjectInspectorContainerUpdate
+    {
+        public EditorObjectInspectorContainerUpdate() { }
+        public ArcNET.GameObjects.ContainerFlags? ContainerFlags { get; init; }
+        public bool HasChanges { get; }
+        public int? KeyId { get; init; }
+        public int? LockDifficulty { get; init; }
     }
     public sealed class EditorObjectInspectorCritterProgressionSummary
     {
@@ -4661,6 +4680,7 @@ namespace ArcNET.Editor
         CritterProgression = 4,
         Generator = 5,
         Blending = 6,
+        Container = 7,
     }
     public sealed class EditorObjectInspectorPaneSummary
     {
@@ -5613,6 +5633,8 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectToolState> GetToolStates() { }
         public ArcNET.Editor.EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorBlendingSummary GetTrackedObjectInspectorBlendingSummary(string mapViewStateId) { }
+        public ArcNET.Editor.EditorObjectInspectorContainerSummary GetTrackedObjectInspectorContainerSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
+        public ArcNET.Editor.EditorObjectInspectorContainerSummary GetTrackedObjectInspectorContainerSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
         public ArcNET.Editor.EditorObjectInspectorCritterProgressionSummary GetTrackedObjectInspectorCritterProgressionSummary(string mapViewStateId) { }
         public ArcNET.Editor.EditorObjectInspectorFlagsSummary GetTrackedObjectInspectorFlagsSummary(ArcNET.Editor.EditorObjectInspectorSummary inspector) { }
@@ -5703,6 +5725,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorSessionChange? SetMessageEntry(string assetPath, int messageIndex, string text, string? soundId = null) { }
         public ArcNET.Editor.EditorSessionChange? SetProtoDisplayName(int protoNumber, string displayName, bool useNameOverrideAsset = false) { }
         public ArcNET.Editor.EditorSessionChange? SetProtoInspectorBlending(int protoNumber, ArcNET.Editor.EditorObjectInspectorBlendingUpdate update) { }
+        public ArcNET.Editor.EditorSessionChange? SetProtoInspectorContainer(int protoNumber, ArcNET.Editor.EditorObjectInspectorContainerUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetProtoInspectorCritterProgression(int protoNumber, ArcNET.Editor.EditorObjectInspectorCritterProgressionUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetProtoInspectorFlags(int protoNumber, ArcNET.Editor.EditorObjectInspectorFlagsUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetProtoInspectorGenerator(int protoNumber, ArcNET.Editor.EditorObjectInspectorGeneratorUpdate update) { }
@@ -5719,6 +5742,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorProjectToolState SetToolState(ArcNET.Editor.EditorProjectToolState toolState) { }
         public ArcNET.Editor.EditorProjectMapWorldEditShellState SetTrackedMapWorldEditShellPreferences(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest request) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorBlending(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorBlendingUpdate update) { }
+        public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorContainer(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorContainerUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorCritterProgression(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorCritterProgressionUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorFlags(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorFlagsUpdate update) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorGenerator(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorGeneratorUpdate update) { }

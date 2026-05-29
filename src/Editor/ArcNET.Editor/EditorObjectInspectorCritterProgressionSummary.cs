@@ -1,3 +1,4 @@
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -119,11 +120,16 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
 
     public int TechTherapeutics { get; init; }
 
+    public GameObjectGuid? CarriedGoldHandle { get; init; }
+
+    public int? CarriedGoldQuantity { get; init; }
+
     public bool IsCritterTarget => Inspector.TargetObjectType is ObjectType.Pc or ObjectType.Npc;
 
     internal static EditorObjectInspectorCritterProgressionSummary Create(
         EditorObjectInspectorSummary inspector,
-        IReadOnlyList<ObjectProperty> properties
+        IReadOnlyList<ObjectProperty> properties,
+        Func<GameObjectGuid, MobData?>? mobResolver = null
     )
     {
         ArgumentNullException.ThrowIfNull(inspector);
@@ -136,6 +142,7 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         var basicSkills = ReadInt32Array(properties, ObjectField.CritterBasicSkillIdx);
         var techSkills = ReadInt32Array(properties, ObjectField.CritterTechSkillIdx);
         var spellTech = ReadInt32Array(properties, ObjectField.CritterSpellTechIdx);
+        var carriedGoldHandle = ReadObjectId(properties, ObjectField.CritterGold);
 
         return new EditorObjectInspectorCritterProgressionSummary
         {
@@ -194,6 +201,11 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
             TechMechanical = ReadAt(spellTech, 22),
             TechSmithy = ReadAt(spellTech, 23),
             TechTherapeutics = ReadAt(spellTech, 24),
+            CarriedGoldHandle = carriedGoldHandle,
+            CarriedGoldQuantity =
+                carriedGoldHandle is { } goldHandle && mobResolver is not null
+                    ? MobGoldResolver.ResolveGoldQuantity(goldHandle, mobResolver)
+                    : null,
         };
     }
 
@@ -237,6 +249,27 @@ public sealed class EditorObjectInspectorCritterProgressionSummary
         }
 
         return [];
+    }
+
+    private static GameObjectGuid? ReadObjectId(IReadOnlyList<ObjectProperty> properties, ObjectField field)
+    {
+        for (var propertyIndex = 0; propertyIndex < properties.Count; propertyIndex++)
+        {
+            var property = properties[propertyIndex];
+            if (property.Field == field)
+            {
+                try
+                {
+                    return property.GetObjectId();
+                }
+                catch (InvalidOperationException)
+                {
+                    return null;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static int ReadAt(IReadOnlyList<int> values, int index) => index < values.Count ? values[index] : 0;
