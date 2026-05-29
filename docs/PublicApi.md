@@ -109,6 +109,10 @@ namespace ArcNET.Core
     {
         public const int MaxStackAllocBytes = 256;
     }
+    public static class VirtualPath
+    {
+        public static string Normalize(string path) { }
+    }
     public delegate void WriteElement<T>(ref ArcNET.Core.SpanWriter writer, T item);
 }
 namespace ArcNET.Core.Primitives
