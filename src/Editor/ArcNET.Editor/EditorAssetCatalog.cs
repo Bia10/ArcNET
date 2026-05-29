@@ -74,11 +74,7 @@ public sealed class EditorAssetCatalog
         return orderedEntries.Length == 0 ? Empty : new EditorAssetCatalog(orderedEntries);
     }
 
-    private static string NormalizeAssetPath(string assetPath) =>
-        assetPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 
     private static string ValidateSearchText(string text)
     {

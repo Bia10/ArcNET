@@ -104,9 +104,5 @@ public sealed class EditorArtResolver
     public ArtFile? FindArt(ArtId artId) =>
         FindAssetPath(artId) is { } assetPath ? _workspace.FindArt(assetPath) : null;
 
-    private static string NormalizeAssetPath(string assetPath) =>
-        assetPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 }

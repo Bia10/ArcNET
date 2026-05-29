@@ -417,9 +417,5 @@ public static class GameDataLoader
         string? FailureReason
     );
 
-    private static string NormalizeSourcePath(string sourcePath) =>
-        sourcePath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeSourcePath(string sourcePath) => ArcNET.Core.VirtualPath.Normalize(sourcePath);
 }

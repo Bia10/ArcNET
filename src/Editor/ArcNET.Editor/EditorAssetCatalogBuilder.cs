@@ -91,9 +91,5 @@ internal static class EditorAssetCatalogBuilder
             Path.Combine(contentDirectory, NormalizeAssetPath(assetPath).Replace('/', Path.DirectorySeparatorChar))
         );
 
-    private static string NormalizeAssetPath(string assetPath) =>
-        assetPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 }

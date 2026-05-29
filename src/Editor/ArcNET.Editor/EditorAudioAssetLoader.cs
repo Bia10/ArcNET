@@ -375,8 +375,7 @@ internal static class EditorAudioAssetLoader
     private static bool IsUnsupportedArchiveFormat(InvalidDataException exception) =>
         exception.Message.StartsWith("Unsupported DAT magic ", StringComparison.Ordinal);
 
-    private static string NormalizeVirtualPath(string path) =>
-        path.Replace('\\', '/').Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeVirtualPath(string path) => ArcNET.Core.VirtualPath.Normalize(path);
 
     private sealed class AudioOverlaySource
     {

@@ -33,9 +33,5 @@ public sealed class GameDataLoadEntry(
         CancellationToken cancellationToken
     ) => await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
 
-    private static string NormalizeSourcePath(string sourcePath) =>
-        sourcePath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeSourcePath(string sourcePath) => ArcNET.Core.VirtualPath.Normalize(sourcePath);
 }

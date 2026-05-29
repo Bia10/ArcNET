@@ -48,9 +48,5 @@ public sealed class EditorAudioAssetCatalog
         return orderedEntries.Length == 0 ? Empty : new EditorAudioAssetCatalog(orderedEntries);
     }
 
-    private static string NormalizeAssetPath(string assetPath) =>
-        assetPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 }

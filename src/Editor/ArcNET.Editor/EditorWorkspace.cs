@@ -4010,10 +4010,7 @@ public sealed class EditorWorkspace : IDisposable
         if (string.IsNullOrWhiteSpace(groupPath))
             return null;
 
-        return groupPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+        return ArcNET.Core.VirtualPath.Normalize(groupPath);
     }
 
     private sealed class WallArtLookupData(
@@ -4140,9 +4137,5 @@ public sealed class EditorWorkspace : IDisposable
                 .Contains(searchText, StringComparison.OrdinalIgnoreCase)
         );
 
-    private static string NormalizeAssetPath(string assetPath) =>
-        assetPath
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+    private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 }

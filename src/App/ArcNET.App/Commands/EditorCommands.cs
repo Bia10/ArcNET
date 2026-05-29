@@ -626,9 +626,7 @@ public sealed class EditorCommands
     private static string NormalizeAssetPathArgument(string text)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        return text.Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+        return ArcNET.Core.VirtualPath.Normalize(text);
     }
 
     private static string FormatSectorSummary(EditorSectorSummary sector) =>

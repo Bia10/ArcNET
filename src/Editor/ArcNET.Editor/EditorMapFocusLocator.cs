@@ -519,10 +519,7 @@ public static class EditorMapFocusLocator
 
     private static string NormalizeAssetLikeQuery(string query)
     {
-        var normalized = query
-            .Replace('\\', '/')
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
+        var normalized = ArcNET.Core.VirtualPath.Normalize(query);
         return normalized.EndsWith(".proto", StringComparison.OrdinalIgnoreCase) ? normalized[..^2] : normalized;
     }
 
