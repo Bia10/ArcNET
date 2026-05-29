@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -35,11 +35,12 @@ internal static class EditorWorldAreaCatalogBuilder
             .FirstOrDefault(static entry => string.Equals(entry.Type, "START_MAP", StringComparison.OrdinalIgnoreCase))
             ?.MapEntry.MapName;
 
+        var townMaps = townMapsById.Values.ToArray();
+
         var areas = areasById
-            .Keys.Union(townMapsById.Keys)
-            .Union(mapEntriesByAreaId.Keys)
+            .Keys.Union(mapEntriesByAreaId.Keys)
             .OrderBy(static areaId => areaId)
-            .Select(areaId => CreateArea(areaId, areasById, townMapsById, mapEntriesByAreaId))
+            .Select(areaId => CreateArea(areaId, areasById, townMaps, mapEntriesByAreaId))
             .Where(static area => area is not null)
             .Cast<EditorWorldAreaEntry>()
             .OrderByDescending(static area => area.IsWorldMapVisible)
@@ -52,16 +53,17 @@ internal static class EditorWorldAreaCatalogBuilder
     private static EditorWorldAreaEntry? CreateArea(
         int areaId,
         IReadOnlyDictionary<int, GameAreaEntry> areasById,
-        IReadOnlyDictionary<int, TownMapEntry> townMapsById,
+        IReadOnlyList<TownMapEntry> townMaps,
         IReadOnlyDictionary<int, IReadOnlyList<EditorWorldAreaMapEntry>> mapEntriesByAreaId
     )
     {
         areasById.TryGetValue(areaId, out var gameArea);
-        townMapsById.TryGetValue(areaId, out var townMap);
         mapEntriesByAreaId.TryGetValue(areaId, out var mapEntries);
 
         if (gameArea is null || (gameArea.WorldX == 0 && gameArea.WorldY == 0))
             return null;
+
+        var townMap = townMaps.FirstOrDefault(tm => NamesMatch(gameArea.DisplayName, tm.DisplayName));
 
         var displayName = ResolveDisplayName(gameArea, townMap);
         if (string.IsNullOrWhiteSpace(displayName))
@@ -86,13 +88,17 @@ internal static class EditorWorldAreaCatalogBuilder
     {
         ArgumentNullException.ThrowIfNull(gameArea);
 
-        if (townMap is null || string.IsNullOrWhiteSpace(townMap.DisplayName))
+        if (!string.IsNullOrWhiteSpace(gameArea.DisplayName))
             return gameArea.DisplayName;
 
-        return townMap.IsWorldMapVisible || string.IsNullOrWhiteSpace(gameArea.DisplayName)
-            ? townMap.DisplayName
-            : gameArea.DisplayName;
+        return townMap?.DisplayName ?? string.Empty;
     }
+
+    private static bool NamesMatch(string name1, string name2) =>
+        CleanName(name1).Contains(CleanName(name2), StringComparison.Ordinal)
+        || CleanName(name2).Contains(CleanName(name1), StringComparison.Ordinal);
+
+    private static string CleanName(string name) => new([.. name.ToLowerInvariant().Where(char.IsLetterOrDigit)]);
 
     private static Dictionary<int, GameAreaEntry> ParseGameAreas(MesFile? file)
     {
