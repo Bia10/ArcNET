@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameData;
 
 namespace ArcNET.Editor;
@@ -92,5 +92,8 @@ internal static class EditorAssetCatalogBuilder
         );
 
     private static string NormalizeAssetPath(string assetPath) =>
-        assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }

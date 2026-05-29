@@ -1,4 +1,4 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 
 namespace ArcNET.Editor;
 
@@ -75,7 +75,10 @@ public sealed class EditorAssetCatalog
     }
 
     private static string NormalizeAssetPath(string assetPath) =>
-        assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 
     private static string ValidateSearchText(string text)
     {

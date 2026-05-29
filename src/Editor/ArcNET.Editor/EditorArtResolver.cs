@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -105,5 +105,8 @@ public sealed class EditorArtResolver
         FindAssetPath(artId) is { } assetPath ? _workspace.FindArt(assetPath) : null;
 
     private static string NormalizeAssetPath(string assetPath) =>
-        assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }

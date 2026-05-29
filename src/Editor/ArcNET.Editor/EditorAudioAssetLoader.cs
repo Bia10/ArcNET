@@ -376,7 +376,7 @@ internal static class EditorAudioAssetLoader
         exception.Message.StartsWith("Unsupported DAT magic ", StringComparison.Ordinal);
 
     private static string NormalizeVirtualPath(string path) =>
-        path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        path.Replace('\\', '/').Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 
     private sealed class AudioOverlaySource
     {

@@ -1,4 +1,4 @@
-﻿using ArcNET.Archive;
+using ArcNET.Archive;
 using ArcNET.Formats;
 using ArcNET.GameData;
 
@@ -367,7 +367,7 @@ internal static class GameInstallContentLoader
         exception.Message.StartsWith("Unsupported DAT magic ", StringComparison.Ordinal);
 
     private static string NormalizeVirtualPath(string path) =>
-        path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        path.Replace('\\', '/').Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 
     private static IProgress<float>? CreateWeightedProgress(IProgress<float>? progress, float offset, float span)
     {

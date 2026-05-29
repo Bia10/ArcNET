@@ -8779,7 +8779,10 @@ public sealed class EditorWorkspaceSession
     private static string NormalizeAssetPath(string assetPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
-        return assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        return assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private static IEnumerable<string> EnumerateProjectRestoreAssetPaths(
@@ -10531,7 +10534,10 @@ public sealed class EditorWorkspaceSession
         if (string.IsNullOrWhiteSpace(groupPath))
             return null;
 
-        return groupPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        return groupPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private EditorObjectInspectorScriptReference? CreateCurrentObjectInspectorScriptReference(int scriptId)

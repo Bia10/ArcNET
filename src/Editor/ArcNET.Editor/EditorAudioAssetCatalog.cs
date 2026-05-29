@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Read-only catalog of loaded audio assets available through an <see cref="EditorWorkspace"/>.
@@ -49,5 +49,8 @@ public sealed class EditorAudioAssetCatalog
     }
 
     private static string NormalizeAssetPath(string assetPath) =>
-        assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }

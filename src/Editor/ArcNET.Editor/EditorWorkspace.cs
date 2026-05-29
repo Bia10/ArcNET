@@ -4010,7 +4010,10 @@ public sealed class EditorWorkspace : IDisposable
         if (string.IsNullOrWhiteSpace(groupPath))
             return null;
 
-        return groupPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        return groupPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private sealed class WallArtLookupData(
@@ -4138,5 +4141,8 @@ public sealed class EditorWorkspace : IDisposable
         );
 
     private static string NormalizeAssetPath(string assetPath) =>
-        assetPath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        assetPath
+            .Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 }
