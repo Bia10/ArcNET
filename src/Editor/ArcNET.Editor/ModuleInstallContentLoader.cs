@@ -309,7 +309,7 @@ internal static class ModuleInstallContentLoader
         if (format != FileFormat.Unknown)
             return format;
 
-        var fileName = Path.GetFileName(path);
+        var fileName = Path.GetFileName(ArcNET.Core.VirtualPath.Normalize(path));
         return fileName.StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase)
             ? FileFormat.FacadeWalk
             : FileFormat.Unknown;
