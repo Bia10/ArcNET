@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ArcNET.App.Output;
 using ArcNET.App.Rendering;
 using ArcNET.Editor;
@@ -626,7 +626,9 @@ public sealed class EditorCommands
     private static string NormalizeAssetPathArgument(string text)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        return text.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+        return text.Replace('\\', '/')
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private static string FormatSectorSummary(EditorSectorSummary sector) =>
