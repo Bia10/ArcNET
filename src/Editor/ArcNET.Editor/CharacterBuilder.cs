@@ -129,16 +129,28 @@ public sealed class CharacterBuilder
     }
 
     /// <summary>
-    /// Sets the character's carried gold counter (<c>CritterGold</c>).
-    /// This writes the raw critter scalar field used by the compact mob property layer.
+    /// Sets the handle stored in <c>CritterGold</c>.
+    /// The actual gold amount lives on the referenced gold item object, not on the critter.
     /// For PC records in the v2 <c>mobile.mdy</c> format, use <see cref="SaveGameEditor"/>
-    /// or <see cref="CharacterRecord"/> for the player-character save-global gold surface.
+    /// or <see cref="CharacterRecord"/> for the player-character save-global gold quantity.
     /// </summary>
-    public CharacterBuilder WithGold(int amount)
+    public CharacterBuilder WithGoldHandle(GameObjectGuid goldHandle)
     {
-        _inner.WithProperty(ObjectPropertyFactory.ForInt32(ObjectField.CritterGold, amount));
+        _inner.WithProperty(ObjectPropertyFactory.ForObjectId(ObjectField.CritterGold, goldHandle));
         return this;
     }
+
+    /// <summary>
+    /// Gold quantity is not stored directly in <c>CritterGold</c>; the field is a handle.
+    /// Use <see cref="WithGoldHandle"/> for MOB data, or edit the v2 character record for quantity.
+    /// </summary>
+    [Obsolete(
+        "CritterGold is a handle, not a quantity. Use WithGoldHandle for MOB data or edit the mobile.mdy character record."
+    )]
+    public CharacterBuilder WithGold(int amount) =>
+        throw new NotSupportedException(
+            $"CritterGold stores a handle, not an amount ({amount}). Use WithGoldHandle for MOB data or edit the mobile.mdy character record."
+        );
 
     /// <summary>
     /// Replaces the character's inventory with the given item GUIDs

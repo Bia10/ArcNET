@@ -316,6 +316,32 @@ public static class ItemDumper
             vsb.Append(DumpItem(itemMob, protoId, nameLookup, installation));
         }
 
+        var totalGold = MobGoldResolver.ResolveContainerGoldQuantity(
+            container,
+            handle =>
+            {
+                var guidStr = handle.Id.ToString("N").ToUpperInvariant();
+                var fileName =
+                    $"G_{guidStr[..8]}_{guidStr[8..12]}_{guidStr[12..16]}_{guidStr[16..20]}_{guidStr[20..32]}.mob";
+                var itemDatPath = mapDirPrefix + fileName;
+
+                try
+                {
+                    return MobFormat.ParseMemory(archiveForItems.GetEntryData(itemDatPath));
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        );
+
+        if (totalGold is not null)
+        {
+            vsb.AppendLine($"  Gold Total: {totalGold.Value}");
+            vsb.AppendLine();
+        }
+
         return vsb.ToString();
     }
 
@@ -545,7 +571,7 @@ public static class ItemDumper
 
     private static void AppendGold(ref ValueStringBuilder vsb, MobData mob)
     {
-        var qty = GetPropInt32(mob, ObjectField.GoldQuantity);
+        var qty = MobGoldResolver.GetGoldQuantity(mob);
         if (qty is > 0)
         {
             vsb.AppendLine("  --- Gold ---");
@@ -682,5 +708,11 @@ public static class ItemDumper
     {
         var prop = mob.Properties.FirstOrDefault(p => p.Field == field);
         return prop?.GetInt32();
+    }
+
+    private static float? GetPropFloat(MobData mob, ObjectField field)
+    {
+        var prop = mob.Properties.FirstOrDefault(p => p.Field == field);
+        return prop?.GetFloat();
     }
 }

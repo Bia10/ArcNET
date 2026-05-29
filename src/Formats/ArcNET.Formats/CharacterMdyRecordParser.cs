@@ -233,11 +233,14 @@ internal static class CharacterMdyRecordParser
         int elementCount
     )
     {
-        if (bitsetId == CharacterMdyRecordSchema.GoldAmountBsId && elementSize == 4 && elementCount == 1)
+        // The SAR header bitset id is a runtime allocator value in the engine, so match
+        // stable trailing v2 record structure first and only fall back to legacy bsId checks
+        // for fields whose structural shape is still ambiguous.
+        if (layout.GoldDataOffset < 0 && elementSize == 4 && elementCount == 1)
             layout.GoldDataOffset = sarOffset + CharacterMdyRecordSchema.SarHeaderSize;
 
         if (
-            bitsetId == CharacterMdyRecordSchema.GameStatsBsId
+            layout.TotalKillsDataOffset < 0
             && elementSize == 4
             && elementCount >= CharacterMdyRecordSchema.GameStatsElementCount
             && elementCount <= CharacterMdyRecordSchema.GameStatsPowerCellsIndex + 1
@@ -262,7 +265,7 @@ internal static class CharacterMdyRecordParser
         }
 
         if (
-            bitsetId == CharacterMdyRecordSchema.PortraitBsId
+            layout.PortraitDataOffset < 0
             && elementSize == 4
             && elementCount == CharacterMdyRecordSchema.PortraitElementCount
         )

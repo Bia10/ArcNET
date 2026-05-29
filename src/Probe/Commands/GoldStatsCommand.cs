@@ -1,4 +1,4 @@
-﻿using ArcNET.Editor;
+using ArcNET.Editor;
 using ArcNET.GameObjects;
 using Probe;
 
@@ -20,9 +20,6 @@ internal sealed class GoldStatsCommand : IProbeCommand
             tfafOut,
             new SaveGameUpdates
             {
-                UpdatedMobileMds = ctx.BuildUpdated(pc =>
-                    new CharacterBuilder(pc).WithGold(99999).WithBaseStats([20, 20, 20, 20, 20, 20]).Build()
-                ),
             }
         );
 

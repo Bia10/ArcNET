@@ -1,5 +1,7 @@
-﻿using System.Buffers.Binary;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Text;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 using Bia.ValueBuffers;
@@ -80,6 +82,18 @@ public static class ObjectPropertyFactory
     {
         var packed = (long)(uint)tileX | ((long)(uint)tileY << 32);
         return ForInt64(field, packed);
+    }
+
+    /// <summary>
+    /// Creates a property with <paramref name="value"/> encoded as a single 24-byte
+    /// <see cref="GameObjectGuid"/> (<c>OD_TYPE_HANDLE</c> / ObjectID payload).
+    /// </summary>
+    public static ObjectProperty ForObjectId(ObjectField field, GameObjectGuid value)
+    {
+        var buffer = new ArrayBufferWriter<byte>(ObjectPropertyExtensions.ObjectIdWireSize);
+        var writer = new SpanWriter(buffer);
+        writer.WriteGameObjectGuid(value);
+        return new ObjectProperty { Field = field, RawBytes = buffer.WrittenSpan.ToArray() };
     }
 
     // ── SAR arrays ────────────────────────────────────────────────────────────────────

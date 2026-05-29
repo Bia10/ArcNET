@@ -1,4 +1,4 @@
-﻿using ArcNET.Core;
+using ArcNET.Core;
 
 namespace ArcNET.GameObjects.Types;
 
@@ -51,15 +51,15 @@ internal static class ObjectCritterCodec
         if (Bit(ObjectField.CritterPortrait))
             obj.CritterPortrait = reader.ReadInt32();
         if (Bit(ObjectField.CritterGold))
-            obj.CritterGold = reader.ReadInt32();
+            obj.CritterGold = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.CritterArrows))
-            obj.CritterArrows = reader.ReadInt32();
+            obj.CritterArrows = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.CritterBullets))
-            obj.CritterBullets = reader.ReadInt32();
+            obj.CritterBullets = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.CritterPowerCells))
-            obj.CritterPowerCells = reader.ReadInt32();
+            obj.CritterPowerCells = reader.ReadGameObjectGuid();
         if (Bit(ObjectField.CritterFuel))
-            obj.CritterFuel = reader.ReadInt32();
+            obj.CritterFuel = reader.ReadGameObjectGuid();
 
         var inventory = ObjectInventoryGuidListCodec.Read(
             ref reader,
@@ -133,15 +133,15 @@ internal static class ObjectCritterCodec
         if (Bit(ObjectField.CritterPortrait))
             writer.WriteInt32(obj.CritterPortrait);
         if (Bit(ObjectField.CritterGold))
-            writer.WriteInt32(obj.CritterGold);
+            obj.CritterGold.Write(ref writer);
         if (Bit(ObjectField.CritterArrows))
-            writer.WriteInt32(obj.CritterArrows);
+            obj.CritterArrows.Write(ref writer);
         if (Bit(ObjectField.CritterBullets))
-            writer.WriteInt32(obj.CritterBullets);
+            obj.CritterBullets.Write(ref writer);
         if (Bit(ObjectField.CritterPowerCells))
-            writer.WriteInt32(obj.CritterPowerCells);
+            obj.CritterPowerCells.Write(ref writer);
         if (Bit(ObjectField.CritterFuel))
-            writer.WriteInt32(obj.CritterFuel);
+            obj.CritterFuel.Write(ref writer);
 
         ObjectInventoryGuidListCodec.Write(
             ref writer,

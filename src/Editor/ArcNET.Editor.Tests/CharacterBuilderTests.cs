@@ -69,12 +69,13 @@ public class CharacterBuilderTests
     }
 
     [Test]
-    public async Task WithGold_SetsField()
+    public async Task WithGoldHandle_SetsField()
     {
-        var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithGold(999).Build();
+        var goldHandle = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 77, Guid.NewGuid());
+        var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithGoldHandle(goldHandle).Build();
 
         var prop = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
-        await Assert.That(prop.GetInt32()).IsEqualTo(999);
+        await Assert.That(prop.GetObjectId()).IsEqualTo(goldHandle);
     }
 
     [Test]
@@ -169,7 +170,7 @@ public class CharacterBuilderTests
         var mob = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId)
             .WithHitPoints(80, 3)
             .WithPlayerName("Alice")
-            .WithGold(250)
+            .WithGoldHandle(new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 250, Guid.NewGuid()))
             .WithBaseStats([10, 12, 9, 14, 8, 11])
             .Build();
 
@@ -180,7 +181,7 @@ public class CharacterBuilderTests
         var name = parsed.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(name.GetString()).IsEqualTo("Alice");
         var gold = parsed.Properties.First(p => p.Field == ObjectField.CritterGold);
-        await Assert.That(gold.GetInt32()).IsEqualTo(250);
+        await Assert.That(gold.GetObjectId().OidType).IsEqualTo(GameObjectGuid.OidTypeGuid);
     }
 
     // ── Existing character editing ────────────────────────────────────────────
@@ -190,7 +191,7 @@ public class CharacterBuilderTests
     {
         var original = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId)
             .WithHitPoints(100)
-            .WithGold(500)
+            .WithGoldHandle(new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 500, Guid.NewGuid()))
             .Build();
 
         var edited = new CharacterBuilder(original).WithPlayerName("Bob").Build();
@@ -198,7 +199,7 @@ public class CharacterBuilderTests
         var pts = edited.Properties.First(p => p.Field == ObjectField.HpPts);
         await Assert.That(pts.GetInt32()).IsEqualTo(100);
         var gold = edited.Properties.First(p => p.Field == ObjectField.CritterGold);
-        await Assert.That(gold.GetInt32()).IsEqualTo(500);
+        await Assert.That(gold.GetObjectId().OidType).IsEqualTo(GameObjectGuid.OidTypeGuid);
         var name = edited.Properties.First(p => p.Field == ObjectField.PcPlayerName);
         await Assert.That(name.GetString()).IsEqualTo("Bob");
     }
@@ -206,11 +207,13 @@ public class CharacterBuilderTests
     [Test]
     public async Task FromExisting_OriginalIsUnchanged()
     {
-        var original = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithGold(100).Build();
+        var originalGold = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 100, Guid.NewGuid());
+        var replacementGold = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 9999, Guid.NewGuid());
+        var original = new CharacterBuilder(ObjectType.Pc, s_objectId, s_protoId).WithGoldHandle(originalGold).Build();
 
-        _ = new CharacterBuilder(original).WithGold(9999).Build();
+        _ = new CharacterBuilder(original).WithGoldHandle(replacementGold).Build();
 
         var goldProp = original.Properties.First(p => p.Field == ObjectField.CritterGold);
-        await Assert.That(goldProp.GetInt32()).IsEqualTo(100);
+        await Assert.That(goldProp.GetObjectId()).IsEqualTo(originalGold);
     }
 }

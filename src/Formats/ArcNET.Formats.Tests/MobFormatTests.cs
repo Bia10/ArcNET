@@ -352,6 +352,28 @@ public sealed class MobFormatTests
     }
 
     [Test]
+    public async Task Parse_CritterGold_ScalarGuid_ParsesAndBridgeToGameObject()
+    {
+        var goldGuid = Guid.Parse("00000018-0000-0000-0000-000000000000");
+        var expectedRaw = BuildBytes(w => WriteOidGuid(w, goldGuid));
+
+        var source = CreateEmptyMob(
+                ObjectType.Pc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 0, Guid.Parse("00000017-0000-0000-0000-000000000000"))
+            )
+            .WithProperty(CreateScalarObjectIdProperty(ObjectField.CritterGold, goldGuid));
+
+        var parsed = MobFormat.ParseMemory(MobFormat.WriteToArray(in source));
+        var bridged = parsed.ToGameObject().ToMobData();
+
+        await Assert.That(parsed.GetProperty(ObjectField.CritterGold)).IsNotNull();
+        await Assert.That(parsed.GetProperty(ObjectField.CritterGold)!.RawBytes.SequenceEqual(expectedRaw)).IsTrue();
+        await Assert.That(parsed.GetProperty(ObjectField.CritterGold)!.GetObjectId().OidType).IsEqualTo((short)2);
+        await Assert.That(bridged.GetProperty(ObjectField.CritterGold)).IsNotNull();
+        await Assert.That(bridged.GetProperty(ObjectField.CritterGold)!.RawBytes.SequenceEqual(expectedRaw)).IsTrue();
+    }
+
+    [Test]
     public async Task Parse_PcQuestPlayerNameAndPadI64_RawSchema_BridgesToGameObject()
     {
         var objectId = new GameObjectGuid(

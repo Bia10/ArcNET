@@ -1,5 +1,7 @@
-﻿using System.Buffers.Binary;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Text;
+using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using Bia.ValueBuffers;
 
@@ -134,6 +136,21 @@ public static class ObjectPropertyExtensions
         return ((int)(packed & 0xFFFFFFFF), (int)((packed >> 32) & 0xFFFFFFFF));
     }
 
+    /// <summary>
+    /// Returns the property value as a single 24-byte <see cref="GameObjectGuid"/>.
+    /// Only valid for scalar handle/ObjectID fields.
+    /// </summary>
+    public static GameObjectGuid GetObjectId(this ObjectProperty property)
+    {
+        if (property.RawBytes.Length != ObjectIdWireSize)
+            throw new InvalidOperationException(
+                $"Field {property.Field} has {property.RawBytes.Length} bytes; expected {ObjectIdWireSize} for ObjectID."
+            );
+
+        var reader = new SpanReader(property.RawBytes);
+        return reader.ReadGameObjectGuid();
+    }
+
     // ── Scalar writers ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -200,6 +217,18 @@ public static class ObjectPropertyExtensions
     {
         var packed = (long)(uint)x | ((long)(uint)y << 32);
         return property.WithInt64(packed);
+    }
+
+    /// <summary>
+    /// Returns a new <see cref="ObjectProperty"/> with <paramref name="value"/> encoded as
+    /// a single 24-byte <see cref="GameObjectGuid"/>.
+    /// </summary>
+    public static ObjectProperty WithObjectId(this ObjectProperty property, GameObjectGuid value)
+    {
+        var buffer = new ArrayBufferWriter<byte>(ObjectIdWireSize);
+        var writer = new SpanWriter(buffer);
+        writer.WriteGameObjectGuid(value);
+        return new ObjectProperty { Field = property.Field, RawBytes = buffer.WrittenSpan.ToArray() };
     }
 
     // ── SAR array readers ─────────────────────────────────────────────────────

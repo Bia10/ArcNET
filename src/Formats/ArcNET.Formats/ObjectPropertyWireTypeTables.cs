@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Formats;
@@ -109,12 +109,7 @@ internal static class ObjectPropertyWireTypeTables
                 int32ArrayBit: 106,
                 int64ArrayBit: 107
             ),
-            [ObjectType.Gold] = CreateItemDerivedBits(
-                itemBits,
-                maxInt32Bit: 99,
-                int32ArrayBit: 100,
-                int64ArrayBit: 101
-            ),
+            [ObjectType.Gold] = CreateGoldBits(itemBits),
             [ObjectType.Food] = CreateItemDerivedBits(itemBits, maxInt32Bit: 98, int32ArrayBit: 99, int64ArrayBit: 100),
             [ObjectType.Scroll] = CreateItemDerivedBits(
                 itemBits,
@@ -232,8 +227,10 @@ internal static class ObjectPropertyWireTypeTables
         AddRange(map, 66, 69, ObjectWireType.Int32Array);
         AddBits(map, ObjectWireType.Int32, 70, 71, 72, 73);
         AddBits(map, ObjectWireType.Int32Array, 74, 75);
-        map[76] = ObjectWireType.HandleArray;
-        AddRange(map, 77, 83, ObjectWireType.Int32);
+        map[76] = ObjectWireType.ObjectId;
+        map[77] = ObjectWireType.Int32;
+        AddRange(map, 78, 82, ObjectWireType.ObjectId);
+        map[83] = ObjectWireType.Int32;
         map[84] = ObjectWireType.HandleArray;
         AddBits(map, ObjectWireType.Int32, 85, 86);
         map[87] = ObjectWireType.HandleArray;
@@ -323,6 +320,14 @@ internal static class ObjectPropertyWireTypeTables
         map[69] = ObjectWireType.Int32;
         map[70] = ObjectWireType.Int32Array;
         map[71] = ObjectWireType.Int64Array;
+        return map.ToFrozenDictionary();
+    }
+
+    private static FrozenDictionary<int, ObjectWireType> CreateGoldBits(FrozenDictionary<int, ObjectWireType> itemBits)
+    {
+        var map = new Dictionary<int, ObjectWireType>(
+            CreateItemDerivedBits(itemBits, maxInt32Bit: 99, int32ArrayBit: 100, int64ArrayBit: 101)
+        );
         return map.ToFrozenDictionary();
     }
 

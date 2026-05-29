@@ -27,7 +27,7 @@ internal static class ContainerMobDumpWorkflow
             if (mob.Header.GameObjectType != ObjectType.Container)
                 continue;
 
-            WriteContainerReport(mob, data.Length, source, entryPath);
+            WriteContainerReport(archive, gameDir, mob, data.Length, source, entryPath);
         }
 
         AnsiConsole.MarkupLine("\n[green]Done.[/]");
@@ -115,7 +115,14 @@ internal static class ContainerMobDumpWorkflow
         }
     }
 
-    private static void WriteContainerReport(MobData mob, int dataLength, string source, string entryPath)
+    private static void WriteContainerReport(
+        DatArchive archive,
+        string gameDir,
+        MobData mob,
+        int dataLength,
+        string source,
+        string entryPath
+    )
     {
         var invProp = mob.Properties.FirstOrDefault(property =>
             property.Field == ObjectField.ContainerInventoryListIdx
@@ -128,6 +135,14 @@ internal static class ContainerMobDumpWorkflow
         var invNum = numProp?.RawBytes.Length == 4 ? numProp.GetInt32() : -1;
         var invSrc = srcProp?.RawBytes.Length == 4 ? srcProp.GetInt32() : -1;
         AnsiConsole.MarkupLine($"  Type={mob.Header.GameObjectType}  InvNum={invNum}  InvSrc={invSrc}");
+
+        var mapDirPrefix = entryPath[..(entryPath.LastIndexOf('\\') + 1)];
+        var goldQuantity = MobGoldResolver.ResolveContainerGoldQuantity(
+            mob,
+            objectId => TryLoadInventoryItemMob(archive, gameDir, mapDirPrefix, objectId)
+        );
+        if (goldQuantity is not null)
+            AnsiConsole.MarkupLine($"  [yellow]Contained gold:[/] {goldQuantity}");
 
         if (invProp is null)
         {
@@ -145,6 +160,21 @@ internal static class ContainerMobDumpWorkflow
                 $"  [red]Failed to decode inventory list for {Markup.Escape(Path.GetFileName(entryPath))}: {Markup.Escape(ex.Message)}[/]"
             );
         }
+    }
+
+    private static MobData? TryLoadInventoryItemMob(
+        DatArchive archive,
+        string gameDir,
+        string mapDirPrefix,
+        GameObjectGuid objectId
+    )
+    {
+        var guidStr = objectId.Id.ToString("N").ToUpperInvariant();
+        var entryPath =
+            mapDirPrefix
+            + $"G_{guidStr[..8]}_{guidStr[8..12]}_{guidStr[12..16]}_{guidStr[16..20]}_{guidStr[20..32]}.mob";
+
+        return TryLoadMob(archive, gameDir, entryPath, out _, out _, out var mob) ? mob : null;
     }
 
     private static void WriteInventoryItems((short OidType, int ProtoOrData1, Guid Id)[] items)

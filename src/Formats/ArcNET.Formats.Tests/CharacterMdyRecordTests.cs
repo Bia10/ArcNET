@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Formats.Tests;
+namespace ArcNET.Formats.Tests;
 
 public class CharacterMdyRecordTests
 {
@@ -39,6 +39,11 @@ public class CharacterMdyRecordTests
     /// </summary>
     private static byte[] BuildRecord(int gold, int[] stats)
     {
+        return BuildRecord(gold, stats, goldBsId: 0x4B13);
+    }
+
+    private static byte[] BuildRecord(int gold, int[] stats, int goldBsId)
+    {
         // v2 magic
         byte[] magic = [0x02, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
@@ -57,8 +62,8 @@ public class CharacterMdyRecordTests
         // spellTech SAR: elemSz=4, elemCnt=25
         var spellSar = Sar(4, 25, 0x4A08, IntArray(25));
 
-        // gold SAR: elemSz=4, elemCnt=1, bsId=0x4B13
-        var goldSar = Sar(4, 1, 0x4B13, IntBytes(gold));
+        // gold SAR: elemSz=4, elemCnt=1
+        var goldSar = Sar(4, 1, goldBsId, IntBytes(gold));
 
         return [.. magic, .. statsSar, .. basicSar, .. techSar, .. spellSar, .. goldSar];
     }
@@ -72,6 +77,15 @@ public class CharacterMdyRecordTests
         var rec = CharacterMdyRecord.Parse(bytes, out _);
 
         await Assert.That(rec.Gold).IsEqualTo(999);
+    }
+
+    [Test]
+    public async Task Parse_WithGoldSarUsingDifferentBsId_StillReadsGoldCorrectly()
+    {
+        var bytes = BuildRecord(gold: 321, stats: new int[28], goldBsId: 0x1234);
+        var rec = CharacterMdyRecord.Parse(bytes, out _);
+
+        await Assert.That(rec.Gold).IsEqualTo(321);
     }
 
     [Test]

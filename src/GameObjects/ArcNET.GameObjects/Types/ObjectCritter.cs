@@ -26,11 +26,11 @@ public class ObjectCritter : ObjectCommon
     public int[] CritterEffectCause { get; internal set; } = [];
     public GameObjectGuid CritterFleeingFrom { get; internal set; }
     public int CritterPortrait { get; internal set; }
-    public int CritterGold { get; internal set; }
-    public int CritterArrows { get; internal set; }
-    public int CritterBullets { get; internal set; }
-    public int CritterPowerCells { get; internal set; }
-    public int CritterFuel { get; internal set; }
+    public GameObjectGuid CritterGold { get; internal set; }
+    public GameObjectGuid CritterArrows { get; internal set; }
+    public GameObjectGuid CritterBullets { get; internal set; }
+    public GameObjectGuid CritterPowerCells { get; internal set; }
+    public GameObjectGuid CritterFuel { get; internal set; }
     public GameObjectGuid[] CritterInventoryList { get; internal set; } = [];
     public int CritterInventorySource { get; internal set; }
     public int CritterDescriptionUnknown { get; internal set; }

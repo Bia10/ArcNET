@@ -233,6 +233,47 @@ public sealed class DataCommands
         writer.WriteLine();
     }
 
+    private static void AppendCritterGoldSection(
+        TextWriter writer,
+        MobData critter,
+        Dictionary<Guid, MobData> mobByGuid
+    )
+    {
+        var goldHandle = MobGoldResolver.GetCritterGoldHandle(critter);
+        var goldQuantity = MobGoldResolver.ResolveCritterGoldQuantity(
+            critter,
+            handle => mobByGuid.TryGetValue(handle.Id, out var goldMob) ? goldMob : null
+        );
+
+        if (goldHandle is null && goldQuantity is null)
+            return;
+
+        writer.WriteLine("=== CRITTER GOLD ===");
+        if (goldHandle is not null)
+            writer.WriteLine($"  Handle   : {goldHandle}");
+        writer.WriteLine($"  Quantity : {(goldQuantity?.ToString() ?? "unresolved")}");
+        writer.WriteLine();
+    }
+
+    private static void AppendContainerGoldSection(
+        TextWriter writer,
+        MobData container,
+        Dictionary<Guid, MobData> mobByGuid
+    )
+    {
+        var goldQuantity = MobGoldResolver.ResolveContainerGoldQuantity(
+            container,
+            handle => mobByGuid.TryGetValue(handle.Id, out var itemMob) ? itemMob : null
+        );
+
+        if (goldQuantity is null)
+            return;
+
+        writer.WriteLine("=== CONTAINER GOLD ===");
+        writer.WriteLine($"  Quantity : {goldQuantity}");
+        writer.WriteLine();
+    }
+
     private static string GetItemOneLiner(MobData mob)
     {
         static int? GetInt(MobData m, ObjectField f) => m.Properties.FirstOrDefault(p => p.Field == f)?.GetInt32();
@@ -244,7 +285,7 @@ public sealed class DataCommands
                     + (GetInt(mob, ObjectField.WeaponSpeedFactor) is { } spd ? $" spd={spd}" : ""),
             ObjectType.Armor => $"ac={GetInt(mob, ObjectField.ArmorAcAdj) ?? 0}"
                 + (GetInt(mob, ObjectField.ArmorMagicAcAdj) is { } mac and > 0 ? $"+{mac}magic" : ""),
-            ObjectType.Gold => $"qty={GetInt(mob, ObjectField.GoldQuantity) ?? 0}",
+            ObjectType.Gold => $"qty={MobGoldResolver.GetGoldQuantity(mob) ?? 0}",
             _ => "",
         };
     }
@@ -342,6 +383,7 @@ public sealed class DataCommands
 
             if (mob.Header.GameObjectType == ObjectType.Container)
             {
+                AppendContainerGoldSection(writer, mob, mobByGuid);
                 writer.WriteLine("=== CONTAINER INVENTORY ===");
                 AppendInventorySection(
                     writer,
@@ -355,6 +397,8 @@ public sealed class DataCommands
 
             if (mob.Header.GameObjectType is ObjectType.Npc or ObjectType.Pc)
             {
+                AppendCritterGoldSection(writer, mob, mobByGuid);
+
                 var hasInv = mob.Properties.Any(p => p.Field == ObjectField.CritterInventoryListIdx);
                 if (hasInv)
                 {

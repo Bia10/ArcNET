@@ -142,7 +142,7 @@ public class SaveGameTests
 
         var newMob = new CharacterBuilder(save.Mobiles["maps/map01/mobile/G_pc.mob"])
             .WithBaseStats([10, 12, 9, 14, 8, 11])
-            .WithGold(500)
+            .WithGoldHandle(new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 500, Guid.NewGuid()))
             .Build();
         var newMobBytes = MobFormat.WriteToArray(newMob);
 
@@ -198,7 +198,7 @@ public class SaveGameTests
         {
             var updatedMob = new CharacterBuilder(save.Mobiles["maps/map01/mobile/G_pc.mob"])
                 .WithPlayerName("Modified")
-                .WithGold(999)
+                .WithGoldHandle(new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 999, Guid.NewGuid()))
                 .Build();
 
             SaveGameWriter.Save(
@@ -216,7 +216,7 @@ public class SaveGameTests
             var name = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
             await Assert.That(name.GetString()).IsEqualTo("Modified");
             var gold = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
-            await Assert.That(gold.GetInt32()).IsEqualTo(999);
+            await Assert.That(gold.GetObjectId().OidType).IsEqualTo(GameObjectGuid.OidTypeGuid);
         }
         finally
         {
@@ -691,7 +691,7 @@ public class SaveGameTests
         {
             var updatedMob = new CharacterBuilder(save.Mobiles["maps/map01/mobile/G_pc.mob"])
                 .WithPlayerName("AsyncPlayer")
-                .WithGold(7777)
+                .WithGoldHandle(new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 7777, Guid.NewGuid()))
                 .Build();
 
             await SaveGameWriter.SaveAsync(
@@ -709,7 +709,7 @@ public class SaveGameTests
             var name = mob.Properties.First(p => p.Field == ObjectField.PcPlayerName);
             await Assert.That(name.GetString()).IsEqualTo("AsyncPlayer");
             var gold = mob.Properties.First(p => p.Field == ObjectField.CritterGold);
-            await Assert.That(gold.GetInt32()).IsEqualTo(7777);
+            await Assert.That(gold.GetObjectId().OidType).IsEqualTo(GameObjectGuid.OidTypeGuid);
         }
         finally
         {

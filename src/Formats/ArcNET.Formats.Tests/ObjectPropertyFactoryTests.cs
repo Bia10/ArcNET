@@ -1,3 +1,4 @@
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Formats.Tests;
@@ -66,6 +67,16 @@ public class ObjectPropertyFactoryTests
         var (x, y) = prop.GetLocation();
         await Assert.That(x).IsEqualTo(512);
         await Assert.That(y).IsEqualTo(1024);
+    }
+
+    [Test]
+    public async Task ForObjectId_RoundTrips()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 123, Guid.NewGuid());
+        var prop = ObjectPropertyFactory.ForObjectId(ObjectField.CritterGold, objectId);
+
+        await Assert.That(prop.Field).IsEqualTo(ObjectField.CritterGold);
+        await Assert.That(prop.GetObjectId()).IsEqualTo(objectId);
     }
 
     // ── ForInt32Array ─────────────────────────────────────────────────────────

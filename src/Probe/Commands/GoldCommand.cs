@@ -12,13 +12,13 @@ internal sealed class GoldCommand : IProbeCommand
         var slot4 = SharedProbeContext.ResolveSlot4(args);
         var ctx = SharedProbeContext.Load(saveDir, slot4);
 
-        Console.WriteLine("\n=== Mode 1: gold=99999 ===");
+        Console.WriteLine("\n=== Mode 1: mobile.mdy gold=99999 ===");
         var (gsiOut, tfaiOut, tfafOut) = SharedProbeContext.GetLegacyOutputPaths(saveDir);
         var updatedMobs =
             ctx.PcMobFiles.Count > 0
                 ? ctx.PcMobFiles.ToDictionary(
                     entry => entry.Key,
-                    entry => new CharacterBuilder(entry.Value).WithGold(99999).Build(),
+                    entry => entry.Value,
                     StringComparer.OrdinalIgnoreCase
                 )
                 : null;
@@ -31,7 +31,6 @@ internal sealed class GoldCommand : IProbeCommand
             new SaveGameUpdates
             {
                 UpdatedMobiles = updatedMobs,
-                UpdatedMobileMds = ctx.BuildUpdated(pc => new CharacterBuilder(pc).WithGold(99999).Build()),
             }
         );
 
@@ -51,11 +50,11 @@ internal sealed class GoldCommand : IProbeCommand
 
                 goldCount++;
                 if (firstGold < 0)
-                    firstGold = goldProp.GetInt32();
+                    firstGold = goldProp.GetObjectId().OidType;
             }
         }
 
-        Console.WriteLine($"  VERIFY: PC records with gold: {goldCount}  first value={firstGold}");
+        Console.WriteLine($"  VERIFY: PC records with gold handles: {goldCount}  first oidType={firstGold}");
         return Task.CompletedTask;
     }
 }

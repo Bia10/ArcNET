@@ -1,4 +1,4 @@
-﻿using ArcNET.App;
+using ArcNET.App;
 using ConsoleAppFramework;
 
 var app = ConsoleApp.Create();

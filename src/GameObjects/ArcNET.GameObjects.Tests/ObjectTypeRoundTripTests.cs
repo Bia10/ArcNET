@@ -605,7 +605,7 @@ public class ObjectTypeRoundTripTests
         original.CritterStatBase = [10, 11, 12];
         original.CritterEffects = [5, 6];
         original.CritterFleeingFrom = TestGuid;
-        original.CritterGold = 77;
+        original.CritterGold = TestGuid;
         original.CritterInventoryList = [TestGuid];
         original.CritterFollowers =
         [
@@ -632,7 +632,7 @@ public class ObjectTypeRoundTripTests
         await Assert.That(restored.CritterStatBase).IsEquivalentTo([10, 11, 12]);
         await Assert.That(restored.CritterEffects).IsEquivalentTo([5, 6]);
         await Assert.That(restored.CritterFleeingFrom).IsEqualTo(TestGuid);
-        await Assert.That(restored.CritterGold).IsEqualTo(77);
+        await Assert.That(restored.CritterGold).IsEqualTo(TestGuid);
         await Assert.That(restored.CritterInventoryList).IsEquivalentTo([TestGuid]);
         await Assert.That(restored.CritterFollowers.Length).IsEqualTo(1);
         await Assert.That(restored.CritterTeleportDest).IsEqualTo(TestLocation);
@@ -679,11 +679,11 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectPc();
         PopulateCommon(original);
         original.CritterFlags = CritterFlags.IsConcealed | CritterFlags.Undead;
-        original.CritterGold = 166;
-        original.CritterArrows = 60;
-        original.CritterBullets = 100;
-        original.CritterPowerCells = 4;
-        original.CritterFuel = 2;
+        original.CritterGold = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 166, Guid.NewGuid());
+        original.CritterArrows = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 60, Guid.NewGuid());
+        original.CritterBullets = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 100, Guid.NewGuid());
+        original.CritterPowerCells = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 4, Guid.NewGuid());
+        original.CritterFuel = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2, Guid.NewGuid());
         original.CritterInventoryList = [];
         original.CritterFollowers = [];
         PopulateCritterReserved(original);
@@ -709,11 +709,11 @@ public class ObjectTypeRoundTripTests
         var original = new ObjectPc();
         PopulateCommon(original);
         original.CritterFlags = CritterFlags.IsConcealed | CritterFlags.Undead;
-        original.CritterGold = 166;
-        original.CritterArrows = 60;
-        original.CritterBullets = 100;
-        original.CritterPowerCells = 4;
-        original.CritterFuel = 2;
+        original.CritterGold = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 166, Guid.NewGuid());
+        original.CritterArrows = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 60, Guid.NewGuid());
+        original.CritterBullets = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 100, Guid.NewGuid());
+        original.CritterPowerCells = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 4, Guid.NewGuid());
+        original.CritterFuel = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2, Guid.NewGuid());
         original.CritterInventoryList = [];
         original.CritterFollowers = [];
         original.PcFlags = 2;
@@ -732,8 +732,8 @@ public class ObjectTypeRoundTripTests
         await Assert.That(restoredGameObject.Type).IsEqualTo(ObjectType.Pc);
         await Assert.That(restored.CurrentAid).IsEqualTo(TestArtId);
         await Assert.That(restored.CritterFlags).IsEqualTo(CritterFlags.IsConcealed | CritterFlags.Undead);
-        await Assert.That(restored.CritterGold).IsEqualTo(166);
-        await Assert.That(restored.CritterArrows).IsEqualTo(60);
+        await Assert.That(restored.CritterGold).IsEqualTo(original.CritterGold);
+        await Assert.That(restored.CritterArrows).IsEqualTo(original.CritterArrows);
         await Assert.That(restored.PcFlags).IsEqualTo(2);
         await Assert.That(restored.PlayerName).IsEqualTo(new PrefixedString("TestChar"));
         await Assert.That(restored.BankMoney).IsEqualTo(9999);
