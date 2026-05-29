@@ -35,7 +35,9 @@ internal sealed class DiagnosticsCommand : IProbeCommand
                 $"  PC[0]: bitmap_bits={firstPc.Header.Bitmap.Sum(b => int.PopCount(b))}  props={firstPc.Properties.Count}  propCollItems={firstPc.Header.PropCollectionItems}"
             );
             var goldProp = firstPc.Properties.FirstOrDefault(p => p.Field == ObjectField.CritterGold);
-            await WriteLineAsync($"  PC[0] gold handle: {(goldProp is null ? "absent" : goldProp.GetObjectId().ToString())}");
+            await WriteLineAsync(
+                $"  PC[0] gold handle: {(goldProp is null ? "absent" : goldProp.GetObjectId().ToString())}"
+            );
             await WriteLineAsync($"  PC[0] bitmap: {ValueBufferText.FormatHex(firstPc.Header.Bitmap)}");
             await WriteLineAsync(
                 $"  PC[0] props: {ValueBufferText.JoinFormatted(firstPc.Properties, ", ", new PropertyBitFormatter())}"

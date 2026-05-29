@@ -13,15 +13,7 @@ internal sealed class GoldStatsCommand : IProbeCommand
 
         Console.WriteLine("\n=== Mode 2: gold=99999 + stats=20 ===");
         var (gsiOut, tfaiOut, tfafOut) = SharedProbeContext.GetLegacyOutputPaths(saveDir);
-        SaveGameWriter.Save(
-            ctx.Save,
-            gsiOut,
-            tfaiOut,
-            tfafOut,
-            new SaveGameUpdates
-            {
-            }
-        );
+        SaveGameWriter.Save(ctx.Save, gsiOut, tfaiOut, tfafOut, new SaveGameUpdates { });
 
         Console.WriteLine(
             $"  TFAF={new FileInfo(tfafOut).Length}B  delta={new FileInfo(tfafOut).Length - ctx.TfafBytes.Length}B"

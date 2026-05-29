@@ -28,10 +28,7 @@ internal sealed class GoldCommand : IProbeCommand
             gsiOut,
             tfaiOut,
             tfafOut,
-            new SaveGameUpdates
-            {
-                UpdatedMobiles = updatedMobs,
-            }
+            new SaveGameUpdates { UpdatedMobiles = updatedMobs }
         );
 
         Console.WriteLine(
