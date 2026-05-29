@@ -3,7 +3,7 @@
     <RootNamespace>ArcNET.App</RootNamespace>
     <AssemblyName>arcnet</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <PublishAot>true</PublishAot>
     <!-- Suppress AOT analysis warnings from JsonSerializer.Serialize on anonymous objects.
          Anonymous types cannot be registered with a JsonSerializerContext source generator,

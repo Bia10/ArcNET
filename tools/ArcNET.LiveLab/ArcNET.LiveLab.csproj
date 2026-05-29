@@ -5,7 +5,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- LiveLab requires Windows APIs to hook/inspect the live arcanum.exe process -->
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
   </PropertyGroup>
+
+  <Target Name="ValidatePlatform" BeforeTargets="Restore;Build">
+    <Error
+      Condition="!$([MSBuild]::IsOSPlatform('windows'))"
+      Text="ArcNET.LiveLab is Windows-only. It requires native Win32 APIs to attach to and inspect the live 32-bit Arcanum.exe process."
+    />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
