@@ -5,7 +5,8 @@ namespace ArcNET.GameData;
 public sealed class GameDataLoadEntry(
     FileFormat format,
     string sourcePath,
-    Func<CancellationToken, Task<ReadOnlyMemory<byte>>> loadContentAsync
+    Func<CancellationToken, Task<ReadOnlyMemory<byte>>> loadContentAsync,
+    long estimatedContentLength = 0
 )
 {
     public FileFormat Format { get; } = format;
@@ -14,18 +15,25 @@ public sealed class GameDataLoadEntry(
 
     public Func<CancellationToken, Task<ReadOnlyMemory<byte>>> LoadContentAsync { get; } = loadContentAsync;
 
+    public long EstimatedContentLength { get; } = Math.Max(estimatedContentLength, 0L);
+
     public static GameDataLoadEntry FromFile(FileFormat format, string sourcePath, string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        return new(format, sourcePath, cancellationToken => LoadFileAsync(filePath, cancellationToken));
+        return new(
+            format,
+            sourcePath,
+            cancellationToken => LoadFileAsync(filePath, cancellationToken),
+            new FileInfo(filePath).Length
+        );
     }
 
     public static GameDataLoadEntry FromMemory(FileFormat format, string sourcePath, ReadOnlyMemory<byte> memory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        return new(format, sourcePath, _ => Task.FromResult(memory));
+        return new(format, sourcePath, _ => Task.FromResult(memory), memory.Length);
     }
 
     private static async Task<ReadOnlyMemory<byte>> LoadFileAsync(

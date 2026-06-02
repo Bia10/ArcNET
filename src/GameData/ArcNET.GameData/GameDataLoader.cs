@@ -16,7 +16,10 @@ public static class GameDataLoader
     private const int MinParseParallelism = 4;
     private const int MaxReadParallelism = 256;
     private const int MinReadParallelism = 8;
-    private const int MaxLoadedEntryBufferSize = 256;
+    private const int MaxLoadedEntryBufferSize = 128;
+    private const long MinLoadedEntryRetainedByteBudget = 32L * 1024L * 1024L;
+    private const long MaxLoadedEntryRetainedByteBudget = 256L * 1024L * 1024L;
+    private const long UnknownEntryEstimatedLength = 64L * 1024L;
 
     private static readonly IReadOnlyDictionary<FileFormat, MemoryLoadHandler> s_memoryLoadHandlers = new Dictionary<
         FileFormat,
@@ -262,8 +265,9 @@ public static class GameDataLoader
 
         var parseParallelism = GetParseParallelism();
         var readParallelism = GetReadParallelism(parseParallelism);
+        var loadedEntryByteBudget = GetLoadedEntryByteBudget(parseParallelism);
         Debug.WriteLine(
-            $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, TotalAssets={entries.Count}"
+            $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, BufferedEntries={GetLoadedEntryBufferSize(parseParallelism)}, RetainedByteBudget={loadedEntryByteBudget}, TotalAssets={entries.Count}"
         );
         // Use a bounded channel to prevent unbounded memory growth if reading is faster than parsing.
         // AllowSynchronousContinuations MUST be false to ensure that the CPU-intensive parse continuations
@@ -277,6 +281,7 @@ public static class GameDataLoader
                 AllowSynchronousContinuations = false, // Critical: Decouple I/O and CPU work
             }
         );
+        var inFlightByteBudget = new InFlightByteBudget(loadedEntryByteBudget);
 
         var parseWorkers = Enumerable
             .Range(0, parseParallelism)
@@ -293,10 +298,22 @@ public static class GameDataLoader
                     async (index, cancellationToken) =>
                     {
                         var entry = entries[index];
-                        var memory = await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false);
-                        await loadedEntryChannel
-                            .Writer.WriteAsync(new LoadedEntry(index, entry, memory), cancellationToken)
+                        var byteLease = await inFlightByteBudget
+                            .AcquireAsync(GetEffectiveEstimatedContentLength(entry), cancellationToken)
                             .ConfigureAwait(false);
+
+                        try
+                        {
+                            var memory = await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false);
+                            await loadedEntryChannel
+                                .Writer.WriteAsync(new LoadedEntry(index, entry, memory, byteLease), cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            byteLease.Dispose();
+                            throw;
+                        }
                     }
                 )
                 .ConfigureAwait(false);
@@ -327,7 +344,14 @@ public static class GameDataLoader
     {
         await foreach (var loadedEntry in reader.ReadAllAsync(ct).ConfigureAwait(false))
         {
-            parsedEntries[loadedEntry.Index] = ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory);
+            try
+            {
+                parsedEntries[loadedEntry.Index] = ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory);
+            }
+            finally
+            {
+                loadedEntry.ByteLease.Dispose();
+            }
         }
     }
 
@@ -352,10 +376,23 @@ public static class GameDataLoader
         Math.Clamp(Environment.ProcessorCount * 2, MinParseParallelism, MaxParseParallelism);
 
     private static int GetReadParallelism(int parseParallelism) =>
-        Math.Clamp(parseParallelism * 8, MinReadParallelism, MaxReadParallelism);
+        Math.Clamp(parseParallelism * 4, MinReadParallelism, MaxReadParallelism);
 
     private static int GetLoadedEntryBufferSize(int parseParallelism) =>
-        Math.Clamp(parseParallelism * 8, MinReadParallelism, MaxLoadedEntryBufferSize);
+        Math.Clamp(parseParallelism * 2, MinParseParallelism, MaxLoadedEntryBufferSize);
+
+    private static long GetLoadedEntryByteBudget(int parseParallelism) =>
+        Math.Clamp(
+            parseParallelism * 16L * 1024L * 1024L,
+            MinLoadedEntryRetainedByteBudget,
+            MaxLoadedEntryRetainedByteBudget
+        );
+
+    private static long GetEffectiveEstimatedContentLength(GameDataLoadEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.EstimatedContentLength > 0 ? entry.EstimatedContentLength : UnknownEntryEstimatedLength;
+    }
 
     private static Action<GameDataStore>? ParseEntryFromMemory(
         FileFormat format,
@@ -406,7 +443,121 @@ public static class GameDataLoader
     private static bool IsSkippableAssetParseFailure(Exception exception) =>
         exception is ArgumentOutOfRangeException or InvalidDataException;
 
-    private readonly record struct LoadedEntry(int Index, GameDataLoadEntry Entry, ReadOnlyMemory<byte> Memory);
+    private sealed class InFlightByteBudget(long maxRetainedBytes)
+    {
+        private readonly object _gate = new();
+        private readonly LinkedList<Waiter> _waiters = [];
+        private readonly long _maxRetainedBytes = Math.Max(maxRetainedBytes, 1L);
+        private long _retainedBytes;
+
+        public ValueTask<Lease> AcquireAsync(long requestedBytes, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var normalizedBytes = Math.Clamp(Math.Max(requestedBytes, 1L), 1L, _maxRetainedBytes);
+
+            lock (_gate)
+            {
+                if (_waiters.Count == 0 && _retainedBytes + normalizedBytes <= _maxRetainedBytes)
+                {
+                    _retainedBytes += normalizedBytes;
+                    return ValueTask.FromResult(new Lease(this, normalizedBytes));
+                }
+
+                var waiter = new Waiter(this, normalizedBytes);
+                waiter.Node = _waiters.AddLast(waiter);
+                if (cancellationToken.CanBeCanceled)
+                {
+                    waiter.Registration = cancellationToken.Register(static state => ((Waiter)state!).Cancel(), waiter);
+                }
+
+                return new ValueTask<Lease>(waiter.Task);
+            }
+        }
+
+        private void Cancel(Waiter waiter)
+        {
+            lock (_gate)
+            {
+                if (waiter.Node is null)
+                    return;
+
+                _waiters.Remove(waiter.Node);
+                waiter.Node = null;
+            }
+
+            waiter.Registration.Dispose();
+            waiter.TrySetCanceled();
+        }
+
+        private void Release(long releasedBytes)
+        {
+            List<Waiter>? readyWaiters = null;
+
+            lock (_gate)
+            {
+                _retainedBytes = Math.Max(0L, _retainedBytes - releasedBytes);
+
+                while (_waiters.First is { } node)
+                {
+                    var waiter = node.Value;
+                    if (_retainedBytes + waiter.RequestedBytes > _maxRetainedBytes)
+                        break;
+
+                    _waiters.Remove(node);
+                    waiter.Node = null;
+                    _retainedBytes += waiter.RequestedBytes;
+                    readyWaiters ??= [];
+                    readyWaiters.Add(waiter);
+                }
+            }
+
+            if (readyWaiters is null)
+                return;
+
+            for (var index = 0; index < readyWaiters.Count; index++)
+            {
+                var waiter = readyWaiters[index];
+                waiter.Registration.Dispose();
+                waiter.TrySetResult(new Lease(this, waiter.RequestedBytes));
+            }
+        }
+
+        internal sealed class Lease(InFlightByteBudget owner, long retainedBytes) : IDisposable
+        {
+            private InFlightByteBudget? _owner = owner;
+            private readonly long _retainedBytes = retainedBytes;
+
+            public void Dispose()
+            {
+                var owner = Interlocked.Exchange(ref _owner, null);
+                owner?.Release(_retainedBytes);
+            }
+        }
+
+        private sealed class Waiter(InFlightByteBudget owner, long requestedBytes)
+        {
+            private readonly TaskCompletionSource<Lease> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public InFlightByteBudget Owner { get; } = owner;
+            public long RequestedBytes { get; } = requestedBytes;
+            public LinkedListNode<Waiter>? Node { get; set; }
+            public CancellationTokenRegistration Registration { get; set; }
+            public Task<Lease> Task => _tcs.Task;
+
+            public void Cancel() => Owner.Cancel(this);
+
+            public void TrySetCanceled() => _tcs.TrySetCanceled();
+
+            public void TrySetResult(Lease lease) => _tcs.TrySetResult(lease);
+        }
+    }
+
+    private readonly record struct LoadedEntry(
+        int Index,
+        GameDataLoadEntry Entry,
+        ReadOnlyMemory<byte> Memory,
+        InFlightByteBudget.Lease ByteLease
+    );
 
     private readonly record struct FileLoadEntry(FileFormat Format, string Path);
 

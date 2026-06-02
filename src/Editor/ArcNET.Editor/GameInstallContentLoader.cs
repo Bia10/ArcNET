@@ -215,7 +215,8 @@ internal static class GameInstallContentLoader
                 overlay.LoadEntries[assetPath] = new GameDataLoadEntry(
                     format,
                     assetPath,
-                    ct => Task.FromResult(LoadArchiveEntry(archive, archiveEntryPath, ct))
+                    ct => Task.FromResult(LoadArchiveEntry(archive, archiveEntryPath, ct)),
+                    entry.UncompressedSize
                 );
                 overlay.AssetSources[assetPath] = (EditorAssetSourceKind.DatArchive, archivePath, assetPath);
             }

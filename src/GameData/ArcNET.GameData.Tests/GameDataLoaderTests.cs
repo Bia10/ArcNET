@@ -269,6 +269,54 @@ public class GameDataLoaderTests
     }
 
     [Test]
+    public async Task LoadFromEntriesAsync_ThrottlesLargeEstimatedLoadsByRetainedByteBudget()
+    {
+        var parseParallelism = Math.Clamp(Environment.ProcessorCount * 2, 4, 64);
+        var retainedByteBudget = Math.Clamp(
+            parseParallelism * 16L * 1024L * 1024L,
+            32L * 1024L * 1024L,
+            256L * 1024L * 1024L
+        );
+        var estimatedLength = (retainedByteBudget / 2L) + 1L;
+        var releaseLoads = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstLoadStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondLoadStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startedLoadCount = 0;
+        var payload = Encoding.UTF8.GetBytes("{1}{Alpha}\n");
+
+        var entries = Enumerable
+            .Range(0, 2)
+            .Select(index => new GameDataLoadEntry(
+                FileFormat.Message,
+                $"mes/large{index}.mes",
+                async cancellationToken =>
+                {
+                    var startedCount = Interlocked.Increment(ref startedLoadCount);
+                    if (startedCount == 1)
+                        firstLoadStarted.TrySetResult(true);
+                    else if (startedCount == 2)
+                        secondLoadStarted.TrySetResult(true);
+
+                    await releaseLoads.Task.WaitAsync(cancellationToken);
+                    return payload;
+                },
+                estimatedLength
+            ))
+            .ToArray();
+
+        var loadTask = GameDataLoader.LoadFromEntriesAsync(entries);
+        await firstLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var completedTask = await Task.WhenAny(secondLoadStarted.Task, Task.Delay(TimeSpan.FromMilliseconds(250)));
+        await Assert.That(completedTask == secondLoadStarted.Task).IsFalse();
+
+        releaseLoads.TrySetResult(true);
+
+        var result = await loadTask;
+        await Assert.That(result.Store.Messages.Count).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task LoadFromEntriesAsync_KnownParseFailure_IsReportedWithoutDiscardingValidEntries()
     {
         var result = await GameDataLoader.LoadFromEntriesAsync([
