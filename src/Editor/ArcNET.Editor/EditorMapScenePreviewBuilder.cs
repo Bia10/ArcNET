@@ -182,6 +182,7 @@ public static class EditorMapScenePreviewBuilder
             LocalX = sectorProjection.LocalX,
             LocalY = sectorProjection.LocalY,
             PreviewFlags = sectorProjection.PreviewFlags,
+            LightSchemeIdx = sector.LightSchemeIdx,
             ObjectDensityBand = sectorProjection.ObjectDensityBand,
             BlockedTileDensityBand = sectorProjection.BlockedTileDensityBand,
             TileArtIds = [.. sector.Tiles],
@@ -191,15 +192,17 @@ public static class EditorMapScenePreviewBuilder
             TileScripts = [.. sector.TileScripts.Select(BuildTileScript)],
             Objects =
             [
-                .. sector.Objects.Select(mob =>
-                    BuildObject(
-                        mob,
-                        artResolver,
-                        spriteBoundsCache,
-                        currentArtIdFallbackResolver,
-                        locationOverride: TryGetNormalizedSectorObjectLocation(sectorProjection, mob),
-                        sourceAssetPath: sectorProjection.Asset.AssetPath
-                    )
+                .. sector.Objects.Select(
+                    (mob, objectIndex) =>
+                        BuildObject(
+                            mob,
+                            artResolver,
+                            spriteBoundsCache,
+                            currentArtIdFallbackResolver,
+                            locationOverride: TryGetNormalizedSectorObjectLocation(sectorProjection, mob),
+                            sourceAssetPath: sectorProjection.Asset.AssetPath,
+                            sourceObjectIndex: objectIndex
+                        )
                 ),
                 .. (extraObjects ?? []),
             ],
@@ -451,7 +454,8 @@ public static class EditorMapScenePreviewBuilder
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
         Func<MobData, ArtId?>? currentArtIdFallbackResolver = null,
         Location? locationOverride = null,
-        string? sourceAssetPath = null
+        string? sourceAssetPath = null,
+        int? sourceObjectIndex = null
     )
     {
         var currentArtId = GetArtIdOrDefault(mob, ObjectField.CurrentAid);
@@ -521,6 +525,7 @@ public static class EditorMapScenePreviewBuilder
             CurrentArtId = currentArtId,
             Flags = flags,
             SourceAssetPath = sourceAssetPath,
+            SourceObjectIndex = sourceObjectIndex,
             Location = location,
             OffsetX = offsetX,
             OffsetY = offsetY,

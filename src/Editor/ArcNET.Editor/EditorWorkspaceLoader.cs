@@ -426,7 +426,6 @@ public static class EditorWorkspaceLoader
             Index = index,
             LoadReport = loadReport,
             Validation = validation,
-            AudioAssetData = audioAssets.DataByPath,
             Save = save,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
@@ -530,10 +529,6 @@ public static class EditorWorkspaceLoader
     )
     {
         var entriesByPath = new Dictionary<string, EditorAudioAssetEntry>(StringComparer.OrdinalIgnoreCase);
-        var dataByPath = new Dictionary<string, ReadOnlyMemory<byte>>(
-            baseAudioAssets.DataByPath,
-            StringComparer.OrdinalIgnoreCase
-        );
 
         for (var index = 0; index < baseAudioAssets.Catalog.Entries.Count; index++)
         {
@@ -547,12 +542,8 @@ public static class EditorWorkspaceLoader
             entriesByPath[entry.AssetPath] = entry;
         }
 
-        foreach (var pair in overlayAudioAssets.DataByPath)
-            dataByPath[pair.Key] = pair.Value;
-
         return new EditorAudioAssetLoader.EditorAudioAssetLoadResult(
-            EditorAudioAssetCatalog.Create(entriesByPath.Values),
-            dataByPath
+            EditorAudioAssetCatalog.Create(entriesByPath.Values)
         );
     }
 

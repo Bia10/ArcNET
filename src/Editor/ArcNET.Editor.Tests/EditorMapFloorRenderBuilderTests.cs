@@ -1,4 +1,5 @@
 using ArcNET.Core.Primitives;
+using ArcNET.Formats;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor.Tests;
@@ -251,6 +252,191 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue[5].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
         await Assert.That(preview.RenderQueue[6].Kind).IsEqualTo(EditorMapRenderQueueItemKind.Light);
         await Assert.That(preview.RenderQueue[6].Light?.ArtId).IsEqualTo(new ArtId(0x01020304u));
+    }
+
+    [Test]
+    public async Task Build_Isometric_NormalizesSliceBoundsForVisibleEnumeration()
+    {
+        const int localSectorX = 12;
+        const int localSectorY = 7;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_far.sec",
+                    SectorX = localSectorX,
+                    SectorY = localSectorY,
+                    LocalX = localSectorX,
+                    LocalY = localSectorY,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = CreateSparseMapTileArtIds(),
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 64d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        var sliceBounds = preview.Slices.Single().Bounds;
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(preview);
+        var viewport = EditorMapSceneRenderSpaceMath.CreateViewportLayout(
+            preview,
+            preview.WidthPixels,
+            preview.HeightPixels
+        );
+        var visibleItems = paintableScene.EnumerateVisibleItems(viewport).ToArray();
+
+        await Assert.That(sliceBounds.Left).IsGreaterThanOrEqualTo(0d);
+        await Assert.That(sliceBounds.Top).IsGreaterThanOrEqualTo(0d);
+        await Assert.That(sliceBounds.Right).IsLessThanOrEqualTo(preview.WidthPixels);
+        await Assert.That(sliceBounds.Bottom).IsLessThanOrEqualTo(preview.HeightPixels);
+        await Assert.That(visibleItems.Length).IsEqualTo(paintableScene.Items.Count);
+        await Assert.That(visibleItems.Length).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task BuildDelta_RebuildsChangedSectorAndMatchesFullBuild()
+    {
+        var sectorAObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 910, Guid.NewGuid());
+        var sectorBObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 911, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+
+        var sectorA = new EditorMapSectorScenePreview
+        {
+            AssetPath = "maps/map01/sector_a.sec",
+            SectorX = 0,
+            SectorY = 0,
+            LocalX = 0,
+            LocalY = 0,
+            PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+            ObjectDensityBand = EditorMapSectorDensityBand.Low,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            TileArtIds = CreateFilledMapTileArtIds(100u),
+            RoofArtIds = null,
+            BlockMask = new uint[128],
+            Lights = [],
+            TileScripts = [],
+            Objects =
+            [
+                CreateObjectPreview(
+                    sectorAObjectId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x40000000u),
+                    location: new Location(63, 63)
+                ),
+            ],
+        };
+
+        var sectorBInitial = new EditorMapSectorScenePreview
+        {
+            AssetPath = "maps/map01/sector_b.sec",
+            SectorX = 1,
+            SectorY = 0,
+            LocalX = 1,
+            LocalY = 0,
+            PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+            ObjectDensityBand = EditorMapSectorDensityBand.Low,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            TileArtIds = CreateFilledMapTileArtIds(200u),
+            RoofArtIds = null,
+            BlockMask = new uint[128],
+            Lights = [],
+            TileScripts = [],
+            Objects =
+            [
+                CreateObjectPreview(
+                    sectorBObjectId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x40000001u),
+                    location: new Location(0, 63)
+                ),
+            ],
+        };
+
+        var updatedTileArtIds = CreateFilledMapTileArtIds(200u);
+        updatedTileArtIds[63 * 64] = 250u;
+        var sectorBUpdated = new EditorMapSectorScenePreview
+        {
+            AssetPath = sectorBInitial.AssetPath,
+            SectorX = sectorBInitial.SectorX,
+            SectorY = sectorBInitial.SectorY,
+            LocalX = sectorBInitial.LocalX,
+            LocalY = sectorBInitial.LocalY,
+            PreviewFlags = sectorBInitial.PreviewFlags,
+            ObjectDensityBand = sectorBInitial.ObjectDensityBand,
+            BlockedTileDensityBand = sectorBInitial.BlockedTileDensityBand,
+            TileArtIds = updatedTileArtIds,
+            RoofArtIds = null,
+            BlockMask = CreateBlockMask((0, 63)),
+            Lights =
+            [
+                new EditorMapLightPreview
+                {
+                    TileX = 0,
+                    TileY = 63,
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    ArtId = new ArtId(0x01020304u),
+                    Flags = 0,
+                    Palette = 0,
+                    Red = 0,
+                    Green = 0,
+                    Blue = 0,
+                    TintColor = 0x00ABCDEFu,
+                },
+            ],
+            TileScripts =
+            [
+                new EditorMapTileScriptPreview
+                {
+                    TileIndex = 63 * 64,
+                    TileX = 0,
+                    TileY = 63,
+                    ScriptId = 77,
+                    NodeFlags = 0u,
+                    ScriptFlags = 0u,
+                    ScriptCounters = 0u,
+                },
+            ],
+            Objects =
+            [
+                CreateObjectPreview(
+                    sectorBObjectId,
+                    protoId,
+                    ObjectType.Scenery,
+                    new ArtId(0x40000002u),
+                    location: new Location(0, 63)
+                ),
+            ],
+        };
+
+        var initialScenePreview = CreateScenePreview(sectorA, sectorBInitial);
+        var updatedScenePreview = CreateScenePreview(sectorA, sectorBUpdated);
+        var request = EditorMapFloorRenderRequest.CreateWorldEditPreset();
+
+        var initialPreview = EditorMapFloorRenderBuilder.Build(initialScenePreview, request);
+        var deltaPreview = EditorMapFloorRenderBuilder.BuildDelta(
+            initialPreview,
+            updatedScenePreview,
+            sectorBUpdated.AssetPath,
+            request
+        );
+        var fullPreview = EditorMapFloorRenderBuilder.Build(updatedScenePreview, request);
+
+        await AssertPreviewEquivalent(fullPreview, deltaPreview);
     }
 
     [Test]
@@ -1495,6 +1681,7 @@ public sealed class EditorMapFloorRenderBuilderTests
         GameObjectGuid protoId,
         ObjectType objectType,
         ArtId currentArtId,
+        Location? location = null,
         int offsetX = 0,
         int offsetY = 0,
         float offsetZ = 0f,
@@ -1506,7 +1693,7 @@ public sealed class EditorMapFloorRenderBuilderTests
             ProtoId = protoId,
             ObjectType = objectType,
             CurrentArtId = currentArtId,
-            Location = new Location(0, 63),
+            Location = location ?? new Location(0, 63),
             OffsetX = offsetX,
             OffsetY = offsetY,
             OffsetZ = offsetZ,
@@ -1528,6 +1715,19 @@ public sealed class EditorMapFloorRenderBuilderTests
         return tileArtIds;
     }
 
+    private static EditorMapAmbientLightingState CreateAmbientLightingState(
+        int lightSchemeIndex,
+        Color indoor,
+        Color outdoor
+    ) =>
+        new()
+        {
+            SchemeColorsByIndex = new Dictionary<int, EditorMapAmbientLightColors>
+            {
+                [lightSchemeIndex] = new EditorMapAmbientLightColors(indoor, outdoor),
+            },
+        };
+
     private static ArtId CreateWallArtId(int rotation) => new(0x10000000u | ((uint)(rotation & 0x7) << 11));
 
     private static uint CreateRoofArtId(int piece, bool faded = false, bool fill = false)
@@ -1540,6 +1740,142 @@ public sealed class EditorMapFloorRenderBuilderTests
 
         return artId;
     }
+
+    private static async Task AssertPreviewEquivalent(
+        EditorMapFloorRenderPreview expected,
+        EditorMapFloorRenderPreview actual
+    )
+    {
+        await Assert.That(actual.MapName).IsEqualTo(expected.MapName);
+        await Assert.That(actual.ViewMode).IsEqualTo(expected.ViewMode);
+        await Assert.That(actual.TileWidthPixels).IsEqualTo(expected.TileWidthPixels);
+        await Assert.That(actual.TileHeightPixels).IsEqualTo(expected.TileHeightPixels);
+        await Assert.That(actual.WidthPixels).IsEqualTo(expected.WidthPixels);
+        await Assert.That(actual.HeightPixels).IsEqualTo(expected.HeightPixels);
+        await Assert
+            .That(JoinSignatures(actual.Tiles.Select(DescribeTile)))
+            .IsEqualTo(JoinSignatures(expected.Tiles.Select(DescribeTile)));
+        await Assert
+            .That(JoinSignatures(actual.Objects.Select(DescribeObject)))
+            .IsEqualTo(JoinSignatures(expected.Objects.Select(DescribeObject)));
+        await Assert
+            .That(JoinSignatures(actual.Overlays.Select(DescribeOverlay)))
+            .IsEqualTo(JoinSignatures(expected.Overlays.Select(DescribeOverlay)));
+        await Assert
+            .That(JoinSignatures(actual.Roofs.Select(DescribeRoof)))
+            .IsEqualTo(JoinSignatures(expected.Roofs.Select(DescribeRoof)));
+        await Assert
+            .That(JoinSignatures(actual.ObjectAuxiliaryItems.Select(DescribeAuxiliary)))
+            .IsEqualTo(JoinSignatures(expected.ObjectAuxiliaryItems.Select(DescribeAuxiliary)));
+        await Assert
+            .That(JoinSignatures(actual.Lights.Select(DescribeLight)))
+            .IsEqualTo(JoinSignatures(expected.Lights.Select(DescribeLight)));
+        await Assert
+            .That(JoinSignatures(actual.RenderQueue.Select(DescribeQueueItem)))
+            .IsEqualTo(JoinSignatures(expected.RenderQueue.Select(DescribeQueueItem)));
+    }
+
+    private static string JoinSignatures(IEnumerable<string> signatures) => string.Join('\n', signatures);
+
+    private static string DescribeTile(EditorMapFloorTileRenderItem tile) =>
+        string.Join(
+            "|",
+            tile.SectorAssetPath,
+            tile.MapTileX,
+            tile.MapTileY,
+            tile.ArtId.Value,
+            tile.CenterX,
+            tile.CenterY,
+            tile.IsBlocked,
+            tile.HasLight,
+            tile.HasScript,
+            tile.SuggestedTintColor,
+            tile.LightDiagnostics?.MiddleCenter
+        );
+
+    private static string DescribeObject(EditorMapObjectRenderItem obj) =>
+        string.Join(
+            "|",
+            obj.SectorAssetPath,
+            obj.ObjectId,
+            obj.MapTileX,
+            obj.MapTileY,
+            obj.CurrentArtId.Value,
+            obj.AnchorX,
+            obj.AnchorY,
+            obj.IsRoofCovered,
+            obj.LightAid.Value
+        );
+
+    private static string DescribeOverlay(EditorMapTileOverlayRenderItem overlay) =>
+        string.Join(
+            "|",
+            overlay.SectorAssetPath,
+            overlay.MapTileX,
+            overlay.MapTileY,
+            overlay.Kind,
+            overlay.CenterX,
+            overlay.CenterY,
+            overlay.SuggestedTintColor
+        );
+
+    private static string DescribeRoof(EditorMapRoofRenderItem roof) =>
+        string.Join(
+            "|",
+            roof.SectorAssetPath,
+            roof.MapTileX,
+            roof.MapTileY,
+            roof.ArtId.Value,
+            roof.AnchorX,
+            roof.AnchorY
+        );
+
+    private static string DescribeAuxiliary(EditorMapObjectAuxiliaryRenderItem auxiliary) =>
+        string.Join(
+            "|",
+            auxiliary.SectorAssetPath,
+            auxiliary.ParentObjectId,
+            auxiliary.Layer,
+            auxiliary.ArtId.Value,
+            auxiliary.MapTileX,
+            auxiliary.MapTileY,
+            auxiliary.AnchorX,
+            auxiliary.AnchorY,
+            auxiliary.RotationIndex,
+            auxiliary.ScalePercent,
+            auxiliary.IsShrunk
+        );
+
+    private static string DescribeLight(EditorMapLightRenderItem light) =>
+        string.Join(
+            "|",
+            light.SectorAssetPath,
+            light.MapTileX,
+            light.MapTileY,
+            light.ArtId.Value,
+            light.AnchorX,
+            light.AnchorY,
+            light.SuggestedTintColor,
+            light.Flags
+        );
+
+    private static string DescribeQueueItem(EditorMapRenderQueueItem item) =>
+        item.Kind switch
+        {
+            EditorMapRenderQueueItemKind.FloorTile =>
+                $"tile|{item.Tile!.SectorAssetPath}|{item.Tile.MapTileX}|{item.Tile.MapTileY}|{item.Tile.ArtId.Value}",
+            EditorMapRenderQueueItemKind.Object =>
+                $"object|{item.Object!.SectorAssetPath}|{item.Object.ObjectId}|{item.Object.CurrentArtId.Value}",
+            EditorMapRenderQueueItemKind.TileOverlay =>
+                $"overlay|{item.TileOverlay!.SectorAssetPath}|{item.TileOverlay.MapTileX}|{item.TileOverlay.MapTileY}|{item.TileOverlay.Kind}",
+            EditorMapRenderQueueItemKind.Roof =>
+                $"roof|{item.Roof!.SectorAssetPath}|{item.Roof.MapTileX}|{item.Roof.MapTileY}|{item.Roof.ArtId.Value}",
+            EditorMapRenderQueueItemKind.ObjectAuxiliary =>
+                $"aux|{item.ObjectAuxiliaryItem!.SectorAssetPath}|{item.ObjectAuxiliaryItem.ParentObjectId}|{item.ObjectAuxiliaryItem.ArtId.Value}|{item.ObjectAuxiliaryItem.Layer}",
+            EditorMapRenderQueueItemKind.Light =>
+                $"light|{item.Light!.SectorAssetPath}|{item.Light.MapTileX}|{item.Light.MapTileY}|{item.Light.ArtId.Value}",
+            _ => item.Kind.ToString(),
+        };
 
     [Test]
     public async Task Build_ParityGaps_Reconciliation_Verified()
@@ -1808,6 +2144,250 @@ public sealed class EditorMapFloorRenderBuilderTests
         var litTile = preview.Tiles.Single(tile => tile.MapTileX == 0 && tile.MapTileY == 63);
         await Assert.That(litTile.SuggestedTintColor).IsNotNull();
         await Assert.That(litTile.LightDiagnostics).IsNotNull();
+    }
+
+    [Test]
+    public async Task Build_FloorLightTintUsesResolvedAmbientColorsForIndoorAndOutdoorTiles()
+    {
+        var ambientLighting = CreateAmbientLightingState(
+            lightSchemeIndex: 5,
+            indoor: new Color(0x11, 0x22, 0x33),
+            outdoor: new Color(0x44, 0x55, 0x66)
+        );
+        var request = new EditorMapFloorRenderRequest
+        {
+            ViewMode = EditorMapSceneViewMode.Isometric,
+            TileWidthPixels = 80d,
+            TileHeightPixels = 40d,
+            IncludeFloorLightTint = true,
+            AmbientLighting = ambientLighting,
+        };
+
+        var indoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_indoor.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    LightSchemeIdx = 5,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = CreateSingleTileMapTileArtIds(),
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            request
+        );
+
+        var outdoorTileArtIds = new uint[64 * 64];
+        outdoorTileArtIds[63 * 64] = 0x00000105u;
+        var outdoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_outdoor.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    LightSchemeIdx = 5,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = outdoorTileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            request
+        );
+
+        await Assert.That(indoorPreview.Tiles.Single().LightDiagnostics!.Value.MiddleCenter).IsEqualTo(0xFF112233u);
+        await Assert.That(outdoorPreview.Tiles.Single().LightDiagnostics!.Value.MiddleCenter).IsEqualTo(0xFF445566u);
+    }
+
+    [Test]
+    public async Task Build_IndoorAndOutdoorLightFlagsRetintProjectedLightsWithoutTileFiltering()
+    {
+        var indoorAmbient = new Color(0x00, 0xFF, 0x00);
+        var outdoorAmbient = new Color(0x00, 0x00, 0xFF);
+
+        var outdoorObjectPreview = new EditorMapObjectPreview
+        {
+            ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1007, Guid.NewGuid()),
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty),
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x40000001u),
+            LightFlags = (int)SectorLightFlags.Indoor,
+            LightAid = new ArtId(0x90004000u),
+            LightColor = new Color(0xFF, 0x00, 0x00),
+            Location = new Location(0, 63),
+            RotationPitch = 0f,
+        };
+        var outdoorTileArtIds = new uint[64 * 64];
+        outdoorTileArtIds[63 * 64] = 0x00000105u;
+        var outdoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/outdoor.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    LightSchemeIdx = 7,
+                    ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = outdoorTileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [outdoorObjectPreview],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+                IncludeFloorLightTint = true,
+                AmbientLighting = CreateAmbientLightingState(7, indoorAmbient, new Color(0x00, 0x00, 0x00)),
+            }
+        );
+
+        await Assert.That(outdoorPreview.Lights.Single().SuggestedTintColor).IsEqualTo(0xFF00FF00u);
+        await Assert.That(outdoorPreview.Tiles.Single().LightDiagnostics!.Value.MiddleCenter).IsEqualTo(0xFF00FF00u);
+
+        var indoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/indoor.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    LightSchemeIdx = 8,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = CreateSingleTileMapTileArtIds(),
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights =
+                    [
+                        new EditorMapLightPreview
+                        {
+                            TileX = 0,
+                            TileY = 63,
+                            OffsetX = 0,
+                            OffsetY = 0,
+                            ArtId = new ArtId(0x90005000u),
+                            Flags = SectorLightFlags.Outdoor,
+                            Palette = 0,
+                            Red = 0xFF,
+                            Green = 0x00,
+                            Blue = 0x00,
+                            TintColor = 0x00FF0000u,
+                        },
+                    ],
+                    TileScripts = [],
+                    Objects = [],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+                IncludeFloorLightTint = true,
+                AmbientLighting = CreateAmbientLightingState(8, new Color(0x00, 0x00, 0x00), outdoorAmbient),
+            }
+        );
+
+        await Assert.That(indoorPreview.Lights.Single().SuggestedTintColor).IsEqualTo(0xFF0000FFu);
+        await Assert.That(indoorPreview.Tiles.Single().LightDiagnostics!.Value.MiddleCenter).IsEqualTo(0xFF0000FFu);
+    }
+
+    [Test]
+    public async Task Build_ObjectsCaptureIndoorTileContextFromAnchorTileArt()
+    {
+        var indoorObject = new EditorMapObjectPreview
+        {
+            ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1005, Guid.NewGuid()),
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty),
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x40000000u),
+            Location = new Location(0, 63),
+            RotationPitch = 0f,
+        };
+        var indoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateSingleTileObjectScene(indoorObject),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+            }
+        );
+
+        await Assert.That(indoorPreview.Objects).HasSingleItem();
+        await Assert.That(indoorPreview.Objects[0].IsIndoorTile).IsTrue();
+
+        var outdoorTileArtIds = new uint[64 * 64];
+        outdoorTileArtIds[63 * 64] = 0x00000105u;
+        var outdoorObject = new EditorMapObjectPreview
+        {
+            ObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1006, Guid.NewGuid()),
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty),
+            ObjectType = ObjectType.Scenery,
+            CurrentArtId = new ArtId(0x40000001u),
+            Location = new Location(0, 63),
+            RotationPitch = 0f,
+        };
+        var outdoorPreview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_outdoor.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = outdoorTileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    Objects = [outdoorObject],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.Isometric,
+                TileWidthPixels = 80d,
+                TileHeightPixels = 40d,
+            }
+        );
+
+        await Assert.That(outdoorPreview.Objects).HasSingleItem();
+        await Assert.That(outdoorPreview.Objects[0].IsIndoorTile).IsFalse();
     }
 
     private static uint[] CreateBlockMask(params (int TileX, int TileY)[] blockedTiles)

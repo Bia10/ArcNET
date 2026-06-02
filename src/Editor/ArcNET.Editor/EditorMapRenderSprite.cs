@@ -64,6 +64,7 @@ public sealed class EditorMapRenderSprite
 /// </summary>
 public sealed class EditorMapRenderSpriteMetrics
 {
+    public string? AssetPath { get; init; }
     public int RotationIndex { get; init; }
     public int FrameIndex { get; init; }
     public required int Width { get; init; }
@@ -81,6 +82,7 @@ public sealed class EditorMapRenderSpriteMetrics
 
         return new EditorMapRenderSpriteMetrics
         {
+            AssetPath = sprite.AssetPath,
             RotationIndex = sprite.RotationIndex,
             FrameIndex = sprite.FrameIndex,
             Width = sprite.Width,
@@ -134,6 +136,7 @@ public sealed class EditorMapRenderSpriteMetrics
 
         return new EditorMapRenderSpriteMetrics
         {
+            AssetPath = metrics.AssetPath,
             RotationIndex = metrics.RotationIndex,
             FrameIndex = metrics.FrameIndex,
             Width = width,
@@ -199,7 +202,9 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     private readonly EditorArtResolver _artResolver;
     private readonly EditorArtPreviewOptions _previewOptions;
     private readonly object _cacheGate = new();
+    private readonly Dictionary<EditorMapRenderSpriteAssetPathCacheKey, string?> _assetPathCache = [];
     private readonly Dictionary<EditorMapRenderSpriteCacheKey, EditorMapRenderSprite?> _cache = [];
+    private readonly Dictionary<EditorMapRenderSpriteCacheKey, EditorMapRenderSpriteMetrics?> _metricsCache = [];
     private readonly RetainedCacheBudget<EditorMapRenderSpriteCacheKey> _budget;
 
     public EditorWorkspaceMapRenderSpriteSource(
@@ -247,6 +252,24 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         }
     }
 
+    internal int CachedResolvedAssetPathCount
+    {
+        get
+        {
+            lock (_cacheGate)
+                return _assetPathCache.Count;
+        }
+    }
+
+    internal int CachedMetricsCount
+    {
+        get
+        {
+            lock (_cacheGate)
+                return _metricsCache.Count;
+        }
+    }
+
     /// <inheritdoc />
     public EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArtId artId, EditorMapRenderSpriteRequest? request = null)
     {
@@ -254,11 +277,49 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             return null;
 
         var effectiveRequest = request ?? new EditorMapRenderSpriteRequest();
+        var cacheKey = new EditorMapRenderSpriteCacheKey(
+            artId,
+            effectiveRequest.RenderItemKind,
+            effectiveRequest.RotationIndex,
+            effectiveRequest.FrameIndex
+        );
+        lock (_cacheGate)
+        {
+            if (_cache.TryGetValue(cacheKey, out var cachedSprite))
+            {
+                _budget.TryTouch(cacheKey);
+                return cachedSprite is null
+                    ? null
+                    : EditorMapRenderSpriteMetrics.ApplyCeScale(
+                        EditorMapRenderSpriteMetrics.FromSprite(cachedSprite),
+                        effectiveRequest.ScalePercent,
+                        effectiveRequest.IsShrunk
+                    );
+            }
+
+            if (_metricsCache.TryGetValue(cacheKey, out var cachedMetrics))
+            {
+                return cachedMetrics is null
+                    ? null
+                    : EditorMapRenderSpriteMetrics.ApplyCeScale(
+                        cachedMetrics,
+                        effectiveRequest.ScalePercent,
+                        effectiveRequest.IsShrunk
+                    );
+            }
+        }
+
         var assetPath = TryResolveAssetPath(artId, effectiveRequest);
         if (assetPath is null)
             return null;
 
         var metrics = CreateResolvedSpriteMetrics(artId, effectiveRequest, assetPath);
+        lock (_cacheGate)
+        {
+            if (!_metricsCache.ContainsKey(cacheKey))
+                _metricsCache[cacheKey] = metrics;
+        }
+
         return metrics is null
             ? null
             : EditorMapRenderSpriteMetrics.ApplyCeScale(
@@ -300,6 +361,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
             }
 
             _cache[cacheKey] = resolved;
+            _metricsCache[cacheKey] = resolved is null ? null : EditorMapRenderSpriteMetrics.FromSprite(resolved);
             Evict(_budget.Register(cacheKey, EstimateRetainedBytes(resolved)));
             return resolved;
         }
@@ -335,21 +397,19 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var assetPaths = items
-            .Select(item =>
-            {
-                var artId = TryGetArtId(item);
-                if (artId is null || artId.Value.Value == 0)
-                    return null;
+        var assetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            var artId = TryGetArtId(item);
+            if (artId is not { Value: not 0u } resolvedArtId)
+                continue;
 
-                var request = new EditorMapRenderSpriteRequest { RenderItemKind = item.Kind };
-                return TryResolveAssetPath(artId.Value, request);
-            })
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            var request = new EditorMapRenderSpriteRequest { RenderItemKind = item.Kind };
+            if (TryResolveAssetPath(resolvedArtId, request) is { } assetPath)
+                assetPaths.Add(assetPath);
+        }
 
-        return _workspace.PreloadArtsAsync(assetPaths!, cancellationToken);
+        return _workspace.PreloadArtsAsync(assetPaths, cancellationToken);
     }
 
     private static ArtId? TryGetArtId(EditorMapRenderQueueItem item) =>
@@ -357,7 +417,9 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         {
             EditorMapRenderQueueItemKind.FloorTile => item.Tile?.ArtId,
             EditorMapRenderQueueItemKind.Object => item.Object?.CurrentArtId,
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => item.ObjectAuxiliaryItem?.ArtId,
             EditorMapRenderQueueItemKind.Roof => item.Roof?.ArtId,
+            EditorMapRenderQueueItemKind.Light => item.Light?.ArtId,
             EditorMapRenderQueueItemKind.PlacementPreviewObject => item.PlacementPreviewObject?.CurrentArtId,
             _ => null,
         };
@@ -372,6 +434,26 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
     }
 
     private string? TryResolveAssetPath(ArtId artId, EditorMapRenderSpriteRequest request)
+    {
+        var cacheKey = new EditorMapRenderSpriteAssetPathCacheKey(artId, request.RenderItemKind);
+        lock (_cacheGate)
+        {
+            if (_assetPathCache.TryGetValue(cacheKey, out var cachedAssetPath))
+                return cachedAssetPath;
+        }
+
+        var resolvedAssetPath = TryResolveAssetPathCore(artId, request);
+        lock (_cacheGate)
+        {
+            if (_assetPathCache.TryGetValue(cacheKey, out var cachedAssetPath))
+                return cachedAssetPath;
+
+            _assetPathCache[cacheKey] = resolvedAssetPath;
+            return resolvedAssetPath;
+        }
+    }
+
+    private string? TryResolveAssetPathCore(ArtId artId, EditorMapRenderSpriteRequest request)
     {
         if (IsSectorArtId(artId.Value) && request.RenderItemKind is EditorMapRenderQueueItemKind.FloorTile)
         {
@@ -528,6 +610,7 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
         return new EditorMapRenderSpriteMetrics
         {
+            AssetPath = assetPath,
             RotationIndex = rotationIndex,
             FrameIndex = frameIndex,
             Width = checked((int)header.Width),

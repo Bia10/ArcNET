@@ -14,6 +14,11 @@ public sealed class EditorMapObjectRenderItem
     public required string SectorAssetPath { get; init; }
 
     /// <summary>
+    /// Zero-based object index inside the owning sector when the render item originated from a sector-backed object.
+    /// </summary>
+    public int? SourceObjectIndex { get; init; }
+
+    /// <summary>
     /// Unique object identifier.
     /// </summary>
     public required GameObjectGuid ObjectId { get; init; }
@@ -137,6 +142,16 @@ public sealed class EditorMapObjectRenderItem
     /// Returns <see langword="true"/> when the object is visually covered by a roof tile.
     /// </summary>
     public bool IsRoofCovered { get; init; }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the object's anchor tile uses indoor floor lighting rules.
+    /// </summary>
+    public bool IsIndoorTile { get; init; }
+
+    /// <summary>
+    /// Light flags from <see cref="ObjectField.LightFlags"/>.
+    /// </summary>
+    public int LightFlags { get; init; }
 
     /// <summary>
     /// Light art identifier from <see cref="ObjectField.LightAid"/>.

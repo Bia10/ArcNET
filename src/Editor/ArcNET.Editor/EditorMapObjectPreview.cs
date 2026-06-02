@@ -40,6 +40,11 @@ public sealed class EditorMapObjectPreview
     public string? SourceAssetPath { get; init; }
 
     /// <summary>
+    /// Zero-based object index inside the owning sector when the preview resolved a sector-backed source object.
+    /// </summary>
+    public int? SourceObjectIndex { get; init; }
+
+    /// <summary>
     /// Map-tile location when present on the loaded object.
     /// </summary>
     public Location? Location { get; init; }

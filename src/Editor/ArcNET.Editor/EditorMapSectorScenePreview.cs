@@ -43,6 +43,12 @@ public sealed class EditorMapSectorScenePreview
     public required EditorMapSectorPreviewFlags PreviewFlags { get; init; }
 
     /// <summary>
+    /// CE light-scheme index stored on the sector.
+    /// A value of zero resolves to the map default light scheme.
+    /// </summary>
+    public int LightSchemeIdx { get; init; }
+
+    /// <summary>
     /// Map-local object density band.
     /// </summary>
     public required EditorMapSectorDensityBand ObjectDensityBand { get; init; }

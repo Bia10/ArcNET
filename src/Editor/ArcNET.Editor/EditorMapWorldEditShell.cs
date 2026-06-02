@@ -64,6 +64,12 @@ public sealed class EditorMapWorldEditShellRequest
     /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
     /// </summary>
     public bool IncludeFloorLightTint { get; init; }
+
+    /// <summary>
+    /// Optional explicit ambient-lighting context used when composing the shell render.
+    /// When omitted, the session resolves the current CE light scheme and hour from workspace data.
+    /// </summary>
+    public EditorMapAmbientLightingState? AmbientLighting { get; init; }
 }
 
 /// <summary>

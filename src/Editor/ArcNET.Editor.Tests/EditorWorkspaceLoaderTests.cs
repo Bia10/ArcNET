@@ -675,6 +675,68 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateMapRenderSpriteSource_CachesAssetPathAndBaseMetricsAcrossScaledRequests()
+    {
+        var artId = new ArtId(1u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "scenery"));
+
+        try
+        {
+            ArtFormat.WriteToFile(
+                MakeArtFile(frameRate: 12, width: 10, height: 20, centerX: 6, centerY: 7),
+                Path.Combine(contentDir, "art", "scenery", "cached.art")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver();
+            artResolver.Bind(artId, "art/scenery/cached.art");
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var baseMetrics = spriteSource.GetSpriteMetrics(
+                artId,
+                new EditorMapRenderSpriteRequest
+                {
+                    RenderItemKind = EditorMapRenderQueueItemKind.Object,
+                    RotationIndex = 0,
+                    ScalePercent = 100,
+                }
+            );
+            var scaledMetrics = spriteSource.GetSpriteMetrics(
+                artId,
+                new EditorMapRenderSpriteRequest
+                {
+                    RenderItemKind = EditorMapRenderQueueItemKind.Object,
+                    RotationIndex = 0,
+                    ScalePercent = 200,
+                }
+            );
+            var resolvedSprite = spriteSource.Resolve(
+                artId,
+                new EditorMapRenderSpriteRequest
+                {
+                    RenderItemKind = EditorMapRenderQueueItemKind.Object,
+                    RotationIndex = 0,
+                }
+            );
+
+            await Assert.That(baseMetrics).IsNotNull();
+            await Assert.That(scaledMetrics).IsNotNull();
+            await Assert.That(resolvedSprite).IsNotNull();
+            await Assert.That(baseMetrics!.Width).IsEqualTo(10);
+            await Assert.That(baseMetrics.Height).IsEqualTo(20);
+            await Assert.That(scaledMetrics!.Width).IsEqualTo(20);
+            await Assert.That(scaledMetrics.Height).IsEqualTo(40);
+            await Assert.That(spriteSource.CachedResolvedAssetPathCount).IsEqualTo(1);
+            await Assert.That(spriteSource.CachedMetricsCount).IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_CreateMapRenderSpriteSource_UsesRawCeWallHotspotWithoutRotationAdjustment()
     {
         var artId = new ArtId(1u);

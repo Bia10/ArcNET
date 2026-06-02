@@ -68,6 +68,11 @@ public sealed class EditorMapFloorRenderRequest
     public bool IncludeFloorLightTint { get; init; }
 
     /// <summary>
+    /// Optional CE ambient-lighting context used when resolving day/night and light-scheme tinting.
+    /// </summary>
+    public EditorMapAmbientLightingState? AmbientLighting { get; init; }
+
+    /// <summary>
     /// Returns one cloned request with visibility flags composed from one persisted map-preview state.
     /// </summary>
     public EditorMapFloorRenderRequest WithPreviewState(EditorProjectMapPreviewState previewState)
@@ -88,6 +93,7 @@ public sealed class EditorMapFloorRenderRequest
             IncludeScriptOverlays = IncludeScriptOverlays && previewState.ShowScripts,
             IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
             IncludeFloorLightTint = IncludeFloorLightTint,
+            AmbientLighting = AmbientLighting,
         };
     }
 
@@ -109,6 +115,28 @@ public sealed class EditorMapFloorRenderRequest
             IncludeScriptOverlays = IncludeScriptOverlays,
             IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
             IncludeFloorLightTint = IncludeFloorLightTint,
+            AmbientLighting = AmbientLighting,
+        };
+
+    /// <summary>
+    /// Returns one cloned request with a different ambient-lighting context.
+    /// </summary>
+    public EditorMapFloorRenderRequest WithAmbientLighting(EditorMapAmbientLightingState? ambientLighting) =>
+        new()
+        {
+            ArtResolver = ArtResolver,
+            ViewMode = ViewMode,
+            TileWidthPixels = TileWidthPixels,
+            TileHeightPixels = TileHeightPixels,
+            IncludeEmptyTiles = IncludeEmptyTiles,
+            IncludeObjects = IncludeObjects,
+            IncludeRoofs = IncludeRoofs,
+            IncludeBlockedTileOverlays = IncludeBlockedTileOverlays,
+            IncludeLightOverlays = IncludeLightOverlays,
+            IncludeScriptOverlays = IncludeScriptOverlays,
+            IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = IncludeFloorLightTint,
+            AmbientLighting = ambientLighting,
         };
 
     /// <summary>

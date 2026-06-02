@@ -25,8 +25,11 @@ public sealed class EditorWorkspace : IDisposable
 {
     private const long DefaultMaxLoadedArtRetainedBytes = 64L * 1024L * 1024L;
     private const int DefaultMaxLoadedArtEntryCount = 256;
+    private const long DefaultMaxLoadedAudioPreviewRetainedBytes = 16L * 1024L * 1024L;
+    private const int DefaultMaxLoadedAudioPreviewEntryCount = 8;
     private readonly object _artBindingCacheGate = new();
     private readonly object _loadedArtCacheGate = new();
+    private readonly object _loadedAudioPreviewCacheGate = new();
     private readonly ConcurrentDictionary<string, DatArchive> _openArchives = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _objectPaletteCacheGate = new();
     private readonly object _worldAreaCatalogGate = new();
@@ -37,6 +40,14 @@ public sealed class EditorWorkspace : IDisposable
         StringComparer.OrdinalIgnoreCase,
         DefaultMaxLoadedArtRetainedBytes,
         DefaultMaxLoadedArtEntryCount
+    );
+    private readonly Dictionary<string, EditorAudioPreview> _loadedAudioPreviewsByPath = new(
+        StringComparer.OrdinalIgnoreCase
+    );
+    private readonly RetainedCacheBudget<string> _loadedAudioPreviewCacheBudget = new(
+        StringComparer.OrdinalIgnoreCase,
+        DefaultMaxLoadedAudioPreviewRetainedBytes,
+        DefaultMaxLoadedAudioPreviewEntryCount
     );
     private readonly Dictionary<
         ObjectPaletteCacheKey,
@@ -463,9 +474,6 @@ public sealed class EditorWorkspace : IDisposable
             SaveMapId = Save?.Info.MapId,
         };
     }
-
-    internal IReadOnlyDictionary<string, ReadOnlyMemory<byte>> AudioAssetData { get; init; } =
-        new Dictionary<string, ReadOnlyMemory<byte>>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Creates a stateful <see cref="SaveGameEditor"/> for the loaded save slot.
@@ -1326,6 +1334,12 @@ public sealed class EditorWorkspace : IDisposable
         foreach (var archive in _openArchives.Values)
             archive.Dispose();
         _openArchives.Clear();
+
+        lock (_loadedAudioPreviewCacheGate)
+        {
+            _loadedAudioPreviewsByPath.Clear();
+            _loadedAudioPreviewCacheBudget.Clear();
+        }
     }
 
     internal ArtFile? ResolveMapRenderArt(ArtId artId)
@@ -2200,10 +2214,16 @@ public sealed class EditorWorkspace : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
 
         var normalizedPath = NormalizeAssetPath(assetPath);
-        if (!AudioAssetData.TryGetValue(normalizedPath, out var audioData))
+        if (TryGetCachedAudioPreview(normalizedPath, out var cachedPreview))
+            return cachedPreview;
+
+        var asset = AudioAssets.Find(normalizedPath);
+        if (asset is null)
             throw new InvalidOperationException($"No loaded audio asset matched '{normalizedPath}'.");
 
-        return EditorAudioPreviewBuilder.BuildWave(audioData, normalizedPath);
+        var preview = EditorAudioPreviewBuilder.BuildWave(LoadAudioAssetData(asset), normalizedPath);
+        TrackLoadedAudioPreview(normalizedPath, preview);
+        return preview;
     }
 
     private EditorAudioDefinition CreateAudioDetail(EditorAudioAssetEntry asset)
@@ -2224,6 +2244,59 @@ public sealed class EditorWorkspace : IDisposable
             SampleByteLength = preview.SampleData.Length,
             Duration = preview.Duration,
         };
+    }
+
+    private bool TryGetCachedAudioPreview(string assetPath, out EditorAudioPreview preview)
+    {
+        lock (_loadedAudioPreviewCacheGate)
+        {
+            if (!_loadedAudioPreviewsByPath.TryGetValue(assetPath, out preview!))
+                return false;
+
+            _loadedAudioPreviewCacheBudget.TryTouch(assetPath);
+            return true;
+        }
+    }
+
+    private void TrackLoadedAudioPreview(string assetPath, EditorAudioPreview preview)
+    {
+        lock (_loadedAudioPreviewCacheGate)
+        {
+            _loadedAudioPreviewsByPath[assetPath] = preview;
+            var evictedPaths = _loadedAudioPreviewCacheBudget.Register(
+                assetPath,
+                Math.Max(preview.SampleData.LongLength, 1L)
+            );
+            for (var index = 0; index < evictedPaths.Count; index++)
+                _loadedAudioPreviewsByPath.Remove(evictedPaths[index]);
+        }
+    }
+
+    private ReadOnlyMemory<byte> LoadAudioAssetData(EditorAudioAssetEntry asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        return asset.SourceKind switch
+        {
+            EditorAssetSourceKind.LooseFile => File.ReadAllBytes(asset.SourcePath),
+            EditorAssetSourceKind.DatArchive => LoadAudioAssetDataFromArchive(asset),
+            _ => throw new InvalidOperationException(
+                $"Unsupported audio asset source kind '{asset.SourceKind}' for '{asset.AssetPath}'."
+            ),
+        };
+    }
+
+    private ReadOnlyMemory<byte> LoadAudioAssetDataFromArchive(EditorAudioAssetEntry asset)
+    {
+        if (string.IsNullOrWhiteSpace(asset.SourceEntryPath))
+        {
+            throw new InvalidOperationException(
+                $"Archive-backed audio asset '{asset.AssetPath}' did not record a source entry path."
+            );
+        }
+
+        using var archive = DatArchive.Open(asset.SourcePath);
+        return archive.GetEntryData(asset.SourceEntryPath);
     }
 
     private bool TryResolveSaveLinkedDefaultMap(out EditorWorkspaceDefaultMap? resolution)
@@ -2668,7 +2741,28 @@ public sealed class EditorWorkspace : IDisposable
         }
 
         if (IsSectorArtId(artIdValue))
-            return TryResolveTileArtAssetPath(new ArtId(artIdValue), out assetPath);
+        {
+            if (TryResolveTileArtAssetPath(new ArtId(artIdValue), out assetPath))
+                return true;
+
+            if (TryResolveObjectArtFromZeroPrefix(artIdValue, out assetPath))
+                return true;
+        }
+
+        assetPath = string.Empty;
+        return false;
+    }
+
+    private bool TryResolveObjectArtFromZeroPrefix(uint artIdValue, out string assetPath)
+    {
+        if (TryResolveUniqueNpcArtAssetPath(0xD0000000u | artIdValue, out assetPath))
+            return true;
+
+        if (TryResolveCritterArtAssetPath(0x20000000u | artIdValue, out assetPath))
+            return true;
+
+        if (TryResolveMonsterArtAssetPath(0xC0000000u | artIdValue, out assetPath))
+            return true;
 
         assetPath = string.Empty;
         return false;
@@ -2702,10 +2796,20 @@ public sealed class EditorWorkspace : IDisposable
             genderCode = s_critterGenderCodes[2];
         }
 
-        return TryResolveCandidateArtAssetPath(
-            $"art/critter/{bodyTypeCode}{genderCode}/{bodyTypeCode}{genderCode}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
-            out assetPath
-        );
+        var candidatePath =
+            $"art/critter/{bodyTypeCode}{genderCode}/{bodyTypeCode}{genderCode}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art";
+        if (TryResolveCandidateArtAssetPath(candidatePath, out assetPath))
+            return true;
+
+        if (animation == 0 && weapon == 0)
+        {
+            var fallbackPath =
+                $"art/critter/{bodyTypeCode}{genderCode}/{bodyTypeCode}{genderCode}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(1, shield)}{GetAnimationCode(animation)}.art";
+            if (TryResolveCandidateArtAssetPath(fallbackPath, out assetPath))
+                return true;
+        }
+
+        return false;
     }
 
     private bool TryResolvePortalArtAssetPath(uint artIdValue, out string assetPath)
@@ -2835,10 +2939,20 @@ public sealed class EditorWorkspace : IDisposable
             return false;
 
         var armorTypeCode = animation == CritterAnimationExplode ? "XX" : s_critterArmorTypeCodes[armorType];
-        return TryResolveCandidateArtAssetPath(
-            $"art/monster/{monsterName}/{monsterName}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
-            out assetPath
-        );
+        var candidatePath =
+            $"art/monster/{monsterName}/{monsterName}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art";
+        if (TryResolveCandidateArtAssetPath(candidatePath, out assetPath))
+            return true;
+
+        if (animation == 0 && weapon == 0)
+        {
+            var fallbackPath =
+                $"art/monster/{monsterName}/{monsterName}{armorTypeCode}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(1, shield)}{GetAnimationCode(animation)}.art";
+            if (TryResolveCandidateArtAssetPath(fallbackPath, out assetPath))
+                return true;
+        }
+
+        return false;
     }
 
     private bool TryResolveUniqueNpcArtAssetPath(uint artIdValue, out string assetPath)
@@ -2846,6 +2960,7 @@ public sealed class EditorWorkspace : IDisposable
         assetPath = string.Empty;
 
         var number = DecodeUniqueNpcNumber(artIdValue);
+
         if (!TryGetMessageEntryText("art/unique_npc/unique_npc.mes", number, out var uniqueNpcName))
             return false;
 
@@ -2858,10 +2973,20 @@ public sealed class EditorWorkspace : IDisposable
         if (!IsValidCritterWeapon(weapon))
             return false;
 
-        return TryResolveCandidateArtAssetPath(
-            $"art/unique_npc/{uniqueNpcName}/{uniqueNpcName}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art",
-            out assetPath
-        );
+        var candidatePath =
+            $"art/unique_npc/{uniqueNpcName}/{uniqueNpcName}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(weapon, shield)}{GetAnimationCode(animation)}.art";
+        if (TryResolveCandidateArtAssetPath(candidatePath, out assetPath))
+            return true;
+
+        if (animation == 0 && weapon == 0)
+        {
+            var fallbackPath =
+                $"art/unique_npc/{uniqueNpcName}/{uniqueNpcName}{s_critterShieldCodes[shield]}{GetCritterWeaponCode(1, shield)}{GetAnimationCode(animation)}.art";
+            if (TryResolveCandidateArtAssetPath(fallbackPath, out assetPath))
+                return true;
+        }
+
+        return false;
     }
 
     private bool TryResolveSceneryArtAssetPath(uint artIdValue, out string assetPath)
@@ -2981,10 +3106,9 @@ public sealed class EditorWorkspace : IDisposable
         return false;
     }
 
-    private bool TryResolveUnambiguousSectorArtAssetPath(uint artIdValue, out string assetPath)
+    private int ResolveSectorArtCandidates(uint artIdValue, HashSet<string> candidateAssetPaths)
     {
         var messageIndex = DecodeSectorArtMessageIndex(artIdValue);
-        var candidateAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         AddTileMessageTableArtCandidate(candidateAssetPaths, new ArtId(artIdValue));
         AddMessageTableArtCandidate(candidateAssetPaths, "art/facade/facadename.mes", messageIndex, "art/facade");
@@ -2993,7 +3117,13 @@ public sealed class EditorWorkspace : IDisposable
         AddMessageTableArtCandidate(candidateAssetPaths, "art/light/light.mes", messageIndex, "art/light");
         AddMessageTableArtCandidate(candidateAssetPaths, "art/portal/portal.mes", messageIndex, "art/portal");
 
-        if (candidateAssetPaths.Count == 1)
+        return candidateAssetPaths.Count;
+    }
+
+    private bool TryResolveUnambiguousSectorArtAssetPath(uint artIdValue, out string assetPath)
+    {
+        var candidateAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (ResolveSectorArtCandidates(artIdValue, candidateAssetPaths) == 1)
         {
             assetPath = candidateAssetPaths.First();
             return true;

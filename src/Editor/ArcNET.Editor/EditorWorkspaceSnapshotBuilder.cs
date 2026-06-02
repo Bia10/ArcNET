@@ -30,7 +30,6 @@ internal static class EditorWorkspaceSnapshotBuilder
             Index = index,
             LoadReport = baseline.LoadReport,
             Validation = validation,
-            AudioAssetData = baseline.AudioAssetData,
             Save = effectiveSave,
             SaveFolder = baseline.SaveFolder,
             SaveSlotName = baseline.SaveSlotName,

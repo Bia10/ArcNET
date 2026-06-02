@@ -144,6 +144,7 @@ public sealed class EditorMapScenePreviewBuilderTests
         );
 
         await Assert.That(preview.AssetPath).IsEqualTo("maps/map01/sector.sec");
+        await Assert.That(preview.LightSchemeIdx).IsEqualTo(0);
         await Assert.That(preview.TileWidth).IsEqualTo(64);
         await Assert.That(preview.TileHeight).IsEqualTo(64);
         await Assert.That(preview.RoofWidth).IsEqualTo(16);
