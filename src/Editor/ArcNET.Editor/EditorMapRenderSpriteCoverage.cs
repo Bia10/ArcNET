@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -7,6 +7,20 @@ namespace ArcNET.Editor;
 /// </summary>
 public sealed class EditorMapRenderSpriteCoverage
 {
+    /// <summary>
+    /// A shared empty coverage instance for scenes that need no sprite resolution tracking.
+    /// </summary>
+    public static EditorMapRenderSpriteCoverage Empty { get; } =
+        new()
+        {
+            ReferencedSpriteReferenceCount = 0,
+            ResolvedSpriteReferenceCount = 0,
+            UnresolvedSpriteReferenceCount = 0,
+            ReferencedArtIds = [],
+            ResolvedArtIds = [],
+            UnresolvedArtIds = [],
+        };
+
     /// <summary>
     /// Distinct sprite-bearing paintable references, counting render-kind-specific uses of the same ART identifier separately.
     /// </summary>

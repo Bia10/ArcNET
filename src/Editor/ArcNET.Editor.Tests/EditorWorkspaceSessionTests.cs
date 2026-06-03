@@ -13407,4 +13407,80 @@ public sealed class EditorWorkspaceSessionTests
 
         return SaveGameLoader.LoadFromParsed(baseSave.Info, index, TfafFormat.Pack(index, files));
     }
+
+    [Test]
+    public async Task MapViewWorldEditToolHelpers_CreateMapWorldEditScene_UsesBuildDeltaWhenRequested()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(MakeProto(protoNumber), Path.Combine(contentDir, "proto", "001001 - Test.pro"));
+
+            MapProperties mapProperties = new()
+            {
+                ArtId = 200,
+                Unused = 0,
+                LimitX = 2,
+                LimitY = 2,
+            };
+            MapPropertiesFormat.WriteToFile(in mapProperties, Path.Combine(contentDir, "maps", "map01", "map.prp"));
+
+            var selectedObject = new MobDataBuilder(MakePc(protoNumber)).WithLocation(5, 6).Build();
+            SectorFormat.WriteToFile(
+                new SectorBuilder(MakeSector(selectedObject)).SetTile(5, 6, 201u).Build(),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            var selection = new EditorProjectMapSelectionState
+            {
+                SectorAssetPath = sectorAssetPath,
+                Tile = new Location(5, 6),
+            };
+            var viewState = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Camera = new EditorProjectMapCameraState
+                    {
+                        CenterTileX = 5d,
+                        CenterTileY = 6d,
+                        Zoom = 1.5d,
+                    },
+                    Selection = selection,
+                }
+            );
+
+            // 1. Build initial full scene
+            var initialScene = await session.CreateMapWorldEditSceneAsync("map-view-1");
+            await Assert.That(initialScene.SceneRender).IsNotNull();
+
+            // 2. Build delta scene by passing ExistingPreview and ChangedSectorAssetPath
+            var deltaScene = await session.CreateMapWorldEditSceneAsync(
+                "map-view-1",
+                new EditorMapWorldEditSceneRequest
+                {
+                    ExistingPreview = initialScene.SceneRender,
+                    ChangedSectorAssetPath = sectorAssetPath,
+                }
+            );
+
+            await Assert.That(deltaScene.SceneRender).IsNotNull();
+            await Assert.That(deltaScene.SceneRender.Tiles.Count).IsEqualTo(initialScene.SceneRender.Tiles.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
 }

@@ -653,6 +653,7 @@ public static class EditorMapPaintableSceneBuilder
         EditorMapFloorRenderPreview sceneRender,
         EditorMapPlacementPreview? placementPreview = null,
         IEditorMapRenderSpriteSource? spriteSource = null,
+        EditorMapRenderSpriteCoverage? existingSpriteCoverage = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -661,7 +662,7 @@ public static class EditorMapPaintableSceneBuilder
         var queue = placementPreview?.RenderQueue ?? sceneRender.RenderQueue;
         var itemSource = CreateItemSource(sceneRender, queue, spriteSource, cancellationToken);
 
-        var spriteCoverage = BuildSpriteCoverage(queue, spriteSource, cancellationToken);
+        var spriteCoverage = existingSpriteCoverage ?? BuildSpriteCoverage(queue, spriteSource, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         return new EditorMapPaintableScene
@@ -689,14 +690,37 @@ public static class EditorMapPaintableSceneBuilder
     {
         ArgumentNullException.ThrowIfNull(sceneRender);
 
-        EditorMapRenderQueueItem[] queue = placementPreview is null
-            ? []
-            : placementPreview
-                .RenderQueue.Where(static item => item.Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject)
-                .ToArray();
+        EditorMapRenderQueueItem[] queue;
+        if (placementPreview is null || placementPreview.RenderQueue.Count == 0)
+        {
+            queue = [];
+        }
+        else
+        {
+            // Direct loop avoids LINQ iterator allocations for a typically tiny set of preview items.
+            var previewCount = 0;
+            var renderQueue = placementPreview.RenderQueue;
+            for (var i = 0; i < renderQueue.Count; i++)
+            {
+                if (renderQueue[i].Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject)
+                    previewCount++;
+            }
+
+            queue = new EditorMapRenderQueueItem[previewCount];
+            var dest = 0;
+            for (var i = 0; i < renderQueue.Count; i++)
+            {
+                if (renderQueue[i].Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject)
+                    queue[dest++] = renderQueue[i];
+            }
+        }
+
         var itemSource = CreateItemSource(sceneRender, queue, spriteSource, cancellationToken);
 
-        var spriteCoverage = BuildSpriteCoverage(queue, spriteSource, cancellationToken);
+        // Skip full sprite coverage analysis for placement overlays — they are transient
+        // single-frame previews with typically 1-3 items. The coverage data is never consumed
+        // by the host for overlay scenes, so building it is pure overhead.
+        var spriteCoverage = EditorMapRenderSpriteCoverage.Empty;
         cancellationToken.ThrowIfCancellationRequested();
 
         return new EditorMapPaintableScene

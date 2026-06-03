@@ -3147,6 +3147,46 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Checks whether the target tile in a single-tile selection is blocked or occupied, without placing anything.
+    /// Returns (<see langword="true"/>, reason) when placement should be rejected.
+    /// </summary>
+    public (bool IsBlocked, string? Reason) IsPlacementBlocked(
+        string mapViewStateId,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (
+            selection is not { HasTileSelection: true, Area: null }
+            || selection.SectorAssetPath is null
+            || selection.Tile is null
+        )
+        {
+            return (false, null);
+        }
+
+        var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
+        var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
+        var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
+            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (sector is null)
+            return (false, null);
+
+        var tile = selection.Tile.Value;
+
+        if (sector.IsTileBlocked(tile.X, tile.Y))
+            return (true, "Targets a blocked tile.");
+
+        if (sector.Objects.Any(obj => obj.Location == tile))
+            return (true, "Targets an occupied tile.");
+
+        return (false, null);
+    }
+
+    /// <summary>
     /// Applies the tracked object-placement tool for one map view using its persisted selection state.
     /// </summary>
     public IReadOnlyList<MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId)
@@ -3254,12 +3294,28 @@ public sealed class EditorWorkspaceSession
         cancellationToken.ThrowIfCancellationRequested();
         var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState);
         cancellationToken.ThrowIfCancellationRequested();
-        var sceneRender = CreateMapFloorRenderPreviewCore(
-            normalizedMapViewState,
-            scenePreview,
-            request?.RenderRequest,
-            cancellationToken
-        );
+
+        var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, request?.RenderRequest)
+            .WithArtResolver(request?.RenderRequest?.ArtResolver ?? GetOrCreateRenderableArtResolver());
+        effectiveRequest = effectiveRequest.AmbientLighting is null
+            ? effectiveRequest.WithAmbientLighting(ResolveCurrentAmbientLighting())
+            : effectiveRequest;
+
+        EditorMapFloorRenderPreview sceneRender;
+        if (request?.ExistingPreview is not null && !string.IsNullOrWhiteSpace(request.ChangedSectorAssetPath))
+        {
+            sceneRender = EditorMapFloorRenderBuilder.BuildDelta(
+                request.ExistingPreview,
+                scenePreview,
+                request.ChangedSectorAssetPath,
+                effectiveRequest,
+                cancellationToken
+            );
+        }
+        else
+        {
+            sceneRender = EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest, cancellationToken);
+        }
         cancellationToken.ThrowIfCancellationRequested();
         var placementPreview = request?.PlacementRequest is { } placementRequest
             ? PreviewSectorObjectPalettePlacement(
@@ -3288,10 +3344,24 @@ public sealed class EditorWorkspaceSession
 
         if (spriteSource is not null)
         {
-            var prefetchItems = placementPreview is not null
-                ? sceneRender.RenderQueue.Concat(placementPreview.RenderQueue)
-                : sceneRender.RenderQueue;
-            await spriteSource.PreloadAsync(prefetchItems, cancellationToken).ConfigureAwait(false);
+            var isDeltaBuild =
+                request?.ExistingPreview is not null && !string.IsNullOrWhiteSpace(request.ChangedSectorAssetPath);
+            if (isDeltaBuild)
+            {
+                if (placementPreview is not null)
+                {
+                    await spriteSource
+                        .PreloadAsync(placementPreview.RenderQueue, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var prefetchItems = placementPreview is not null
+                    ? sceneRender.RenderQueue.Concat(placementPreview.RenderQueue)
+                    : sceneRender.RenderQueue;
+                await spriteSource.PreloadAsync(prefetchItems, cancellationToken).ConfigureAwait(false);
+            }
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -3299,6 +3369,7 @@ public sealed class EditorWorkspaceSession
             sceneRender,
             placementPreview,
             spriteSource,
+            request?.ExistingSpriteCoverage,
             cancellationToken
         );
 
@@ -6206,52 +6277,68 @@ public sealed class EditorWorkspaceSession
             );
         }
 
-        var orderedPreviewObjects = previewObjects
-            .OrderBy(static previewObject => previewObject.SortKey)
-            .ThenBy(static previewObject => previewObject.Object.MapTileX)
-            .ThenBy(static previewObject => previewObject.Object.MapTileY)
-            .ToArray();
-        var shiftedPreviewObjects = orderedPreviewObjects
-            .Select(
-                (previewObject, drawOrder) =>
-                    new EditorMapPlacementPreviewObject
-                    {
-                        SectorAssetPath = previewObject.Object.SectorAssetPath,
-                        ProtoId = previewObject.Object.ProtoId,
-                        ObjectType = previewObject.Object.ObjectType,
-                        CurrentArtId = previewObject.Object.CurrentArtId,
-                        MapTileX = previewObject.Object.MapTileX,
-                        MapTileY = previewObject.Object.MapTileY,
-                        Tile = previewObject.Object.Tile,
-                        DrawOrder = drawOrder,
-                        AnchorX = previewObject.Object.AnchorX,
-                        AnchorY = previewObject.Object.AnchorY,
-                        SpriteBounds = previewObject.Object.SpriteBounds,
-                        IsTileGridSnapped = previewObject.Object.IsTileGridSnapped,
-                        State = previewObject.Object.State,
-                        ValidationMessage = previewObject.Object.ValidationMessage,
-                        SuggestedOpacity = previewObject.Object.SuggestedOpacity,
-                        SuggestedTintColor = previewObject.Object.SuggestedTintColor,
-                        Rotation = previewObject.Object.Rotation,
-                        RotationIndex = previewObject.Object.RotationIndex,
-                        BlitScale = previewObject.Object.BlitScale,
-                        IsShrunk = previewObject.Object.IsShrunk,
-                        RotationPitch = previewObject.Object.RotationPitch,
-                    }
-            )
-            .ToArray();
-        var renderQueue = shiftedPreviewObjects
-            .Select(
-                (previewObject, drawOrder) =>
-                    new EditorMapRenderQueueItem
-                    {
-                        Kind = EditorMapRenderQueueItemKind.PlacementPreviewObject,
-                        DrawOrder = drawOrder,
-                        SortKey = orderedPreviewObjects[drawOrder].SortKey,
-                        PlacementPreviewObject = previewObject,
-                    }
-            )
-            .ToArray();
+        // Sort into a direct array instead of three LINQ passes. For the typical 1-item case
+        // this skips all iterator/enumerator overhead entirely.
+        var count = previewObjects.Count;
+        var sortedIndices = new int[count];
+        for (var i = 0; i < count; i++)
+            sortedIndices[i] = i;
+
+        if (count > 1)
+        {
+            Array.Sort(
+                sortedIndices,
+                (a, b) =>
+                {
+                    var cmp = previewObjects[a].SortKey.CompareTo(previewObjects[b].SortKey);
+                    if (cmp != 0)
+                        return cmp;
+                    cmp = previewObjects[a].Object.MapTileX.CompareTo(previewObjects[b].Object.MapTileX);
+                    if (cmp != 0)
+                        return cmp;
+                    return previewObjects[a].Object.MapTileY.CompareTo(previewObjects[b].Object.MapTileY);
+                }
+            );
+        }
+
+        var shiftedPreviewObjects = new EditorMapPlacementPreviewObject[count];
+        var renderQueue = new EditorMapRenderQueueItem[count];
+        for (var drawOrder = 0; drawOrder < count; drawOrder++)
+        {
+            var source = previewObjects[sortedIndices[drawOrder]];
+            var shifted = new EditorMapPlacementPreviewObject
+            {
+                SectorAssetPath = source.Object.SectorAssetPath,
+                ProtoId = source.Object.ProtoId,
+                ObjectType = source.Object.ObjectType,
+                CurrentArtId = source.Object.CurrentArtId,
+                MapTileX = source.Object.MapTileX,
+                MapTileY = source.Object.MapTileY,
+                Tile = source.Object.Tile,
+                DrawOrder = drawOrder,
+                AnchorX = source.Object.AnchorX,
+                AnchorY = source.Object.AnchorY,
+                SpriteBounds = source.Object.SpriteBounds,
+                IsTileGridSnapped = source.Object.IsTileGridSnapped,
+                State = source.Object.State,
+                ValidationMessage = source.Object.ValidationMessage,
+                SuggestedOpacity = source.Object.SuggestedOpacity,
+                SuggestedTintColor = source.Object.SuggestedTintColor,
+                Rotation = source.Object.Rotation,
+                RotationIndex = source.Object.RotationIndex,
+                BlitScale = source.Object.BlitScale,
+                IsShrunk = source.Object.IsShrunk,
+                RotationPitch = source.Object.RotationPitch,
+            };
+            shiftedPreviewObjects[drawOrder] = shifted;
+            renderQueue[drawOrder] = new EditorMapRenderQueueItem
+            {
+                Kind = EditorMapRenderQueueItemKind.PlacementPreviewObject,
+                DrawOrder = drawOrder,
+                SortKey = source.SortKey,
+                PlacementPreviewObject = shifted,
+            };
+        }
 
         return new EditorMapPlacementPreview
         {
@@ -6380,6 +6467,11 @@ public sealed class EditorWorkspaceSession
 
         var artResolver = GetOrCreateRenderableArtResolver();
         var renderProjectionRequest = renderRequest ?? new EditorMapFloorRenderRequest();
+        var mapTileWidth =
+            sceneRender.Slices.Count > 0 ? sceneRender.Slices.Max(static s => s.Bounds.MaxMapTileX) + 1
+            : sceneRender.Tiles.Count > 0 ? Math.Max(1, sceneRender.Tiles.Max(static tile => tile.MapTileX) + 1)
+            : 1;
+
         List<(EditorMapPlacementPreviewObject Object, double SortKey)> previewObjects = [];
         var stagedTiles = new HashSet<Location>();
 
@@ -6405,7 +6497,8 @@ public sealed class EditorWorkspaceSession
                     renderProjectionRequest,
                     selectedRenderTile,
                     selectedTile,
-                    location
+                    location,
+                    mapTileWidth
                 )
                 : (
                     targetTile.MapTileX,
@@ -6599,88 +6692,131 @@ public sealed class EditorWorkspaceSession
         double shiftY
     )
     {
-        List<(double SortKey, EditorMapRenderQueueItemKind Kind, int Index)> queueEntries = [];
+        if (previewObjects.Count == 0 && shiftX == 0d && shiftY == 0d)
+            return sceneRender.RenderQueue;
 
-        for (var index = 0; index < sceneRender.RenderQueue.Count; index++)
-            queueEntries.Add((sceneRender.RenderQueue[index].SortKey, sceneRender.RenderQueue[index].Kind, index));
-
-        for (var index = 0; index < previewObjects.Count; index++)
-            queueEntries.Add(
-                (previewObjects[index].SortKey, EditorMapRenderQueueItemKind.PlacementPreviewObject, index)
-            );
-
-        return queueEntries
-            .OrderBy(static entry => entry.SortKey)
-            .ThenBy(static entry => entry.Kind)
-            .ThenBy(static entry => entry.Index)
-            .Select(
-                (entry, drawOrder) =>
-                {
-                    if (entry.Kind is EditorMapRenderQueueItemKind.PlacementPreviewObject)
-                    {
-                        return new EditorMapRenderQueueItem
-                        {
-                            Kind = entry.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = entry.SortKey,
-                            PlacementPreviewObject = shiftedPreviewObjects[entry.Index],
-                        };
-                    }
-
-                    var sceneItem = sceneRender.RenderQueue[entry.Index];
-                    return sceneItem.Kind switch
-                    {
-                        EditorMapRenderQueueItemKind.FloorTile => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            Tile = ShiftTile(sceneItem.Tile!, shiftX, shiftY),
-                        },
-                        EditorMapRenderQueueItemKind.TileOverlay => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            TileOverlay = ShiftTileOverlay(sceneItem.TileOverlay!, shiftX, shiftY),
-                        },
-                        EditorMapRenderQueueItemKind.Object => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            Object = ShiftObject(sceneItem.Object!, shiftX, shiftY),
-                        },
-                        EditorMapRenderQueueItemKind.ObjectAuxiliary => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            ObjectAuxiliaryItem = ShiftObjectAuxiliary(sceneItem.ObjectAuxiliaryItem!, shiftX, shiftY),
-                        },
-                        EditorMapRenderQueueItemKind.Roof => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            Roof = ShiftRoof(sceneItem.Roof!, shiftX, shiftY),
-                        },
-                        EditorMapRenderQueueItemKind.Light => new EditorMapRenderQueueItem
-                        {
-                            Kind = sceneItem.Kind,
-                            DrawOrder = drawOrder,
-                            SortKey = sceneItem.SortKey,
-                            Light = ShiftLight(sceneItem.Light!, shiftX, shiftY),
-                        },
-                        _ => throw new ArgumentOutOfRangeException(
-                            nameof(sceneItem.Kind),
-                            sceneItem.Kind,
-                            "Unsupported render queue kind."
-                        ),
-                    };
-                }
-            )
+        var sortedPreview = previewObjects
+            .Select(static (po, i) => (po.SortKey, Index: i))
+            .OrderBy(static x => x.SortKey)
+            .ThenBy(static x => x.Index)
             .ToArray();
+
+        var merged = new EditorMapRenderQueueItem[sceneRender.RenderQueue.Count + previewObjects.Count];
+        int iA = 0;
+        int iB = 0;
+        int drawOrder = 0;
+
+        while (iA < sceneRender.RenderQueue.Count && iB < sortedPreview.Length)
+        {
+            var itemA = sceneRender.RenderQueue[iA];
+            var (keyB, indexB) = sortedPreview[iB];
+
+            int cmp = itemA.SortKey.CompareTo(keyB);
+            if (cmp == 0)
+            {
+                cmp = itemA.Kind.CompareTo(EditorMapRenderQueueItemKind.PlacementPreviewObject);
+            }
+
+            if (cmp <= 0)
+            {
+                merged[drawOrder] = ShiftSceneItem(itemA, drawOrder, shiftX, shiftY);
+                iA++;
+            }
+            else
+            {
+                merged[drawOrder] = new EditorMapRenderQueueItem
+                {
+                    Kind = EditorMapRenderQueueItemKind.PlacementPreviewObject,
+                    DrawOrder = drawOrder,
+                    SortKey = keyB,
+                    PlacementPreviewObject = shiftedPreviewObjects[indexB],
+                };
+                iB++;
+            }
+            drawOrder++;
+        }
+
+        while (iA < sceneRender.RenderQueue.Count)
+        {
+            merged[drawOrder] = ShiftSceneItem(sceneRender.RenderQueue[iA], drawOrder, shiftX, shiftY);
+            iA++;
+            drawOrder++;
+        }
+
+        while (iB < sortedPreview.Length)
+        {
+            var (keyB, indexB) = sortedPreview[iB];
+            merged[drawOrder] = new EditorMapRenderQueueItem
+            {
+                Kind = EditorMapRenderQueueItemKind.PlacementPreviewObject,
+                DrawOrder = drawOrder,
+                SortKey = keyB,
+                PlacementPreviewObject = shiftedPreviewObjects[indexB],
+            };
+            iB++;
+            drawOrder++;
+        }
+
+        return merged;
+    }
+
+    private static EditorMapRenderQueueItem ShiftSceneItem(
+        EditorMapRenderQueueItem sceneItem,
+        int drawOrder,
+        double shiftX,
+        double shiftY
+    )
+    {
+        return sceneItem.Kind switch
+        {
+            EditorMapRenderQueueItemKind.FloorTile => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                Tile = ShiftTile(sceneItem.Tile!, shiftX, shiftY),
+            },
+            EditorMapRenderQueueItemKind.TileOverlay => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                TileOverlay = ShiftTileOverlay(sceneItem.TileOverlay!, shiftX, shiftY),
+            },
+            EditorMapRenderQueueItemKind.Object => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                Object = ShiftObject(sceneItem.Object!, shiftX, shiftY),
+            },
+            EditorMapRenderQueueItemKind.ObjectAuxiliary => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                ObjectAuxiliaryItem = ShiftObjectAuxiliary(sceneItem.ObjectAuxiliaryItem!, shiftX, shiftY),
+            },
+            EditorMapRenderQueueItemKind.Roof => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                Roof = ShiftRoof(sceneItem.Roof!, shiftX, shiftY),
+            },
+            EditorMapRenderQueueItemKind.Light => new EditorMapRenderQueueItem
+            {
+                Kind = sceneItem.Kind,
+                DrawOrder = drawOrder,
+                SortKey = sceneItem.SortKey,
+                Light = ShiftLight(sceneItem.Light!, shiftX, shiftY),
+            },
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(sceneItem.Kind),
+                sceneItem.Kind,
+                "Unsupported render queue kind."
+            ),
+        };
     }
 
     private static EditorMapFloorTileRenderItem ShiftTile(
@@ -6935,9 +7071,7 @@ public sealed class EditorWorkspaceSession
         if (isBlocked)
             return EditorMapPlacementPreviewState.BlockedTile;
 
-        return sceneRender.Objects.Any(obj =>
-            string.Equals(obj.SectorAssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase) && obj.Tile == tile
-        )
+        return sceneRender.GetObjectsAtTile(sectorAssetPath, tile).Count > 0
             ? EditorMapPlacementPreviewState.OccupiedTile
             : EditorMapPlacementPreviewState.Valid;
     }
@@ -6946,11 +7080,7 @@ public sealed class EditorWorkspaceSession
         EditorMapFloorRenderPreview sceneRender,
         string sectorAssetPath,
         Location tile
-    ) =>
-        sceneRender.Tiles.FirstOrDefault(candidate =>
-            string.Equals(candidate.SectorAssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
-            && candidate.Tile == tile
-        );
+    ) => sceneRender.TryGetTile(sectorAssetPath, tile, out var item) ? item : null;
 
     private static (
         int MapTileX,
@@ -6964,12 +7094,12 @@ public sealed class EditorWorkspaceSession
         EditorMapFloorRenderRequest renderRequest,
         EditorMapFloorTileRenderItem selectedRenderTile,
         Location selectedTile,
-        Location targetTile
+        Location targetTile,
+        int mapTileWidth
     )
     {
         var mapTileX = selectedRenderTile.MapTileX + targetTile.X - selectedTile.X;
         var mapTileY = selectedRenderTile.MapTileY + targetTile.Y - selectedTile.Y;
-        var mapTileWidth = Math.Max(1, sceneRender.Tiles.Max(static tile => tile.MapTileX) + 1);
         var (selectedRawCenterX, selectedRawCenterY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
             renderRequest.ViewMode,
             renderRequest.TileWidthPixels,

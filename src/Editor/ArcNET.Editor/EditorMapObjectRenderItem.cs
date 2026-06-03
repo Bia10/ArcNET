@@ -79,6 +79,16 @@ public sealed class EditorMapObjectRenderItem
     public required int DrawOrder { get; init; }
 
     /// <summary>
+    /// Relative draw order of this object on the same tile.
+    /// </summary>
+    public int SameTileOrder { get; init; }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the object represents a dead NPC/critter.
+    /// </summary>
+    public bool IsDead { get; init; }
+
+    /// <summary>
     /// Normalized screen-space anchor X coordinate.
     /// </summary>
     public required double AnchorX { get; init; }

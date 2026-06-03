@@ -250,9 +250,15 @@ public sealed class EditorMapFloorRenderPreview
 
         if (Slices.Count > 0)
         {
-            var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(static slice => slice.SectorAssetPath);
+            var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(
+                static slice => slice.SectorAssetPath,
+                StringComparer.OrdinalIgnoreCase
+            );
             if (slicesByAssetPath.TryGetValue(sectorAssetPath, out var slice))
                 return slice.TryGetTile(tile, out item);
+
+            item = null;
+            return false;
         }
 
         for (var index = 0; index < Tiles.Count; index++)
@@ -276,7 +282,10 @@ public sealed class EditorMapFloorRenderPreview
     {
         if (Slices.Count > 0 && !string.IsNullOrWhiteSpace(sectorAssetPath))
         {
-            var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(static slice => slice.SectorAssetPath);
+            var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(
+                static slice => slice.SectorAssetPath,
+                StringComparer.OrdinalIgnoreCase
+            );
             return slicesByAssetPath.TryGetValue(sectorAssetPath, out var slice) ? slice.GetObjectsAtTile(tile) : [];
         }
 

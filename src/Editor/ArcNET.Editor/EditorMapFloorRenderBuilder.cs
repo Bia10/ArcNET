@@ -151,6 +151,7 @@ public static class EditorMapFloorRenderBuilder
         int BlitAlpha,
         bool IsShrunk,
         float RotationPitch,
+        bool IsDead,
         bool IsRoofCovered = false,
         bool IsIndoorTile = false,
         int LightFlags = 0,
@@ -580,7 +581,7 @@ public static class EditorMapFloorRenderBuilder
 
         var mapTileWidth = checked(scenePreview.Width * sectorTileWidth);
         var sceneSectorLookup = new SceneSectorLookup(sectors, sectorTileWidth, sectorTileHeight);
-        var objectSourceLookup = BuildObjectSourceLookup(sectors);
+        var objectSourceLookup = BuildObjectSourceLookup(sectors, affectedSectorAssetPaths);
 
         var rawTiles = new List<RawTileRenderItem>(existingPreview.Tiles.Count);
         var rawTileOverlays = new List<RawTileOverlayRenderItem>(existingPreview.Overlays.Count);
@@ -843,7 +844,8 @@ public static class EditorMapFloorRenderBuilder
     private readonly record struct DeltaObjectSourceInfo(int SameTileOrder, bool IsDead);
 
     private static Dictionary<GameObjectGuid, DeltaObjectSourceInfo> BuildObjectSourceLookup(
-        IReadOnlyList<EditorMapSectorScenePreview> sectors
+        IReadOnlyList<EditorMapSectorScenePreview> sectors,
+        HashSet<string> affectedSectorAssetPaths
     )
     {
         var objectLookup = new Dictionary<GameObjectGuid, DeltaObjectSourceInfo>();
@@ -851,6 +853,9 @@ public static class EditorMapFloorRenderBuilder
         for (var sectorIndex = 0; sectorIndex < sectors.Count; sectorIndex++)
         {
             var sector = sectors[sectorIndex];
+            if (!affectedSectorAssetPaths.Contains(sector.AssetPath))
+                continue;
+
             var sameTileOrders = BuildCeSameTileOrders(sector.Objects);
             for (var objectIndex = 0; objectIndex < sector.Objects.Count; objectIndex++)
             {
@@ -912,7 +917,19 @@ public static class EditorMapFloorRenderBuilder
         IReadOnlyDictionary<GameObjectGuid, DeltaObjectSourceInfo> objectSourceLookup
     )
     {
-        objectSourceLookup.TryGetValue(obj.ObjectId, out var sourceInfo);
+        int sameTileOrder;
+        bool isDead;
+
+        if (objectSourceLookup.TryGetValue(obj.ObjectId, out var sourceInfo))
+        {
+            sameTileOrder = sourceInfo.SameTileOrder;
+            isDead = sourceInfo.IsDead;
+        }
+        else
+        {
+            sameTileOrder = obj.SameTileOrder;
+            isDead = obj.IsDead;
+        }
 
         return new RawObjectRenderItem(
             SectorAssetPath: obj.SectorAssetPath,
@@ -928,7 +945,7 @@ public static class EditorMapFloorRenderBuilder
             MapTileY: obj.MapTileY,
             Tile: obj.Tile,
             BaseTileDrawOrder: GetDrawOrder(request.ViewMode, mapTileWidth, obj.MapTileX, obj.MapTileY),
-            SameTileOrder: sourceInfo.SameTileOrder,
+            SameTileOrder: sameTileOrder,
             AnchorX: obj.AnchorX - existingPreview.OffsetX,
             AnchorY: obj.AnchorY - existingPreview.OffsetY,
             SpriteBounds: obj.SpriteBounds,
@@ -941,6 +958,7 @@ public static class EditorMapFloorRenderBuilder
             BlitAlpha: obj.BlitAlpha,
             IsShrunk: obj.IsShrunk,
             RotationPitch: obj.RotationPitch,
+            IsDead: isDead,
             IsRoofCovered: obj.IsRoofCovered,
             IsIndoorTile: obj.IsIndoorTile,
             LightFlags: obj.LightFlags,
@@ -979,7 +997,27 @@ public static class EditorMapFloorRenderBuilder
         IDictionary<(GameObjectGuid ParentObjectId, EditorMapObjectAuxiliaryRenderLayer Layer), int> slotOrdinals
     )
     {
-        objectSourceLookup.TryGetValue(auxiliary.ParentObjectId, out var sourceInfo);
+        int parentSameTileOrder;
+        bool isParentDead;
+
+        if (objectSourceLookup.TryGetValue(auxiliary.ParentObjectId, out var sourceInfo))
+        {
+            parentSameTileOrder = sourceInfo.SameTileOrder;
+            isParentDead = sourceInfo.IsDead;
+        }
+        else if (
+            existingPreview.TryGetObject(auxiliary.ParentObjectId, out var parentObject) && parentObject is not null
+        )
+        {
+            parentSameTileOrder = parentObject.SameTileOrder;
+            isParentDead = parentObject.IsDead;
+        }
+        else
+        {
+            parentSameTileOrder = 0;
+            isParentDead = false;
+        }
+
         var slotKey = (auxiliary.ParentObjectId, auxiliary.Layer);
         var slotOrder = slotOrdinals.TryGetValue(slotKey, out var existingSlotOrder) ? existingSlotOrder : 0;
         slotOrdinals[slotKey] = slotOrder + 1;
@@ -1001,13 +1039,13 @@ public static class EditorMapFloorRenderBuilder
                 auxiliary.MapTileX,
                 auxiliary.MapTileY
             ),
-            ParentSameTileOrder: sourceInfo.SameTileOrder,
+            ParentSameTileOrder: parentSameTileOrder,
             AnchorX: auxiliary.AnchorX - existingPreview.OffsetX,
             AnchorY: auxiliary.AnchorY - existingPreview.OffsetY,
             RotationIndex: auxiliary.RotationIndex,
             ScalePercent: auxiliary.ScalePercent,
             IsShrunk: auxiliary.IsShrunk,
-            IsParentDead: sourceInfo.IsDead,
+            IsParentDead: isParentDead,
             IsRoofCovered: auxiliary.IsRoofCovered,
             SuggestedTintColor: auxiliary.SuggestedTintColor,
             BlendMode: auxiliary.BlendMode
@@ -1483,6 +1521,7 @@ public static class EditorMapFloorRenderBuilder
                         BlitAlpha: obj.BlitAlpha,
                         IsShrunk: obj.IsShrunk,
                         RotationPitch: obj.RotationPitch,
+                        IsDead: obj.IsDead,
                         IsRoofCovered: isRoofCovered,
                         IsIndoorTile: isIndoorTile,
                         LightFlags: obj.LightFlags,
@@ -2466,6 +2505,8 @@ public static class EditorMapFloorRenderBuilder
                 LightFlags = o.LightFlags,
                 LightAid = o.LightAid,
                 LightColor = o.LightColor,
+                SameTileOrder = o.SameTileOrder,
+                IsDead = o.IsDead,
             };
 
             var (sliceBuilder, sliceIndex) = GetOrAddSlice(obj.SectorAssetPath);

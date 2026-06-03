@@ -1,4 +1,4 @@
-﻿namespace ArcNET.Editor;
+namespace ArcNET.Editor;
 
 /// <summary>
 /// Request used when composing one bundled host-facing world-edit scene.
@@ -43,6 +43,21 @@ public sealed class EditorMapWorldEditSceneRequest
     /// Optional ART-backed sprite source used to enrich paintable scene items with packed frames.
     /// </summary>
     public IEditorMapRenderSpriteSource? SpriteSource { get; init; }
+
+    /// <summary>
+    /// Optional existing render preview to use for delta building.
+    /// </summary>
+    public EditorMapFloorRenderPreview? ExistingPreview { get; init; }
+
+    /// <summary>
+    /// Optional path to the sector asset that changed, triggering the delta build.
+    /// </summary>
+    public string? ChangedSectorAssetPath { get; init; }
+
+    /// <summary>
+    /// Optional existing sprite coverage to reuse instead of re-scanning the entire scene render queue.
+    /// </summary>
+    public EditorMapRenderSpriteCoverage? ExistingSpriteCoverage { get; init; }
 }
 
 /// <summary>
