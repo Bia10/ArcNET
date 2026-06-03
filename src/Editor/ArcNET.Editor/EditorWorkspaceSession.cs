@@ -1012,6 +1012,7 @@ public sealed class EditorWorkspaceSession
         var browseEntries = ResolveTrackedObjectPaletteBrowseEntries(
             toolState,
             effectiveSearchText,
+            effectiveCategory,
             artBindingStrategy,
             includeFullPaletteWhenSearchIsEmpty
         );
@@ -1054,6 +1055,7 @@ public sealed class EditorWorkspaceSession
         var browseEntries = await ResolveTrackedObjectPaletteBrowseEntriesAsync(
                 toolState,
                 effectiveSearchText,
+                effectiveCategory,
                 artBindingStrategy,
                 includeFullPaletteWhenSearchIsEmpty,
                 cancellationToken
@@ -1101,6 +1103,7 @@ public sealed class EditorWorkspaceSession
         var browseEntries = ResolveTrackedObjectPaletteBrowseEntries(
             toolState,
             effectiveSearchText,
+            effectiveCategory,
             artBindingStrategy,
             artPreviewOptions,
             includeFullPaletteWhenSearchIsEmpty
@@ -1147,6 +1150,7 @@ public sealed class EditorWorkspaceSession
         var browseEntries = await ResolveTrackedObjectPaletteBrowseEntriesAsync(
                 toolState,
                 effectiveSearchText,
+                effectiveCategory,
                 artBindingStrategy,
                 artPreviewOptions,
                 includeFullPaletteWhenSearchIsEmpty,
@@ -1210,6 +1214,7 @@ public sealed class EditorWorkspaceSession
     private IReadOnlyList<EditorObjectPaletteEntry> ResolveTrackedObjectPaletteBrowseEntries(
         EditorProjectMapObjectPlacementToolState toolState,
         string? effectiveSearchText,
+        string? effectiveCategory,
         EditorArtResolverBindingStrategy artBindingStrategy,
         bool includeFullPaletteWhenSearchIsEmpty
     )
@@ -1217,7 +1222,7 @@ public sealed class EditorWorkspaceSession
         if (effectiveSearchText is not null)
             return Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy);
 
-        if (includeFullPaletteWhenSearchIsEmpty)
+        if (includeFullPaletteWhenSearchIsEmpty || effectiveCategory is not null)
             return Workspace.GetObjectPalette(artBindingStrategy);
 
         return ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy) is { } selectedEntry
@@ -1228,6 +1233,7 @@ public sealed class EditorWorkspaceSession
     private async Task<IReadOnlyList<EditorObjectPaletteEntry>> ResolveTrackedObjectPaletteBrowseEntriesAsync(
         EditorProjectMapObjectPlacementToolState toolState,
         string? effectiveSearchText,
+        string? effectiveCategory,
         EditorArtResolverBindingStrategy artBindingStrategy,
         bool includeFullPaletteWhenSearchIsEmpty,
         CancellationToken cancellationToken
@@ -1240,7 +1246,7 @@ public sealed class EditorWorkspaceSession
                 .ConfigureAwait(false);
         }
 
-        if (includeFullPaletteWhenSearchIsEmpty)
+        if (includeFullPaletteWhenSearchIsEmpty || effectiveCategory is not null)
             return await Workspace.GetObjectPaletteAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
 
         return ResolveTrackedObjectPaletteSelectedEntry(toolState, artBindingStrategy) is { } selectedEntry
@@ -1251,6 +1257,7 @@ public sealed class EditorWorkspaceSession
     private IReadOnlyList<EditorObjectPaletteEntry> ResolveTrackedObjectPaletteBrowseEntries(
         EditorProjectMapObjectPlacementToolState toolState,
         string? effectiveSearchText,
+        string? effectiveCategory,
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions,
         bool includeFullPaletteWhenSearchIsEmpty
@@ -1259,7 +1266,7 @@ public sealed class EditorWorkspaceSession
         if (effectiveSearchText is not null)
             return Workspace.SearchObjectPalette(effectiveSearchText, artBindingStrategy, artPreviewOptions);
 
-        if (includeFullPaletteWhenSearchIsEmpty)
+        if (includeFullPaletteWhenSearchIsEmpty || effectiveCategory is not null)
             return Workspace.GetObjectPalette(artBindingStrategy, artPreviewOptions);
 
         return
@@ -1272,6 +1279,7 @@ public sealed class EditorWorkspaceSession
     private async Task<IReadOnlyList<EditorObjectPaletteEntry>> ResolveTrackedObjectPaletteBrowseEntriesAsync(
         EditorProjectMapObjectPlacementToolState toolState,
         string? effectiveSearchText,
+        string? effectiveCategory,
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions,
         bool includeFullPaletteWhenSearchIsEmpty,
@@ -1285,7 +1293,7 @@ public sealed class EditorWorkspaceSession
                 .ConfigureAwait(false);
         }
 
-        if (includeFullPaletteWhenSearchIsEmpty)
+        if (includeFullPaletteWhenSearchIsEmpty || effectiveCategory is not null)
         {
             return await Workspace
                 .GetObjectPaletteAsync(artBindingStrategy, artPreviewOptions, cancellationToken)

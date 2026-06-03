@@ -839,7 +839,7 @@ public sealed class EditorWorkspace : IDisposable
     /// </summary>
     public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
         EditorArtResolverBindingStrategy artBindingStrategy
-    ) => GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, searchText: null);
+    ) => GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions: null);
 
     /// <summary>
     /// Returns all loaded proto-backed object palette entries in stable browser order asynchronously using one workspace-created resolver seeded with the supplied strategy.
@@ -849,7 +849,7 @@ public sealed class EditorWorkspace : IDisposable
         CancellationToken cancellationToken = default
     )
     {
-        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, searchText: null, out var cachedEntries))
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions: null, out var cachedEntries))
             return cachedEntries;
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -908,7 +908,11 @@ public sealed class EditorWorkspace : IDisposable
     public IReadOnlyList<EditorObjectPaletteEntry> GetObjectPalette(
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions
-    ) => GetObjectPalette(CreateArtResolver(artBindingStrategy), artPreviewOptions);
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+        return GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions);
+    }
 
     /// <summary>
     /// Returns all loaded proto-backed object palette entries in stable browser order asynchronously and enriches bound entries with browser-friendly ART detail plus preview payload using one workspace-created resolver seeded with the supplied strategy.
@@ -920,9 +924,12 @@ public sealed class EditorWorkspace : IDisposable
     )
     {
         ArgumentNullException.ThrowIfNull(artPreviewOptions);
-        var artResolver = await CreateArtResolverAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions, out var cachedEntries))
+            return cachedEntries;
+
         cancellationToken.ThrowIfCancellationRequested();
-        return await GetObjectPaletteAsync(artResolver, artPreviewOptions, cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => GetObjectPalette(artBindingStrategy, artPreviewOptions), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -996,7 +1003,9 @@ public sealed class EditorWorkspace : IDisposable
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        return GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, text.Trim());
+        var entries = GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions: null);
+        var searchText = text.Trim();
+        return entries.Where(entry => ObjectPaletteEntryMatches(entry, searchText)).ToArray();
     }
 
     /// <summary>
@@ -1009,8 +1018,11 @@ public sealed class EditorWorkspace : IDisposable
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, text.Trim(), out var cachedEntries))
-            return cachedEntries;
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions: null, out var cachedEntries))
+        {
+            var searchText = text.Trim();
+            return cachedEntries.Where(entry => ObjectPaletteEntryMatches(entry, searchText)).ToArray();
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         return await Task.Run(() => SearchObjectPalette(text, artBindingStrategy), cancellationToken)
@@ -1064,7 +1076,14 @@ public sealed class EditorWorkspace : IDisposable
         string text,
         EditorArtResolverBindingStrategy artBindingStrategy,
         EditorArtPreviewOptions artPreviewOptions
-    ) => SearchObjectPalette(text, CreateArtResolver(artBindingStrategy), artPreviewOptions);
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ArgumentNullException.ThrowIfNull(artPreviewOptions);
+        var entries = GetOrCreateCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions);
+        var searchText = text.Trim();
+        return entries.Where(entry => ObjectPaletteEntryMatches(entry, searchText)).ToArray();
+    }
 
     /// <summary>
     /// Returns proto-backed object palette entries asynchronously and enriches bound entries with browser-friendly ART detail plus preview payload using one workspace-created resolver seeded with the supplied strategy.
@@ -1078,9 +1097,14 @@ public sealed class EditorWorkspace : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentNullException.ThrowIfNull(artPreviewOptions);
-        var artResolver = await CreateArtResolverAsync(artBindingStrategy, cancellationToken).ConfigureAwait(false);
+        if (TryGetCachedObjectPaletteEntries(artBindingStrategy, artPreviewOptions, out var cachedEntries))
+        {
+            var searchText = text.Trim();
+            return cachedEntries.Where(entry => ObjectPaletteEntryMatches(entry, searchText)).ToArray();
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
-        return await SearchObjectPaletteAsync(text, artResolver, artPreviewOptions, cancellationToken)
+        return await Task.Run(() => SearchObjectPalette(text, artBindingStrategy, artPreviewOptions), cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -1698,18 +1722,24 @@ public sealed class EditorWorkspace : IDisposable
 
     private bool TryGetCachedObjectPaletteEntries(
         EditorArtResolverBindingStrategy artBindingStrategy,
-        string? searchText,
+        EditorArtPreviewOptions? artPreviewOptions,
         out IReadOnlyList<EditorObjectPaletteEntry> entries
     )
     {
+        var artPreviewCacheKey = artPreviewOptions is null
+            ? (ArtPreviewCacheKey?)null
+            : new ArtPreviewCacheKey(
+                artPreviewOptions.PaletteSlot,
+                artPreviewOptions.PixelFormat,
+                artPreviewOptions.FlipVertically,
+                artPreviewOptions.IsLightMask
+            );
+
+        var cacheKey = new ObjectPaletteCacheKey(artBindingStrategy, artPreviewCacheKey);
+
         lock (_objectPaletteCacheGate)
         {
-            if (
-                _cachedObjectPaletteEntries.TryGetValue(
-                    new ObjectPaletteCacheKey(artBindingStrategy, NormalizeObjectPaletteSearchCacheKey(searchText)),
-                    out var cachedEntries
-                )
-            )
+            if (_cachedObjectPaletteEntries.TryGetValue(cacheKey, out var cachedEntries))
             {
                 entries = cachedEntries;
                 return true;
@@ -1722,10 +1752,19 @@ public sealed class EditorWorkspace : IDisposable
 
     private IReadOnlyList<EditorObjectPaletteEntry> GetOrCreateCachedObjectPaletteEntries(
         EditorArtResolverBindingStrategy artBindingStrategy,
-        string? searchText
+        EditorArtPreviewOptions? artPreviewOptions
     )
     {
-        var cacheKey = new ObjectPaletteCacheKey(artBindingStrategy, NormalizeObjectPaletteSearchCacheKey(searchText));
+        var artPreviewCacheKey = artPreviewOptions is null
+            ? (ArtPreviewCacheKey?)null
+            : new ArtPreviewCacheKey(
+                artPreviewOptions.PaletteSlot,
+                artPreviewOptions.PixelFormat,
+                artPreviewOptions.FlipVertically,
+                artPreviewOptions.IsLightMask
+            );
+
+        var cacheKey = new ObjectPaletteCacheKey(artBindingStrategy, artPreviewCacheKey);
 
         lock (_objectPaletteCacheGate)
         {
@@ -1734,8 +1773,8 @@ public sealed class EditorWorkspace : IDisposable
 
             var entries = BuildObjectPaletteEntries(
                 CreateArtResolver(artBindingStrategy),
-                artPreviewOptions: null,
-                NormalizeObjectPaletteSearchText(searchText),
+                artPreviewOptions,
+                searchText: null,
                 CancellationToken.None
             );
             _cachedObjectPaletteEntries.Add(cacheKey, entries);
@@ -1759,12 +1798,6 @@ public sealed class EditorWorkspace : IDisposable
             return entry;
         }
     }
-
-    private static string? NormalizeObjectPaletteSearchText(string? searchText) =>
-        string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
-
-    private static string? NormalizeObjectPaletteSearchCacheKey(string? searchText) =>
-        string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim().ToUpperInvariant();
 
     /// <summary>
     /// Looks up one terrain palette entry by source map-properties asset path and palette coordinates.
@@ -4187,9 +4220,16 @@ public sealed class EditorWorkspace : IDisposable
 
     private readonly record struct WallStructureArtSides(string InteriorBaseName, string ExteriorBaseName);
 
+    private readonly record struct ArtPreviewCacheKey(
+        int PaletteSlot,
+        EditorArtPreviewPixelFormat PixelFormat,
+        bool FlipVertically,
+        bool IsLightMask
+    );
+
     private readonly record struct ObjectPaletteCacheKey(
         EditorArtResolverBindingStrategy ArtBindingStrategy,
-        string? SearchText
+        ArtPreviewCacheKey? ArtPreviewOptions
     );
 
     private readonly record struct SelectedObjectPaletteEntryCacheKey(
