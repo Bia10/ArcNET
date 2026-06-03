@@ -8955,6 +8955,68 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task GetTrackedObjectSelectionSummary_UsesPersistedSourceObjectIndexForSameTileNullIds()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386390UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+        var nullObjectId = new GameObjectGuid(GameObjectGuid.OidTypeNull, 0, 0, Guid.Empty);
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorObject.pro")
+            );
+
+            var firstObject = new MobDataBuilder(ObjectType.Npc, nullObjectId, MakeProtoId(protoNumber))
+                .WithLocation(5, 6)
+                .Build();
+            var selectedObject = new MobDataBuilder(ObjectType.Npc, nullObjectId, MakeProtoId(protoNumber))
+                .WithLocation(5, 6)
+                .Build();
+
+            SectorFormat.WriteToFile(
+                MakeSector(firstObject, selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(5, 6),
+                        ObjectId = nullObjectId,
+                        SourceAssetPath = sectorAssetPath,
+                        SourceObjectIndex = 1,
+                    },
+                }
+            );
+
+            var selectionSummary = session.GetTrackedObjectSelectionSummary("map-view-1");
+
+            await Assert.That(selectionSummary.SelectedObjects).Count().IsEqualTo(1);
+            await Assert.That(selectionSummary.SelectedObjects[0].SourceAssetPath).IsEqualTo(sectorAssetPath);
+            await Assert.That(selectionSummary.SelectedObjects[0].SourceObjectIndex).IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task MapViewWorldEditToolHelpers_GetTrackedObjectInspectorSummary_ResolvesParentContainerWhenTargetIsInventorySubItem()
     {
         const int containerProtoNum = 1003;

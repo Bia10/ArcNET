@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor.Tests;
@@ -63,6 +63,8 @@ public sealed class EditorMapSceneRenderSpaceMathTests
         await Assert.That(selection!.SectorAssetPath).IsEqualTo("maps/map01/sector_1.sec");
         await Assert.That(selection.Tile).IsEqualTo(new Location(1, 0));
         await Assert.That(selection.ObjectId).IsEqualTo(hit.ObjectHits[0].ObjectId);
+        await Assert.That(selection.SourceAssetPath).IsEqualTo("maps/map01/sector_1.sec");
+        await Assert.That(selection.SourceObjectIndex).IsEqualTo(hit.ObjectHits[0].SourceObjectIndex);
     }
 
     [Test]

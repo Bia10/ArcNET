@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor.Tests;
 
@@ -65,6 +65,8 @@ public sealed class EditorProjectMapSelectionStateTests
             SectorAssetPath = "maps/map01/sector_a.sec",
             Tile = new Location(7, 8),
             ObjectId = objectId,
+            SourceAssetPath = "maps/map01/sector_a.sec",
+            SourceObjectIndex = 12,
         };
 
         await Assert.That(selection.HasTileSelection).IsTrue();
@@ -74,6 +76,8 @@ public sealed class EditorProjectMapSelectionStateTests
         await Assert.That(selection.SelectedObjectCount).IsEqualTo(1);
         await Assert.That(selection.GetSelectedObjectIds().Count).IsEqualTo(1);
         await Assert.That(selection.GetSelectedObjectIds()[0]).IsEqualTo(objectId);
+        await Assert.That(selection.SourceAssetPath).IsEqualTo("maps/map01/sector_a.sec");
+        await Assert.That(selection.SourceObjectIndex).IsEqualTo(12);
     }
 
     [Test]

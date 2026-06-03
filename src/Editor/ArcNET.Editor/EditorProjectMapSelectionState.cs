@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -21,6 +21,19 @@ public sealed class EditorProjectMapSelectionState
     /// Optional currently selected object identifier.
     /// </summary>
     public GameObjectGuid? ObjectId { get; init; }
+
+    /// <summary>
+    /// Optional normalized asset path that owns the selected source object entry.
+    /// Hosts can persist this alongside <see cref="ObjectId"/> to disambiguate anchors
+    /// that share the same ID on one tile.
+    /// </summary>
+    public string? SourceAssetPath { get; init; }
+
+    /// <summary>
+    /// Optional zero-based source-object index inside <see cref="SourceAssetPath"/>.
+    /// When present, this identifies one exact anchor even if multiple tile objects share one ID.
+    /// </summary>
+    public int? SourceObjectIndex { get; init; }
 
     /// <summary>
     /// Optional map-local drag-box or area selection bounds.

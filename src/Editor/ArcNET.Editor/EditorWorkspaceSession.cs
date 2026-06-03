@@ -9225,6 +9225,8 @@ public sealed class EditorWorkspaceSession
                 SectorAssetPath = NormalizeOptionalAssetPath(selection.SectorAssetPath),
                 Tile = selection.Tile,
                 ObjectId = selection.ObjectId,
+                SourceAssetPath = NormalizeOptionalAssetPath(selection.SourceAssetPath),
+                SourceObjectIndex = selection.SourceObjectIndex,
                 Area = selection.Area is null
                     ? null
                     : new EditorProjectMapAreaSelectionState
@@ -10209,9 +10211,25 @@ public sealed class EditorWorkspaceSession
         if (selectedObjectIds.Count == 0)
             return [];
         var selectedObjectIdSet = selectedObjectIds.ToHashSet();
+        var explicitSourceAssetPath = ResolveSelectionSourceAssetPath(selection);
 
         var directObjects = sector
-            .Objects.Where(candidate => candidate.Location == tile && selectedObjectIdSet.Contains(candidate.ObjectId))
+            .Objects.Where(candidate =>
+                candidate.Location == tile
+                && selectedObjectIdSet.Contains(candidate.ObjectId)
+                && (
+                    string.IsNullOrWhiteSpace(explicitSourceAssetPath)
+                    || string.Equals(
+                        candidate.SourceAssetPath,
+                        explicitSourceAssetPath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                && (
+                    selection.SourceObjectIndex is not { } sourceObjectIndex
+                    || candidate.SourceObjectIndex == sourceObjectIndex
+                )
+            )
             .ToArray();
 
         if (directObjects.Length > 0)
@@ -10264,6 +10282,27 @@ public sealed class EditorWorkspaceSession
         if (selectedObjectIds.Count == 0)
             return [];
         var selectedObjectIdSet = selectedObjectIds.ToHashSet();
+        var explicitSourceAssetPath = ResolveSelectionSourceAssetPath(selection);
+
+        if (
+            selection.SourceObjectIndex is { } sourceObjectIndex
+            && sourceObjectIndex >= 0
+            && sourceObjectIndex < sector.Objects.Count
+            && (
+                string.IsNullOrWhiteSpace(explicitSourceAssetPath)
+                || string.Equals(selection.SectorAssetPath, explicitSourceAssetPath, StringComparison.OrdinalIgnoreCase)
+            )
+        )
+        {
+            var sourceMob = sector.Objects[sourceObjectIndex];
+            if (
+                sourceMob.GetProperty(ObjectField.Location)?.GetLocation() == (tile.X, tile.Y)
+                && selectedObjectIdSet.Contains(sourceMob.Header.ObjectId)
+            )
+            {
+                return [CreateFallbackObjectPreview(sourceMob, sourceObjectIndex)];
+            }
+        }
 
         var directObjects = sector
             .Objects.Select((candidate, index) => (Mob: candidate, Index: index))
@@ -10389,6 +10428,7 @@ public sealed class EditorWorkspaceSession
         if (selection.SectorAssetPath is null || selection.Tile is not { } tile)
             return [];
 
+        var explicitSourceAssetPath = ResolveSelectionSourceAssetPath(selection);
         var directObjects = new List<EditorMapObjectRenderItem>(selectedObjectIdSet.Count);
         for (var index = 0; index < sceneRender.Objects.Count; index++)
         {
@@ -10397,6 +10437,18 @@ public sealed class EditorWorkspaceSession
                 string.Equals(candidate.SectorAssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
                 && candidate.Tile == tile
                 && selectedObjectIdSet.Contains(candidate.ObjectId)
+                && (
+                    string.IsNullOrWhiteSpace(explicitSourceAssetPath)
+                    || string.Equals(
+                        candidate.SectorAssetPath,
+                        explicitSourceAssetPath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                && (
+                    selection.SourceObjectIndex is not { } sourceObjectIndex
+                    || candidate.SourceObjectIndex == sourceObjectIndex
+                )
             )
             {
                 directObjects.Add(candidate);
@@ -10404,6 +10456,13 @@ public sealed class EditorWorkspaceSession
         }
 
         return directObjects;
+    }
+
+    private static string? ResolveSelectionSourceAssetPath(EditorProjectMapSelectionState selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        return NormalizeOptionalAssetPath(selection.SourceAssetPath)
+            ?? NormalizeOptionalAssetPath(selection.SectorAssetPath);
     }
 
     private static IReadOnlyList<EditorMapObjectPreview> HydrateSelectedObjectPreviews(

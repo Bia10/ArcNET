@@ -1,4 +1,4 @@
-﻿using ArcNET.Core.Primitives;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -264,17 +264,99 @@ public static class EditorMapSceneRenderSpaceMath
         var renderX = ViewportToRenderX(layout, viewportX);
         var renderY = ViewportToRenderY(layout, viewportY);
 
-        var hitTile = sceneRender
-            .Tiles.Where(tile => ContainsRenderPoint(sceneRender, tile, renderX, renderY))
-            .OrderByDescending(static tile => tile.DrawOrder)
-            .FirstOrDefault();
+        EditorMapFloorTileRenderItem? hitTile = null;
+        if (sceneRender.Slices.Count > 0)
+        {
+            for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
+            {
+                var slice = sceneRender.Slices[sliceIndex];
+                if (
+                    renderX >= slice.Bounds.Left
+                    && renderX <= slice.Bounds.Right
+                    && renderY >= slice.Bounds.Top
+                    && renderY <= slice.Bounds.Bottom
+                )
+                {
+                    for (var tileIndex = 0; tileIndex < slice.Tiles.Count; tileIndex++)
+                    {
+                        var tile = slice.Tiles[tileIndex];
+                        if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
+                        {
+                            if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
+                            {
+                                hitTile = tile;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (var index = 0; index < sceneRender.Tiles.Count; index++)
+            {
+                var tile = sceneRender.Tiles[index];
+                if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
+                {
+                    if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
+                    {
+                        hitTile = tile;
+                    }
+                }
+            }
+        }
+
         if (hitTile is null)
             return null;
 
-        var objectHits = sceneRender
-            .Objects.Where(obj => ContainsRenderPoint(obj, renderX, renderY))
-            .OrderBy(static obj => obj.DrawOrder)
-            .ToArray();
+        List<EditorMapObjectRenderItem>? objectHitsList = null;
+        if (sceneRender.Slices.Count > 0)
+        {
+            for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
+            {
+                var slice = sceneRender.Slices[sliceIndex];
+                if (
+                    renderX >= slice.Bounds.Left
+                    && renderX <= slice.Bounds.Right
+                    && renderY >= slice.Bounds.Top
+                    && renderY <= slice.Bounds.Bottom
+                )
+                {
+                    for (var objIndex = 0; objIndex < slice.Objects.Count; objIndex++)
+                    {
+                        var obj = slice.Objects[objIndex];
+                        if (ContainsRenderPoint(obj, renderX, renderY))
+                        {
+                            objectHitsList ??= [];
+                            objectHitsList.Add(obj);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (var index = 0; index < sceneRender.Objects.Count; index++)
+            {
+                var obj = sceneRender.Objects[index];
+                if (ContainsRenderPoint(obj, renderX, renderY))
+                {
+                    objectHitsList ??= [];
+                    objectHitsList.Add(obj);
+                }
+            }
+        }
+
+        IReadOnlyList<EditorMapObjectRenderItem> objectHits;
+        if (objectHitsList is not null)
+        {
+            objectHitsList.Sort(static (a, b) => a.DrawOrder.CompareTo(b.DrawOrder));
+            objectHits = objectHitsList;
+        }
+        else
+        {
+            objectHits = [];
+        }
 
         return new EditorMapRenderHit
         {
@@ -301,11 +383,14 @@ public static class EditorMapSceneRenderSpaceMath
         if (hit is null)
             return null;
 
+        var selectedObject = hit.ObjectHits.LastOrDefault();
         return new EditorProjectMapSelectionState
         {
             SectorAssetPath = hit.SectorAssetPath,
             Tile = hit.Tile,
-            ObjectId = hit.ObjectHits.LastOrDefault()?.ObjectId,
+            ObjectId = selectedObject?.ObjectId,
+            SourceAssetPath = selectedObject?.SectorAssetPath,
+            SourceObjectIndex = selectedObject?.SourceObjectIndex,
         };
     }
 
