@@ -388,7 +388,11 @@ public static class EditorMapFocusLocator
             return false;
 
         var resolvedSectorProjection = projection.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.Asset.AssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            string.Equals(
+                ArcNET.Core.VirtualPath.Normalize(candidate.Asset.AssetPath),
+                ArcNET.Core.VirtualPath.Normalize(sectorAssetPath),
+                StringComparison.OrdinalIgnoreCase
+            )
         );
         if (resolvedSectorProjection is null)
             return false;

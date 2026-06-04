@@ -823,7 +823,11 @@ public static class EditorMapFloorRenderBuilder
 
         var sectorsByCoordinate = sectors.ToDictionary(static sector => (sector.LocalX, sector.LocalY));
         var changedSector = sectors.FirstOrDefault(sector =>
-            string.Equals(sector.AssetPath, changedSectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            string.Equals(
+                ArcNET.Core.VirtualPath.Normalize(sector.AssetPath),
+                ArcNET.Core.VirtualPath.Normalize(changedSectorAssetPath),
+                StringComparison.OrdinalIgnoreCase
+            )
         );
         if (changedSector is null)
             return [];

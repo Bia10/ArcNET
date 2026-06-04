@@ -3177,7 +3177,7 @@ public sealed class EditorWorkspaceSession
         var mapViewState = ResolveTrackedMapViewState(mapViewStateId);
         var scenePreview = CreateEffectiveMapScenePreview(mapViewState.MapName);
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
 
         if (sector is null)
@@ -4743,7 +4743,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -4812,7 +4812,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -4904,7 +4904,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -5026,7 +5026,7 @@ public sealed class EditorWorkspaceSession
             return new EditorMapLayerBrushResult();
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return new EditorMapLayerBrushResult();
@@ -5347,7 +5347,7 @@ public sealed class EditorWorkspaceSession
             return [];
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return [];
@@ -5400,7 +5400,7 @@ public sealed class EditorWorkspaceSession
             return [];
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return [];
@@ -7227,9 +7227,7 @@ public sealed class EditorWorkspaceSession
         GameObjectGuid objectId
     ) =>
         scenePreview
-            .Sectors.FirstOrDefault(sector =>
-                string.Equals(sector.AssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
-            )
+            .Sectors.FirstOrDefault(sector => AreSectorPathsEqual(sector.AssetPath, sectorAssetPath))
             ?.Objects.FirstOrDefault(obj => obj.ObjectId == objectId);
 
     private static IReadOnlyList<EditorMapSceneSectorHitGroup> ResolveScenePointSelectionBySector(
@@ -7241,7 +7239,7 @@ public sealed class EditorWorkspaceSession
             return [];
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return [];
@@ -7285,7 +7283,7 @@ public sealed class EditorWorkspaceSession
             return [];
 
         var sector = projection.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.Asset.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.Asset.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return [];
@@ -7364,7 +7362,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -7432,7 +7430,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -7538,7 +7536,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -7699,7 +7697,7 @@ public sealed class EditorWorkspaceSession
             return new EditorMapObjectBrushResult();
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return new EditorMapObjectBrushResult();
@@ -7761,7 +7759,7 @@ public sealed class EditorWorkspaceSession
             return new EditorMapObjectBrushResult();
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return new EditorMapObjectBrushResult();
@@ -7880,7 +7878,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -7991,7 +7989,7 @@ public sealed class EditorWorkspaceSession
                     for (var hitIndex = 0; hitIndex < sectorHitGroup.Hits.Count; hitIndex++)
                     {
                         var hit = sectorHitGroup.Hits[hitIndex];
-                        if (!string.Equals(hit.SectorAssetPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        if (!AreSectorPathsEqual(hit.SectorAssetPath, normalizedPath))
                         {
                             throw new InvalidOperationException(
                                 $"Grouped sector hit path '{hit.SectorAssetPath}' did not match '{normalizedPath}'."
@@ -9588,6 +9586,21 @@ public sealed class EditorWorkspaceSession
     private static string? NormalizeOptionalAssetPath(string? assetPath) =>
         string.IsNullOrWhiteSpace(assetPath) ? null : NormalizeAssetPath(assetPath);
 
+    private static bool AreSectorPathsEqual(string? path1, string? path2)
+    {
+        if (path1 == path2)
+            return true;
+
+        if (path1 is null || path2 is null)
+            return false;
+
+        return string.Equals(
+            NormalizeOptionalAssetPath(path1),
+            NormalizeOptionalAssetPath(path2),
+            StringComparison.OrdinalIgnoreCase
+        );
+    }
+
     private static string? NormalizeOptionalText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -10339,7 +10352,7 @@ public sealed class EditorWorkspaceSession
             return [];
 
         var sector = scenePreview.Sectors.FirstOrDefault(candidate =>
-            string.Equals(candidate.AssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            AreSectorPathsEqual(candidate.AssetPath, selection.SectorAssetPath)
         );
         if (sector is null)
             return [];
@@ -10428,7 +10441,7 @@ public sealed class EditorWorkspaceSession
             && sourceObjectIndex < sector.Objects.Count
             && (
                 string.IsNullOrWhiteSpace(explicitSourceAssetPath)
-                || string.Equals(selection.SectorAssetPath, explicitSourceAssetPath, StringComparison.OrdinalIgnoreCase)
+                || AreSectorPathsEqual(selection.SectorAssetPath, explicitSourceAssetPath)
             )
         )
         {
@@ -10508,7 +10521,7 @@ public sealed class EditorWorkspaceSession
         {
             var candidate = sceneRender.Objects[index];
             if (
-                string.Equals(candidate.SectorAssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+                AreSectorPathsEqual(candidate.SectorAssetPath, selection.SectorAssetPath)
                 && candidate.Tile == tile
                 && matchedParentIds.Contains(candidate.ObjectId)
             )
@@ -10572,16 +10585,12 @@ public sealed class EditorWorkspaceSession
         {
             var candidate = sceneRender.Objects[index];
             if (
-                string.Equals(candidate.SectorAssetPath, selection.SectorAssetPath, StringComparison.OrdinalIgnoreCase)
+                AreSectorPathsEqual(candidate.SectorAssetPath, selection.SectorAssetPath)
                 && candidate.Tile == tile
                 && selectedObjectIdSet.Contains(candidate.ObjectId)
                 && (
                     string.IsNullOrWhiteSpace(explicitSourceAssetPath)
-                    || string.Equals(
-                        candidate.SectorAssetPath,
-                        explicitSourceAssetPath,
-                        StringComparison.OrdinalIgnoreCase
-                    )
+                    || AreSectorPathsEqual(candidate.SectorAssetPath, explicitSourceAssetPath)
                 )
                 && (
                     selection.SourceObjectIndex is not { } sourceObjectIndex

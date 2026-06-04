@@ -251,10 +251,10 @@ public sealed class EditorMapFloorRenderPreview
         if (Slices.Count > 0)
         {
             var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(
-                static slice => slice.SectorAssetPath,
+                static slice => ArcNET.Core.VirtualPath.Normalize(slice.SectorAssetPath),
                 StringComparer.OrdinalIgnoreCase
             );
-            if (slicesByAssetPath.TryGetValue(sectorAssetPath, out var slice))
+            if (slicesByAssetPath.TryGetValue(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath), out var slice))
                 return slice.TryGetTile(tile, out item);
 
             item = null;
@@ -265,7 +265,11 @@ public sealed class EditorMapFloorRenderPreview
         {
             var candidate = Tiles[index];
             if (
-                string.Equals(candidate.SectorAssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
+                string.Equals(
+                    ArcNET.Core.VirtualPath.Normalize(candidate.SectorAssetPath),
+                    ArcNET.Core.VirtualPath.Normalize(sectorAssetPath),
+                    StringComparison.OrdinalIgnoreCase
+                )
                 && candidate.Tile == tile
             )
             {
@@ -283,10 +287,12 @@ public sealed class EditorMapFloorRenderPreview
         if (Slices.Count > 0 && !string.IsNullOrWhiteSpace(sectorAssetPath))
         {
             var slicesByAssetPath = _slicesByAssetPath ??= Slices.ToDictionary(
-                static slice => slice.SectorAssetPath,
+                static slice => ArcNET.Core.VirtualPath.Normalize(slice.SectorAssetPath),
                 StringComparer.OrdinalIgnoreCase
             );
-            return slicesByAssetPath.TryGetValue(sectorAssetPath, out var slice) ? slice.GetObjectsAtTile(tile) : [];
+            return slicesByAssetPath.TryGetValue(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath), out var slice)
+                ? slice.GetObjectsAtTile(tile)
+                : [];
         }
 
         List<EditorMapObjectRenderItem>? objects = null;
@@ -312,7 +318,11 @@ public sealed class EditorMapFloorRenderPreview
                 candidate.Tile != tile
                 || (
                     !string.IsNullOrWhiteSpace(sectorAssetPath)
-                    && !string.Equals(candidate.SectorAssetPath, sectorAssetPath, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(
+                        ArcNET.Core.VirtualPath.Normalize(candidate.SectorAssetPath),
+                        ArcNET.Core.VirtualPath.Normalize(sectorAssetPath),
+                        StringComparison.OrdinalIgnoreCase
+                    )
                 )
             )
             {

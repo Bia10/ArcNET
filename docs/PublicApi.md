@@ -5799,6 +5799,10 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(ArcNET.Editor.EditorSessionStagedTransactionSummary stagedTransaction) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionValidationRepairCandidate> GetValidationRepairCandidates(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionStagedTransactionSummary> stagedTransactions) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorProjectViewState> GetViewStates() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "IsBlocked",
+                "Reason"})]
+        public System.ValueTuple<bool, string?> IsPlacementBlocked(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState selection) { }
         public ArcNET.Editor.EditorSessionChange? MoveSectorObject(string assetPath, ArcNET.Core.Primitives.GameObjectGuid objectId, int tileX, int tileY) { }
         public ArcNET.Editor.EditorMapObjectBrushResult MoveTrackedSelectedObjects(string mapViewStateId, int deltaTileX, int deltaTileY) { }
         public ArcNET.Editor.EditorProjectOpenAsset OpenAsset(ArcNET.Editor.EditorProjectOpenAsset openAsset) { }
