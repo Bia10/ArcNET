@@ -42,6 +42,7 @@ public sealed class EditorWorkspaceSession
     private IReadOnlyList<EditorProjectToolState> _projectToolStates = [];
     private string? _projectActiveAssetPath;
     private SaveGameEditor? _saveEditor;
+    private PendingWorkspaceState? _cachedFullPendingWorkspaceState;
 
     /// <summary>
     /// Initializes a live session for one loaded workspace snapshot.
@@ -49,13 +50,24 @@ public sealed class EditorWorkspaceSession
     public EditorWorkspaceSession(EditorWorkspace workspace)
     {
         ArgumentNullException.ThrowIfNull(workspace);
+        _workspace = workspace;
         Workspace = workspace;
     }
+
+    private EditorWorkspace _workspace;
 
     /// <summary>
     /// Loaded workspace snapshot that owns this session.
     /// </summary>
-    public EditorWorkspace Workspace { get; private set; }
+    public EditorWorkspace Workspace
+    {
+        get => _workspace;
+        private set
+        {
+            _workspace = value;
+            _cachedFullPendingWorkspaceState = null;
+        }
+    }
 
     /// <summary>
     /// Returns <see langword="true"/> when the session has one or more applied change groups that can be undone.
@@ -4307,6 +4319,7 @@ public sealed class EditorWorkspaceSession
     /// </summary>
     public EditorWorkspaceSession DiscardPendingChanges()
     {
+        _cachedFullPendingWorkspaceState = null;
         foreach (var editor in _dialogEditors.Values)
             editor.DiscardPendingChanges();
 
@@ -4339,6 +4352,7 @@ public sealed class EditorWorkspaceSession
         IReadOnlyList<EditorSessionStagedTransactionSummary> stagedTransactions
     )
     {
+        _cachedFullPendingWorkspaceState = null;
         var selectedScopeKeys = NormalizeSelectedStagedTransactionScopeKeys(stagedTransactions);
         if (selectedScopeKeys.Count == 0)
             return this;
@@ -8344,6 +8358,11 @@ public sealed class EditorWorkspaceSession
         IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
     )
     {
+        if (selectedScopeKeys is null && _cachedFullPendingWorkspaceState is not null)
+        {
+            return _cachedFullPendingWorkspaceState.Value;
+        }
+
         var pendingChanges = CollectPendingChangesSnapshot(selectedScopeKeys);
         var pendingDialogs = CollectDialogChanges(selectedScopeKeys);
         var pendingScripts = CollectScriptChanges(selectedScopeKeys);
@@ -8378,10 +8397,17 @@ public sealed class EditorWorkspaceSession
             pendingSave
         );
 
-        return new PendingWorkspaceState(
+        var pendingState = new PendingWorkspaceState(
             pendingChanges,
             EditorWorkspaceSnapshotBuilder.Build(Workspace, updatedGameData, pendingSave)
         );
+
+        if (selectedScopeKeys is null)
+        {
+            _cachedFullPendingWorkspaceState = pendingState;
+        }
+
+        return pendingState;
     }
 
     private void ThrowIfPendingStateIntroducesBlockingErrors(
@@ -9951,6 +9977,7 @@ public sealed class EditorWorkspaceSession
         EditorSessionStagedHistoryMutationKind mutationKind
     )
     {
+        _cachedFullPendingWorkspaceState = null;
         switch (mutationKind)
         {
             case EditorSessionStagedHistoryMutationKind.Edit:
