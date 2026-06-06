@@ -8,6 +8,9 @@ namespace ArcNET.Formats.Tests;
 /// <summary>Unit tests for <see cref="ScriptFormat"/>.</summary>
 public sealed class ScriptFormatTests
 {
+    private const int DescriptionOffset = 8;
+    private const int DescriptionLength = 40;
+
     private static byte[] BuildScrBytes(
         uint hdrFlags = 0,
         uint hdrCounters = 0,
@@ -27,6 +30,19 @@ public sealed class ScriptFormatTests
             Entries = entries,
         };
         return ScriptFormat.WriteToArray(in src);
+    }
+
+    private static byte[] BuildScrBytesWithRawDescription(
+        ReadOnlySpan<byte> rawDescription,
+        ScriptFlags flags = ScriptFlags.None,
+        IReadOnlyList<ScriptConditionData>? entries = null
+    )
+    {
+        var bytes = BuildScrBytes(description: string.Empty, flags: flags, entries: entries);
+        bytes.AsSpan(DescriptionOffset, DescriptionLength).Clear();
+        rawDescription[..Math.Min(rawDescription.Length, DescriptionLength)]
+            .CopyTo(bytes.AsSpan(DescriptionOffset, DescriptionLength));
+        return bytes;
     }
 
     [Test]
@@ -49,6 +65,55 @@ public sealed class ScriptFormatTests
         await Assert.That(result.HeaderFlags).IsEqualTo(0xDEADu);
         await Assert.That(result.HeaderCounters).IsEqualTo(0xBEEFu);
         await Assert.That(result.Description).IsEqualTo("TestScript");
+    }
+
+    [Test]
+    public async Task Parse_DescriptionTreatsLeadingNullAsEmptyCString()
+    {
+        var bytes = BuildScrBytesWithRawDescription([
+            (byte)0x00,
+            (byte)'G',
+            (byte)'a',
+            (byte)'r',
+            (byte)'b',
+            (byte)'a',
+            (byte)'g',
+            (byte)'e',
+        ]);
+
+        var result = ScriptFormat.ParseMemory(bytes);
+
+        await Assert.That(result.Description).IsEqualTo(string.Empty);
+    }
+
+    [Test]
+    public async Task Parse_DescriptionStopsAtFirstEmbeddedNull()
+    {
+        var bytes = BuildScrBytesWithRawDescription([
+            (byte)'B',
+            (byte)'a',
+            (byte)'t',
+            (byte)'e',
+            (byte)'s',
+            (byte)0x00,
+            (byte)'G',
+            (byte)'u',
+        ]);
+
+        var result = ScriptFormat.ParseMemory(bytes);
+
+        await Assert.That(result.Description).IsEqualTo("Bates");
+    }
+
+    [Test]
+    public async Task Parse_DescriptionPreservesAllFortyBytesWhenNotNullTerminated()
+    {
+        const string description = "1234567890123456789012345678901234567890";
+        var bytes = BuildScrBytesWithRawDescription(Encoding.ASCII.GetBytes(description));
+
+        var result = ScriptFormat.ParseMemory(bytes);
+
+        await Assert.That(result.Description).IsEqualTo(description);
     }
 
     [Test]

@@ -9392,6 +9392,86 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task MapViewWorldEditToolHelpers_SetTrackedObjectInspectorScriptAttachment_NormalizesLegacyScriptIdOnlyProperty()
+    {
+        const int protoNumber = 1001;
+        const ulong sectorKey = 101334386389UL;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            ProtoFormat.WriteToFile(
+                MakeProto(protoNumber),
+                Path.Combine(contentDir, "proto", "001001 - InspectorTarget.pro")
+            );
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Updated examine script"),
+                Path.Combine(contentDir, "scr", "00099Updated.scr")
+            );
+
+            var selectedObject = new CharacterBuilder(
+                ObjectType.Npc,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, protoNumber, Guid.NewGuid()),
+                MakeProtoId(protoNumber)
+            )
+                .WithLocation(0, 0)
+                .WithHitPoints(80)
+                .WithProperty(MakeLegacyScriptProperty(77, -1))
+                .Build();
+            SectorFormat.WriteToFile(
+                MakeSector(selectedObject),
+                Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec")
+            );
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var session = workspace.CreateSession();
+            _ = session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-1",
+                    MapName = "map01",
+                    Selection = new EditorProjectMapSelectionState
+                    {
+                        SectorAssetPath = sectorAssetPath,
+                        Tile = new Location(0, 0),
+                        ObjectId = selectedObject.Header.ObjectId,
+                    },
+                }
+            );
+
+            var before = session.GetTrackedObjectInspectorScriptAttachmentsSummary("map-view-1");
+            var change = session.SetTrackedObjectInspectorScriptAttachment(
+                "map-view-1",
+                ScriptAttachmentPoint.Examine,
+                99
+            );
+            var appliedWorkspace = session.ApplyPendingChanges();
+            var appliedProperty = appliedWorkspace
+                .FindSector(sectorAssetPath)!
+                .Objects[0]
+                .GetProperty(ObjectField.ScriptsIdx);
+
+            await Assert.That(before.Attachments[(int)ScriptAttachmentPoint.Examine].ScriptId).IsEqualTo(77);
+            await Assert.That(change).IsNotNull();
+            await Assert.That(appliedProperty).IsNotNull();
+            await Assert
+                .That(BinaryPrimitives.ReadInt32LittleEndian(appliedProperty!.RawBytes.AsSpan(1)))
+                .IsEqualTo(12);
+            await Assert.That(GetScriptIds([appliedProperty!])).IsEquivalentTo([99]);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task GetTrackedObjectInspectorContainerSummary_ResolvesContainedGoldQuantity()
     {
         const int containerProtoNum = 1003;
@@ -12855,6 +12935,9 @@ public sealed class EditorWorkspaceSessionTests
         new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray([
             .. scriptIds.Select(scriptId => new ObjectPropertyScript(0u, 0u, scriptId)),
         ]);
+
+    private static ObjectProperty MakeLegacyScriptProperty(params int[] scriptIds) =>
+        new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithInt32Array(scriptIds);
 
     private static ObjectProperty MakeArtProperty(ObjectField field, uint artId) =>
         ObjectPropertyFactory.ForInt32(field, unchecked((int)artId));

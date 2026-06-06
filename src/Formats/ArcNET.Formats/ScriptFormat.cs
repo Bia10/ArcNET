@@ -95,8 +95,7 @@ public sealed class ScriptFormat : IFormatFileReader<ScrFile>, IFormatFileWriter
         var hdrCounters = reader.ReadUInt32();
 
         // Body metadata
-        var descBytes = reader.ReadBytes(DescriptionLength).ToArray();
-        var description = Encoding.ASCII.GetString(descBytes).TrimEnd('\0');
+        var description = ReadDescription(reader.ReadBytes(DescriptionLength));
         var flags = (ScriptFlags)reader.ReadUInt32();
         var numEntries = reader.ReadInt32();
         reader.ReadInt32(); // max_entries — discard on read
@@ -114,6 +113,15 @@ public sealed class ScriptFormat : IFormatFileReader<ScrFile>, IFormatFileWriter
             Flags = flags,
             Entries = entries,
         };
+    }
+
+    private static string ReadDescription(ReadOnlySpan<byte> descBytes)
+    {
+        var length = descBytes.IndexOf((byte)0);
+        if (length < 0)
+            length = descBytes.Length;
+
+        return Encoding.ASCII.GetString(descBytes[..length]);
     }
 
     private static ScriptActionData ReadAction(scoped ref SpanReader reader)

@@ -26,6 +26,8 @@ public static class ObjectPropertyExtensions
 
     /// <summary>Byte offset where SAR element data begins (after 1-byte presence + 12-byte SA header).</summary>
     private const int SarDataOffset = 13;
+    private const int ScriptArrayElementSize = 12;
+    private const int LegacyScriptIdArrayElementSize = 4;
 
     // Returns elementSize, elementCount, and dataOffset into rawBytes.
     private static (int ElementSize, int ElementCount, int DataOffset) ParseSarHeader(byte[] rawBytes)
@@ -294,21 +296,61 @@ public static class ObjectPropertyExtensions
         if (property.RawBytes.Length == 1 && property.RawBytes[0] == 0)
             return [];
 
-        var (elementSize, elementCount, dataOffset) = ParseSarHeader(property.RawBytes);
-        if (elementSize != 12)
-            throw new InvalidOperationException(
-                $"Field {property.Field}: expected elementSize=12 for ScriptArray, got {elementSize}."
-            );
+        try
+        {
+            var (elementSize, elementCount, dataOffset) = ParseSarHeader(property.RawBytes);
+            if (!HasCompleteSarPayload(elementSize, elementCount, property.RawBytes.Length))
+                return [];
+
+            return elementSize switch
+            {
+                ScriptArrayElementSize => ReadCanonicalScriptArray(property.RawBytes, elementCount, dataOffset),
+                LegacyScriptIdArrayElementSize => ReadLegacyScriptIdArray(property.RawBytes, elementCount, dataOffset),
+                _ => [],
+            };
+        }
+        catch (InvalidOperationException)
+        {
+            return [];
+        }
+    }
+
+    private static bool HasCompleteSarPayload(int elementSize, int elementCount, int rawLength)
+    {
+        if (elementSize <= 0 || elementCount < 0)
+            return false;
+
+        var dataByteLength = (long)elementSize * elementCount;
+        return dataByteLength <= int.MaxValue && SarDataOffset + dataByteLength + sizeof(int) <= rawLength;
+    }
+
+    private static ObjectPropertyScript[] ReadCanonicalScriptArray(byte[] rawBytes, int elementCount, int dataOffset)
+    {
         var result = new ObjectPropertyScript[elementCount];
         for (var i = 0; i < elementCount; i++)
         {
-            var o = dataOffset + i * 12;
+            var offset = dataOffset + (i * ScriptArrayElementSize);
             result[i] = new ObjectPropertyScript(
-                BinaryPrimitives.ReadUInt32LittleEndian(property.RawBytes.AsSpan(o)),
-                BinaryPrimitives.ReadUInt32LittleEndian(property.RawBytes.AsSpan(o + 4)),
-                BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes.AsSpan(o + 8))
+                BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(offset)),
+                BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(offset + 4)),
+                BinaryPrimitives.ReadInt32LittleEndian(rawBytes.AsSpan(offset + 8))
             );
         }
+
+        return result;
+    }
+
+    private static ObjectPropertyScript[] ReadLegacyScriptIdArray(byte[] rawBytes, int elementCount, int dataOffset)
+    {
+        var result = new ObjectPropertyScript[elementCount];
+        for (var i = 0; i < elementCount; i++)
+        {
+            var scriptId = BinaryPrimitives.ReadInt32LittleEndian(
+                rawBytes.AsSpan(dataOffset + (i * LegacyScriptIdArrayElementSize))
+            );
+            result[i] = scriptId > 0 ? new ObjectPropertyScript(0u, 0u, scriptId) : default;
+        }
+
         return result;
     }
 

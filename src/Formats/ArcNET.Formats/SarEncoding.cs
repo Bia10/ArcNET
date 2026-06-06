@@ -20,6 +20,7 @@ namespace ArcNET.Formats;
 internal static class SarEncoding
 {
     private const int BitsPerWord = 32;
+    private const int MinimumBitsetWords = 2;
 
     /// <summary>
     /// Builds the full SAR wire bytes for the given <paramref name="elements"/> data.
@@ -34,7 +35,7 @@ internal static class SarEncoding
     /// </summary>
     internal static byte[] BuildSarBytes(int elementSize, int elementCount, int bitsetId, ReadOnlySpan<byte> elements)
     {
-        var bitsetCnt = (uint)((elementCount + BitsPerWord - 1) / BitsPerWord);
+        var bitsetCnt = Math.Max(MinimumBitsetWords, (elementCount + BitsPerWord - 1) / BitsPerWord);
         Span<byte> initial = stackalloc byte[256];
         using var buf = new ValueByteBuffer(initial);
         buf.Write((byte)1); // presence
@@ -42,20 +43,16 @@ internal static class SarEncoding
         buf.WriteUInt32LittleEndian((uint)elementCount); // sa.count
         buf.WriteUInt32LittleEndian((uint)bitsetId); // sa.bitset_id
         buf.Write(elements); // element data
-        buf.WriteUInt32LittleEndian(bitsetCnt); // bitset_cnt
-        for (var i = 0; i < (int)bitsetCnt; i++)
+        buf.WriteUInt32LittleEndian((uint)bitsetCnt); // bitset_cnt
+        for (var i = 0; i < bitsetCnt; i++)
         {
-            // Fully-occupied words are 0xFFFFFFFF.
-            // The last (potentially partial) word must only set the bits that correspond
-            // to actual elements; otherwise the engine sees phantom present-element flags.
-            uint word;
-            if (i < (int)bitsetCnt - 1)
-                word = 0xFFFFFFFF;
-            else
+            var remainingElements = elementCount - (i * BitsPerWord);
+            uint word = remainingElements switch
             {
-                var rem = elementCount % BitsPerWord;
-                word = rem == 0 ? 0xFFFFFFFF : (1u << rem) - 1u;
-            }
+                <= 0 => 0u,
+                >= BitsPerWord => 0xFFFFFFFFu,
+                _ => (1u << remainingElements) - 1u,
+            };
             buf.WriteUInt32LittleEndian(word);
         }
         return buf.ToArray();

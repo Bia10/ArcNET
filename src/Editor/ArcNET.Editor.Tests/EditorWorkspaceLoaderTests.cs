@@ -36,6 +36,18 @@ public class EditorWorkspaceLoaderTests
                 .ToArray(),
         };
 
+    private static byte[] MakeScriptBytesWithRawDescription(ReadOnlySpan<byte> rawDescription, int conditionCount = 1)
+    {
+        const int descriptionOffset = 8;
+        const int descriptionLength = 40;
+
+        var bytes = ScriptFormat.WriteToArray(MakeScriptFile(description: string.Empty, conditionCount));
+        bytes.AsSpan(descriptionOffset, descriptionLength).Clear();
+        rawDescription[..Math.Min(rawDescription.Length, descriptionLength)]
+            .CopyTo(bytes.AsSpan(descriptionOffset, descriptionLength));
+        return bytes;
+    }
+
     private static DlgFile MakeDialogFile(params (int Num, string Text, int ResponseVal)[] entries) =>
         new()
         {
@@ -164,6 +176,21 @@ public class EditorWorkspaceLoaderTests
         }
 
         return new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithScriptArray(scripts);
+    }
+
+    private static ObjectProperty MakeLegacyScriptProperty(params (int SlotIndex, int ScriptId)[] attachments)
+    {
+        if (attachments.Length == 0)
+            return new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithInt32Array([]);
+
+        var scripts = new int[attachments.Max(static attachment => attachment.SlotIndex) + 1];
+        for (var attachmentIndex = 0; attachmentIndex < attachments.Length; attachmentIndex++)
+        {
+            var attachment = attachments[attachmentIndex];
+            scripts[attachment.SlotIndex] = attachment.ScriptId;
+        }
+
+        return new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithInt32Array(scripts);
     }
 
     private static ObjectProperty MakeArtProperty(ObjectField field, uint artId) =>
@@ -3352,6 +3379,88 @@ public class EditorWorkspaceLoaderTests
             await Assert.That(attachments.UnknownAttachments[0].Script!.Description).IsEqualTo("Unknown slot script");
             await Assert.That(attachments.HasUnknownAttachmentSlots).IsTrue();
             await Assert.That(attachments.HasMissingScripts).IsFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_ScriptDefinitionsAndInspectorReferences_KeepCeStyleEmptyDescriptionsEmpty()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+
+        try
+        {
+            await File.WriteAllBytesAsync(
+                Path.Combine(contentDir, "scr", "02894BatesGuardsHB.scr"),
+                MakeScriptBytesWithRawDescription([(byte)0x00, (byte)'B', (byte)'a', (byte)'t', (byte)'e', (byte)'s'])
+            );
+
+            var proto = WithProperties(
+                MakeProto(protoNumber).WithoutProperty(ObjectField.ScriptsIdx),
+                MakeScriptProperty((0, 2894))
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorScripts.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var detail = workspace.Index.FindScriptDetails(2894).SingleOrDefault();
+            var attachments = workspace.FindObjectInspectorScriptAttachmentsSummary(protoNumber);
+
+            await Assert.That(detail).IsNotNull();
+            await Assert.That(detail!.Description).IsEqualTo(string.Empty);
+            await Assert.That(attachments).IsNotNull();
+            await Assert.That(attachments!.Attachments[(int)ScriptAttachmentPoint.Examine].Script).IsNotNull();
+            await Assert
+                .That(attachments.Attachments[(int)ScriptAttachmentPoint.Examine].Script!.Description)
+                .IsEqualTo(string.Empty);
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_FindObjectInspectorScriptAttachmentsSummary_ToleratesLegacyScriptIdOnlySlots()
+    {
+        const int protoNumber = 1001;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "proto"));
+        Directory.CreateDirectory(Path.Combine(contentDir, "scr"));
+
+        try
+        {
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Examine script"),
+                Path.Combine(contentDir, "scr", "00077Examine.scr")
+            );
+            ScriptFormat.WriteToFile(
+                MakeScriptFile("Unknown slot script"),
+                Path.Combine(contentDir, "scr", "00088Unknown.scr")
+            );
+
+            var proto = WithProperties(
+                MakeProto(protoNumber).WithoutProperty(ObjectField.ScriptsIdx),
+                MakeLegacyScriptProperty((0, 77), (40, 88))
+            );
+            ProtoFormat.WriteToFile(proto, Path.Combine(contentDir, "proto", "001001 - InspectorScripts.pro"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var attachments = workspace.FindObjectInspectorScriptAttachmentsSummary(protoNumber);
+
+            await Assert.That(attachments).IsNotNull();
+            await Assert.That(attachments!.Attachments[(int)ScriptAttachmentPoint.Examine].ScriptId).IsEqualTo(77);
+            await Assert.That(attachments.Attachments[(int)ScriptAttachmentPoint.Examine].Script).IsNotNull();
+            await Assert.That(attachments.UnknownAttachments.Count).IsEqualTo(1);
+            await Assert.That(attachments.UnknownAttachments[0].SlotIndex).IsEqualTo(40);
+            await Assert.That(attachments.UnknownAttachments[0].ScriptId).IsEqualTo(88);
         }
         finally
         {

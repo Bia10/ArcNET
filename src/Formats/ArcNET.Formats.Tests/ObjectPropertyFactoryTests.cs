@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using ArcNET.Core.Primitives;
 using ArcNET.GameObjects;
 
@@ -113,6 +114,76 @@ public class ObjectPropertyFactoryTests
         var prop = new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] };
 
         await Assert.That(prop.GetScriptArray().Length).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task GetScriptArray_LegacyScriptIdOnlySar_MapsPositiveIdsAndClearsNegativeSentinels()
+    {
+        var prop = new ObjectProperty { Field = ObjectField.ScriptsIdx, RawBytes = [0] }.WithInt32Array([
+            77,
+            -1,
+            0,
+            88,
+        ]);
+
+        var scripts = prop.GetScriptArray();
+
+        await Assert.That(scripts.Length).IsEqualTo(4);
+        await Assert.That(scripts[0]).IsEqualTo(new ObjectPropertyScript(0u, 0u, 77));
+        await Assert.That(scripts[1]).IsEqualTo(default(ObjectPropertyScript));
+        await Assert.That(scripts[2]).IsEqualTo(default(ObjectPropertyScript));
+        await Assert.That(scripts[3]).IsEqualTo(new ObjectPropertyScript(0u, 0u, 88));
+    }
+
+    [Test]
+    public async Task GetScriptArray_MalformedSar_ReturnsEmptyArray()
+    {
+        var prop = new ObjectProperty
+        {
+            Field = ObjectField.ScriptsIdx,
+            RawBytes =
+            [
+                1,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0x02,
+                0,
+                0,
+                0,
+                0x7F,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ],
+        };
+
+        await Assert.That(prop.GetScriptArray().Length).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task ForInt32Array_EmptyArray_UsesCeCompatibleMinimumBitsetStorage()
+    {
+        var prop = ObjectPropertyFactory.ForInt32Array(ObjectField.CritterBasicSkillIdx, []);
+
+        await Assert.That(BinaryPrimitives.ReadInt32LittleEndian(prop.RawBytes.AsSpan(13))).IsEqualTo(2);
+        await Assert.That(BinaryPrimitives.ReadUInt32LittleEndian(prop.RawBytes.AsSpan(17))).IsEqualTo(0u);
+        await Assert.That(BinaryPrimitives.ReadUInt32LittleEndian(prop.RawBytes.AsSpan(21))).IsEqualTo(0u);
     }
 
     // ── ForObjectIdArray ──────────────────────────────────────────────────────
