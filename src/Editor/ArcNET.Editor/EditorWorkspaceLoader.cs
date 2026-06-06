@@ -664,9 +664,6 @@ public static class EditorWorkspaceLoader
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
 
         var resolvedModuleDirectory = Path.GetFullPath(moduleDirectory);
-        if (!Directory.Exists(resolvedModuleDirectory))
-            throw new DirectoryNotFoundException($"Module directory not found: {resolvedModuleDirectory}");
-
         var moduleName = Path.GetFileName(
             resolvedModuleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
         );
@@ -682,6 +679,22 @@ public static class EditorWorkspaceLoader
                 "Module directory must live under one game install modules directory.",
                 nameof(moduleDirectory)
             );
+        if (
+            !string.Equals(
+                Path.GetFileName(modulesDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "modules",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            throw new ArgumentException(
+                "Module directory must live directly under one game install modules directory.",
+                nameof(moduleDirectory)
+            );
+        }
+
+        if (!ModuleInstallContentLoader.HasModuleContent(resolvedModuleDirectory))
+            throw new DirectoryNotFoundException($"Module content not found: {resolvedModuleDirectory}");
 
         if (
             options.GameDirectory is not null
@@ -717,7 +730,16 @@ public static class EditorWorkspaceLoader
     private static string ResolveGameInstallDirectory(string gameDir)
     {
         var fullPath = Path.GetFullPath(gameDir);
-        if (!Directory.Exists(fullPath) || LooksLikeGameInstallDirectory(fullPath))
+        if (!Directory.Exists(fullPath))
+            return fullPath;
+
+        if (TryResolveOwningGameDirectoryFromModuleDirectory(fullPath, out var gameDirectory))
+            return gameDirectory;
+
+        if (TryResolveOwningGameDirectoryFromModulesDirectory(fullPath, out gameDirectory))
+            return gameDirectory;
+
+        if (LooksLikeGameInstallDirectory(fullPath))
             return fullPath;
 
         var preferredNestedPath = Path.Combine(fullPath, "Arcanum");
@@ -766,11 +788,11 @@ public static class EditorWorkspaceLoader
 
         if (
             !string.IsNullOrWhiteSpace(options.ModuleName)
-            && !Directory.Exists(Path.Combine(options.GameDirectory, "modules", options.ModuleName))
+            && !HasModuleContent(options.GameDirectory, options.ModuleName)
         )
         {
             throw new DirectoryNotFoundException(
-                $"Module directory not found: {Path.Combine(options.GameDirectory, "modules", options.ModuleName)}"
+                $"Module content not found: {Path.Combine(options.GameDirectory, "modules", options.ModuleName)}"
             );
         }
 
@@ -802,6 +824,55 @@ public static class EditorWorkspaceLoader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
         return Path.Combine(gameDir, "modules", moduleName);
+    }
+
+    private static bool HasModuleContent(string gameDirectory, string moduleName) =>
+        ModuleInstallContentLoader.HasModuleContent(ResolveModuleDirectory(gameDirectory, moduleName));
+
+    private static bool TryResolveOwningGameDirectoryFromModulesDirectory(string path, out string gameDirectory)
+    {
+        gameDirectory = string.Empty;
+        if (
+            !string.Equals(
+                Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "modules",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            return false;
+        }
+
+        var candidateGameDirectory = Directory.GetParent(path)?.FullName;
+        if (candidateGameDirectory is null || !LooksLikeGameInstallDirectory(candidateGameDirectory))
+            return false;
+
+        gameDirectory = candidateGameDirectory;
+        return true;
+    }
+
+    private static bool TryResolveOwningGameDirectoryFromModuleDirectory(string path, out string gameDirectory)
+    {
+        gameDirectory = string.Empty;
+        var modulesDirectory = Directory.GetParent(path)?.FullName;
+        if (
+            modulesDirectory is null
+            || !string.Equals(
+                Path.GetFileName(modulesDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "modules",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            return false;
+        }
+
+        var candidateGameDirectory = Directory.GetParent(modulesDirectory)?.FullName;
+        if (candidateGameDirectory is null || !LooksLikeGameInstallDirectory(candidateGameDirectory))
+            return false;
+
+        gameDirectory = candidateGameDirectory;
+        return true;
     }
 
     private static EditorWorkspaceModuleContext CreateModuleContext(

@@ -66,11 +66,12 @@ internal static class EditorAudioAssetLoader
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
-        if (!Directory.Exists(moduleDirectory))
-            throw new DirectoryNotFoundException($"Module directory not found: {moduleDirectory}");
+        if (!ModuleInstallContentLoader.HasModuleContent(moduleDirectory))
+            throw new DirectoryNotFoundException($"Module content not found: {moduleDirectory}");
 
         var aggregator = new ProgressAggregator(progress);
         var sourceTasks = new List<Task<AudioOverlaySource>>();
+        var hasLooseModuleDirectory = Directory.Exists(moduleDirectory);
 
         var gameDirectory = ResolveOwningGameDirectory(moduleDirectory);
         if (gameDirectory is not null)
@@ -100,14 +101,17 @@ internal static class EditorAudioAssetLoader
                     LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
                 )
         );
-        sourceTasks.Add(
-            LoadLooseFilesAsync(
-                moduleDirectory,
-                skipSaveDirectory: true,
-                cancellationToken,
-                aggregator.CreateSubProgress("looseFiles")
-            )
-        );
+        if (hasLooseModuleDirectory)
+        {
+            sourceTasks.Add(
+                LoadLooseFilesAsync(
+                    moduleDirectory,
+                    skipSaveDirectory: true,
+                    cancellationToken,
+                    aggregator.CreateSubProgress("looseFiles")
+                )
+            );
+        }
 
         var overlaySources = await Task.WhenAll(sourceTasks).ConfigureAwait(false);
         return CreateLoadResult(overlaySources);

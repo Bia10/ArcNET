@@ -4608,6 +4608,51 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadFromGameInstallAsync_WithModulesDirectoryAndPackedOnlyModule_LoadsArchiveBackedModuleContext()
+    {
+        const int protoNumber = 1001;
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var modulesDir = Path.Combine(gameDir, "modules");
+        Directory.CreateDirectory(modulesDir);
+
+        try
+        {
+            await WriteDatAsync(
+                Path.Combine(modulesDir, "BuriedSecrets.dat"),
+                new Dictionary<string, byte[]>
+                {
+                    ["proto\\001001 - Test.pro"] = ProtoFormat.WriteToArray(MakeProto(protoNumber)),
+                    ["mes\\description.mes"] = MessageFormat.WriteToArray(
+                        new MesFile { Entries = [new MessageEntry(protoNumber, "Packed-only palette proto")] }
+                    ),
+                }
+            );
+
+            using var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+                modulesDir,
+                new EditorWorkspaceLoadOptions { ModuleName = "BuriedSecrets" }
+            );
+
+            await Assert.That(workspace.GameDirectory).IsEqualTo(gameDir);
+            await Assert.That(workspace.ContentDirectory).IsEqualTo(Path.Combine(gameDir, "modules", "BuriedSecrets"));
+            await Assert.That(workspace.Module).IsNotNull();
+            await Assert.That(workspace.Module!.ModuleName).IsEqualTo("BuriedSecrets");
+            await Assert
+                .That(workspace.Module.ModuleDirectory)
+                .IsEqualTo(Path.Combine(gameDir, "modules", "BuriedSecrets"));
+            await Assert.That(workspace.Module.ArchivePaths.Count).IsEqualTo(1);
+            await Assert.That(workspace.FindObjectPaletteEntry(protoNumber)).IsNotNull();
+            await Assert
+                .That(workspace.FindObjectPaletteEntry(protoNumber)!.DisplayName)
+                .IsEqualTo("Packed-only palette proto");
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadFromGameInstallAsync_LoadsDialogAndScriptAssetsFromArchive()
     {
         var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

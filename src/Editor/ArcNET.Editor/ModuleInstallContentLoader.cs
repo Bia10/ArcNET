@@ -37,8 +37,8 @@ internal static class ModuleInstallContentLoader
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
-        if (!Directory.Exists(moduleDirectory))
-            throw new DirectoryNotFoundException($"Module directory not found: {moduleDirectory}");
+        if (!HasModuleContent(moduleDirectory))
+            throw new DirectoryNotFoundException($"Module content not found: {moduleDirectory}");
 
         archiveOpener ??= DatArchive.Open;
 
@@ -75,6 +75,29 @@ internal static class ModuleInstallContentLoader
         );
     }
 
+    internal static bool HasModuleContent(string moduleDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleDirectory);
+
+        if (Directory.Exists(moduleDirectory))
+            return true;
+
+        var moduleName = Path.GetFileName(
+            moduleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        );
+        var modulesRoot = Directory.GetParent(moduleDirectory)?.FullName;
+        if (
+            string.IsNullOrWhiteSpace(moduleName)
+            || string.IsNullOrWhiteSpace(modulesRoot)
+            || !Directory.Exists(modulesRoot)
+        )
+            return false;
+
+        return Directory
+            .EnumerateFiles(modulesRoot, "*", SearchOption.TopDirectoryOnly)
+            .Any(path => IsModuleArchiveCandidate(path, moduleName));
+    }
+
     private static async Task<InstallFileSet> ReadModuleFilesAsync(
         string moduleDirectory,
         IProgress<float>? progress,
@@ -94,8 +117,11 @@ internal static class ModuleInstallContentLoader
 
         var baseLooseDataDirectory = baseGameDirectory is null ? null : Path.Combine(baseGameDirectory, "data");
         var hasBaseLooseDirectory = baseLooseDataDirectory is not null && Directory.Exists(baseLooseDataDirectory);
-        var totalSources = baseArchiveDiscovery.ArchivePaths.Count + archiveDiscovery.ModuleArchivePaths.Count + 1;
+        var hasLooseModuleDirectory = Directory.Exists(moduleDirectory);
+        var totalSources = baseArchiveDiscovery.ArchivePaths.Count + archiveDiscovery.ModuleArchivePaths.Count;
         if (hasBaseLooseDirectory)
+            totalSources++;
+        if (hasLooseModuleDirectory)
             totalSources++;
 
         assetProgress?.Report(
@@ -122,8 +148,11 @@ internal static class ModuleInstallContentLoader
             sourceTasks.Add(LoadArchiveAsync(archivePath, archiveOpener, cancellationToken));
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        sourceTasks.Add(LoadLooseFilesAsync(moduleDirectory, skipSaveDirectory: true, cancellationToken));
+        if (hasLooseModuleDirectory)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            sourceTasks.Add(LoadLooseFilesAsync(moduleDirectory, skipSaveDirectory: true, cancellationToken));
+        }
 
         var overlaySources = await LoadSourcesAsync(sourceTasks, totalSources, progress, assetProgress)
             .ConfigureAwait(false);
