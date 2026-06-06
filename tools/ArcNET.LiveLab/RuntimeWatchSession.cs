@@ -354,46 +354,49 @@ internal sealed class RuntimeWatchSession : IDisposable
             RemoteEventBuffer buffer
         )
         {
-            return AssembleCode(codeBase, assembler =>
-            {
-                var eax = AssemblerRegisters.eax;
-                var ecx = AssemblerRegisters.ecx;
-                var edx = AssemblerRegisters.edx;
-                var esp = AssemblerRegisters.esp;
-
-                var spinLabel = assembler.CreateLabel("spin");
-
-                assembler.pushfd();
-                assembler.pushad();
-
-                assembler.Label(ref spinLabel);
-                assembler.mov(eax, 1);
-                assembler.xchg(DWordPtr(buffer.LockAddress), eax);
-                assembler.test(eax, eax);
-                assembler.jne(spinLabel);
-
-                assembler.mov(ecx, DWordPtr(buffer.WriteSequenceAddress));
-                assembler.lea(ecx, ecx + 1);
-                assembler.mov(eax, ecx);
-                assembler.dec(eax);
-                assembler.and(eax, RemoteEventBuffer.Capacity - 1);
-                assembler.lea(eax, eax + eax * 4);
-                assembler.shl(eax, 3);
-                assembler.add(eax, unchecked((int)buffer.RecordsAddress));
-
-                assembler.mov(DWordPtr(eax, 0), ecx);
-                assembler.mov(DWordPtr(eax, 4), (int)definition.Id);
-                for (var index = 0; index < RemoteEventBuffer.StackCaptureDwordCount; index++)
+            return AssembleCode(
+                codeBase,
+                assembler =>
                 {
-                    assembler.mov(edx, DWordPtr(esp, 40 + index * sizeof(uint)));
-                    assembler.mov(DWordPtr(eax, sizeof(uint) * (index + 2)), edx);
-                }
+                    var eax = AssemblerRegisters.eax;
+                    var ecx = AssemblerRegisters.ecx;
+                    var edx = AssemblerRegisters.edx;
+                    var esp = AssemblerRegisters.esp;
 
-                assembler.mov(DWordPtr(buffer.WriteSequenceAddress), ecx);
-                assembler.mov(DWordPtr(buffer.LockAddress), 0);
-                assembler.popad();
-                assembler.popfd();
-            });
+                    var spinLabel = assembler.CreateLabel("spin");
+
+                    assembler.pushfd();
+                    assembler.pushad();
+
+                    assembler.Label(ref spinLabel);
+                    assembler.mov(eax, 1);
+                    assembler.xchg(DWordPtr(buffer.LockAddress), eax);
+                    assembler.test(eax, eax);
+                    assembler.jne(spinLabel);
+
+                    assembler.mov(ecx, DWordPtr(buffer.WriteSequenceAddress));
+                    assembler.lea(ecx, ecx + 1);
+                    assembler.mov(eax, ecx);
+                    assembler.dec(eax);
+                    assembler.and(eax, RemoteEventBuffer.Capacity - 1);
+                    assembler.lea(eax, eax + eax * 4);
+                    assembler.shl(eax, 3);
+                    assembler.add(eax, unchecked((int)buffer.RecordsAddress));
+
+                    assembler.mov(DWordPtr(eax, 0), ecx);
+                    assembler.mov(DWordPtr(eax, 4), (int)definition.Id);
+                    for (var index = 0; index < RemoteEventBuffer.StackCaptureDwordCount; index++)
+                    {
+                        assembler.mov(edx, DWordPtr(esp, 40 + index * sizeof(uint)));
+                        assembler.mov(DWordPtr(eax, sizeof(uint) * (index + 2)), edx);
+                    }
+
+                    assembler.mov(DWordPtr(buffer.WriteSequenceAddress), ecx);
+                    assembler.mov(DWordPtr(buffer.LockAddress), 0);
+                    assembler.popad();
+                    assembler.popfd();
+                }
+            );
         }
 
         private static byte[] AssembleTail(uint codeBase, uint returnAddress) =>
@@ -450,6 +453,10 @@ internal sealed class RuntimeWatchSession : IDisposable
         private static AssemblerMemoryOperand DWordPtr(AssemblerRegister32 register, int displacement) =>
             AssemblerRegisters.__dword_ptr[register + displacement];
 
-        private readonly record struct DecodedPatchPrefix(int HookLength, byte[] OriginalBytes, Instruction[] Instructions);
+        private readonly record struct DecodedPatchPrefix(
+            int HookLength,
+            byte[] OriginalBytes,
+            Instruction[] Instructions
+        );
     }
 }

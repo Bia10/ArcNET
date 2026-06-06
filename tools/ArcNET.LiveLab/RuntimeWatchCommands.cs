@@ -75,7 +75,8 @@ internal static class RuntimeWatchCommands
 
             while (!cancellation.IsCancellationRequested)
             {
-                if (!TryEmitPoll(
+                if (
+                    !TryEmitPoll(
                         memory,
                         logSession,
                         consoleReporter,
@@ -86,7 +87,8 @@ internal static class RuntimeWatchCommands
                         ref suppressedEvents,
                         ref droppedEvents,
                         ref inconsistentRecords
-                    ))
+                    )
+                )
                 {
                     targetExited = true;
                     break;
@@ -119,9 +121,7 @@ internal static class RuntimeWatchCommands
             consoleReporter.WriteEnd(logSession.LogFilePath);
             return 0;
         }
-        catch (OperationCanceledException)
-        {
-        }
+        catch (OperationCanceledException) { }
         finally
         {
             Console.CancelKeyPress -= handler;
@@ -404,9 +404,10 @@ internal static class RuntimeWatchCommands
     private static string CreateDefaultLogFilePath(IReadOnlyList<string> selectors)
     {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var label = selectors.Count == 0
-            ? "watch"
-            : string.Join("-", selectors.Select(static value => SanitizePathSegment(value)).Take(3));
+        var label =
+            selectors.Count == 0
+                ? "watch"
+                : string.Join("-", selectors.Select(static value => SanitizePathSegment(value)).Take(3));
         if (label.Length == 0)
             label = "watch";
 

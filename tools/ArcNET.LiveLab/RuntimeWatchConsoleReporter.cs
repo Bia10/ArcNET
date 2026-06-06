@@ -22,11 +22,7 @@ internal sealed class RuntimeWatchConsoleReporter
     private int _totalDropped;
     private int _totalWarnings;
 
-    public RuntimeWatchConsoleReporter(
-        bool echoEvents,
-        TimeSpan summaryInterval,
-        RuntimeWatchObjectResolver resolver
-    )
+    public RuntimeWatchConsoleReporter(bool echoEvents, TimeSpan summaryInterval, RuntimeWatchObjectResolver resolver)
     {
         _echoEvents = echoEvents;
         _resolver = resolver;

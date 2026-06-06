@@ -243,7 +243,9 @@ internal sealed class RuntimeWatchLogSession : IDisposable
     private static void ConfigureStructuredJson(ZLoggerOptions options)
     {
         options.InternalErrorLogger = static ex => Console.Error.WriteLine(ex);
-        options.UseJsonFormatter(static formatter => formatter.IncludeProperties = IncludeProperties.ParameterKeyValues);
+        options.UseJsonFormatter(static formatter =>
+            formatter.IncludeProperties = IncludeProperties.ParameterKeyValues
+        );
     }
 
     private const string EventType = "event";

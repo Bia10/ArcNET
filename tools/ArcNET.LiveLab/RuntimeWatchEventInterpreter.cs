@@ -115,34 +115,32 @@ internal static class RuntimeWatchEventInterpreter
         var stack = capturedEvent.StackDwords;
         return capturedEvent.Definition.Id switch
         {
-            RuntimeWatchHookId.LevelRecalc
-                => $"{DescribeHandle(resolver, in stack, 0, "Player Character")} started recomputing level-derived state.",
-            RuntimeWatchHookId.UpdateFollowerLevel
-                => $"{DescribeHandle(resolver, in stack, 0, "Follower")} synchronized from player level {IntValue(capturedEvent, 2)} to {IntValue(capturedEvent, 3)}.",
-            RuntimeWatchHookId.StatBaseSet
-                => $"{StatName(IntValue(capturedEvent, 2))} on {DescribeHandle(resolver, in stack, 0)} was written to {IntValue(capturedEvent, 3)}.",
-            RuntimeWatchHookId.BackgroundEducateFollowers
-                => $"{DescribeHandle(resolver, in stack, 0, "Player Character")} triggered follower education side effects.",
-            RuntimeWatchHookId.UiShowInvenLoot
-                => $"{DescribeHandle(resolver, in stack, 0, "Player Character")} opened the loot window for {DescribeHandle(resolver, in stack, 2, "Loot Target")}.",
-            RuntimeWatchHookId.ItemInsert
-                => $"{DescribeHandle(resolver, in stack, 0, "Item")} moved into {DescribeHandle(resolver, in stack, 2, "Container or Owner")} at {InventoryLocationName(IntValue(capturedEvent, 4))}.",
-            RuntimeWatchHookId.ItemEquipped
-                => $"{DescribeHandle(resolver, in stack, 2, "Wearer or Owner")} equipped {DescribeHandle(resolver, in stack, 0, "Item")} in {InventoryLocationName(IntValue(capturedEvent, 4))}.",
-            RuntimeWatchHookId.ItemForceRemove
-                => $"{DescribeHandle(resolver, in stack, 0, "Item")} was forcibly removed from {DescribeHandle(resolver, in stack, 2, "Former Owner or Container")}.",
-            RuntimeWatchHookId.ItemUnequipped
-                => $"{DescribeHandle(resolver, in stack, 2, "Former Wearer or Owner")} unequipped {DescribeHandle(resolver, in stack, 0, "Item")} from {InventoryLocationName(IntValue(capturedEvent, 4))}.",
-            RuntimeWatchHookId.ObjectDestroy
-                => $"{DescribeHandle(resolver, in stack, 0)} entered destroy cleanup.",
-            RuntimeWatchHookId.ObjectScriptExecute
-                => ScriptSummary(capturedEvent, resolver),
-            RuntimeWatchHookId.UiStartDialog
-                => $"{DescribeHandle(resolver, in stack, 0, "Player Character")} started dialog {IntValue(capturedEvent, 6)} with {DescribeHandle(resolver, in stack, 2, "NPC")} using script {IntValue(capturedEvent, 4)} line {IntValue(capturedEvent, 5)}.",
-            RuntimeWatchHookId.ReactionAdj
-                => $"{DescribeHandle(resolver, in stack, 0, "NPC")} reaction toward {DescribeHandle(resolver, in stack, 2, "Player Character")} {ReactionDirectionText(IntValue(capturedEvent, 4))} by {Math.Abs(IntValue(capturedEvent, 4))}.",
-            RuntimeWatchHookId.CritterKill
-                => $"{DescribeHandle(resolver, in stack, 0, "Critter")} entered death and kill-resolution handling.",
+            RuntimeWatchHookId.LevelRecalc =>
+                $"{DescribeHandle(resolver, in stack, 0, "Player Character")} started recomputing level-derived state.",
+            RuntimeWatchHookId.UpdateFollowerLevel =>
+                $"{DescribeHandle(resolver, in stack, 0, "Follower")} synchronized from player level {IntValue(capturedEvent, 2)} to {IntValue(capturedEvent, 3)}.",
+            RuntimeWatchHookId.StatBaseSet =>
+                $"{StatName(IntValue(capturedEvent, 2))} on {DescribeHandle(resolver, in stack, 0)} was written to {IntValue(capturedEvent, 3)}.",
+            RuntimeWatchHookId.BackgroundEducateFollowers =>
+                $"{DescribeHandle(resolver, in stack, 0, "Player Character")} triggered follower education side effects.",
+            RuntimeWatchHookId.UiShowInvenLoot =>
+                $"{DescribeHandle(resolver, in stack, 0, "Player Character")} opened the loot window for {DescribeHandle(resolver, in stack, 2, "Loot Target")}.",
+            RuntimeWatchHookId.ItemInsert =>
+                $"{DescribeHandle(resolver, in stack, 0, "Item")} moved into {DescribeHandle(resolver, in stack, 2, "Container or Owner")} at {InventoryLocationName(IntValue(capturedEvent, 4))}.",
+            RuntimeWatchHookId.ItemEquipped =>
+                $"{DescribeHandle(resolver, in stack, 2, "Wearer or Owner")} equipped {DescribeHandle(resolver, in stack, 0, "Item")} in {InventoryLocationName(IntValue(capturedEvent, 4))}.",
+            RuntimeWatchHookId.ItemForceRemove =>
+                $"{DescribeHandle(resolver, in stack, 0, "Item")} was forcibly removed from {DescribeHandle(resolver, in stack, 2, "Former Owner or Container")}.",
+            RuntimeWatchHookId.ItemUnequipped =>
+                $"{DescribeHandle(resolver, in stack, 2, "Former Wearer or Owner")} unequipped {DescribeHandle(resolver, in stack, 0, "Item")} from {InventoryLocationName(IntValue(capturedEvent, 4))}.",
+            RuntimeWatchHookId.ObjectDestroy => $"{DescribeHandle(resolver, in stack, 0)} entered destroy cleanup.",
+            RuntimeWatchHookId.ObjectScriptExecute => ScriptSummary(capturedEvent, resolver),
+            RuntimeWatchHookId.UiStartDialog =>
+                $"{DescribeHandle(resolver, in stack, 0, "Player Character")} started dialog {IntValue(capturedEvent, 6)} with {DescribeHandle(resolver, in stack, 2, "NPC")} using script {IntValue(capturedEvent, 4)} line {IntValue(capturedEvent, 5)}.",
+            RuntimeWatchHookId.ReactionAdj =>
+                $"{DescribeHandle(resolver, in stack, 0, "NPC")} reaction toward {DescribeHandle(resolver, in stack, 2, "Player Character")} {ReactionDirectionText(IntValue(capturedEvent, 4))} by {Math.Abs(IntValue(capturedEvent, 4))}.",
+            RuntimeWatchHookId.CritterKill =>
+                $"{DescribeHandle(resolver, in stack, 0, "Critter")} entered death and kill-resolution handling.",
             _ => $"{capturedEvent.Definition.EventName} captured.",
         };
     }
@@ -155,34 +153,32 @@ internal static class RuntimeWatchEventInterpreter
         var stack = capturedEvent.StackDwords;
         return capturedEvent.Definition.Id switch
         {
-            RuntimeWatchHookId.LevelRecalc
-                => $"LevelRecalc {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}",
-            RuntimeWatchHookId.UpdateFollowerLevel
-                => $"FollowerLevelSync {DescribeHandleCompact(resolver, in stack, 0, "Follower")} {IntValue(capturedEvent, 2)}->{IntValue(capturedEvent, 3)}",
-            RuntimeWatchHookId.StatBaseSet
-                => $"StatBaseSet {StatName(IntValue(capturedEvent, 2))} {DescribeHandleCompact(resolver, in stack, 0)}={IntValue(capturedEvent, 3)}",
-            RuntimeWatchHookId.BackgroundEducateFollowers
-                => $"FollowerEducationPass {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}",
-            RuntimeWatchHookId.UiShowInvenLoot
-                => $"LootUiOpened {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}->{DescribeHandleCompact(resolver, in stack, 2, "Loot Target")}",
-            RuntimeWatchHookId.ItemInsert
-                => $"ItemInserted {DescribeHandleCompact(resolver, in stack, 0, "Item")}->{DescribeHandleCompact(resolver, in stack, 2, "Container or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
-            RuntimeWatchHookId.ItemEquipped
-                => $"ItemEquipped {DescribeHandleCompact(resolver, in stack, 0, "Item")}->{DescribeHandleCompact(resolver, in stack, 2, "Wearer or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
-            RuntimeWatchHookId.ItemForceRemove
-                => $"ItemRemoved {DescribeHandleCompact(resolver, in stack, 0, "Item")}<-{DescribeHandleCompact(resolver, in stack, 2, "Former Owner or Container")}",
-            RuntimeWatchHookId.ItemUnequipped
-                => $"ItemUnequipped {DescribeHandleCompact(resolver, in stack, 0, "Item")}<-{DescribeHandleCompact(resolver, in stack, 2, "Former Wearer or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
-            RuntimeWatchHookId.ObjectDestroy
-                => $"ObjectDestroyed {DescribeHandleCompact(resolver, in stack, 0)}",
-            RuntimeWatchHookId.ObjectScriptExecute
-                => ScriptSignature(capturedEvent, resolver),
-            RuntimeWatchHookId.UiStartDialog
-                => $"DialogStarted {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}->{DescribeHandleCompact(resolver, in stack, 2, "NPC")} dialog {IntValue(capturedEvent, 6)}",
-            RuntimeWatchHookId.ReactionAdj
-                => $"{ReactionDirection(IntValue(capturedEvent, 4))} {DescribeHandleCompact(resolver, in stack, 0, "NPC")}->{DescribeHandleCompact(resolver, in stack, 2, "Player Character")}",
-            RuntimeWatchHookId.CritterKill
-                => $"CritterKilled {DescribeHandleCompact(resolver, in stack, 0, "Critter")}",
+            RuntimeWatchHookId.LevelRecalc =>
+                $"LevelRecalc {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}",
+            RuntimeWatchHookId.UpdateFollowerLevel =>
+                $"FollowerLevelSync {DescribeHandleCompact(resolver, in stack, 0, "Follower")} {IntValue(capturedEvent, 2)}->{IntValue(capturedEvent, 3)}",
+            RuntimeWatchHookId.StatBaseSet =>
+                $"StatBaseSet {StatName(IntValue(capturedEvent, 2))} {DescribeHandleCompact(resolver, in stack, 0)}={IntValue(capturedEvent, 3)}",
+            RuntimeWatchHookId.BackgroundEducateFollowers =>
+                $"FollowerEducationPass {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}",
+            RuntimeWatchHookId.UiShowInvenLoot =>
+                $"LootUiOpened {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}->{DescribeHandleCompact(resolver, in stack, 2, "Loot Target")}",
+            RuntimeWatchHookId.ItemInsert =>
+                $"ItemInserted {DescribeHandleCompact(resolver, in stack, 0, "Item")}->{DescribeHandleCompact(resolver, in stack, 2, "Container or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
+            RuntimeWatchHookId.ItemEquipped =>
+                $"ItemEquipped {DescribeHandleCompact(resolver, in stack, 0, "Item")}->{DescribeHandleCompact(resolver, in stack, 2, "Wearer or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
+            RuntimeWatchHookId.ItemForceRemove =>
+                $"ItemRemoved {DescribeHandleCompact(resolver, in stack, 0, "Item")}<-{DescribeHandleCompact(resolver, in stack, 2, "Former Owner or Container")}",
+            RuntimeWatchHookId.ItemUnequipped =>
+                $"ItemUnequipped {DescribeHandleCompact(resolver, in stack, 0, "Item")}<-{DescribeHandleCompact(resolver, in stack, 2, "Former Wearer or Owner")} @{InventoryLocationName(IntValue(capturedEvent, 4))}",
+            RuntimeWatchHookId.ObjectDestroy => $"ObjectDestroyed {DescribeHandleCompact(resolver, in stack, 0)}",
+            RuntimeWatchHookId.ObjectScriptExecute => ScriptSignature(capturedEvent, resolver),
+            RuntimeWatchHookId.UiStartDialog =>
+                $"DialogStarted {DescribeHandleCompact(resolver, in stack, 0, "Player Character")}->{DescribeHandleCompact(resolver, in stack, 2, "NPC")} dialog {IntValue(capturedEvent, 6)}",
+            RuntimeWatchHookId.ReactionAdj =>
+                $"{ReactionDirection(IntValue(capturedEvent, 4))} {DescribeHandleCompact(resolver, in stack, 0, "NPC")}->{DescribeHandleCompact(resolver, in stack, 2, "Player Character")}",
+            RuntimeWatchHookId.CritterKill =>
+                $"CritterKilled {DescribeHandleCompact(resolver, in stack, 0, "Critter")}",
             _ => SemanticEvent(capturedEvent),
         };
     }
@@ -395,7 +391,8 @@ internal static class RuntimeWatchEventInterpreter
             32 => $"{triggerer} transferred {extra} to {attachee}.",
             34 => $"{triggerer} landed a critical hit on {attachee} using {extra}.",
             35 => $"{triggerer} critically missed {attachee} with {extra}.",
-            _ => $"{ScriptSemanticEvent(attachmentPoint)}: triggerer {triggerer}, attachee {attachee}, extra {extra}, line {line}.",
+            _ =>
+                $"{ScriptSemanticEvent(attachmentPoint)}: triggerer {triggerer}, attachee {attachee}, extra {extra}, line {line}.",
         };
     }
 

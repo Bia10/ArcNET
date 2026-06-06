@@ -105,9 +105,15 @@ internal static class Program
         Console.WriteLine(
             "  - watch runs until Ctrl+C by default, writes detailed JSON lines to a ZLogger-backed file, and keeps console output in low-volume summary mode."
         );
-        Console.WriteLine("  - watch suppresses Heartbeat/WillKos noise by default; add --include-noise when you want the full AI background stream.");
-        Console.WriteLine("  - watch --console-events prints human-readable live event lines without switching the file log away from JSON.");
-        Console.WriteLine("  - watch --wait-for-process keeps the probe alive until Arcanum starts, which is useful when launching from an IDE or detached console.");
+        Console.WriteLine(
+            "  - watch suppresses Heartbeat/WillKos noise by default; add --include-noise when you want the full AI background stream."
+        );
+        Console.WriteLine(
+            "  - watch --console-events prints human-readable live event lines without switching the file log away from JSON."
+        );
+        Console.WriteLine(
+            "  - watch --wait-for-process keeps the probe alive until Arcanum starts, which is useful when launching from an IDE or detached console."
+        );
         Console.WriteLine("  - sheet commands install ephemeral CE-derived hooks and remove them before exit.");
         Console.WriteLine(
             "  - sheet snapshot/write expects the Arcanum character sheet to be open while the tool is waiting."

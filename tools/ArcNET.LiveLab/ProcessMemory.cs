@@ -55,10 +55,7 @@ internal sealed class ProcessMemory : IDisposable
         return memory;
     }
 
-    public static bool TryAttach(
-        out ProcessMemory memory,
-        string processName = ArcanumRuntimeOffsets.ProcessName
-    )
+    public static bool TryAttach(out ProcessMemory memory, string processName = ArcanumRuntimeOffsets.ProcessName)
     {
         var normalized = NormalizeProcessName(processName);
         var process = Process.GetProcessesByName(normalized).OrderBy(static p => p.Id).FirstOrDefault();
@@ -349,18 +346,9 @@ internal sealed class ProcessMemory : IDisposable
         | PageProtection.ExecuteReadWrite
         | PageProtection.ExecuteWriteCopy;
 
-    private bool ShouldIgnoreRemoteFailure(int errorCode) =>
-        HasExited || IgnorableRemoteExitErrors.Contains(errorCode);
+    private bool ShouldIgnoreRemoteFailure(int errorCode) => HasExited || IgnorableRemoteExitErrors.Contains(errorCode);
 
-    private static readonly HashSet<int> IgnorableRemoteExitErrors =
-    [
-        5,
-        6,
-        87,
-        299,
-        487,
-        998,
-    ];
+    private static readonly HashSet<int> IgnorableRemoteExitErrors = [5, 6, 87, 299, 487, 998];
 
     public void Dispose()
     {

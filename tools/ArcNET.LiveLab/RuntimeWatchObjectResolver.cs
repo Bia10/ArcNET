@@ -153,7 +153,9 @@ internal sealed class RuntimeWatchObjectResolver : IDisposable
         var objectAddress = entryAddress + ArcanumRuntimeOffsets.ObjPoolEntryHeaderByteSize;
         _memory.ReadBytes(objectAddress, _objectHeaderBuffer);
 
-        var objectType = BinaryPrimitives.ReadInt32LittleEndian(_objectHeaderBuffer.AsSpan(ObjectTypeOffset, sizeof(int)));
+        var objectType = BinaryPrimitives.ReadInt32LittleEndian(
+            _objectHeaderBuffer.AsSpan(ObjectTypeOffset, sizeof(int))
+        );
         var oid = ReadOid(_objectHeaderBuffer.AsSpan(ObjectOidOffset, ObjectIdSize));
         var prototypeOid = ReadOid(_objectHeaderBuffer.AsSpan(PrototypeOidOffset, ObjectIdSize));
         var prototypeHandle = BinaryPrimitives.ReadUInt64LittleEndian(
@@ -221,7 +223,8 @@ internal sealed class RuntimeWatchObjectResolver : IDisposable
         {
             (int)ObjectType.Pc => "Player Character",
             _ when !string.IsNullOrWhiteSpace(protoDisplayName) => protoDisplayName,
-            _ when !string.IsNullOrWhiteSpace(objectTypeName) && protoNumber is > 0 => $"{objectTypeName} proto {protoNumber}",
+            _ when !string.IsNullOrWhiteSpace(objectTypeName) && protoNumber is > 0 =>
+                $"{objectTypeName} proto {protoNumber}",
             _ when !string.IsNullOrWhiteSpace(objectTypeName) => objectTypeName,
             _ when protoNumber is > 0 => $"Proto {protoNumber}",
             _ => null,
@@ -291,11 +294,9 @@ internal sealed class RuntimeWatchObjectResolver : IDisposable
         }
 
         public string BestName(string fallbackName = "Object") =>
-            !string.IsNullOrWhiteSpace(Name)
-                ? Name!
-                : !string.IsNullOrWhiteSpace(ObjectTypeName)
-                    ? ObjectTypeName!
-                    : fallbackName;
+            !string.IsNullOrWhiteSpace(Name) ? Name!
+            : !string.IsNullOrWhiteSpace(ObjectTypeName) ? ObjectTypeName!
+            : fallbackName;
     }
 
     private readonly record struct ResolvedProto(
@@ -315,11 +316,9 @@ internal sealed class RuntimeWatchObjectResolver : IDisposable
     )
     {
         public int? ProtoNumber =>
-            PrototypeOidType == GameObjectGuid.OidTypeA
-                ? PrototypeOidProtoNumber
-                : OidType == GameObjectGuid.OidTypeA
-                    ? OidProtoNumber
-                    : null;
+            PrototypeOidType == GameObjectGuid.OidTypeA ? PrototypeOidProtoNumber
+            : OidType == GameObjectGuid.OidTypeA ? OidProtoNumber
+            : null;
     }
 
     private const byte StatusHandle = (byte)'H';

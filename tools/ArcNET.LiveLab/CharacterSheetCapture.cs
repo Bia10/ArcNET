@@ -89,16 +89,14 @@ internal static class CharacterSheetCapture
         };
     }
 
-    public static bool TryResolveObjectIntField(ProcessMemory memory, nint characterAddress, string fieldName, out ResolvedIntField field)
+    public static bool TryResolveObjectIntField(
+        ProcessMemory memory,
+        nint characterAddress,
+        string fieldName,
+        out ResolvedIntField field
+    )
     {
-        return TryResolveObjectIntField(
-            memory,
-            characterAddress,
-            fieldName,
-            0,
-            0,
-            out field
-        );
+        return TryResolveObjectIntField(memory, characterAddress, fieldName, 0, 0, out field);
     }
 
     public static bool TryResolveObjectIntField(
@@ -123,24 +121,34 @@ internal static class CharacterSheetCapture
             return true;
 
         var basicSkills = memory.ReadPointer32(aggregateRoot + AggregateBasicSkillsOffset);
-        if (TryResolveFromLayout(memory, basicSkills, CharacterSheetRuntimeLayout.BasicSkillsFields, fieldName, out field))
+        if (
+            TryResolveFromLayout(
+                memory,
+                basicSkills,
+                CharacterSheetRuntimeLayout.BasicSkillsFields,
+                fieldName,
+                out field
+            )
+        )
             return true;
 
-        if (techSkillsAddress != 0 &&
-            TryResolveFromLayout(
+        if (
+            techSkillsAddress != 0
+            && TryResolveFromLayout(
                 memory,
                 techSkillsAddress,
                 CharacterSheetRuntimeLayout.TechSkillsFields,
                 fieldName,
                 out field
-            ))
+            )
+        )
         {
             return true;
         }
 
         if (
-            spellAndTechAddress != 0 &&
-            TryResolveFromLayout(
+            spellAndTechAddress != 0
+            && TryResolveFromLayout(
                 memory,
                 spellAndTechAddress,
                 CharacterSheetRuntimeLayout.SpellAndTechFields,

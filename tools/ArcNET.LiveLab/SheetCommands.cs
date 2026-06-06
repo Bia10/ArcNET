@@ -1,5 +1,4 @@
 ﻿using System.Runtime.Versioning;
-
 using ArcNET.Editor.Runtime;
 
 namespace ArcNET.LiveLab;
@@ -9,15 +8,15 @@ internal static class SheetCommands
 {
     private static readonly string DirectObjectSupportedFieldNames = string.Join(
         ", ",
-        CharacterSheetRuntimeLayout.MainStatsFields
-            .Concat(CharacterSheetRuntimeLayout.BasicSkillsFields)
+        CharacterSheetRuntimeLayout
+            .MainStatsFields.Concat(CharacterSheetRuntimeLayout.BasicSkillsFields)
             .Select(static descriptor => descriptor.Name)
             .OrderBy(name => name)
     );
     private static readonly string ObjectSupportedFieldNames = string.Join(
         ", ",
-        CharacterSheetRuntimeLayout.MainStatsFields
-            .Concat(CharacterSheetRuntimeLayout.BasicSkillsFields)
+        CharacterSheetRuntimeLayout
+            .MainStatsFields.Concat(CharacterSheetRuntimeLayout.BasicSkillsFields)
             .Concat(CharacterSheetRuntimeLayout.TechSkillsFields)
             .Concat(CharacterSheetRuntimeLayout.SpellAndTechFields)
             .Select(static descriptor => descriptor.Name)
@@ -73,7 +72,9 @@ internal static class SheetCommands
 
         if (mode == "object" && characterAddress != 0)
         {
-            if (CharacterSheetCapture.TryResolveObjectIntField(memory, characterAddress, fieldName, out var directField))
+            if (
+                CharacterSheetCapture.TryResolveObjectIntField(memory, characterAddress, fieldName, out var directField)
+            )
             {
                 WriteField(memory, directField, value, "object");
                 return 0;
@@ -103,14 +104,17 @@ internal static class SheetCommands
         if (mode == "object")
         {
             var effectiveCharacter = characterAddress == 0 ? pointers.Character : characterAddress;
-            if (effectiveCharacter == 0 || !CharacterSheetCapture.TryResolveObjectIntField(
-                memory,
-                effectiveCharacter,
-                fieldName,
-                pointers.TechSkills,
-                pointers.SpellAndTech,
-                out var objectField
-            ))
+            if (
+                effectiveCharacter == 0
+                || !CharacterSheetCapture.TryResolveObjectIntField(
+                    memory,
+                    effectiveCharacter,
+                    fieldName,
+                    pointers.TechSkills,
+                    pointers.SpellAndTech,
+                    out var objectField
+                )
+            )
             {
                 throw new InvalidOperationException(
                     characterAddress == 0
@@ -134,10 +138,13 @@ internal static class SheetCommands
         return 0;
     }
 
-    private static (string FieldName, int Value, TimeSpan Timeout, string Mode, nint CharacterAddress) ParseWriteArguments(
-        ProcessMemory memory,
-        string[] args
-    )
+    private static (
+        string FieldName,
+        int Value,
+        TimeSpan Timeout,
+        string Mode,
+        nint CharacterAddress
+    ) ParseWriteArguments(ProcessMemory memory, string[] args)
     {
         var positional = new List<string>();
         var mode = "ui";
@@ -162,12 +169,12 @@ internal static class SheetCommands
                     throw new InvalidOperationException("Missing value for --mode.");
 
                 var value = args[i + 1];
-                if (!value.Equals("ui", StringComparison.OrdinalIgnoreCase) &&
-                    !value.Equals("object", StringComparison.OrdinalIgnoreCase))
+                if (
+                    !value.Equals("ui", StringComparison.OrdinalIgnoreCase)
+                    && !value.Equals("object", StringComparison.OrdinalIgnoreCase)
+                )
                 {
-                    throw new InvalidOperationException(
-                        "Invalid mode. Supported values are: ui, object."
-                    );
+                    throw new InvalidOperationException("Invalid mode. Supported values are: ui, object.");
                 }
 
                 mode = value.ToLowerInvariant();

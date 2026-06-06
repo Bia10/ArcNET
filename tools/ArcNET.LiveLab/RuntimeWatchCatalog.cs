@@ -247,12 +247,11 @@ internal static class RuntimeWatchCatalog
         ),
     ];
 
-    private static readonly Dictionary<RuntimeWatchHookId, RuntimeWatchHookDefinition> HookDefinitionsById = HookDefinitions
-        .ToDictionary(static hook => hook.Id);
+    private static readonly Dictionary<RuntimeWatchHookId, RuntimeWatchHookDefinition> HookDefinitionsById =
+        HookDefinitions.ToDictionary(static hook => hook.Id);
 
-    private static readonly Dictionary<string, RuntimeWatchHookDefinition> HookDefinitionsByKey = HookDefinitions.ToDictionary(
-        static hook => Normalize(hook.Key)
-    );
+    private static readonly Dictionary<string, RuntimeWatchHookDefinition> HookDefinitionsByKey =
+        HookDefinitions.ToDictionary(static hook => Normalize(hook.Key));
 
     private static readonly Dictionary<string, RuntimeWatchProfileDefinition> ProfileDefinitions = new()
     {
@@ -335,9 +334,7 @@ internal static class RuntimeWatchCatalog
         ["scripts"] = new RuntimeWatchProfileDefinition(
             "scripts",
             "Raw script attachment execution across AI, interaction, combat, inventory, and travel.",
-            [
-                Hook(RuntimeWatchHookId.ObjectScriptExecute),
-            ]
+            [Hook(RuntimeWatchHookId.ObjectScriptExecute)]
         ),
     };
 }

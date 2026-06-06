@@ -1,8 +1,8 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.Versioning;
-using Iced.Intel;
 using ArcNET.Editor.Runtime;
+using Iced.Intel;
 
 namespace ArcNET.LiveLab;
 
@@ -123,16 +123,8 @@ internal sealed class CharacterSheetHookSession : IDisposable
         public static RemoteHook InstallSubstructureHook(ProcessMemory memory)
         {
             var siteAddress = memory.ResolveRva(ArcanumRuntimeOffsets.CharacterSheetSubstructureHookRva);
-            var hookLength = ResolveHookLength(
-                memory,
-                siteAddress,
-                AssemblerRegisters.edi,
-                AssemblerRegisters.ebx
-            );
-            var originalBytes = memory.ReadBytes(
-                siteAddress,
-                hookLength
-            );
+            var hookLength = ResolveHookLength(memory, siteAddress, AssemblerRegisters.edi, AssemblerRegisters.ebx);
+            var originalBytes = memory.ReadBytes(siteAddress, hookLength);
 
             const int slotCount = 9;
             const int slotOffset = 0;
@@ -155,16 +147,8 @@ internal sealed class CharacterSheetHookSession : IDisposable
         public static RemoteHook InstallPropertyHook(ProcessMemory memory)
         {
             var siteAddress = memory.ResolveRva(ArcanumRuntimeOffsets.CharacterSheetPropertyHookRva);
-            var hookLength = ResolveHookLength(
-                memory,
-                siteAddress,
-                AssemblerRegisters.esi,
-                AssemblerRegisters.ebp
-            );
-            var originalBytes = memory.ReadBytes(
-                siteAddress,
-                hookLength
-            );
+            var hookLength = ResolveHookLength(memory, siteAddress, AssemblerRegisters.esi, AssemblerRegisters.ebp);
+            var originalBytes = memory.ReadBytes(siteAddress, hookLength);
 
             const int slotCount = 9;
             const int slotOffset = 0;
@@ -212,12 +196,7 @@ internal sealed class CharacterSheetHookSession : IDisposable
         )
         {
             var signatureBytes = memory.ReadBytes(siteAddress, 64);
-            var decoder = Decoder.Create(
-                32,
-                signatureBytes,
-                (ulong)(long)siteAddress,
-                DecoderOptions.None
-            );
+            var decoder = Decoder.Create(32, signatureBytes, (ulong)(long)siteAddress, DecoderOptions.None);
             var mov = new Instruction();
             var lea = new Instruction();
             var cmp = new Instruction();
@@ -270,23 +249,18 @@ internal sealed class CharacterSheetHookSession : IDisposable
         }
 
         private static bool IsImmediateKind(OpKind kind) =>
-            kind is
-                OpKind.Immediate8
-                or OpKind.Immediate8_2nd
-                or OpKind.Immediate16
-                or OpKind.Immediate32
-                or OpKind.Immediate64
-                or OpKind.Immediate8to16
-                or OpKind.Immediate8to32
-                or OpKind.Immediate8to64
-                or OpKind.Immediate32to64;
+            kind
+                is OpKind.Immediate8
+                    or OpKind.Immediate8_2nd
+                    or OpKind.Immediate16
+                    or OpKind.Immediate32
+                    or OpKind.Immediate64
+                    or OpKind.Immediate8to16
+                    or OpKind.Immediate8to32
+                    or OpKind.Immediate8to64
+                    or OpKind.Immediate32to64;
 
-        private static void WriteJumpPatch(
-            ProcessMemory memory,
-            nint siteAddress,
-            nint targetAddress,
-            int hookLength
-        )
+        private static void WriteJumpPatch(ProcessMemory memory, nint siteAddress, nint targetAddress, int hookLength)
         {
             if (hookLength < 5)
             {
@@ -326,26 +300,10 @@ internal sealed class CharacterSheetHookSession : IDisposable
             var currentSheetId = memory.ResolveRva32(ArcanumRuntimeOffsets.CurrentCharacterSheetIdRva);
             var captures = new (int Id, uint Destination, int SeenBit)[]
             {
-                (
-                    (int)CharacterSheetSubstructureId.MainStats,
-                    ptrMainStats,
-                    0x1
-                ),
-                (
-                    (int)CharacterSheetSubstructureId.BasicSkills,
-                    ptrSkills,
-                    0x2
-                ),
-                (
-                    (int)CharacterSheetSubstructureId.TechSkills,
-                    ptrTech,
-                    0x4
-                ),
-                (
-                    (int)CharacterSheetSubstructureId.SpellAndTech,
-                    ptrSpells,
-                    0x8
-                ),
+                ((int)CharacterSheetSubstructureId.MainStats, ptrMainStats, 0x1),
+                ((int)CharacterSheetSubstructureId.BasicSkills, ptrSkills, 0x2),
+                ((int)CharacterSheetSubstructureId.TechSkills, ptrTech, 0x4),
+                ((int)CharacterSheetSubstructureId.SpellAndTech, ptrSpells, 0x8),
             };
 
             return AssembleHookCode(
@@ -393,12 +351,7 @@ internal sealed class CharacterSheetHookSession : IDisposable
             );
         }
 
-        private static byte[] BuildPropertyBlock(
-            ProcessMemory memory,
-            nint remoteBlock,
-            int codeOffset,
-            int hookLength
-        )
+        private static byte[] BuildPropertyBlock(ProcessMemory memory, nint remoteBlock, int codeOffset, int hookLength)
         {
             var ptrHpLoss = memory.ToUInt32Address(remoteBlock + 0);
             var ptrHpBonus = memory.ToUInt32Address(remoteBlock + 4);
@@ -448,13 +401,7 @@ internal sealed class CharacterSheetHookSession : IDisposable
 
                     foreach (var capture in captures)
                     {
-                        EmitConditionalStoreRegister(
-                            assembler,
-                            edi,
-                            capture.Id,
-                            edx,
-                            capture.Destination
-                        );
+                        EmitConditionalStoreRegister(assembler, edi, capture.Id, edx, capture.Destination);
                     }
 
                     assembler.Label(ref returnLabel);
