@@ -265,26 +265,42 @@ public static class EditorMapSceneRenderSpaceMath
         var renderY = ViewportToRenderY(layout, viewportY);
 
         EditorMapFloorTileRenderItem? hitTile = null;
+        var tilePoint = UnprojectMapTile(sceneRender, renderX, renderY);
+        var mapTileX = (int)Math.Round(tilePoint.MapTileX, MidpointRounding.AwayFromZero);
+        var mapTileY = (int)Math.Round(tilePoint.MapTileY, MidpointRounding.AwayFromZero);
+
         if (sceneRender.Slices.Count > 0)
         {
             for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
             {
                 var slice = sceneRender.Slices[sliceIndex];
                 if (
-                    renderX >= slice.Bounds.Left
-                    && renderX <= slice.Bounds.Right
-                    && renderY >= slice.Bounds.Top
-                    && renderY <= slice.Bounds.Bottom
+                    mapTileX >= slice.Bounds.MinMapTileX
+                    && mapTileX <= slice.Bounds.MaxMapTileX
+                    && mapTileY >= slice.Bounds.MinMapTileY
+                    && mapTileY <= slice.Bounds.MaxMapTileY
                 )
                 {
-                    for (var tileIndex = 0; tileIndex < slice.Tiles.Count; tileIndex++)
+                    if (slice.Tiles.Count > 0)
                     {
-                        var tile = slice.Tiles[tileIndex];
-                        if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
+                        var refTile = slice.Tiles[0];
+                        var sectorStartX = refTile.MapTileX - refTile.Tile.X;
+                        var sectorStartY = refTile.MapTileY - refTile.Tile.Y;
+                        var localX = mapTileX - sectorStartX;
+                        var localY = mapTileY - sectorStartY;
+
+                        if (localX >= 0 && localX < 64 && localY >= 0 && localY < 64)
                         {
-                            if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
+                            var localLocation = new Location((short)localX, (short)localY);
+                            if (slice.TryGetTile(localLocation, out var tile) && tile is not null)
                             {
-                                hitTile = tile;
+                                if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
+                                {
+                                    if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
+                                    {
+                                        hitTile = tile;
+                                    }
+                                }
                             }
                         }
                     }
