@@ -49,6 +49,7 @@ internal static class Program
             ),
             "scan-int32-records" => RuntimeInspectionCommands.RunScanInt32Records(args[1..], RunWithProcess),
             "patch-int32-record-field" => RuntimeInspectionCommands.RunPatchInt32RecordField(args[1..], RunWithProcess),
+            "watch" => await RuntimeWatchCommands.RunWatchAsync(args[1..]),
             "inventory" => InventoryCommands.RunInventory(args[1..], RunWithProcess),
             "sheet" => SheetCommands.RunSheet(args[1..], RunWithProcess),
             _ => throw new InvalidOperationException($"Unknown command '{args[0]}'. Use 'help' for usage."),
@@ -87,17 +88,32 @@ internal static class Program
         Console.WriteLine(
             "  ArcNET.LiveLab patch-int32-record-field <start-address|Arcanum.exe+rva> <byte-count> <record-int-count> <field-index> <expected-value> <new-value> <header1> [header2] ..."
         );
+        Console.WriteLine("  ArcNET.LiveLab watch list");
+        Console.WriteLine(
+            "  ArcNET.LiveLab watch <progression|inventory|npcs|critters|all|hook-name> [selector...] [--duration-ms <ms>] [--poll-ms <ms>] [--summary-ms <ms>] [--console-events] [--include-noise] [--wait-for-process] [--attach-timeout-ms <ms>] [--log-file <path>]"
+        );
         Console.WriteLine(
             "  ArcNET.LiveLab inventory snapshot [--timeout-ms <ms>] [--aggregate-root <address|Arcanum.exe+rva>]"
         );
         Console.WriteLine("  ArcNET.LiveLab inventory resources set <gold> <arrows> <bullets>");
         Console.WriteLine("  ArcNET.LiveLab sheet snapshot [--timeout-ms <ms>]");
-        Console.WriteLine("  ArcNET.LiveLab sheet write <field> <value> [--timeout-ms <ms>]");
+        Console.WriteLine(
+            "  ArcNET.LiveLab sheet write <field> <value> [--timeout-ms <ms>] [--mode <ui|object>] [--character <address|Arcanum.exe+rva>]"
+        );
         Console.WriteLine();
         Console.WriteLine("Notes:");
+        Console.WriteLine(
+            "  - watch runs until Ctrl+C by default, writes detailed JSON lines to a ZLogger-backed file, and keeps console output in low-volume summary mode."
+        );
+        Console.WriteLine("  - watch suppresses Heartbeat/WillKos noise by default; add --include-noise when you want the full AI background stream.");
+        Console.WriteLine("  - watch --console-events prints human-readable live event lines without switching the file log away from JSON.");
+        Console.WriteLine("  - watch --wait-for-process keeps the probe alive until Arcanum starts, which is useful when launching from an IDE or detached console.");
         Console.WriteLine("  - sheet commands install ephemeral CE-derived hooks and remove them before exit.");
         Console.WriteLine(
             "  - sheet snapshot/write expects the Arcanum character sheet to be open while the tool is waiting."
+        );
+        Console.WriteLine(
+            "  - sheet write --mode object uses aggregate-backed writes for main stats and basic skills directly by character pointer."
         );
         Console.WriteLine(
             "  - field names are case-insensitive and ignore punctuation, e.g. Strength, hp-loss, GunSmithy."

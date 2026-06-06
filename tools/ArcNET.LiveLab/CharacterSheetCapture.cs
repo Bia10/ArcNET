@@ -6,6 +6,10 @@ namespace ArcNET.LiveLab;
 [SupportedOSPlatform("windows")]
 internal static class CharacterSheetCapture
 {
+    private const int CharacterAggregateOffset = 0x50;
+    private const int AggregateMainStatsOffset = 0x2C;
+    private const int AggregateBasicSkillsOffset = 0x30;
+
     public static CharacterSheetSnapshot Create(ProcessMemory memory, CapturedPointers pointers)
     {
         var missing = new List<string>();
@@ -85,6 +89,72 @@ internal static class CharacterSheetCapture
         };
     }
 
+    public static bool TryResolveObjectIntField(ProcessMemory memory, nint characterAddress, string fieldName, out ResolvedIntField field)
+    {
+        return TryResolveObjectIntField(
+            memory,
+            characterAddress,
+            fieldName,
+            0,
+            0,
+            out field
+        );
+    }
+
+    public static bool TryResolveObjectIntField(
+        ProcessMemory memory,
+        nint characterAddress,
+        string fieldName,
+        nint techSkillsAddress,
+        nint spellAndTechAddress,
+        out ResolvedIntField field
+    )
+    {
+        field = default;
+        if (characterAddress == 0)
+            return false;
+
+        var aggregateRoot = memory.ReadPointer32(characterAddress + CharacterAggregateOffset);
+        if (aggregateRoot == 0)
+            return false;
+
+        var mainStats = memory.ReadPointer32(aggregateRoot + AggregateMainStatsOffset);
+        if (TryResolveFromLayout(memory, mainStats, CharacterSheetRuntimeLayout.MainStatsFields, fieldName, out field))
+            return true;
+
+        var basicSkills = memory.ReadPointer32(aggregateRoot + AggregateBasicSkillsOffset);
+        if (TryResolveFromLayout(memory, basicSkills, CharacterSheetRuntimeLayout.BasicSkillsFields, fieldName, out field))
+            return true;
+
+        if (techSkillsAddress != 0 &&
+            TryResolveFromLayout(
+                memory,
+                techSkillsAddress,
+                CharacterSheetRuntimeLayout.TechSkillsFields,
+                fieldName,
+                out field
+            ))
+        {
+            return true;
+        }
+
+        if (
+            spellAndTechAddress != 0 &&
+            TryResolveFromLayout(
+                memory,
+                spellAndTechAddress,
+                CharacterSheetRuntimeLayout.SpellAndTechFields,
+                fieldName,
+                out field
+            )
+        )
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     public static bool TryResolveIntField(
         ProcessMemory memory,
         CapturedPointers pointers,
@@ -160,6 +230,34 @@ internal static class CharacterSheetCapture
         {
             field = new ResolvedIntField("Flags", pointers.Flags, unchecked((int)memory.ReadUInt32(pointers.Flags)));
             return true;
+        }
+
+        field = default;
+        return false;
+    }
+
+    private static bool TryResolveFromLayout(
+        ProcessMemory memory,
+        nint baseAddress,
+        IReadOnlyList<RuntimeFieldDescriptor> descriptors,
+        string fieldName,
+        out ResolvedIntField field
+    )
+    {
+        if (baseAddress == 0)
+        {
+            field = default;
+            return false;
+        }
+
+        foreach (var descriptor in descriptors)
+        {
+            if (Matches(descriptor.Name, fieldName))
+            {
+                var address = baseAddress + descriptor.Offset;
+                field = new ResolvedIntField(descriptor.Name, address, memory.ReadInt32(address));
+                return true;
+            }
         }
 
         field = default;

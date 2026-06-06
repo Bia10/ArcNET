@@ -83,12 +83,22 @@ internal static class LiveLabCli
 
     public static void WriteJson<T>(T value)
     {
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-
-        Console.WriteLine(JsonSerializer.Serialize(value, options));
+        Console.WriteLine(JsonSerializer.Serialize(value, PrettyJsonOptions));
     }
+
+    public static void WriteJsonLine<T>(T value)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(value, CompactJsonOptions));
+    }
+
+    private static readonly JsonSerializerOptions PrettyJsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    private static readonly JsonSerializerOptions CompactJsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 }
