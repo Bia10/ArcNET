@@ -1,5 +1,7 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
+using System.IO;
 using System.Runtime.Versioning;
+using Iced.Intel;
 using ArcNET.Editor.Runtime;
 
 namespace ArcNET.LiveLab;
@@ -121,11 +123,16 @@ internal sealed class CharacterSheetHookSession : IDisposable
         public static RemoteHook InstallSubstructureHook(ProcessMemory memory)
         {
             var siteAddress = memory.ResolveRva(ArcanumRuntimeOffsets.CharacterSheetSubstructureHookRva);
+            var hookLength = ResolveHookLength(
+                memory,
+                siteAddress,
+                AssemblerRegisters.edi,
+                AssemblerRegisters.ebx
+            );
             var originalBytes = memory.ReadBytes(
                 siteAddress,
-                ArcanumRuntimeOffsets.CharacterSheetSubstructureOriginal.Length
+                hookLength
             );
-            ValidateOriginal(siteAddress, originalBytes, ArcanumRuntimeOffsets.CharacterSheetSubstructureOriginal);
 
             const int slotCount = 9;
             const int slotOffset = 0;
@@ -133,9 +140,9 @@ internal sealed class CharacterSheetHookSession : IDisposable
             var remoteBlock = memory.AllocateExecutable(0x200);
             try
             {
-                var block = BuildSubstructureBlock(memory, remoteBlock, codeOffset);
+                var block = BuildSubstructureBlock(memory, remoteBlock, codeOffset, hookLength);
                 memory.WriteBytes(remoteBlock, block);
-                WriteJumpPatch(memory, siteAddress, remoteBlock + codeOffset);
+                WriteJumpPatch(memory, siteAddress, remoteBlock + codeOffset, hookLength);
                 return new RemoteHook(memory, siteAddress, originalBytes, remoteBlock, slotCount, slotOffset);
             }
             catch
@@ -148,11 +155,16 @@ internal sealed class CharacterSheetHookSession : IDisposable
         public static RemoteHook InstallPropertyHook(ProcessMemory memory)
         {
             var siteAddress = memory.ResolveRva(ArcanumRuntimeOffsets.CharacterSheetPropertyHookRva);
+            var hookLength = ResolveHookLength(
+                memory,
+                siteAddress,
+                AssemblerRegisters.esi,
+                AssemblerRegisters.ebp
+            );
             var originalBytes = memory.ReadBytes(
                 siteAddress,
-                ArcanumRuntimeOffsets.CharacterSheetPropertyOriginal.Length
+                hookLength
             );
-            ValidateOriginal(siteAddress, originalBytes, ArcanumRuntimeOffsets.CharacterSheetPropertyOriginal);
 
             const int slotCount = 9;
             const int slotOffset = 0;
@@ -160,9 +172,9 @@ internal sealed class CharacterSheetHookSession : IDisposable
             var remoteBlock = memory.AllocateExecutable(0x240);
             try
             {
-                var block = BuildPropertyBlock(memory, remoteBlock, codeOffset);
+                var block = BuildPropertyBlock(memory, remoteBlock, codeOffset, hookLength);
                 memory.WriteBytes(remoteBlock, block);
-                WriteJumpPatch(memory, siteAddress, remoteBlock + codeOffset);
+                WriteJumpPatch(memory, siteAddress, remoteBlock + codeOffset, hookLength);
                 return new RemoteHook(memory, siteAddress, originalBytes, remoteBlock, slotCount, slotOffset);
             }
             catch
@@ -192,30 +204,114 @@ internal sealed class CharacterSheetHookSession : IDisposable
             _disposed = true;
         }
 
-        private static void ValidateOriginal(nint siteAddress, byte[] actual, ReadOnlySpan<byte> expected)
+        private static int ResolveHookLength(
+            ProcessMemory memory,
+            nint siteAddress,
+            AssemblerRegister32 expectedBaseRegister,
+            AssemblerRegister32 expectedSheetIdRegister
+        )
         {
-            if (actual.AsSpan().SequenceEqual(expected))
-                return;
-
-            throw new InvalidOperationException(
-                $"Unexpected bytes at {ProcessMemory.FormatAddress(siteAddress)}. "
-                    + "The current Arcanum build does not match the CE-derived hook signature."
+            var signatureBytes = memory.ReadBytes(siteAddress, 64);
+            var decoder = Decoder.Create(
+                32,
+                signatureBytes,
+                (ulong)(long)siteAddress,
+                DecoderOptions.None
             );
+            var mov = new Instruction();
+            var lea = new Instruction();
+            var cmp = new Instruction();
+            decoder.Decode(out mov);
+            decoder.Decode(out lea);
+            decoder.Decode(out cmp);
+
+            if (
+                mov.IsInvalid
+                || mov.Code != Code.Mov_r32_rm32
+                || mov.Op0Kind != OpKind.Register
+                || mov.GetOpRegister(0) != expectedBaseRegister
+                || mov.Op1Kind != OpKind.Memory
+                || mov.MemoryBase != expectedBaseRegister
+                || mov.MemoryDisplacement32 != 0x50
+                || mov.MemoryIndexScale != 1
+            )
+                throw new InvalidOperationException(
+                    $"Unexpected bytes at {ProcessMemory.FormatAddress(siteAddress)}. "
+                        + "The current Arcanum build does not match the CE-derived hook signature."
+                );
+
+            if (
+                lea.IsInvalid
+                || lea.Code != Code.Lea_r32_m
+                || lea.Op0Kind != OpKind.Register
+                || lea.Op1Kind != OpKind.Memory
+                || lea.MemoryBase != expectedBaseRegister
+                || lea.MemoryIndex != AssemblerRegisters.eax
+                || lea.MemoryDisplacement32 != 0
+                || lea.MemoryIndexScale != 4
+            )
+                throw new InvalidOperationException(
+                    $"Unexpected bytes at {ProcessMemory.FormatAddress(siteAddress)}. "
+                        + "The current Arcanum build does not match the CE-derived hook signature."
+                );
+
+            if (
+                cmp.IsInvalid
+                || cmp.Op0Kind != OpKind.Register
+                || cmp.GetOpRegister(0) != expectedSheetIdRegister
+                || !IsImmediateKind(cmp.Op1Kind)
+            )
+                throw new InvalidOperationException(
+                    $"Unexpected bytes at {ProcessMemory.FormatAddress(siteAddress)}. "
+                        + "The current Arcanum build does not match the CE-derived hook signature."
+                );
+
+            return mov.Length + lea.Length;
         }
 
-        private static void WriteJumpPatch(ProcessMemory memory, nint siteAddress, nint targetAddress)
+        private static bool IsImmediateKind(OpKind kind) =>
+            kind is
+                OpKind.Immediate8
+                or OpKind.Immediate8_2nd
+                or OpKind.Immediate16
+                or OpKind.Immediate32
+                or OpKind.Immediate64
+                or OpKind.Immediate8to16
+                or OpKind.Immediate8to32
+                or OpKind.Immediate8to64
+                or OpKind.Immediate32to64;
+
+        private static void WriteJumpPatch(
+            ProcessMemory memory,
+            nint siteAddress,
+            nint targetAddress,
+            int hookLength
+        )
         {
-            Span<byte> patch = stackalloc byte[6];
+            if (hookLength < 5)
+            {
+                throw new InvalidOperationException(
+                    $"Unexpected hook prefix length at {ProcessMemory.FormatAddress(siteAddress)}. Expected at least 5 bytes."
+                );
+            }
+
+            Span<byte> patch = new byte[hookLength];
             patch[0] = 0xE9;
             BinaryPrimitives.WriteInt32LittleEndian(
                 patch[1..5],
                 checked((int)((long)targetAddress - ((long)siteAddress + 5)))
             );
-            patch[5] = 0x90;
+            for (var i = 5; i < patch.Length; i++)
+                patch[i] = 0x90;
             memory.WriteBytes(siteAddress, patch);
         }
 
-        private static byte[] BuildSubstructureBlock(ProcessMemory memory, nint remoteBlock, int codeOffset)
+        private static byte[] BuildSubstructureBlock(
+            ProcessMemory memory,
+            nint remoteBlock,
+            int codeOffset,
+            int hookLength
+        )
         {
             var ptrChar = memory.ToUInt32Address(remoteBlock + 0);
             var ptrMainStats = memory.ToUInt32Address(remoteBlock + 4);
@@ -226,72 +322,83 @@ internal sealed class CharacterSheetHookSession : IDisposable
             var ptrLastId = memory.ToUInt32Address(remoteBlock + 24);
             var ptrLastPointer = memory.ToUInt32Address(remoteBlock + 28);
             var ptrSeenMask = memory.ToUInt32Address(remoteBlock + 32);
-            var codeBase = memory.ToUInt32Address(remoteBlock + codeOffset);
-            var returnSite = memory.ResolveRva32(ArcanumRuntimeOffsets.CharacterSheetSubstructureHookRva) + 6;
+            var returnSite = memory.ResolveRva32(ArcanumRuntimeOffsets.CharacterSheetSubstructureHookRva) + hookLength;
             var currentSheetId = memory.ResolveRva32(ArcanumRuntimeOffsets.CurrentCharacterSheetIdRva);
+            var captures = new (int Id, uint Destination, int SeenBit)[]
+            {
+                (
+                    (int)CharacterSheetSubstructureId.MainStats,
+                    ptrMainStats,
+                    0x1
+                ),
+                (
+                    (int)CharacterSheetSubstructureId.BasicSkills,
+                    ptrSkills,
+                    0x2
+                ),
+                (
+                    (int)CharacterSheetSubstructureId.TechSkills,
+                    ptrTech,
+                    0x4
+                ),
+                (
+                    (int)CharacterSheetSubstructureId.SpellAndTech,
+                    ptrSpells,
+                    0x8
+                ),
+            };
 
-            var code = new List<byte>(128);
-            var returnShortJumps = new List<int>();
+            return AssembleHookCode(
+                memory.ToUInt32Address(remoteBlock + codeOffset),
+                codeOffset,
+                assembler =>
+                {
+                    var edi = AssemblerRegisters.edi;
+                    var ecx = AssemblerRegisters.ecx;
+                    var edx = AssemblerRegisters.edx;
+                    var ebx = AssemblerRegisters.ebx;
+                    var esi = AssemblerRegisters.esi;
+                    var eax = AssemblerRegisters.eax;
 
-            Emit(code, 0x8B, 0x4F, 0x50); // mov ecx,[edi+50]
-            Emit(code, 0x8D, 0x14, 0x81); // lea edx,[ecx+eax*4]
-            Emit(code, 0x3B, 0x1D);
-            EmitUInt32(code, currentSheetId); // cmp ebx,[module+24E010]
-            returnShortJumps.Add(EmitShortJumpPlaceholder(code, 0x75)); // jne return
-            Emit(code, 0x89, 0x3D);
-            EmitUInt32(code, ptrChar); // mov [ptr_char],edi
-            Emit(code, 0x85, 0xD2); // test edx,edx
-            returnShortJumps.Add(EmitShortJumpPlaceholder(code, 0x74)); // je return
-            Emit(code, 0xA3);
-            EmitUInt32(code, ptrLastIndex); // mov [last_substructure_index],eax
-            Emit(code, 0x8B, 0x02); // mov eax,[edx]
-            Emit(code, 0x89, 0x35);
-            EmitUInt32(code, ptrLastId); // mov [last_substructure_id],esi
-            Emit(code, 0xA3);
-            EmitUInt32(code, ptrLastPointer); // mov [last_substructure_pointer],eax
+                    var returnLabel = assembler.CreateLabel("substructure-return");
 
-            EmitConditionalStoreEaxAndMarkSeen(
-                code,
-                (int)CharacterSheetSubstructureId.MainStats,
-                ptrMainStats,
-                ptrSeenMask,
-                0x1
+                    assembler.mov(ecx, AssemblerRegisters.__dword_ptr[edi + 0x50]);
+                    assembler.lea(edx, ecx + eax * 4);
+                    assembler.cmp(ebx, currentSheetId);
+                    assembler.jne(returnLabel);
+                    assembler.mov(DWordPtr(ptrChar), edi);
+                    assembler.test(edx, edx);
+                    assembler.je(returnLabel);
+                    assembler.mov(DWordPtr(ptrLastIndex), eax);
+                    assembler.mov(eax, AssemblerRegisters.__dword_ptr[edx]);
+                    assembler.mov(DWordPtr(ptrLastId), esi);
+                    assembler.mov(DWordPtr(ptrLastPointer), eax);
+
+                    foreach (var capture in captures)
+                    {
+                        EmitConditionalStoreRegister(
+                            assembler,
+                            esi,
+                            capture.Id,
+                            eax,
+                            capture.Destination,
+                            capture.SeenBit,
+                            ptrSeenMask
+                        );
+                    }
+
+                    assembler.Label(ref returnLabel);
+                    assembler.jmp((ulong)returnSite);
+                }
             );
-            EmitConditionalStoreEaxAndMarkSeen(
-                code,
-                (int)CharacterSheetSubstructureId.BasicSkills,
-                ptrSkills,
-                ptrSeenMask,
-                0x2
-            );
-            EmitConditionalStoreEaxAndMarkSeen(
-                code,
-                (int)CharacterSheetSubstructureId.TechSkills,
-                ptrTech,
-                ptrSeenMask,
-                0x4
-            );
-            EmitConditionalStoreEaxAndMarkSeen(
-                code,
-                (int)CharacterSheetSubstructureId.SpellAndTech,
-                ptrSpells,
-                ptrSeenMask,
-                0x8
-            );
-
-            var returnLabel = code.Count;
-            PatchShortJumps(code, returnShortJumps, returnLabel);
-
-            Emit(code, 0xE9);
-            var rel = checked((int)(returnSite - (codeBase + code.Count + 4)));
-            EmitInt32(code, rel);
-
-            var block = new byte[codeOffset + code.Count];
-            code.CopyTo(block, codeOffset);
-            return block;
         }
 
-        private static byte[] BuildPropertyBlock(ProcessMemory memory, nint remoteBlock, int codeOffset)
+        private static byte[] BuildPropertyBlock(
+            ProcessMemory memory,
+            nint remoteBlock,
+            int codeOffset,
+            int hookLength
+        )
         {
             var ptrHpLoss = memory.ToUInt32Address(remoteBlock + 0);
             var ptrHpBonus = memory.ToUInt32Address(remoteBlock + 4);
@@ -302,104 +409,98 @@ internal sealed class CharacterSheetHookSession : IDisposable
             var ptrLastIndex = memory.ToUInt32Address(remoteBlock + 24);
             var ptrLastId = memory.ToUInt32Address(remoteBlock + 28);
             var ptrLastAddress = memory.ToUInt32Address(remoteBlock + 32);
-            var codeBase = memory.ToUInt32Address(remoteBlock + codeOffset);
-            var returnSite = memory.ResolveRva32(ArcanumRuntimeOffsets.CharacterSheetPropertyHookRva) + 6;
+            var returnSite = memory.ResolveRva32(ArcanumRuntimeOffsets.CharacterSheetPropertyHookRva) + hookLength;
             var currentSheetId = memory.ResolveRva32(ArcanumRuntimeOffsets.CurrentCharacterSheetIdRva);
+            var captures = new (int Id, uint Destination)[]
+            {
+                ((int)CharacterSheetPropertyId.HpBonus, ptrHpBonus),
+                ((int)CharacterSheetPropertyId.HpLoss, ptrHpLoss),
+                ((int)CharacterSheetPropertyId.MpBonus, ptrMpBonus),
+                ((int)CharacterSheetPropertyId.MpLoss, ptrMpLoss),
+                ((int)CharacterSheetPropertyId.Name, ptrName),
+                ((int)CharacterSheetPropertyId.Flags, ptrFlags),
+            };
 
-            var code = new List<byte>(160);
-            var returnShortJumps = new List<int>();
+            return AssembleHookCode(
+                memory.ToUInt32Address(remoteBlock + codeOffset),
+                codeOffset,
+                assembler =>
+                {
+                    var esi = AssemblerRegisters.esi;
+                    var edi = AssemblerRegisters.edi;
+                    var ecx = AssemblerRegisters.ecx;
+                    var edx = AssemblerRegisters.edx;
+                    var ebp = AssemblerRegisters.ebp;
+                    var eax = AssemblerRegisters.eax;
 
-            Emit(code, 0x8B, 0x4E, 0x50); // mov ecx,[esi+50]
-            Emit(code, 0x8D, 0x14, 0x81); // lea edx,[ecx+eax*4]
-            Emit(code, 0x3B, 0x2D);
-            EmitUInt32(code, currentSheetId); // cmp ebp,[module+24E010]
-            returnShortJumps.Add(EmitShortJumpPlaceholder(code, 0x75)); // jne return
-            Emit(code, 0x85, 0xD2); // test edx,edx
-            returnShortJumps.Add(EmitShortJumpPlaceholder(code, 0x74)); // je return
-            Emit(code, 0xA3);
-            EmitUInt32(code, ptrLastIndex); // mov [last_property_index],eax
-            Emit(code, 0x8B, 0x02); // mov eax,[edx]
-            Emit(code, 0x89, 0x3D);
-            EmitUInt32(code, ptrLastId); // mov [last_property_id],edi
-            Emit(code, 0x89, 0x15);
-            EmitUInt32(code, ptrLastAddress); // mov [last_property_address],edx
+                    var returnLabel = assembler.CreateLabel("property-return");
 
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.HpBonus, ptrHpBonus);
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.HpLoss, ptrHpLoss);
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.MpBonus, ptrMpBonus);
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.MpLoss, ptrMpLoss);
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.Name, ptrName);
-            EmitConditionalStoreEdx(code, (int)CharacterSheetPropertyId.Flags, ptrFlags);
+                    assembler.mov(ecx, AssemblerRegisters.__dword_ptr[esi + 0x50]);
+                    assembler.lea(edx, ecx + eax * 4);
+                    assembler.cmp(ebp, currentSheetId);
+                    assembler.jne(returnLabel);
+                    assembler.test(edx, edx);
+                    assembler.je(returnLabel);
+                    assembler.mov(DWordPtr(ptrLastIndex), eax);
+                    assembler.mov(eax, AssemblerRegisters.__dword_ptr[edx]);
+                    assembler.mov(DWordPtr(ptrLastId), edi);
+                    assembler.mov(DWordPtr(ptrLastAddress), edx);
 
-            var returnLabel = code.Count;
-            PatchShortJumps(code, returnShortJumps, returnLabel);
+                    foreach (var capture in captures)
+                    {
+                        EmitConditionalStoreRegister(
+                            assembler,
+                            edi,
+                            capture.Id,
+                            edx,
+                            capture.Destination
+                        );
+                    }
 
-            Emit(code, 0xE9);
-            var rel = checked((int)(returnSite - (codeBase + code.Count + 4)));
-            EmitInt32(code, rel);
+                    assembler.Label(ref returnLabel);
+                    assembler.jmp((ulong)returnSite);
+                }
+            );
+        }
 
-            var block = new byte[codeOffset + code.Count];
+        private static void EmitConditionalStoreRegister(
+            Assembler assembler,
+            AssemblerRegister32 compareRegister,
+            int compareValue,
+            AssemblerRegister32 valueRegister,
+            uint destination,
+            int? seenBit = null,
+            uint? seenMaskDestination = null
+        )
+        {
+            var nextLabel = assembler.CreateLabel($"skip-{compareValue}");
+            assembler.cmp(compareRegister, compareValue);
+            assembler.jne(nextLabel);
+            assembler.mov(DWordPtr(destination), valueRegister);
+            if (seenBit is not null && seenMaskDestination is not null)
+            {
+                assembler.or(DWordPtr(seenMaskDestination.Value), seenBit.Value);
+            }
+
+            assembler.Label(ref nextLabel);
+        }
+
+        private static AssemblerMemoryOperand DWordPtr(uint absoluteAddress) =>
+            AssemblerRegisters.__dword_ptr[(long)absoluteAddress];
+
+        private static byte[] AssembleHookCode(uint codeBase, int codeOffset, Action<Assembler> emit)
+        {
+            var assembler = new Assembler(32);
+            emit(assembler);
+
+            using var stream = new MemoryStream();
+            var writer = new StreamCodeWriter(stream);
+            assembler.Assemble(writer, codeBase, BlockEncoderOptions.None);
+
+            var code = stream.ToArray();
+            var block = new byte[codeOffset + code.Length];
             code.CopyTo(block, codeOffset);
             return block;
         }
-
-        private static void EmitConditionalStoreEax(List<byte> code, int compareValue, uint destination)
-        {
-            Emit(code, 0x81, 0xFE);
-            EmitInt32(code, compareValue); // cmp esi,imm32
-            Emit(code, 0x75, 0x05); // jne +5
-            Emit(code, 0xA3);
-            EmitUInt32(code, destination); // mov [imm32],eax
-        }
-
-        private static void EmitConditionalStoreEaxAndMarkSeen(
-            List<byte> code,
-            int compareValue,
-            uint destination,
-            uint seenMaskDestination,
-            int seenBit
-        )
-        {
-            Emit(code, 0x81, 0xFE);
-            EmitInt32(code, compareValue); // cmp esi,imm32
-            Emit(code, 0x75, 0x0F); // jne +15
-            Emit(code, 0xA3);
-            EmitUInt32(code, destination); // mov [imm32],eax
-            Emit(code, 0x81, 0x0D);
-            EmitUInt32(code, seenMaskDestination); // or dword ptr [imm32],imm32
-            EmitInt32(code, seenBit);
-        }
-
-        private static void EmitConditionalStoreEdx(List<byte> code, int compareValue, uint destination)
-        {
-            Emit(code, 0x81, 0xFF);
-            EmitInt32(code, compareValue); // cmp edi,imm32
-            Emit(code, 0x75, 0x06); // jne +6
-            Emit(code, 0x89, 0x15);
-            EmitUInt32(code, destination); // mov [imm32],edx
-        }
-
-        private static int EmitShortJumpPlaceholder(List<byte> code, byte opcode)
-        {
-            code.Add(opcode);
-            var index = code.Count;
-            code.Add(0);
-            return index;
-        }
-
-        private static void PatchShortJumps(List<byte> code, IEnumerable<int> jumpOffsetIndexes, int targetIndex)
-        {
-            foreach (var offsetIndex in jumpOffsetIndexes)
-            {
-                var displacement = targetIndex - (offsetIndex + 1);
-                code[offsetIndex] = checked((byte)(sbyte)displacement);
-            }
-        }
-
-        private static void Emit(List<byte> code, params byte[] bytes) => code.AddRange(bytes);
-
-        private static void EmitUInt32(List<byte> code, uint value) => code.AddRange(BitConverter.GetBytes(value));
-
-        private static void EmitInt32(List<byte> code, int value) => code.AddRange(BitConverter.GetBytes(value));
     }
 }

@@ -26,6 +26,21 @@ internal sealed class ProcessMemory : IDisposable
 
     public string ProcessName => _process.ProcessName;
 
+    public bool HasExited
+    {
+        get
+        {
+            try
+            {
+                return _process.HasExited;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+
     public nint Handle { get; }
 
     public nint ModuleBase { get; }
@@ -34,11 +49,31 @@ internal sealed class ProcessMemory : IDisposable
 
     public static ProcessMemory Attach(string processName = ArcanumRuntimeOffsets.ProcessName)
     {
-        var normalized = Path.GetFileNameWithoutExtension(processName);
-        var process = Process.GetProcessesByName(normalized).OrderBy(p => p.Id).FirstOrDefault();
-        if (process is null)
-            throw new InvalidOperationException($"Process '{normalized}.exe' is not running.");
+        if (!TryAttach(out var memory, processName))
+            throw new InvalidOperationException($"Process '{NormalizeProcessName(processName)}.exe' is not running.");
 
+        return memory;
+    }
+
+    public static bool TryAttach(
+        out ProcessMemory memory,
+        string processName = ArcanumRuntimeOffsets.ProcessName
+    )
+    {
+        var normalized = NormalizeProcessName(processName);
+        var process = Process.GetProcessesByName(normalized).OrderBy(static p => p.Id).FirstOrDefault();
+        if (process is null)
+        {
+            memory = null!;
+            return false;
+        }
+
+        memory = Attach(process);
+        return true;
+    }
+
+    private static ProcessMemory Attach(Process process)
+    {
         var handle = NativeMethods.OpenProcess(
             ProcessAccess.QueryInformation | ProcessAccess.VmRead | ProcessAccess.VmWrite | ProcessAccess.VmOperation,
             false,
@@ -60,6 +95,15 @@ internal sealed class ProcessMemory : IDisposable
         }
     }
 
+    private static string NormalizeProcessName(string processName)
+    {
+        var normalized = Path.GetFileNameWithoutExtension(processName);
+        if (normalized.Length == 0)
+            throw new InvalidOperationException("Process name must not be empty.");
+
+        return normalized;
+    }
+
     public nint ResolveRva(int rva) => ModuleBase + rva;
 
     public uint ResolveRva32(int rva) => ToUInt32Address(ResolveRva(rva));
@@ -67,16 +111,23 @@ internal sealed class ProcessMemory : IDisposable
     public byte[] ReadBytes(nint address, int count)
     {
         var buffer = new byte[count];
-        if (
-            !NativeMethods.ReadProcessMemory(Handle, address, buffer, (nuint)count, out var bytesRead)
-            || bytesRead != (nuint)count
-        )
-            throw new Win32Exception(
-                Marshal.GetLastWin32Error(),
-                $"Failed to read {count} byte(s) at {FormatAddress(address)}."
-            );
-
+        ReadBytes(address, buffer);
         return buffer;
+    }
+
+    public void ReadBytes(nint address, byte[] buffer)
+    {
+        if (
+            !NativeMethods.ReadProcessMemory(Handle, address, buffer, (nuint)buffer.Length, out var bytesRead)
+            || bytesRead != (nuint)buffer.Length
+        )
+        {
+            var errorCode = Marshal.GetLastWin32Error();
+            throw new Win32Exception(
+                errorCode,
+                $"Failed to read {buffer.Length} byte(s) at {FormatAddress(address)} (Win32 {errorCode})."
+            );
+        }
     }
 
     public int ReadInt32(nint address) => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(address, sizeof(int)));
@@ -100,10 +151,13 @@ internal sealed class ProcessMemory : IDisposable
             !NativeMethods.WriteProcessMemory(Handle, address, buffer, (nuint)buffer.Length, out var bytesWritten)
             || bytesWritten != (nuint)buffer.Length
         )
+        {
+            var errorCode = Marshal.GetLastWin32Error();
             throw new Win32Exception(
-                Marshal.GetLastWin32Error(),
-                $"Failed to write {buffer.Length} byte(s) at {FormatAddress(address)}."
+                errorCode,
+                $"Failed to write {buffer.Length} byte(s) at {FormatAddress(address)} (Win32 {errorCode})."
             );
+        }
 
         _ = NativeMethods.FlushInstructionCache(Handle, address, (nuint)buffer.Length);
     }
@@ -113,6 +167,51 @@ internal sealed class ProcessMemory : IDisposable
         Span<byte> buffer = stackalloc byte[sizeof(int)];
         BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
         WriteBytes(address, buffer);
+    }
+
+    public void WriteCodeBytes(nint address, ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length == 0)
+            return;
+
+        if (
+            !NativeMethods.VirtualProtectEx(
+                Handle,
+                address,
+                (nuint)bytes.Length,
+                PageProtection.ExecuteReadWrite,
+                out var originalProtect
+            )
+        )
+        {
+            var errorCode = Marshal.GetLastWin32Error();
+            throw new Win32Exception(
+                errorCode,
+                $"Failed to change page protection at {FormatAddress(address)} (Win32 {errorCode})."
+            );
+        }
+
+        try
+        {
+            WriteBytes(address, bytes);
+        }
+        finally
+        {
+            _ = NativeMethods.VirtualProtectEx(Handle, address, (nuint)bytes.Length, originalProtect, out _);
+        }
+    }
+
+    public bool TryWriteCodeBytes(nint address, ReadOnlySpan<byte> bytes)
+    {
+        try
+        {
+            WriteCodeBytes(address, bytes);
+            return true;
+        }
+        catch (Win32Exception ex) when (ShouldIgnoreRemoteFailure(ex.NativeErrorCode))
+        {
+            return false;
+        }
     }
 
     public IEnumerable<MemoryRegion> EnumerateCommittedReadableRegions()
@@ -172,14 +271,14 @@ internal sealed class ProcessMemory : IDisposable
         return true;
     }
 
-    public nint AllocateExecutable(int size)
+    public nint Allocate(int size, MemoryProtection protection)
     {
         var address = NativeMethods.VirtualAllocEx(
             Handle,
             0,
             (nuint)size,
             AllocationType.Commit | AllocationType.Reserve,
-            MemoryProtection.ExecuteReadWrite
+            protection
         );
         if (address == 0)
             throw new Win32Exception(
@@ -190,16 +289,36 @@ internal sealed class ProcessMemory : IDisposable
         return address;
     }
 
+    public nint AllocateExecutable(int size) => Allocate(size, MemoryProtection.ExecuteReadWrite);
+
+    public nint AllocateWritable(int size) => Allocate(size, MemoryProtection.ReadWrite);
+
     public void Free(nint address)
     {
         if (address == 0)
             return;
 
         if (!NativeMethods.VirtualFreeEx(Handle, address, 0, AllocationType.Release))
+        {
+            var errorCode = Marshal.GetLastWin32Error();
             throw new Win32Exception(
-                Marshal.GetLastWin32Error(),
-                $"Failed to free remote block at {FormatAddress(address)}."
+                errorCode,
+                $"Failed to free remote block at {FormatAddress(address)} (Win32 {errorCode})."
             );
+        }
+    }
+
+    public bool TryFree(nint address)
+    {
+        try
+        {
+            Free(address);
+            return true;
+        }
+        catch (Win32Exception ex) when (ShouldIgnoreRemoteFailure(ex.NativeErrorCode))
+        {
+            return false;
+        }
     }
 
     public uint ToUInt32Address(nint address)
@@ -229,6 +348,19 @@ internal sealed class ProcessMemory : IDisposable
         | PageProtection.ExecuteRead
         | PageProtection.ExecuteReadWrite
         | PageProtection.ExecuteWriteCopy;
+
+    private bool ShouldIgnoreRemoteFailure(int errorCode) =>
+        HasExited || IgnorableRemoteExitErrors.Contains(errorCode);
+
+    private static readonly HashSet<int> IgnorableRemoteExitErrors =
+    [
+        5,
+        6,
+        87,
+        299,
+        487,
+        998,
+    ];
 
     public void Dispose()
     {

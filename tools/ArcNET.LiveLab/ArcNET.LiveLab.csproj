@@ -17,6 +17,8 @@
   </Target>
 
   <ItemGroup>
+    <PackageReference Include="Iced" Version="1.21.0" />
+    <PackageReference Include="ZLogger" Version="2.5.10" />
     <ProjectReference Include="..\..\src\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
 </Project>

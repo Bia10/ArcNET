@@ -22,6 +22,7 @@ internal enum AllocationType : uint
 [Flags]
 internal enum MemoryProtection : uint
 {
+    ReadWrite = 0x04,
     ExecuteReadWrite = 0x40,
 }
 
@@ -102,6 +103,16 @@ internal static partial class NativeMethods
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool VirtualFreeEx(nint processHandle, nint address, nuint size, AllocationType freeType);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool VirtualProtectEx(
+        nint processHandle,
+        nint address,
+        nuint size,
+        PageProtection newProtect,
+        out PageProtection oldProtect
+    );
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
