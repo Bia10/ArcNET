@@ -99,33 +99,8 @@ jobs:
       - name: Restore tools
         run: dotnet tool restore
 
-      - name: Build coverage binaries
-        run: dotnet build ArcNET.slnx -c Release
-
       - name: Collect coverage
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts/TestResults | Out-Null
-
-          $coverageRuns = @(
-            @{ Name = 'ArcNET.Core.Tests'; Project = 'src/Core/ArcNET.Core.Tests' }
-            @{ Name = 'ArcNET.GameObjects.Tests'; Project = 'src/GameObjects/ArcNET.GameObjects.Tests' }
-            @{ Name = 'ArcNET.Formats.Tests'; Project = 'src/Formats/ArcNET.Formats.Tests' }
-            @{ Name = 'ArcNET.GameData.Tests'; Project = 'src/GameData/ArcNET.GameData.Tests' }
-            @{ Name = 'ArcNET.Archive.Tests'; Project = 'src/Archive/ArcNET.Archive.Tests' }
-            @{ Name = 'ArcNET.Patch.Tests'; Project = 'src/Patch/ArcNET.Patch.Tests' }
-            @{ Name = 'ArcNET.BinaryPatch.Tests'; Project = 'src/BinaryPatch/ArcNET.BinaryPatch.Tests' }
-            @{ Name = 'ArcNET.Editor.Tests'; Project = 'src/Editor/ArcNET.Editor.Tests' }
-            @{ Name = 'ArcNET.DocTest'; Project = 'src/DocTest/ArcNET.DocTest' }
-          )
-
-          foreach ($coverageRun in $coverageRuns) {
-            Write-Host "Collecting coverage for $($coverageRun.Name) from $($coverageRun.Project)"
-            dotnet dotnet-coverage collect "dotnet run --project $($coverageRun.Project) -c Release --no-build --no-restore" --output "artifacts/TestResults/$($coverageRun.Name).coverage.cobertura.xml" --output-format cobertura
-            if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
-            }
-          }
+        run: dotnet Build.cs coverage
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

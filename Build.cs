@@ -15,10 +15,12 @@ var packageVersionManifestPath = Path.Combine(repoRoot, "src", "ArcNET.PackageVe
 var benchmarkProject = Path.Combine(repoRoot, "src", "Benchmarks", "ArcNET.Benchmarks", "ArcNET.Benchmarks.csproj");
 var docTestProject = Path.Combine(repoRoot, "src", "DocTest", "ArcNET.DocTest", "ArcNET.DocTest.csproj");
 var nugetOutputDirectory = Path.Combine(repoRoot, "artifacts", "nuget");
+var coverageOutputDirectory = Path.Combine(repoRoot, "artifacts", "TestResults");
 var packageVersions = ReadPackageVersions(packageVersionManifestPath);
 var packageProjects = FindPackableProjects(repoRoot, packageVersions)
     .OrderBy(project => project.PackageId, StringComparer.OrdinalIgnoreCase)
     .ToArray();
+var runnableTestProjects = FindRunnableTestProjects(repoRoot, docTestProject).ToArray();
 
 var command = args.FirstOrDefault()?.ToLowerInvariant() ?? "help";
 var commandArgs = args.Skip(1).ToArray();
@@ -34,9 +36,21 @@ switch (command)
         return 0;
 
     case "test":
-        foreach (var testProject in FindTestProjects(repoRoot, docTestProject))
+        foreach (var testProject in runnableTestProjects)
         {
             Run("dotnet", ["run", "--project", testProject, "-c", "Release"], repoRoot);
+        }
+
+        return 0;
+
+    case "coverage":
+        Run("dotnet", ["tool", "restore"], repoRoot);
+        Directory.CreateDirectory(coverageOutputDirectory);
+        Run("dotnet", ["build", solutionPath, "-c", "Release"], repoRoot);
+
+        foreach (var testProject in runnableTestProjects)
+        {
+            CollectCoverage(repoRoot, testProject, coverageOutputDirectory);
         }
 
         return 0;
@@ -147,7 +161,7 @@ static IEnumerable<PackageProject> FindPackableProjects(
     }
 }
 
-static IEnumerable<string> FindTestProjects(string repoRoot, string docTestProject)
+static IEnumerable<string> FindRunnableTestProjects(string repoRoot, string docTestProject)
 {
     foreach (
         var testProject in Directory
@@ -159,6 +173,31 @@ static IEnumerable<string> FindTestProjects(string repoRoot, string docTestProje
     }
 
     yield return docTestProject;
+}
+
+static void CollectCoverage(string repoRoot, string projectPath, string coverageOutputDirectory)
+{
+    var projectName = Path.GetFileNameWithoutExtension(projectPath);
+    var projectRelativePath = NormalizeRelativePath(Path.GetRelativePath(repoRoot, projectPath));
+    var projectRelativeDirectory = NormalizeRelativePath(
+        Path.GetDirectoryName(projectRelativePath) ?? projectRelativePath
+    );
+    var outputPath = Path.Combine(coverageOutputDirectory, $"{projectName}.coverage.cobertura.xml");
+
+    Console.WriteLine($"Collecting coverage for {projectName} from {projectRelativeDirectory}");
+    Run(
+        "dotnet",
+        [
+            "dotnet-coverage",
+            "collect",
+            $"dotnet run --project {QuoteCommandValue(projectRelativePath)} -c Release --no-build --no-restore",
+            "--output",
+            outputPath,
+            "--output-format",
+            "cobertura",
+        ],
+        repoRoot
+    );
 }
 
 static IReadOnlyList<PackageProject> SelectPackages(
@@ -222,6 +261,7 @@ static void PrintHelp(IReadOnlyList<PackageProject> packageProjects)
     Console.WriteLine("  dotnet Build.cs help");
     Console.WriteLine("  dotnet Build.cs build");
     Console.WriteLine("  dotnet Build.cs test");
+    Console.WriteLine("  dotnet Build.cs coverage");
     Console.WriteLine("  dotnet Build.cs format");
     Console.WriteLine("  dotnet Build.cs format-check");
     Console.WriteLine("  dotnet Build.cs bench");
@@ -268,6 +308,10 @@ static string EscapeArgument(string argument) =>
     argument.Contains(' ', StringComparison.Ordinal) || argument.Contains('"', StringComparison.Ordinal)
         ? $"\"{argument.Replace("\"", "\\\"", StringComparison.Ordinal)}\""
         : argument;
+
+static string QuoteCommandValue(string value) => value.Contains(' ', StringComparison.Ordinal) ? $"\"{value}\"" : value;
+
+static string NormalizeRelativePath(string path) => path.Replace('\\', '/');
 
 static string RepoRoot([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 
