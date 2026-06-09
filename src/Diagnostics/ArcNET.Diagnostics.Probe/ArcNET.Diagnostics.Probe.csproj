@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Probe</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Bia.ValueBuffers" />
+    <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
+    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
+    <ProjectReference Include="..\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
+  </ItemGroup>
+</Project>

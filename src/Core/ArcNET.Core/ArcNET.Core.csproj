@@ -53,7 +53,7 @@
       <_Parameter1>ArcNET.Archive</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>ArcNET.Patch</_Parameter1>
+      <_Parameter1>ArcNET.Diagnostics</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>ArcNET.Benchmarks</_Parameter1>

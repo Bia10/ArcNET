@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>MesDump</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
+    <ProjectReference Include="..\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
+    <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
+  </ItemGroup>
+</Project>

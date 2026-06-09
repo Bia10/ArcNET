@@ -13,10 +13,6 @@
       <PackageId>ArcNET.Core</PackageId>
       <Version>0.1.0-preview.1</Version>
     </ArcNETPackageVersion>
-    <ArcNETPackageVersion Include="ArcNET.Dumpers">
-      <PackageId>ArcNET.Dumpers</PackageId>
-      <Version>0.1.0-preview.1</Version>
-    </ArcNETPackageVersion>
     <ArcNETPackageVersion Include="ArcNET.Editor">
       <PackageId>ArcNET.Editor</PackageId>
       <Version>0.1.0-preview.1</Version>
@@ -33,9 +29,6 @@
       <PackageId>ArcNET.GameObjects</PackageId>
       <Version>0.1.0-preview.1</Version>
     </ArcNETPackageVersion>
-    <ArcNETPackageVersion Include="ArcNET.Patch">
-      <PackageId>ArcNET.Patch</PackageId>
-      <Version>0.1.0-preview.1</Version>
-    </ArcNETPackageVersion>
   </ItemGroup>
 </Project>
+

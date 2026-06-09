@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.Diagnostics.Contracts</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>UI-agnostic contracts for ArcNET runtime diagnostics workflows.</Description>
+  </PropertyGroup>
+</Project>

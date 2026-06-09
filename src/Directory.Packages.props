@@ -17,6 +17,7 @@
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
     <!-- Application -->
     <PackageVersion Include="Spectre.Console" Version="0.55.2" />
+    <PackageVersion Include="Iced" Version="1.21.0" />
     <!-- Buffers -->
     <PackageVersion Include="Bia.ValueBuffers" Version="0.9.0" />
   </ItemGroup>

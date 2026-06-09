@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SectorDebug</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
+    <ProjectReference Include="..\..\Core\ArcNET.Core\ArcNET.Core.csproj" />
+    <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
+  </ItemGroup>
+</Project>

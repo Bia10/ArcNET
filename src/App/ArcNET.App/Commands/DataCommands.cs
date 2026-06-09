@@ -1,7 +1,7 @@
 using ArcNET.Archive;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
-using ArcNET.Dumpers;
+using ArcNET.Diagnostics;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 using ConsoleAppFramework;

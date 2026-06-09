@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.Diagnostics.Windows</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>Windows-specific helpers for ArcNET runtime diagnostics.</Description>
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Iced" />
+    <ProjectReference Include="..\ArcNET.Diagnostics.Contracts\ArcNET.Diagnostics.Contracts.csproj" />
+    <ProjectReference Include="..\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
+    <ProjectReference Include="..\..\Core\ArcNET.Core\ArcNET.Core.csproj" />
+    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
+    <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
+  </ItemGroup>
+</Project>

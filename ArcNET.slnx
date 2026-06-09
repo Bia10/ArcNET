@@ -19,28 +19,36 @@
     <Project Path="src/Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
     <Project Path="src/Archive/ArcNET.Archive.Tests/ArcNET.Archive.Tests.csproj" />
   </Folder>
-  <Folder Name="/src/Patch/">
-    <Project Path="src/Patch/ArcNET.Patch/ArcNET.Patch.csproj" />
-    <Project Path="src/Patch/ArcNET.Patch.Tests/ArcNET.Patch.Tests.csproj" />
-  </Folder>
   <Folder Name="/src/BinaryPatch/">
     <Project Path="src/BinaryPatch/ArcNET.BinaryPatch/ArcNET.BinaryPatch.csproj" />
     <Project Path="src/BinaryPatch/ArcNET.BinaryPatch.Tests/ArcNET.BinaryPatch.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/" />
   <Folder Name="/src/App/">
     <Project Path="src/App/ArcNET.App/ArcNET.App.csproj" />
   </Folder>
   <Folder Name="/src/Benchmarks/">
     <Project Path="src/Benchmarks/ArcNET.Benchmarks/ArcNET.Benchmarks.csproj" />
   </Folder>
-  <Folder Name="/src/Dumpers/">
-    <Project Path="src/Dumpers/ArcNET.Dumpers/ArcNET.Dumpers.csproj" />
-  </Folder>
   <Folder Name="/src/DocTest/">
     <Project Path="src/DocTest/ArcNET.DocTest/ArcNET.DocTest.csproj" />
+  </Folder>
+  <Folder Name="/src/Diagnostics/">
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.Probe/ArcNET.Diagnostics.Probe.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.Contracts/ArcNET.Diagnostics.Contracts.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.DiagnosticContainerScan/ArcNET.Diagnostics.DiagnosticContainerScan.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.DiagnosticDump/ArcNET.Diagnostics.DiagnosticDump.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.DiagnosticMobScan/ArcNET.Diagnostics.DiagnosticMobScan.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.FileTime/ArcNET.Diagnostics.FileTime.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.MesDump/ArcNET.Diagnostics.MesDump.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics/ArcNET.Diagnostics.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.SectorDebug/ArcNET.Diagnostics.SectorDebug.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.Windows/ArcNET.Diagnostics.Windows.csproj" />
+    <Project Path="src/Diagnostics/ArcNET.Diagnostics.Tests/ArcNET.Diagnostics.Tests.csproj" />
   </Folder>
   <Folder Name="/src/Editor/">
     <Project Path="src/Editor/ArcNET.Editor/ArcNET.Editor.csproj" />
     <Project Path="src/Editor/ArcNET.Editor.Tests/ArcNET.Editor.Tests.csproj" />
   </Folder>
 </Solution>
+

@@ -1,4 +1,4 @@
-﻿using ArcNET.Dumpers;
+using ArcNET.Diagnostics;
 using ArcNET.Formats;
 using ConsoleAppFramework;
 
