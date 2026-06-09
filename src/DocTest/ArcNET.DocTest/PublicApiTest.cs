@@ -1,14 +1,13 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using System.Text;
 using ArcNET.Archive;
 using ArcNET.BinaryPatch;
 using ArcNET.Core;
-using ArcNET.Dumpers;
+using ArcNET.Diagnostics;
 using ArcNET.Editor;
 using ArcNET.Formats;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
-using ArcNET.Patch;
 using PublicApiGenerator;
 
 namespace ArcNET.DocTest;
@@ -33,10 +32,10 @@ public class PublicApiTest
             ("ArcNET.Formats", typeof(MessageFormat).Assembly.GeneratePublicApi()),
             ("ArcNET.GameObjects", typeof(GameObject).Assembly.GeneratePublicApi()),
             ("ArcNET.GameData", typeof(GameDataStore).Assembly.GeneratePublicApi()),
+            ("ArcNET.Diagnostics", typeof(EnvironmentRequest).Assembly.GeneratePublicApi()),
             ("ArcNET.Editor", typeof(EditorWorkspace).Assembly.GeneratePublicApi()),
-            ("ArcNET.Patch", typeof(PatchInstaller).Assembly.GeneratePublicApi()),
             ("ArcNET.BinaryPatch", typeof(BinaryPatcher).Assembly.GeneratePublicApi()),
-            ("ArcNET.Dumpers", typeof(SectorDumper).Assembly.GeneratePublicApi()),
+            ("ArcNET.Diagnostics.FileTime", typeof(SectorDumper).Assembly.GeneratePublicApi()),
         };
 
         var sb = new StringBuilder();
