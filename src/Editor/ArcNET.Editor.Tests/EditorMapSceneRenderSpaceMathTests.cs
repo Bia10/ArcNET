@@ -185,6 +185,89 @@ public sealed class EditorMapSceneRenderSpaceMathTests
         await Assert.That(hit.ObjectHits[0].ObjectId).IsEqualTo(objectId);
     }
 
+    [Test]
+    public async Task HitTestScene_UsesSlicedSpatialIndexForTilesStackedObjectsAndPortals()
+    {
+        var sceneryObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 43, Guid.NewGuid());
+        var portalObjectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 44, Guid.NewGuid());
+        var tile = new EditorMapFloorTileRenderItem
+        {
+            SectorAssetPath = "maps/map01/sector_1.sec",
+            MapTileX = 0,
+            MapTileY = 0,
+            Tile = new Location(0, 0),
+            ArtId = new ArtId(100u),
+            IsBlocked = false,
+            HasLight = false,
+            HasScript = false,
+            DrawOrder = 0,
+            CenterX = 64d,
+            CenterY = 64d,
+        };
+        var scenery = CreateSlicedHitObject(sceneryObjectId, ObjectType.Scenery, drawOrder: 1);
+        var portal = CreateSlicedHitObject(portalObjectId, ObjectType.Portal, drawOrder: 2);
+        var slice = new EditorMapSectorRenderSlice
+        {
+            SectorAssetPath = "maps/map01/sector_1.sec",
+            Revision = 7,
+            Bounds = new EditorMapSectorRenderSliceBounds(0d, 0d, 128d, 128d, 0, 0, 0, 0),
+            Queue =
+            [
+                new EditorMapRenderIndexEntry(EditorMapRenderQueueItemKind.FloorTile, 0, 0d, 0),
+                new EditorMapRenderIndexEntry(EditorMapRenderQueueItemKind.Object, 0, 1d, 1),
+                new EditorMapRenderIndexEntry(EditorMapRenderQueueItemKind.Object, 1, 2d, 2),
+            ],
+            Tiles = [tile],
+            Objects = [scenery, portal],
+        };
+        var sceneRender = new EditorMapFloorRenderPreview
+        {
+            MapName = "map01",
+            ViewMode = EditorMapSceneViewMode.TopDown,
+            TileWidthPixels = 64d,
+            TileHeightPixels = 64d,
+            WidthPixels = 128d,
+            HeightPixels = 128d,
+            SceneRevision = 1,
+            Slices = [slice],
+            TileOrderMap = [EditorMapFloorRenderPreview.PackSliceItemIndex(0, 0)],
+            ObjectOrderMap =
+            [
+                EditorMapFloorRenderPreview.PackSliceItemIndex(0, 0),
+                EditorMapFloorRenderPreview.PackSliceItemIndex(0, 1),
+            ],
+            RenderQueueOrderMap =
+            [
+                EditorMapFloorRenderPreview.PackSliceItemIndex(0, 0),
+                EditorMapFloorRenderPreview.PackSliceItemIndex(0, 1),
+                EditorMapFloorRenderPreview.PackSliceItemIndex(0, 2),
+            ],
+        };
+        var viewportState = EditorMapSceneRenderSpaceMath.CreateViewportState(
+            sceneRender,
+            new EditorProjectMapCameraState
+            {
+                CenterTileX = 0d,
+                CenterTileY = 0d,
+                Zoom = 1d,
+            }
+        );
+        var layout = EditorMapSceneRenderSpaceMath.CreateViewportLayout(
+            sceneRender,
+            viewportWidth: 128d,
+            viewportHeight: 128d,
+            viewportState
+        );
+
+        var hit = EditorMapSceneRenderSpaceMath.HitTestScene(sceneRender, layout, viewportX: 64d, viewportY: 64d);
+
+        await Assert.That(hit).IsNotNull();
+        await Assert.That(hit!.Tile).IsEqualTo(new Location(0, 0));
+        await Assert.That(hit.ObjectHits.Count).IsEqualTo(2);
+        await Assert.That(hit.ObjectHits[0].ObjectId).IsEqualTo(sceneryObjectId);
+        await Assert.That(hit.ObjectHits[1].ObjectId).IsEqualTo(portalObjectId);
+    }
+
     private static EditorMapFloorRenderPreview CreateIsometricSceneRender()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 41, Guid.NewGuid());
@@ -253,6 +336,30 @@ public sealed class EditorMapSceneRenderSpaceMathTests
             RenderQueue = [],
         };
     }
+
+    private static EditorMapObjectRenderItem CreateSlicedHitObject(
+        GameObjectGuid objectId,
+        ObjectType objectType,
+        int drawOrder
+    ) =>
+        new()
+        {
+            SectorAssetPath = "maps/map01/sector_1.sec",
+            SourceObjectIndex = drawOrder,
+            ObjectId = objectId,
+            ProtoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 1000 + drawOrder, Guid.Empty),
+            ObjectType = objectType,
+            CurrentArtId = new ArtId(200u + (uint)drawOrder),
+            MapTileX = 0,
+            MapTileY = 0,
+            Tile = new Location(0, 0),
+            DrawOrder = drawOrder,
+            AnchorX = 64d,
+            AnchorY = 64d,
+            IsTileGridSnapped = true,
+            Rotation = 0f,
+            RotationPitch = 0f,
+        };
 
     private static EditorMapFloorRenderPreview CreateTopDownSceneRender() =>
         new()

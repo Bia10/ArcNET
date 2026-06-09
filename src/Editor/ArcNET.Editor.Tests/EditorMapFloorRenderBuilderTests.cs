@@ -365,6 +365,23 @@ public sealed class EditorMapFloorRenderBuilderTests
                 ),
             ],
         };
+        var sectorC = new EditorMapSectorScenePreview
+        {
+            AssetPath = "maps/map01/sector_c.sec",
+            SectorX = 3,
+            SectorY = 0,
+            LocalX = 3,
+            LocalY = 0,
+            PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+            ObjectDensityBand = EditorMapSectorDensityBand.None,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            TileArtIds = CreateFilledMapTileArtIds(300u),
+            RoofArtIds = null,
+            BlockMask = new uint[128],
+            Lights = [],
+            TileScripts = [],
+            Objects = [],
+        };
 
         var updatedTileArtIds = CreateFilledMapTileArtIds(200u);
         updatedTileArtIds[63 * 64] = 250u;
@@ -423,8 +440,8 @@ public sealed class EditorMapFloorRenderBuilderTests
             ],
         };
 
-        var initialScenePreview = CreateScenePreview(sectorA, sectorBInitial);
-        var updatedScenePreview = CreateScenePreview(sectorA, sectorBUpdated);
+        var initialScenePreview = CreateScenePreview(sectorA, sectorBInitial, sectorC);
+        var updatedScenePreview = CreateScenePreview(sectorA, sectorBUpdated, sectorC);
         var request = EditorMapFloorRenderRequest.CreateWorldEditPreset();
 
         var initialPreview = EditorMapFloorRenderBuilder.Build(initialScenePreview, request);
@@ -436,6 +453,21 @@ public sealed class EditorMapFloorRenderBuilderTests
         );
         var fullPreview = EditorMapFloorRenderBuilder.Build(updatedScenePreview, request);
 
+        var initialSectorCSlice = initialPreview.Slices.Single(slice =>
+            string.Equals(slice.SectorAssetPath, sectorC.AssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        var deltaSectorCSlice = deltaPreview.Slices.Single(slice =>
+            string.Equals(slice.SectorAssetPath, sectorC.AssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        var initialSectorBSlice = initialPreview.Slices.Single(slice =>
+            string.Equals(slice.SectorAssetPath, sectorBInitial.AssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+        var deltaSectorBSlice = deltaPreview.Slices.Single(slice =>
+            string.Equals(slice.SectorAssetPath, sectorBUpdated.AssetPath, StringComparison.OrdinalIgnoreCase)
+        );
+
+        await Assert.That(deltaSectorCSlice.Revision).IsEqualTo(initialSectorCSlice.Revision);
+        await Assert.That(deltaSectorBSlice.Revision).IsNotEqualTo(initialSectorBSlice.Revision);
         await AssertPreviewEquivalent(fullPreview, deltaPreview);
     }
 

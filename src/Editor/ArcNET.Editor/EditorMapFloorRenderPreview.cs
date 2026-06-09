@@ -19,6 +19,7 @@ public sealed class EditorMapFloorRenderPreview
     private IReadOnlyDictionary<GameObjectGuid, EditorMapObjectRenderItem>? _objectsById;
     private IReadOnlyDictionary<GameObjectGuid, int>? _objectDrawOrderById;
     private IReadOnlyList<EditorMapSectorRenderSliceBounds>? _sectorBounds;
+    private EditorMapRenderSpatialIndex? _spatialIndex;
 
     /// <summary>
     /// Map name that owns the rendered floor preview.
@@ -49,6 +50,12 @@ public sealed class EditorMapFloorRenderPreview
     /// Total normalized preview height in pixels.
     /// </summary>
     public required double HeightPixels { get; init; }
+
+    /// <summary>
+    /// Stable content revision for the committed render scene. Hosts can key retained rendering by this value;
+    /// camera-only changes must not affect it.
+    /// </summary>
+    public long SceneRevision { get; init; }
 
     /// <summary>
     /// Canonical slice-backed committed scene payloads grouped by sector.
@@ -243,6 +250,9 @@ public sealed class EditorMapFloorRenderPreview
         ObjectAuxiliaryOrderMap.Count > 0 ? ObjectAuxiliaryOrderMap.Count : ObjectAuxiliaryItems.Count;
 
     public int RenderQueueCount => RenderQueueOrderMap.Count > 0 ? RenderQueueOrderMap.Count : RenderQueue.Count;
+
+    internal EditorMapRenderSpatialIndex GetOrCreateSpatialIndex() =>
+        _spatialIndex ??= EditorMapRenderSpatialIndex.Build(this);
 
     public bool TryGetTile(string sectorAssetPath, Location tile, out EditorMapFloorTileRenderItem? item)
     {

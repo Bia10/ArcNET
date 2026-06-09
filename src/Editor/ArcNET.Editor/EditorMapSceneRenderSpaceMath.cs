@@ -264,114 +264,18 @@ public static class EditorMapSceneRenderSpaceMath
         var renderX = ViewportToRenderX(layout, viewportX);
         var renderY = ViewportToRenderY(layout, viewportY);
 
-        EditorMapFloorTileRenderItem? hitTile = null;
         var tilePoint = UnprojectMapTile(sceneRender, renderX, renderY);
         var mapTileX = (int)Math.Round(tilePoint.MapTileX, MidpointRounding.AwayFromZero);
         var mapTileY = (int)Math.Round(tilePoint.MapTileY, MidpointRounding.AwayFromZero);
 
-        if (sceneRender.Slices.Count > 0)
+        if (
+            !sceneRender
+                .GetOrCreateSpatialIndex()
+                .TryHitTest(renderX, renderY, mapTileX, mapTileY, out var hitTile, out var objectHits)
+            || hitTile is null
+        )
         {
-            for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
-            {
-                var slice = sceneRender.Slices[sliceIndex];
-                if (
-                    mapTileX >= slice.Bounds.MinMapTileX
-                    && mapTileX <= slice.Bounds.MaxMapTileX
-                    && mapTileY >= slice.Bounds.MinMapTileY
-                    && mapTileY <= slice.Bounds.MaxMapTileY
-                )
-                {
-                    if (slice.Tiles.Count > 0)
-                    {
-                        var refTile = slice.Tiles[0];
-                        var sectorStartX = refTile.MapTileX - refTile.Tile.X;
-                        var sectorStartY = refTile.MapTileY - refTile.Tile.Y;
-                        var localX = mapTileX - sectorStartX;
-                        var localY = mapTileY - sectorStartY;
-
-                        if (localX >= 0 && localX < 64 && localY >= 0 && localY < 64)
-                        {
-                            var localLocation = new Location((short)localX, (short)localY);
-                            if (slice.TryGetTile(localLocation, out var tile) && tile is not null)
-                            {
-                                if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
-                                {
-                                    if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
-                                    {
-                                        hitTile = tile;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (var index = 0; index < sceneRender.Tiles.Count; index++)
-            {
-                var tile = sceneRender.Tiles[index];
-                if (ContainsRenderPoint(sceneRender, tile, renderX, renderY))
-                {
-                    if (hitTile is null || tile.DrawOrder > hitTile.DrawOrder)
-                    {
-                        hitTile = tile;
-                    }
-                }
-            }
-        }
-
-        if (hitTile is null)
             return null;
-
-        List<EditorMapObjectRenderItem>? objectHitsList = null;
-        if (sceneRender.Slices.Count > 0)
-        {
-            for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
-            {
-                var slice = sceneRender.Slices[sliceIndex];
-                if (
-                    renderX >= slice.Bounds.Left
-                    && renderX <= slice.Bounds.Right
-                    && renderY >= slice.Bounds.Top
-                    && renderY <= slice.Bounds.Bottom
-                )
-                {
-                    for (var objIndex = 0; objIndex < slice.Objects.Count; objIndex++)
-                    {
-                        var obj = slice.Objects[objIndex];
-                        if (ContainsRenderPoint(obj, renderX, renderY))
-                        {
-                            objectHitsList ??= [];
-                            objectHitsList.Add(obj);
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (var index = 0; index < sceneRender.Objects.Count; index++)
-            {
-                var obj = sceneRender.Objects[index];
-                if (ContainsRenderPoint(obj, renderX, renderY))
-                {
-                    objectHitsList ??= [];
-                    objectHitsList.Add(obj);
-                }
-            }
-        }
-
-        IReadOnlyList<EditorMapObjectRenderItem> objectHits;
-        if (objectHitsList is not null)
-        {
-            objectHitsList.Sort(static (a, b) => a.DrawOrder.CompareTo(b.DrawOrder));
-            objectHits = objectHitsList;
-        }
-        else
-        {
-            objectHits = [];
         }
 
         return new EditorMapRenderHit
@@ -431,7 +335,7 @@ public static class EditorMapSceneRenderSpaceMath
         return new EditorMapTilePoint(sampleTile.MapTileX + deltaX, sampleTile.MapTileY + deltaY);
     }
 
-    private static bool ContainsRenderPoint(
+    internal static bool ContainsRenderPoint(
         EditorMapFloorRenderPreview sceneRender,
         EditorMapFloorTileRenderItem tile,
         double renderX,
@@ -456,7 +360,7 @@ public static class EditorMapSceneRenderSpaceMath
         };
     }
 
-    private static bool ContainsRenderPoint(EditorMapObjectRenderItem obj, double renderX, double renderY)
+    internal static bool ContainsRenderPoint(EditorMapObjectRenderItem obj, double renderX, double renderY)
     {
         var spriteBounds = obj.SpriteBounds;
         if (spriteBounds is null)

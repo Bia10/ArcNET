@@ -38,6 +38,12 @@ public sealed class EditorMapSectorRenderSlice
 
     public required string SectorAssetPath { get; init; }
 
+    /// <summary>
+    /// Stable content revision for this slice. Hosts can key retained rendering by this value;
+    /// camera changes must not affect it.
+    /// </summary>
+    public long Revision { get; init; }
+
     public required EditorMapSectorRenderSliceBounds Bounds { get; init; }
 
     public required IReadOnlyList<EditorMapRenderIndexEntry> Queue { get; init; }

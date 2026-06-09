@@ -232,10 +232,26 @@ public static class EditorMapFloorRenderBuilder
         public List<EditorMapLightRenderItem> Lights { get; } = [];
         public List<EditorMapRenderIndexEntry> Queue { get; } = [];
 
-        public EditorMapSectorRenderSlice Build(EditorMapSectorRenderSliceBounds bounds) =>
+        public EditorMapSectorRenderSlice Build(
+            EditorMapSectorRenderSliceBounds bounds,
+            long? revisionOverride = null
+        ) =>
             new()
             {
                 SectorAssetPath = SectorAssetPath,
+                Revision =
+                    revisionOverride
+                    ?? ComputeSliceRevision(
+                        SectorAssetPath,
+                        bounds,
+                        Queue,
+                        Tiles,
+                        Overlays,
+                        Objects,
+                        ObjectAuxiliaryItems,
+                        Roofs,
+                        Lights
+                    ),
                 Bounds = bounds,
                 Queue = [.. Queue],
                 Tiles = [.. Tiles],
@@ -358,6 +374,322 @@ public static class EditorMapFloorRenderBuilder
                 MaxMapTileY: maxMapTileY
             );
         }
+    }
+
+    private static long ComputeSliceRevision(
+        string sectorAssetPath,
+        EditorMapSectorRenderSliceBounds bounds,
+        IReadOnlyList<EditorMapRenderIndexEntry> queue,
+        IReadOnlyList<EditorMapFloorTileRenderItem> tiles,
+        IReadOnlyList<EditorMapTileOverlayRenderItem> overlays,
+        IReadOnlyList<EditorMapObjectRenderItem> objects,
+        IReadOnlyList<EditorMapObjectAuxiliaryRenderItem> objectAuxiliaryItems,
+        IReadOnlyList<EditorMapRoofRenderItem> roofs,
+        IReadOnlyList<EditorMapLightRenderItem> lights
+    )
+    {
+        var hash = new StableRevisionHash();
+        hash.Add(sectorAssetPath);
+        hash.Add(bounds.Left);
+        hash.Add(bounds.Top);
+        hash.Add(bounds.Width);
+        hash.Add(bounds.Height);
+        hash.Add(bounds.MinMapTileX);
+        hash.Add(bounds.MinMapTileY);
+        hash.Add(bounds.MaxMapTileX);
+        hash.Add(bounds.MaxMapTileY);
+
+        hash.Add(queue.Count);
+        for (var index = 0; index < queue.Count; index++)
+        {
+            var entry = queue[index];
+            hash.Add((int)entry.Kind);
+            hash.Add(entry.PayloadIndex);
+            hash.Add(entry.SortKey);
+            hash.Add(entry.DrawOrder);
+        }
+
+        hash.Add(tiles.Count);
+        for (var index = 0; index < tiles.Count; index++)
+            AddTileRevision(ref hash, tiles[index]);
+
+        hash.Add(overlays.Count);
+        for (var index = 0; index < overlays.Count; index++)
+            AddOverlayRevision(ref hash, overlays[index]);
+
+        hash.Add(objects.Count);
+        for (var index = 0; index < objects.Count; index++)
+            AddObjectRevision(ref hash, objects[index]);
+
+        hash.Add(objectAuxiliaryItems.Count);
+        for (var index = 0; index < objectAuxiliaryItems.Count; index++)
+            AddAuxiliaryRevision(ref hash, objectAuxiliaryItems[index]);
+
+        hash.Add(roofs.Count);
+        for (var index = 0; index < roofs.Count; index++)
+            AddRoofRevision(ref hash, roofs[index]);
+
+        hash.Add(lights.Count);
+        for (var index = 0; index < lights.Count; index++)
+            AddLightRevision(ref hash, lights[index]);
+
+        return hash.ToInt64();
+    }
+
+    private static long ComputeSceneRevision(
+        string mapName,
+        EditorMapFloorRenderRequest request,
+        IReadOnlyList<EditorMapSectorRenderSlice> slices,
+        double widthPixels,
+        double heightPixels
+    )
+    {
+        var hash = new StableRevisionHash();
+        hash.Add(mapName);
+        hash.Add((int)request.ViewMode);
+        hash.Add(request.TileWidthPixels);
+        hash.Add(request.TileHeightPixels);
+        hash.Add(widthPixels);
+        hash.Add(heightPixels);
+        hash.Add(request.IncludeEditorObjectStateTint);
+        hash.Add(request.IncludeFloorLightTint);
+        hash.Add(request.AmbientLighting?.ToString());
+        hash.Add(slices.Count);
+        for (var index = 0; index < slices.Count; index++)
+        {
+            var slice = slices[index];
+            hash.Add(slice.SectorAssetPath);
+            hash.Add(slice.Bounds.Left);
+            hash.Add(slice.Bounds.Top);
+            hash.Add(slice.Bounds.Width);
+            hash.Add(slice.Bounds.Height);
+            hash.Add(slice.Bounds.MinMapTileX);
+            hash.Add(slice.Bounds.MinMapTileY);
+            hash.Add(slice.Bounds.MaxMapTileX);
+            hash.Add(slice.Bounds.MaxMapTileY);
+        }
+
+        return hash.ToInt64();
+    }
+
+    private static void AddTileRevision(ref StableRevisionHash hash, EditorMapFloorTileRenderItem tile)
+    {
+        hash.Add(tile.SectorAssetPath);
+        hash.Add(tile.MapTileX);
+        hash.Add(tile.MapTileY);
+        hash.Add(tile.Tile.X);
+        hash.Add(tile.Tile.Y);
+        hash.Add(tile.ArtId.Value);
+        hash.Add(tile.IsBlocked);
+        hash.Add(tile.HasLight);
+        hash.Add(tile.HasScript);
+        hash.Add(tile.DrawOrder);
+        hash.Add(tile.CenterX);
+        hash.Add(tile.CenterY);
+        hash.Add(tile.SuggestedTintColor);
+        if (tile.LightDiagnostics is { } diagnostics)
+        {
+            hash.Add(true);
+            hash.Add(diagnostics.TopLeft);
+            hash.Add(diagnostics.TopCenter);
+            hash.Add(diagnostics.TopRight);
+            hash.Add(diagnostics.MiddleLeft);
+            hash.Add(diagnostics.MiddleCenter);
+            hash.Add(diagnostics.MiddleRight);
+            hash.Add(diagnostics.BottomLeft);
+            hash.Add(diagnostics.BottomCenter);
+            hash.Add(diagnostics.BottomRight);
+        }
+        else
+        {
+            hash.Add(false);
+        }
+    }
+
+    private static void AddOverlayRevision(ref StableRevisionHash hash, EditorMapTileOverlayRenderItem overlay)
+    {
+        hash.Add(overlay.SectorAssetPath);
+        hash.Add(overlay.MapTileX);
+        hash.Add(overlay.MapTileY);
+        hash.Add(overlay.Tile.X);
+        hash.Add(overlay.Tile.Y);
+        hash.Add((int)overlay.Kind);
+        hash.Add(overlay.DrawOrder);
+        hash.Add(overlay.CenterX);
+        hash.Add(overlay.CenterY);
+        hash.Add(overlay.SuggestedOpacity);
+        hash.Add(overlay.SuggestedTintColor);
+    }
+
+    private static void AddObjectRevision(ref StableRevisionHash hash, EditorMapObjectRenderItem obj)
+    {
+        hash.Add(obj.SectorAssetPath);
+        hash.Add(obj.SourceObjectIndex ?? -1);
+        hash.Add(obj.ObjectId.ToString());
+        hash.Add(obj.ProtoId.ToString());
+        hash.Add((int)obj.ObjectType);
+        hash.Add(obj.CommittedRenderLayer.HasValue);
+        hash.Add(obj.CommittedRenderLayer is { } committedLayer ? (int)committedLayer : -1);
+        hash.Add(obj.CurrentArtId.Value);
+        hash.Add(obj.Flags.ToString());
+        hash.Add(obj.WallFlags);
+        hash.Add(obj.SceneryFlags.ToString());
+        hash.Add(obj.MapTileX);
+        hash.Add(obj.MapTileY);
+        hash.Add(obj.Tile.X);
+        hash.Add(obj.Tile.Y);
+        hash.Add(obj.DrawOrder);
+        hash.Add(obj.SameTileOrder);
+        hash.Add(obj.IsDead);
+        hash.Add(obj.AnchorX);
+        hash.Add(obj.AnchorY);
+        AddSpriteBoundsRevision(ref hash, obj.SpriteBounds);
+        hash.Add(obj.IsTileGridSnapped);
+        hash.Add(obj.Rotation);
+        hash.Add(obj.RotationIndex);
+        hash.Add(obj.BlitScale);
+        hash.Add(obj.BlitFlags);
+        hash.Add(obj.BlitColor);
+        hash.Add(obj.BlitAlpha);
+        hash.Add(obj.IsShrunk);
+        hash.Add(obj.RotationPitch);
+        hash.Add(obj.IsRoofCovered);
+        hash.Add(obj.IsIndoorTile);
+        hash.Add(obj.LightFlags);
+        hash.Add(obj.LightAid.Value);
+        hash.Add(obj.LightColor?.ToString());
+    }
+
+    private static void AddAuxiliaryRevision(ref StableRevisionHash hash, EditorMapObjectAuxiliaryRenderItem auxiliary)
+    {
+        hash.Add(auxiliary.SectorAssetPath);
+        hash.Add(auxiliary.ParentObjectId.ToString());
+        hash.Add((int)auxiliary.ParentObjectType);
+        hash.Add((int)auxiliary.CommittedRenderLayer);
+        hash.Add(auxiliary.ArtId.Value);
+        hash.Add((int)auxiliary.Layer);
+        hash.Add(auxiliary.MapTileX);
+        hash.Add(auxiliary.MapTileY);
+        hash.Add(auxiliary.Tile.X);
+        hash.Add(auxiliary.Tile.Y);
+        hash.Add(auxiliary.DrawOrder);
+        hash.Add(auxiliary.AnchorX);
+        hash.Add(auxiliary.AnchorY);
+        hash.Add(auxiliary.UseLightMaskTint);
+        hash.Add(auxiliary.SuggestedTintColor);
+        hash.Add(auxiliary.RotationIndex);
+        hash.Add(auxiliary.ScalePercent);
+        hash.Add(auxiliary.IsShrunk);
+        hash.Add((int)auxiliary.BlendMode);
+        hash.Add(auxiliary.IsRoofCovered);
+    }
+
+    private static void AddRoofRevision(ref StableRevisionHash hash, EditorMapRoofRenderItem roof)
+    {
+        hash.Add(roof.SectorAssetPath);
+        hash.Add(roof.RoofCell.X);
+        hash.Add(roof.RoofCell.Y);
+        hash.Add(roof.MapTileX);
+        hash.Add(roof.MapTileY);
+        hash.Add(roof.ArtId.Value);
+        hash.Add(roof.DrawOrder);
+        hash.Add(roof.AnchorX);
+        hash.Add(roof.AnchorY);
+    }
+
+    private static void AddLightRevision(ref StableRevisionHash hash, EditorMapLightRenderItem light)
+    {
+        hash.Add(light.SectorAssetPath);
+        hash.Add(light.MapTileX);
+        hash.Add(light.MapTileY);
+        hash.Add(light.Tile.X);
+        hash.Add(light.Tile.Y);
+        hash.Add(light.ArtId.Value);
+        hash.Add(light.DrawOrder);
+        hash.Add(light.AnchorX);
+        hash.Add(light.AnchorY);
+        hash.Add(light.SuggestedTintColor);
+        hash.Add(light.SuggestedOpacity);
+        hash.Add((int)light.Flags);
+    }
+
+    private static void AddSpriteBoundsRevision(ref StableRevisionHash hash, EditorMapObjectSpriteBounds? bounds)
+    {
+        if (bounds is null)
+        {
+            hash.Add(false);
+            return;
+        }
+
+        hash.Add(true);
+        hash.Add(bounds.MaxFrameWidth);
+        hash.Add(bounds.MaxFrameHeight);
+        hash.Add(bounds.MaxFrameCenterX);
+        hash.Add(bounds.MaxFrameCenterY);
+    }
+
+    private struct StableRevisionHash
+    {
+        private const ulong OffsetBasis = 14695981039346656037UL;
+        private const ulong Prime = 1099511628211UL;
+        private ulong _value = OffsetBasis;
+
+        public StableRevisionHash() { }
+
+        public void Add(bool value) => Add(value ? 1 : 0);
+
+        public void Add(int value) => Add((long)value);
+
+        public void Add(short value) => Add((int)value);
+
+        public void Add(uint value) => Add((long)value);
+
+        public void Add(long value)
+        {
+            unchecked
+            {
+                var unsigned = (ulong)value;
+                for (var index = 0; index < sizeof(ulong); index++)
+                {
+                    _value ^= (byte)(unsigned >> (index * 8));
+                    _value *= Prime;
+                }
+            }
+        }
+
+        public void Add(float value) => Add(BitConverter.SingleToInt32Bits(value));
+
+        public void Add(double value) => Add(BitConverter.DoubleToInt64Bits(value));
+
+        public void Add(uint? value)
+        {
+            Add(value.HasValue);
+            if (value is { } resolvedValue)
+                Add(resolvedValue);
+        }
+
+        public void Add(string? value)
+        {
+            if (value is null)
+            {
+                Add(-1);
+                return;
+            }
+
+            Add(value.Length);
+            unchecked
+            {
+                foreach (var character in value)
+                {
+                    _value ^= (byte)character;
+                    _value *= Prime;
+                    _value ^= (byte)(character >> 8);
+                    _value *= Prime;
+                }
+            }
+        }
+
+        public long ToInt64() => unchecked((long)_value);
     }
 
     private sealed class SceneSectorLookup(
@@ -596,6 +928,7 @@ public static class EditorMapFloorRenderBuilder
         var sectorBoundsByAssetPath = new Dictionary<string, EditorMapSectorRenderSliceBounds>(
             StringComparer.OrdinalIgnoreCase
         );
+        var preservedSliceRevisionsByAssetPath = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         for (var sliceIndex = 0; sliceIndex < existingPreview.Slices.Count; sliceIndex++)
         {
             var slice = existingPreview.Slices[sliceIndex];
@@ -603,6 +936,7 @@ public static class EditorMapFloorRenderBuilder
                 continue;
 
             sectorBoundsByAssetPath[slice.SectorAssetPath] = slice.Bounds;
+            preservedSliceRevisionsByAssetPath[slice.SectorAssetPath] = slice.Revision;
         }
 
         var retainedTiles = RemoveSectorItems(existingPreview.Tiles, affectedSectorAssetPaths);
@@ -733,7 +1067,8 @@ public static class EditorMapFloorRenderBuilder
             minLeft,
             maxRight,
             minTop,
-            maxBottom
+            maxBottom,
+            preservedSliceRevisionsByAssetPath
         );
     }
 
@@ -1900,6 +2235,7 @@ public static class EditorMapFloorRenderBuilder
             TileHeightPixels = request.TileHeightPixels,
             WidthPixels = 0d,
             HeightPixels = 0d,
+            SceneRevision = ComputeSceneRevision(mapName, request, [], 0d, 0d),
             Slices = [],
             TileOrderMap = [],
             ObjectOrderMap = [],
@@ -2288,7 +2624,8 @@ public static class EditorMapFloorRenderBuilder
         double minLeft,
         double maxRight,
         double minTop,
-        double maxBottom
+        double maxBottom,
+        IReadOnlyDictionary<string, long>? preservedSliceRevisionsByAssetPath = null
     )
     {
         var finalLights = new EditorMapLightRenderItem[rawLights.Count];
@@ -2656,9 +2993,18 @@ public static class EditorMapFloorRenderBuilder
                     MaxMapTileY: sectorBounds.MaxMapTileY
                 )
                 : fallbackBounds;
-            slices[sliceIndex] = sliceBuilder.Build(bounds);
+            var revisionOverride =
+                preservedSliceRevisionsByAssetPath is not null
+                && preservedSliceRevisionsByAssetPath.TryGetValue(
+                    sliceBuilder.SectorAssetPath,
+                    out var preservedRevision
+                )
+                    ? preservedRevision
+                    : (long?)null;
+            slices[sliceIndex] = sliceBuilder.Build(bounds, revisionOverride);
         }
 
+        var sceneRevision = ComputeSceneRevision(mapName, request, slices, maxRight - minLeft, maxBottom - minTop);
         return new EditorMapFloorRenderPreview
         {
             MapName = mapName,
@@ -2667,6 +3013,7 @@ public static class EditorMapFloorRenderBuilder
             TileHeightPixels = request.TileHeightPixels,
             WidthPixels = maxRight - minLeft,
             HeightPixels = maxBottom - minTop,
+            SceneRevision = sceneRevision,
             Slices = slices,
             TileOrderMap = tileOrderMap,
             ObjectOrderMap = objectOrderMap,
