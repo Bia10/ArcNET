@@ -1,4 +1,4 @@
-# ArcNET Public API
+﻿# ArcNET Public API
 
 ## ArcNET.Core
 
@@ -2842,6 +2842,74 @@ namespace ArcNET.Diagnostics
         public int ProcessId { get; init; }
         public string ProcessName { get; init; }
     }
+    public sealed class AttachedSessionSnapshot : System.IEquatable<ArcNET.Diagnostics.AttachedSessionSnapshot>
+    {
+        public AttachedSessionSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.SessionOrigin Origin, string DisplayName, string Summary, string Detail, string ProcessName, int ProcessId, bool HasExited, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
+        public string Detail { get; init; }
+        public string DisplayName { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool HasExited { get; init; }
+        public ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public ArcNET.Diagnostics.SessionOrigin Origin { get; init; }
+        public int ProcessId { get; init; }
+        public string ProcessName { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+        public string Summary { get; init; }
+    }
+    public sealed class AuditRequest : System.IEquatable<ArcNET.Diagnostics.AuditRequest>
+    {
+        public AuditRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, bool IncludeDispatcher, bool IncludeFunctions, bool IncludeHooks, System.Collections.Generic.IReadOnlyList<string> HookSelectors, System.TimeSpan HookDuration, bool IncludeWatchPass, bool IncludeInterceptPass, int StackCaptureDwordCount, bool StopOnFailure) { }
+        public System.TimeSpan HookDuration { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> HookSelectors { get; init; }
+        public bool IncludeDispatcher { get; init; }
+        public bool IncludeFunctions { get; init; }
+        public bool IncludeHooks { get; init; }
+        public bool IncludeInterceptPass { get; init; }
+        public bool IncludeWatchPass { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public int StackCaptureDwordCount { get; init; }
+        public bool StopOnFailure { get; init; }
+    }
+    public sealed class AuditSnapshot : System.IEquatable<ArcNET.Diagnostics.AuditSnapshot>
+    {
+        public AuditSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.DispatcherAuditSnapshot? Dispatcher, ArcNET.Diagnostics.FunctionAuditSnapshot? Functions, ArcNET.Diagnostics.HookAuditSnapshot? Hooks, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public ArcNET.Diagnostics.DispatcherAuditSnapshot? Dispatcher { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
+        public ArcNET.Diagnostics.FunctionAuditSnapshot? Functions { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public ArcNET.Diagnostics.HookAuditSnapshot? Hooks { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+    }
+    public sealed class BackgroundLogbookPageSnapshot : System.IEquatable<ArcNET.Diagnostics.BackgroundLogbookPageSnapshot>
+    {
+        public BackgroundLogbookPageSnapshot(int BackgroundId, int BackgroundTextId, string? Name, string? Body, string? CatalogName, string? CatalogBody, ArcNET.Diagnostics.NativeReadSnapshot BackgroundRead, ArcNET.Diagnostics.NativeReadSnapshot BackgroundTextRead) { }
+        public int BackgroundId { get; init; }
+        public ArcNET.Diagnostics.NativeReadSnapshot BackgroundRead { get; init; }
+        public int BackgroundTextId { get; init; }
+        public ArcNET.Diagnostics.NativeReadSnapshot BackgroundTextRead { get; init; }
+        public string? Body { get; init; }
+        public string? CatalogBody { get; init; }
+        public string? CatalogName { get; init; }
+        public string? Name { get; init; }
+    }
+    public readonly struct BlessingCurseLogbookEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot>
+    {
+        public BlessingCurseLogbookEntrySnapshot(string Kind, int Id, ArcNET.Diagnostics.GameDateTimeSnapshot DateTime, string Name) { }
+        public ArcNET.Diagnostics.GameDateTimeSnapshot DateTime { get; init; }
+        public int Id { get; init; }
+        public string Kind { get; init; }
+        public string Name { get; init; }
+    }
+    public sealed class BlessingCurseLogbookPageSnapshot : System.IEquatable<ArcNET.Diagnostics.BlessingCurseLogbookPageSnapshot>
+    {
+        public BlessingCurseLogbookPageSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot> Entries, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.NativeReadSnapshot> NativeReads) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot> Entries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.NativeReadSnapshot> NativeReads { get; init; }
+    }
     public sealed class CeSourceAuditAreaSummary : System.IEquatable<ArcNET.Diagnostics.CeSourceAuditAreaSummary>
     {
         public CeSourceAuditAreaSummary(string Area, int FunctionCount, int CoveredCount, int MissingCount, int UniqueSymbolCount) { }
@@ -2959,74 +3027,6 @@ namespace ArcNET.Diagnostics
         public int ProcessId { get; init; }
         public string ProcessName { get; init; }
     }
-    public sealed class AttachedSessionSnapshot : System.IEquatable<ArcNET.Diagnostics.AttachedSessionSnapshot>
-    {
-        public AttachedSessionSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.SessionOrigin Origin, string DisplayName, string Summary, string Detail, string ProcessName, int ProcessId, bool HasExited, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview, System.Collections.Generic.IReadOnlyList<string> Notes) { }
-        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
-        public string Detail { get; init; }
-        public string DisplayName { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
-        public System.DateTimeOffset GeneratedAtUtc { get; init; }
-        public bool HasExited { get; init; }
-        public ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
-        public ArcNET.Diagnostics.SessionOrigin Origin { get; init; }
-        public int ProcessId { get; init; }
-        public string ProcessName { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
-        public string Summary { get; init; }
-    }
-    public sealed class AuditRequest : System.IEquatable<ArcNET.Diagnostics.AuditRequest>
-    {
-        public AuditRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, bool IncludeDispatcher, bool IncludeFunctions, bool IncludeHooks, System.Collections.Generic.IReadOnlyList<string> HookSelectors, System.TimeSpan HookDuration, bool IncludeWatchPass, bool IncludeInterceptPass, int StackCaptureDwordCount, bool StopOnFailure) { }
-        public System.TimeSpan HookDuration { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> HookSelectors { get; init; }
-        public bool IncludeDispatcher { get; init; }
-        public bool IncludeFunctions { get; init; }
-        public bool IncludeHooks { get; init; }
-        public bool IncludeInterceptPass { get; init; }
-        public bool IncludeWatchPass { get; init; }
-        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
-        public int StackCaptureDwordCount { get; init; }
-        public bool StopOnFailure { get; init; }
-    }
-    public sealed class AuditSnapshot : System.IEquatable<ArcNET.Diagnostics.AuditSnapshot>
-    {
-        public AuditSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.DispatcherAuditSnapshot? Dispatcher, ArcNET.Diagnostics.FunctionAuditSnapshot? Functions, ArcNET.Diagnostics.HookAuditSnapshot? Hooks, System.Collections.Generic.IReadOnlyList<string> Notes) { }
-        public ArcNET.Diagnostics.DispatcherAuditSnapshot? Dispatcher { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
-        public ArcNET.Diagnostics.FunctionAuditSnapshot? Functions { get; init; }
-        public System.DateTimeOffset GeneratedAtUtc { get; init; }
-        public ArcNET.Diagnostics.HookAuditSnapshot? Hooks { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
-    }
-    public sealed class BackgroundLogbookPageSnapshot : System.IEquatable<ArcNET.Diagnostics.BackgroundLogbookPageSnapshot>
-    {
-        public BackgroundLogbookPageSnapshot(int BackgroundId, int BackgroundTextId, string? Name, string? Body, string? CatalogName, string? CatalogBody, ArcNET.Diagnostics.NativeReadSnapshot BackgroundRead, ArcNET.Diagnostics.NativeReadSnapshot BackgroundTextRead) { }
-        public int BackgroundId { get; init; }
-        public ArcNET.Diagnostics.NativeReadSnapshot BackgroundRead { get; init; }
-        public int BackgroundTextId { get; init; }
-        public ArcNET.Diagnostics.NativeReadSnapshot BackgroundTextRead { get; init; }
-        public string? Body { get; init; }
-        public string? CatalogBody { get; init; }
-        public string? CatalogName { get; init; }
-        public string? Name { get; init; }
-    }
-    public readonly struct BlessingCurseLogbookEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot>
-    {
-        public BlessingCurseLogbookEntrySnapshot(string Kind, int Id, ArcNET.Diagnostics.GameDateTimeSnapshot DateTime, string Name) { }
-        public ArcNET.Diagnostics.GameDateTimeSnapshot DateTime { get; init; }
-        public int Id { get; init; }
-        public string Kind { get; init; }
-        public string Name { get; init; }
-    }
-    public sealed class BlessingCurseLogbookPageSnapshot : System.IEquatable<ArcNET.Diagnostics.BlessingCurseLogbookPageSnapshot>
-    {
-        public BlessingCurseLogbookPageSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot> Entries, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.NativeReadSnapshot> NativeReads) { }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.BlessingCurseLogbookEntrySnapshot> Entries { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.NativeReadSnapshot> NativeReads { get; init; }
-    }
     public sealed class DashboardRequest : System.IEquatable<ArcNET.Diagnostics.DashboardRequest>
     {
         public DashboardRequest(ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, bool HasModuleSymbols, System.Collections.Generic.IReadOnlyList<string> RequestedProcessNames) { }
@@ -3047,6 +3047,10 @@ namespace ArcNET.Diagnostics
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.ProbeProfile> RecommendedProbeProfiles { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> RequestedProcessNames { get; init; }
     }
+    public static class DiagnosticsCapabilityPolicy
+    {
+        public static ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Create(ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot profile, bool hasModuleSymbols = false) { }
+    }
     public sealed class DispatcherAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.DispatcherAuditSnapshot>
     {
         public DispatcherAuditSnapshot(bool Success, string? Mode, string? Site, string? Error) { }
@@ -3054,6 +3058,13 @@ namespace ArcNET.Diagnostics
         public string? Mode { get; init; }
         public string? Site { get; init; }
         public bool Success { get; init; }
+    }
+    public readonly struct DispatcherCandidateDefinition : System.IEquatable<ArcNET.Diagnostics.DispatcherCandidateDefinition>
+    {
+        public DispatcherCandidateDefinition(string Key, int Rva, string Site) { }
+        public string Key { get; init; }
+        public int Rva { get; init; }
+        public string Site { get; init; }
     }
     public sealed class EnvironmentRequest : System.IEquatable<ArcNET.Diagnostics.EnvironmentRequest>
     {
@@ -3155,6 +3166,25 @@ namespace ArcNET.Diagnostics
         public string TargetAddressText { get; init; }
         public string TargetKey { get; init; }
         public string TargetSite { get; init; }
+    }
+    public static class FunctionCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.DispatcherCandidateDefinition> DispatcherCandidates { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> KnownFunctionKeys { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.FunctionDefinition> KnownFunctions { get; }
+        public static ArcNET.Diagnostics.FunctionDefinition GetDefinition(string token) { }
+        public static bool HasKnownFunction(string token) { }
+        public static bool TryGetDefinition(string token, out ArcNET.Diagnostics.FunctionDefinition definition) { }
+    }
+    public readonly struct FunctionDefinition : System.IEquatable<ArcNET.Diagnostics.FunctionDefinition>
+    {
+        public FunctionDefinition(string Key, int Rva, string Site, string Summary, ArcNET.Diagnostics.StackCleanupMode SuggestedCleanup, string? Example) { }
+        public string? Example { get; init; }
+        public string Key { get; init; }
+        public int Rva { get; init; }
+        public string Site { get; init; }
+        public ArcNET.Diagnostics.StackCleanupMode SuggestedCleanup { get; init; }
+        public string Summary { get; init; }
     }
     public readonly struct GameDateTimeSnapshot : System.IEquatable<ArcNET.Diagnostics.GameDateTimeSnapshot>
     {
@@ -3524,6 +3554,41 @@ namespace ArcNET.Diagnostics
         public string TargetHandleText { get; init; }
         public string TargetText { get; init; }
     }
+    public sealed class ModuleSymbolEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot>
+    {
+        public ModuleSymbolEntrySnapshot(string Name, string Site, uint Rva, string RvaText, string? Address, uint Size, string SizeText, int DuplicateNameCount) { }
+        public string? Address { get; init; }
+        public int DuplicateNameCount { get; init; }
+        public string Name { get; init; }
+        public uint Rva { get; init; }
+        public string RvaText { get; init; }
+        public string Site { get; init; }
+        public uint Size { get; init; }
+        public string SizeText { get; init; }
+    }
+    public sealed class ModuleSymbolQueryRequest : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolQueryRequest>
+    {
+        public ModuleSymbolQueryRequest(string? Filter, int Limit = 100, bool DuplicatesOnly = false) { }
+        public bool DuplicatesOnly { get; init; }
+        public string? Filter { get; init; }
+        public int Limit { get; init; }
+    }
+    public sealed class ModuleSymbolQuerySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolQuerySnapshot>
+    {
+        public ModuleSymbolQuerySnapshot(System.DateTimeOffset GeneratedAtUtc, string ModulePath, string ModuleFileName, string? ModuleBase, ArcNET.Diagnostics.Contracts.RuntimeFingerprint? Fingerprint, string? Filter, int Limit, bool DuplicatesOnly, int FunctionCount, int UniqueNameCount, int DuplicateNameCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot> Symbols) { }
+        public int DuplicateNameCount { get; init; }
+        public bool DuplicatesOnly { get; init; }
+        public string? Filter { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint? Fingerprint { get; init; }
+        public int FunctionCount { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public int Limit { get; init; }
+        public string? ModuleBase { get; init; }
+        public string ModuleFileName { get; init; }
+        public string ModulePath { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot> Symbols { get; init; }
+        public int UniqueNameCount { get; init; }
+    }
     public sealed class NativeReadSnapshot : System.IEquatable<ArcNET.Diagnostics.NativeReadSnapshot>
     {
         public NativeReadSnapshot(string FunctionKey, string FunctionSite, string FunctionSummary, string DispatcherMode, string DispatcherSite, string CompletionState, int Int32Value, string ResultEaxText, string ResultEdxText) { }
@@ -3554,6 +3619,30 @@ namespace ArcNET.Diagnostics
         public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldGroupDescriptor> RecommendedGroups { get; init; }
+    }
+    public static class ObjectFieldCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldDescriptor> Fields { get; }
+        public static string ArrayElementName(int fieldId, int index) { }
+        public static string BasicSkillName(int index) { }
+        public static string CollectionName(int fieldId) { }
+        public static string DisplayName(int fieldId) { }
+        public static bool IsNoiseField(int fieldId) { }
+        public static string RawName(int fieldId) { }
+        public static string ResistanceName(int index) { }
+        public static string SpellCollegeName(int index) { }
+        public static string TechSkillName(int index) { }
+        public static string TrainingName(int training) { }
+        public static bool TryGetFieldId(string rawName, out int fieldId) { }
+    }
+    public readonly struct ObjectFieldDescriptor : System.IEquatable<ArcNET.Diagnostics.ObjectFieldDescriptor>
+    {
+        public ObjectFieldDescriptor(int FieldId, string RawName, string DisplayName, string CollectionName, bool IsNoise) { }
+        public string CollectionName { get; init; }
+        public string DisplayName { get; init; }
+        public int FieldId { get; init; }
+        public bool IsNoise { get; init; }
+        public string RawName { get; init; }
     }
     public sealed class ObjectFieldGroupDescriptor : System.IEquatable<ArcNET.Diagnostics.ObjectFieldGroupDescriptor>
     {
@@ -3612,12 +3701,25 @@ namespace ArcNET.Diagnostics
         public string Status { get; init; }
         public string Summary { get; init; }
     }
+    public static class ObjectValueFormatter
+    {
+        public static string FormatArrayInt32(int fieldId, int index, int value) { }
+        public static string FormatArrayUInt32(int fieldId, int index, uint value) { }
+        public static string FormatFieldInt32(int fieldId, int value) { }
+        public static string FormatSkillTraining(int training) { }
+    }
     public sealed class PanelDescriptor : System.IEquatable<ArcNET.Diagnostics.PanelDescriptor>
     {
         public PanelDescriptor(string Key, string DisplayName, string Description) { }
         public string Description { get; init; }
         public string DisplayName { get; init; }
         public string Key { get; init; }
+    }
+    public static class ProbeCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.ProbeProfile> Profiles { get; }
+        public static string[] ExpandSelectors(System.Collections.Generic.IEnumerable<string> tokens) { }
+        public static bool TryGetProfile(string key, out ArcNET.Diagnostics.Contracts.ProbeProfile profile) { }
     }
     public sealed class ProcessCandidateSnapshot : System.IEquatable<ArcNET.Diagnostics.ProcessCandidateSnapshot>
     {
@@ -3752,6 +3854,198 @@ namespace ArcNET.Diagnostics
         public int Intelligence { get; init; }
         public ArcNET.Diagnostics.NativeReadSnapshot NativeRead { get; init; }
         public bool UsesDumbText { get; init; }
+    }
+    public static class RuntimeProfileMatcher
+    {
+        public static ArcNET.Diagnostics.Contracts.RuntimeKind ClassifyRuntimeKind(string moduleFileName, string processName) { }
+        public static ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot Match(ArcNET.Diagnostics.Contracts.RuntimeFingerprint fingerprint, string? moduleSha256, string? hashError = null) { }
+        public static bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error) { }
+    }
+    public static class RuntimeSemanticCatalog
+    {
+        public static string AttachmentPointName(int attachmentPoint) { }
+        public static string FormatHandle(ulong handle) { }
+        public static string InventoryLocationContext(int inventoryLocation) { }
+        public static string InventoryLocationName(int inventoryLocation) { }
+        public static bool LooksLikeObjectHandle(ulong handle) { }
+        public static string StatName(int stat) { }
+    }
+    public sealed class RuntimeStatusSnapshot : System.IEquatable<ArcNET.Diagnostics.RuntimeStatusSnapshot>
+    {
+        public RuntimeStatusSnapshot(System.DateTimeOffset GeneratedAtUtc, string DisplayName, string ModulePath, string ModuleBase, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, uint? CurrentCharacterSheetId, int? ActionPoints, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public int? ActionPoints { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
+        public uint? CurrentCharacterSheetId { get; init; }
+        public string DisplayName { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public string ModuleBase { get; init; }
+        public string ModulePath { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+    }
+    public static class RuntimeWatchCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> AllHooks { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> Profiles { get; }
+        public static object DescribeCatalog() { }
+        public static ArcNET.Diagnostics.RuntimeWatchHookDefinition GetDefinition(ArcNET.Diagnostics.RuntimeWatchHookId id) { }
+        public static bool NeedsNameCatalog(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> ResolveSelectors(System.Collections.Generic.IEnumerable<string> selectors) { }
+        public static bool UsesHighVolumeHooks(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
+    }
+    public readonly struct RuntimeWatchHookDefinition : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchHookDefinition>
+    {
+        public RuntimeWatchHookDefinition(ArcNET.Diagnostics.RuntimeWatchHookId Id, string Key, string EventName, int Rva, string Site, string Area, string Description) { }
+        public string Area { get; init; }
+        public string Description { get; init; }
+        public string EventName { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchHookId Id { get; init; }
+        public string Key { get; init; }
+        public int Rva { get; init; }
+        public string Site { get; init; }
+    }
+    public enum RuntimeWatchHookId
+    {
+        LevelRecalc = 1,
+        UpdateFollowerLevel = 2,
+        StatBaseSet = 3,
+        BackgroundEducateFollowers = 4,
+        UiShowInvenLoot = 5,
+        ItemInsert = 6,
+        ItemEquipped = 7,
+        ItemForceRemove = 8,
+        ItemUnequipped = 9,
+        ObjectDestroy = 10,
+        ObjectScriptExecute = 11,
+        UiStartDialog = 12,
+        ReactionAdj = 13,
+        CritterKill = 14,
+        ScriptGlobalVarSet = 15,
+        ScriptGlobalFlagSet = 16,
+        ScriptPcVarSet = 17,
+        ScriptPcFlagSet = 18,
+        ScriptLocalFlagSet = 19,
+        ScriptLocalCounterSet = 20,
+        ScriptStoryStateSet = 21,
+        QuestStateSet = 22,
+        QuestGlobalStateSet = 23,
+        TimeEventAddDelay = 24,
+        TimeEventNotifyPcTeleported = 25,
+        MapOpenInGame = 26,
+        CombatTurnBasedWhosTurnSet = 27,
+        ObjectCreate = 28,
+        ObjFieldInt32Set = 29,
+        ObjFieldInt64Set = 30,
+        ObjFieldHandleSet = 31,
+        UiSpellAdd = 32,
+        UiSpellMaintainAdd = 33,
+        UiSpellMaintainEnd = 34,
+        TeleportDo = 35,
+        ObjArrayFieldInt32Set = 36,
+        ObjArrayFieldUInt32Set = 37,
+        ObjArrayFieldInt64Set = 38,
+        ObjArrayFieldObjSet = 39,
+        ObjArrayFieldLengthSet = 40,
+        EffectAdd = 41,
+        EffectRemoveOneTyped = 42,
+        EffectRemoveAllTyped = 43,
+        EffectRemoveOneCausedBy = 44,
+        EffectRemoveAllCausedBy = 45,
+        SpellAdd = 46,
+        SpellRemove = 47,
+        ObjArrayFieldScriptSet = 48,
+        ObjArrayFieldPcQuestSet = 49,
+        SpellCollegeLevelSet = 50,
+        EffectRemoveInternal = 51,
+        GamelibInvalidateRect = 52,
+        GamelibDraw = 53,
+        GamelibDrawGame = 54,
+        LightDraw = 55,
+        TileDraw = 56,
+        ObjectHoverDraw = 57,
+        ObjectDraw = 58,
+        RoofDraw = 59,
+        TextBubbleDraw = 60,
+        TextFloaterDraw = 61,
+        TextConversationDraw = 62,
+        TigWindowDisplay = 63,
+        TigWindowComposeDirtyRect = 64,
+        TigWindowBlitArt = 65,
+        TigWindowCopyFromVBuffer = 66,
+        TigWindowInvalidateRect = 67,
+        TigVideoFlip = 68,
+        CritterGiveXp = 69,
+        BackgroundSet = 70,
+        BackgroundClear = 71,
+        ReputationAdd = 72,
+        ReputationRemove = 73,
+        RumorQstateSet = 74,
+        RumorKnownSet = 75,
+        TechLearnSchematic = 76,
+        LogbookAddKill = 77,
+        LogbookAddInjury = 78,
+        AreaSetKnown = 79,
+        AreaResetLastKnownArea = 80,
+        BlessAdd = 81,
+        BlessRemove = 82,
+        CurseAdd = 83,
+        CurseRemove = 84,
+        WmapRndEncounterCheck = 85,
+        WmapUiEncounterStart = 86,
+        WmapLoadWorldmapInfo = 87,
+    }
+    public readonly struct RuntimeWatchProfileDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor>
+    {
+        public RuntimeWatchProfileDescriptor(string Key, string Description, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks) { }
+        public string Description { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks { get; init; }
+        public string Key { get; init; }
+    }
+    public enum RuntimeWatchTimeEventParamKind
+    {
+        None = 0,
+        Integer = 1,
+        Object = 2,
+        Location = 3,
+        Float = 4,
+    }
+    public readonly struct RuntimeWatchTimeEventTypeDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchTimeEventTypeDescriptor>
+    {
+        public RuntimeWatchTimeEventTypeDescriptor(string Name, string TimeTypeName, bool Saveable, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param0, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param1, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param2, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param3) { }
+        public string Name { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param0 { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param1 { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param2 { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param3 { get; init; }
+        public bool Saveable { get; init; }
+        public string TimeTypeName { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind ParamKind(int index) { }
+    }
+    public static class RuntimeWatchValueCatalog
+    {
+        public const int QuestBotchedModifier = 256;
+        public static string ArtBlitFlagsText(uint flags) { }
+        public static string ArtIdSummary(int artId) { }
+        public static string ArtTypeName(int artType) { }
+        public static string EffectCauseName(int cause) { }
+        public static string FallbackEffectName(int effectId) { }
+        public static string FormatGameDateTime(ulong rawValue) { }
+        public static string FormatPackedLocation(ulong rawValue) { }
+        public static bool IsNoiseTimeEventType(int type) { }
+        public static string MagicTechActionName(int action) { }
+        public static string MagicTechRunFlagsText(uint flags) { }
+        public static int QuestBaseState(int rawState) { }
+        public static bool QuestHasBotchedModifier(int rawState) { }
+        public static string QuestPcStateName(int rawState) { }
+        public static string QuestStateName(int state) { }
+        public static string QuestStateVerb(int state) { }
+        public static string ScriptFlagsText(uint flags) { }
+        public static string ScriptLocalFlagName(int flag) { }
+        public static string TeleportFlagsText(uint flags) { }
+        public static ArcNET.Diagnostics.RuntimeWatchTimeEventTypeDescriptor TimeEventDescriptor(int type) { }
+        public static string ViewTypeName(int viewType) { }
+        public static string WindowFlagsText(uint flags) { }
     }
     public sealed class ScriptAttachmentPayload : System.IEquatable<ArcNET.Diagnostics.ScriptAttachmentPayload>
     {
@@ -3920,6 +4214,11 @@ namespace ArcNET.Diagnostics
         public string TargetText { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ReadValueSnapshot> Values { get; init; }
     }
+    public enum StackCleanupMode
+    {
+        Cdecl = 0,
+        StdCall = 1,
+    }
     public sealed class TimelinePresetDescriptor : System.IEquatable<ArcNET.Diagnostics.TimelinePresetDescriptor>
     {
         public TimelinePresetDescriptor(string Key, string DisplayName, string Description, System.Collections.Generic.IReadOnlyList<string> Selectors, System.Collections.Generic.IReadOnlyList<string> HookKeys, System.Collections.Generic.IReadOnlyList<string> Areas, bool UsesHighVolumeHooks) { }
@@ -3988,6 +4287,16 @@ namespace ArcNET.Diagnostics
         public ArcNET.Diagnostics.TimelinePresetDescriptor Preset { get; init; }
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
     }
+    public sealed class WorkspacePanelWorkflowSnapshot : System.IEquatable<ArcNET.Diagnostics.WorkspacePanelWorkflowSnapshot>
+    {
+        public WorkspacePanelWorkflowSnapshot(string PanelKey, string PanelDisplayName, string PanelDescription, string ShellSurfaceText, string WorkflowTitle, string WorkflowSummary) { }
+        public string PanelDescription { get; init; }
+        public string PanelDisplayName { get; init; }
+        public string PanelKey { get; init; }
+        public string ShellSurfaceText { get; init; }
+        public string WorkflowSummary { get; init; }
+        public string WorkflowTitle { get; init; }
+    }
     public sealed class WorkspaceRequest : System.IEquatable<ArcNET.Diagnostics.WorkspaceRequest>
     {
         public WorkspaceRequest(ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, bool HasModuleSymbols, System.Collections.Generic.IReadOnlyList<string> RequestedProcessNames) { }
@@ -4003,313 +4312,15 @@ namespace ArcNET.Diagnostics
     }
     public sealed class WorkspaceSnapshot : System.IEquatable<ArcNET.Diagnostics.WorkspaceSnapshot>
     {
-        public WorkspaceSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, bool HasModuleSymbols, ArcNET.Diagnostics.DashboardSnapshot Dashboard, ArcNET.Diagnostics.TimelineSnapshot Timeline, ArcNET.Diagnostics.FunctionBrowserSnapshot FunctionBrowser, ArcNET.Diagnostics.ObjectExplorerSnapshot ObjectExplorer) { }
+        public WorkspaceSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, bool HasModuleSymbols, ArcNET.Diagnostics.DashboardSnapshot Dashboard, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WorkspacePanelWorkflowSnapshot> PanelWorkflows, ArcNET.Diagnostics.TimelineSnapshot Timeline, ArcNET.Diagnostics.FunctionBrowserSnapshot FunctionBrowser, ArcNET.Diagnostics.ObjectExplorerSnapshot ObjectExplorer) { }
         public ArcNET.Diagnostics.DashboardSnapshot Dashboard { get; init; }
         public ArcNET.Diagnostics.FunctionBrowserSnapshot FunctionBrowser { get; init; }
         public System.DateTimeOffset GeneratedAtUtc { get; init; }
         public bool HasModuleSymbols { get; init; }
         public ArcNET.Diagnostics.ObjectExplorerSnapshot ObjectExplorer { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WorkspacePanelWorkflowSnapshot> PanelWorkflows { get; init; }
         public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
         public ArcNET.Diagnostics.TimelineSnapshot Timeline { get; init; }
-    }
-    public static class DiagnosticsCapabilityPolicy
-    {
-        public static ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Create(ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot profile, bool hasModuleSymbols = false) { }
-    }
-    public readonly struct DispatcherCandidateDefinition : System.IEquatable<ArcNET.Diagnostics.DispatcherCandidateDefinition>
-    {
-        public DispatcherCandidateDefinition(string Key, int Rva, string Site) { }
-        public string Key { get; init; }
-        public int Rva { get; init; }
-        public string Site { get; init; }
-    }
-    public static class FunctionCatalog
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.DispatcherCandidateDefinition> DispatcherCandidates { get; }
-        public static System.Collections.Generic.IReadOnlyList<string> KnownFunctionKeys { get; }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.FunctionDefinition> KnownFunctions { get; }
-        public static ArcNET.Diagnostics.FunctionDefinition GetDefinition(string token) { }
-        public static bool HasKnownFunction(string token) { }
-        public static bool TryGetDefinition(string token, out ArcNET.Diagnostics.FunctionDefinition definition) { }
-    }
-    public readonly struct FunctionDefinition : System.IEquatable<ArcNET.Diagnostics.FunctionDefinition>
-    {
-        public FunctionDefinition(string Key, int Rva, string Site, string Summary, ArcNET.Diagnostics.StackCleanupMode SuggestedCleanup, string? Example) { }
-        public string? Example { get; init; }
-        public string Key { get; init; }
-        public int Rva { get; init; }
-        public string Site { get; init; }
-        public ArcNET.Diagnostics.StackCleanupMode SuggestedCleanup { get; init; }
-        public string Summary { get; init; }
-    }
-    public sealed class ModuleSymbolEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot>
-    {
-        public ModuleSymbolEntrySnapshot(string Name, string Site, uint Rva, string RvaText, string? Address, uint Size, string SizeText, int DuplicateNameCount) { }
-        public string? Address { get; init; }
-        public int DuplicateNameCount { get; init; }
-        public string Name { get; init; }
-        public uint Rva { get; init; }
-        public string RvaText { get; init; }
-        public string Site { get; init; }
-        public uint Size { get; init; }
-        public string SizeText { get; init; }
-    }
-    public sealed class ModuleSymbolQueryRequest : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolQueryRequest>
-    {
-        public ModuleSymbolQueryRequest(string? Filter, int Limit = 100, bool DuplicatesOnly = false) { }
-        public bool DuplicatesOnly { get; init; }
-        public string? Filter { get; init; }
-        public int Limit { get; init; }
-    }
-    public sealed class ModuleSymbolQuerySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolQuerySnapshot>
-    {
-        public ModuleSymbolQuerySnapshot(System.DateTimeOffset GeneratedAtUtc, string ModulePath, string ModuleFileName, string? ModuleBase, ArcNET.Diagnostics.Contracts.RuntimeFingerprint? Fingerprint, string? Filter, int Limit, bool DuplicatesOnly, int FunctionCount, int UniqueNameCount, int DuplicateNameCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot> Symbols) { }
-        public int DuplicateNameCount { get; init; }
-        public bool DuplicatesOnly { get; init; }
-        public string? Filter { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint? Fingerprint { get; init; }
-        public int FunctionCount { get; init; }
-        public System.DateTimeOffset GeneratedAtUtc { get; init; }
-        public int Limit { get; init; }
-        public string? ModuleBase { get; init; }
-        public string ModuleFileName { get; init; }
-        public string ModulePath { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot> Symbols { get; init; }
-        public int UniqueNameCount { get; init; }
-    }
-    public static class ObjectFieldCatalog
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldDescriptor> Fields { get; }
-        public static string ArrayElementName(int fieldId, int index) { }
-        public static string BasicSkillName(int index) { }
-        public static string CollectionName(int fieldId) { }
-        public static string DisplayName(int fieldId) { }
-        public static bool IsNoiseField(int fieldId) { }
-        public static string RawName(int fieldId) { }
-        public static string ResistanceName(int index) { }
-        public static string SpellCollegeName(int index) { }
-        public static string TechSkillName(int index) { }
-        public static string TrainingName(int training) { }
-        public static bool TryGetFieldId(string rawName, out int fieldId) { }
-    }
-    public readonly struct ObjectFieldDescriptor : System.IEquatable<ArcNET.Diagnostics.ObjectFieldDescriptor>
-    {
-        public ObjectFieldDescriptor(int FieldId, string RawName, string DisplayName, string CollectionName, bool IsNoise) { }
-        public string CollectionName { get; init; }
-        public string DisplayName { get; init; }
-        public int FieldId { get; init; }
-        public bool IsNoise { get; init; }
-        public string RawName { get; init; }
-    }
-    public static class ObjectValueFormatter
-    {
-        public static string FormatArrayInt32(int fieldId, int index, int value) { }
-        public static string FormatArrayUInt32(int fieldId, int index, uint value) { }
-        public static string FormatFieldInt32(int fieldId, int value) { }
-        public static string FormatSkillTraining(int training) { }
-    }
-    public static class ProbeCatalog
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.ProbeProfile> Profiles { get; }
-        public static string[] ExpandSelectors(System.Collections.Generic.IEnumerable<string> tokens) { }
-        public static bool TryGetProfile(string key, out ArcNET.Diagnostics.Contracts.ProbeProfile profile) { }
-    }
-    public static class RuntimeProfileMatcher
-    {
-        public static ArcNET.Diagnostics.Contracts.RuntimeKind ClassifyRuntimeKind(string moduleFileName, string processName) { }
-        public static ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot Match(ArcNET.Diagnostics.Contracts.RuntimeFingerprint fingerprint, string? moduleSha256, string? hashError = null) { }
-        public static bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error) { }
-    }
-    public static class RuntimeSemanticCatalog
-    {
-        public static string AttachmentPointName(int attachmentPoint) { }
-        public static string FormatHandle(ulong handle) { }
-        public static string InventoryLocationContext(int inventoryLocation) { }
-        public static string InventoryLocationName(int inventoryLocation) { }
-        public static bool LooksLikeObjectHandle(ulong handle) { }
-        public static string StatName(int stat) { }
-    }
-    public sealed class RuntimeStatusSnapshot : System.IEquatable<ArcNET.Diagnostics.RuntimeStatusSnapshot>
-    {
-        public RuntimeStatusSnapshot(System.DateTimeOffset GeneratedAtUtc, string DisplayName, string ModulePath, string ModuleBase, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, uint? CurrentCharacterSheetId, int? ActionPoints, System.Collections.Generic.IReadOnlyList<string> Notes) { }
-        public int? ActionPoints { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
-        public uint? CurrentCharacterSheetId { get; init; }
-        public string DisplayName { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
-        public System.DateTimeOffset GeneratedAtUtc { get; init; }
-        public string ModuleBase { get; init; }
-        public string ModulePath { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
-    }
-    public enum StackCleanupMode
-    {
-        Cdecl = 0,
-        StdCall = 1,
-    }
-    public static class RuntimeWatchCatalog
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> AllHooks { get; }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> Profiles { get; }
-        public static object DescribeCatalog() { }
-        public static ArcNET.Diagnostics.RuntimeWatchHookDefinition GetDefinition(ArcNET.Diagnostics.RuntimeWatchHookId id) { }
-        public static bool NeedsNameCatalog(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> ResolveSelectors(System.Collections.Generic.IEnumerable<string> selectors) { }
-        public static bool UsesHighVolumeHooks(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
-    }
-    public readonly struct RuntimeWatchHookDefinition : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchHookDefinition>
-    {
-        public RuntimeWatchHookDefinition(ArcNET.Diagnostics.RuntimeWatchHookId Id, string Key, string EventName, int Rva, string Site, string Area, string Description) { }
-        public string Area { get; init; }
-        public string Description { get; init; }
-        public string EventName { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchHookId Id { get; init; }
-        public string Key { get; init; }
-        public int Rva { get; init; }
-        public string Site { get; init; }
-    }
-    public enum RuntimeWatchHookId
-    {
-        LevelRecalc = 1,
-        UpdateFollowerLevel = 2,
-        StatBaseSet = 3,
-        BackgroundEducateFollowers = 4,
-        UiShowInvenLoot = 5,
-        ItemInsert = 6,
-        ItemEquipped = 7,
-        ItemForceRemove = 8,
-        ItemUnequipped = 9,
-        ObjectDestroy = 10,
-        ObjectScriptExecute = 11,
-        UiStartDialog = 12,
-        ReactionAdj = 13,
-        CritterKill = 14,
-        ScriptGlobalVarSet = 15,
-        ScriptGlobalFlagSet = 16,
-        ScriptPcVarSet = 17,
-        ScriptPcFlagSet = 18,
-        ScriptLocalFlagSet = 19,
-        ScriptLocalCounterSet = 20,
-        ScriptStoryStateSet = 21,
-        QuestStateSet = 22,
-        QuestGlobalStateSet = 23,
-        TimeEventAddDelay = 24,
-        TimeEventNotifyPcTeleported = 25,
-        MapOpenInGame = 26,
-        CombatTurnBasedWhosTurnSet = 27,
-        ObjectCreate = 28,
-        ObjFieldInt32Set = 29,
-        ObjFieldInt64Set = 30,
-        ObjFieldHandleSet = 31,
-        UiSpellAdd = 32,
-        UiSpellMaintainAdd = 33,
-        UiSpellMaintainEnd = 34,
-        TeleportDo = 35,
-        ObjArrayFieldInt32Set = 36,
-        ObjArrayFieldUInt32Set = 37,
-        ObjArrayFieldInt64Set = 38,
-        ObjArrayFieldObjSet = 39,
-        ObjArrayFieldLengthSet = 40,
-        EffectAdd = 41,
-        EffectRemoveOneTyped = 42,
-        EffectRemoveAllTyped = 43,
-        EffectRemoveOneCausedBy = 44,
-        EffectRemoveAllCausedBy = 45,
-        SpellAdd = 46,
-        SpellRemove = 47,
-        ObjArrayFieldScriptSet = 48,
-        ObjArrayFieldPcQuestSet = 49,
-        SpellCollegeLevelSet = 50,
-        EffectRemoveInternal = 51,
-        GamelibInvalidateRect = 52,
-        GamelibDraw = 53,
-        GamelibDrawGame = 54,
-        LightDraw = 55,
-        TileDraw = 56,
-        ObjectHoverDraw = 57,
-        ObjectDraw = 58,
-        RoofDraw = 59,
-        TextBubbleDraw = 60,
-        TextFloaterDraw = 61,
-        TextConversationDraw = 62,
-        TigWindowDisplay = 63,
-        TigWindowComposeDirtyRect = 64,
-        TigWindowBlitArt = 65,
-        TigWindowCopyFromVBuffer = 66,
-        TigWindowInvalidateRect = 67,
-        TigVideoFlip = 68,
-        CritterGiveXp = 69,
-        BackgroundSet = 70,
-        BackgroundClear = 71,
-        ReputationAdd = 72,
-        ReputationRemove = 73,
-        RumorQstateSet = 74,
-        RumorKnownSet = 75,
-        TechLearnSchematic = 76,
-        LogbookAddKill = 77,
-        LogbookAddInjury = 78,
-        AreaSetKnown = 79,
-        AreaResetLastKnownArea = 80,
-        BlessAdd = 81,
-        BlessRemove = 82,
-        CurseAdd = 83,
-        CurseRemove = 84,
-        WmapRndEncounterCheck = 85,
-        WmapUiEncounterStart = 86,
-        WmapLoadWorldmapInfo = 87,
-    }
-    public readonly struct RuntimeWatchProfileDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor>
-    {
-        public RuntimeWatchProfileDescriptor(string Key, string Description, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks) { }
-        public string Description { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks { get; init; }
-        public string Key { get; init; }
-    }
-    public enum RuntimeWatchTimeEventParamKind
-    {
-        None = 0,
-        Integer = 1,
-        Object = 2,
-        Location = 3,
-        Float = 4,
-    }
-    public readonly struct RuntimeWatchTimeEventTypeDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchTimeEventTypeDescriptor>
-    {
-        public RuntimeWatchTimeEventTypeDescriptor(string Name, string TimeTypeName, bool Saveable, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param0, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param1, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param2, ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param3) { }
-        public string Name { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param0 { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param1 { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param2 { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind Param3 { get; init; }
-        public bool Saveable { get; init; }
-        public string TimeTypeName { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchTimeEventParamKind ParamKind(int index) { }
-    }
-    public static class RuntimeWatchValueCatalog
-    {
-        public const int QuestBotchedModifier = 256;
-        public static string ArtBlitFlagsText(uint flags) { }
-        public static string ArtIdSummary(int artId) { }
-        public static string ArtTypeName(int artType) { }
-        public static string EffectCauseName(int cause) { }
-        public static string FallbackEffectName(int effectId) { }
-        public static string FormatGameDateTime(ulong rawValue) { }
-        public static string FormatPackedLocation(ulong rawValue) { }
-        public static bool IsNoiseTimeEventType(int type) { }
-        public static string MagicTechActionName(int action) { }
-        public static string MagicTechRunFlagsText(uint flags) { }
-        public static int QuestBaseState(int rawState) { }
-        public static bool QuestHasBotchedModifier(int rawState) { }
-        public static string QuestPcStateName(int rawState) { }
-        public static string QuestStateName(int state) { }
-        public static string QuestStateVerb(int state) { }
-        public static string ScriptFlagsText(uint flags) { }
-        public static string ScriptLocalFlagName(int flag) { }
-        public static string TeleportFlagsText(uint flags) { }
-        public static ArcNET.Diagnostics.RuntimeWatchTimeEventTypeDescriptor TimeEventDescriptor(int type) { }
-        public static string ViewTypeName(int viewType) { }
-        public static string WindowFlagsText(uint flags) { }
     }
 }
 namespace ArcNET.Patch
@@ -8098,21 +8109,363 @@ namespace ArcNET.BinaryPatch.State
     }
 }```
 
-## ArcNET.Dumpers
+## ArcNET.Diagnostics.FileTime
 
 ```csharp
 [assembly: System.CLSCompliant(false)]
 [assembly: System.Reflection.AssemblyMetadata("IsAotCompatible", "True")]
 [assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
-[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
 [assembly: System.Resources.NeutralResourcesLanguage("en")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
-namespace ArcNET.Dumpers
+namespace ArcNET.Diagnostics
 {
+    public readonly struct AlignedQuadRunSummary : System.IEquatable<ArcNET.Diagnostics.AlignedQuadRunSummary>
+    {
+        public AlignedQuadRunSummary(int StartRow, int Length, ArcNET.Diagnostics.AlignedQuadSignature Signature, int FirstA, int LastA) { }
+        public int FirstA { get; init; }
+        public int LastA { get; init; }
+        public int Length { get; init; }
+        public ArcNET.Diagnostics.AlignedQuadSignature Signature { get; init; }
+        public int StartRow { get; init; }
+    }
+    public readonly struct AlignedQuadSignature : System.IEquatable<ArcNET.Diagnostics.AlignedQuadSignature>
+    {
+        public AlignedQuadSignature(int B, int C, int D) { }
+        public int B { get; init; }
+        public int C { get; init; }
+        public int D { get; init; }
+    }
+    public readonly struct AlignedQuadSignatureSummary : System.IEquatable<ArcNET.Diagnostics.AlignedQuadSignatureSummary>
+    {
+        public AlignedQuadSignatureSummary(ArcNET.Diagnostics.AlignedQuadSignature Signature, int Count, int FirstRow, int LastRow, int FirstA, int LastA, int LongestRunLength, int LongestRunStart, int LongestRunFirstA, int LongestRunLastA) { }
+        public int Count { get; init; }
+        public int FirstA { get; init; }
+        public int FirstRow { get; init; }
+        public int LastA { get; init; }
+        public int LastRow { get; init; }
+        public int LongestRunFirstA { get; init; }
+        public int LongestRunLastA { get; init; }
+        public int LongestRunLength { get; init; }
+        public int LongestRunStart { get; init; }
+        public ArcNET.Diagnostics.AlignedQuadSignature Signature { get; init; }
+    }
+    public readonly struct AlignedQuadSummary : System.IEquatable<ArcNET.Diagnostics.AlignedQuadSummary>
+    {
+        public AlignedQuadSummary(
+                    int StartInt,
+                    int QuadCount,
+                    int RemainderInts,
+                    int DistinctSignatures,
+                    int SectionCount,
+                    int ZeroSectionCount,
+                    int LongestZeroSectionStart,
+                    int LongestZeroSectionLength,
+                    int FrontMatterRowCount,
+                    int FrontMatterSectionCount,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> FrontMatterRuns,
+                    int TailRowStart,
+                    int TailRowCount,
+                    int TailSectionCount,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TailRuns,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> LeadingRuns,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TrailingRuns,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadSignatureSummary> TopSignatures,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TopRuns) { }
+        public int DistinctSignatures { get; init; }
+        public int FrontMatterRowCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> FrontMatterRuns { get; init; }
+        public int FrontMatterSectionCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> LeadingRuns { get; init; }
+        public int LongestZeroSectionLength { get; init; }
+        public int LongestZeroSectionStart { get; init; }
+        public int QuadCount { get; init; }
+        public int RemainderInts { get; init; }
+        public int SectionCount { get; init; }
+        public int StartInt { get; init; }
+        public int TailRowCount { get; init; }
+        public int TailRowStart { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TailRuns { get; init; }
+        public int TailSectionCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TopRuns { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadSignatureSummary> TopSignatures { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.AlignedQuadRunSummary> TrailingRuns { get; init; }
+        public int ZeroSectionCount { get; init; }
+    }
+    public sealed class AmmoItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.AmmoItemAnalysisSnapshot>
+    {
+        public AmmoItemAnalysisSnapshot(int? Quantity, int? AmmoType) { }
+        public int? AmmoType { get; init; }
+        public int? Quantity { get; init; }
+    }
+    public sealed class ArmorItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.ArmorItemAnalysisSnapshot>
+    {
+        public ArmorItemAnalysisSnapshot(int? ArmorClassAdjustment, int? MagicArmorClassAdjustment, int? SilentMoveAdjustment) { }
+        public int? ArmorClassAdjustment { get; init; }
+        public int? MagicArmorClassAdjustment { get; init; }
+        public int? SilentMoveAdjustment { get; init; }
+    }
     public static class ArtDumper
     {
         public static string Dump(ArcNET.Formats.ArtFile art) { }
         public static void Dump(ArcNET.Formats.ArtFile art, System.IO.TextWriter writer) { }
+    }
+    public sealed class BytePattern
+    {
+        public byte?[] Bytes { get; }
+        public int Length { get; }
+        public string NormalizedText { get; }
+        public int[] FindMatches(System.ReadOnlySpan<byte> haystack) { }
+        public static ArcNET.Diagnostics.BytePattern Parse(string text) { }
+    }
+    public readonly struct CatalogAddressResolution : System.IEquatable<ArcNET.Diagnostics.CatalogAddressResolution>
+    {
+        public CatalogAddressResolution(uint Rva, string Resolution) { }
+        public string Resolution { get; init; }
+        public uint Rva { get; init; }
+    }
+    public sealed class CatalogAddressResolveRequest : System.IEquatable<ArcNET.Diagnostics.CatalogAddressResolveRequest>
+    {
+        public CatalogAddressResolveRequest(string Key, int PreferredRva, string Operation, string ModuleFileName, int ModuleSize, byte[] ModuleBytes, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, bool ForceSignatureFallback, System.Collections.Generic.IReadOnlyDictionary<string, string> SignaturesByNormalizedKey, string AddressCacheKey) { }
+        public string AddressCacheKey { get; init; }
+        public bool ForceSignatureFallback { get; init; }
+        public string Key { get; init; }
+        public byte[] ModuleBytes { get; init; }
+        public string ModuleFileName { get; init; }
+        public int ModuleSize { get; init; }
+        public string Operation { get; init; }
+        public int PreferredRva { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> SignaturesByNormalizedKey { get; init; }
+    }
+    public static class CatalogAddressResolver
+    {
+        public const string ForceSignatureFallbackEnvironmentVariable = "ARCNET_DIAGNOSTICS_FORCE_CATALOG_SIGNATURES";
+        public const string LegacyForceSignatureFallbackEnvironmentVariable = "ARCNET_LIVELAB_FORCE_CATALOG_SIGNATURES";
+        public static string NormalizeKey(string value) { }
+        public static ArcNET.Diagnostics.CatalogAddressResolution Resolve(ArcNET.Diagnostics.CatalogAddressResolveRequest request) { }
+        public static bool ShouldForceSignatureFallback() { }
+    }
+    public static class CatalogSignatureCatalog
+    {
+        public static int Count { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> Keys { get; }
+        public static System.Collections.Generic.IReadOnlyDictionary<string, string> SignaturesByNormalizedKey { get; }
+        public static bool HasSignature(string key) { }
+        public static bool TryGetPattern(string key, out string pattern) { }
+    }
+    public static class CeSourceCatalogLoader
+    {
+        public const string SourceRootEnvironmentVariable = "ARCNET_ARCANUM_CE_SOURCE";
+        public static ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceCatalog Load(string sourceRoot) { }
+        public static ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceCatalog LoadDefault() { }
+        public static string ResolveDefaultSourceRoot() { }
+        public static string ResolveSourceRoot(string sourceRoot) { }
+        public sealed class CeSourceCatalog
+        {
+            public CeSourceCatalog(string sourceRoot, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceFunction> functions) { }
+            public int DuplicateNameCount { get; }
+            public int FunctionCount { get; }
+            public ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceFunction[] Functions { get; }
+            public string SourceRoot { get; }
+            public int UniqueNameCount { get; }
+            public ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceFunction[] FindMatches(string token) { }
+            public System.Collections.Generic.IEnumerable<ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceFunction> Query(string? filter, string? area) { }
+        }
+        public readonly struct CeSourceFunction : System.IEquatable<ArcNET.Diagnostics.CeSourceCatalogLoader.CeSourceFunction>
+        {
+            public CeSourceFunction(string Name, string RelativePath, int LineNumber, string Area, bool IsStatic, string Signature) { }
+            public string Area { get; init; }
+            public bool IsStatic { get; init; }
+            public int LineNumber { get; init; }
+            public string Name { get; init; }
+            public string RelativePath { get; init; }
+            public string Signature { get; init; }
+        }
+    }
+    public sealed class CharacterSarAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarAuditSnapshot>
+    {
+        public CharacterSarAuditSnapshot(int Offset, int TotalBytes, int ElementSize, int ElementCount, int BitsetWordCount, int BitsetId, int BitSlotCount, string Fingerprint, string Annotation, System.Collections.Generic.IReadOnlyList<int> SampleValues, System.Collections.Generic.IReadOnlyList<int> BitSlots) { }
+        public string Annotation { get; init; }
+        public int BitSlotCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BitSlots { get; init; }
+        public int BitsetId { get; init; }
+        public int BitsetWordCount { get; init; }
+        public int ElementCount { get; init; }
+        public int ElementSize { get; init; }
+        public string Fingerprint { get; init; }
+        public int Offset { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> SampleValues { get; init; }
+        public int TotalBytes { get; init; }
+    }
+    public static class CharacterSarDiagnostics
+    {
+        public static string AnnotateBsId(int bitsetId) { }
+        public static string AnnotateFingerprint(string fingerprint) { }
+        public static string AnnotateSarValue(ArcNET.Diagnostics.CharacterSarEntrySnapshot sar) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Idx",
+                "VA",
+                "VB"})]
+        public static System.Collections.Generic.List<System.ValueTuple<int, int, int>> CompareElements(ArcNET.Diagnostics.CharacterSarEntrySnapshot entryA, ArcNET.Diagnostics.CharacterSarEntrySnapshot entryB) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarAuditSnapshot> CreateAuditSnapshots(byte[] rawBytes, int limit) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarDumpEntrySnapshot> CreateDumpEntries(byte[] rawBytes) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Slot",
+                "Value"})]
+        public static System.Collections.Generic.List<System.ValueTuple<int, int>> DecodeReputation(ArcNET.Diagnostics.CharacterSarEntrySnapshot sar, int[] reputationRaw) { }
+        public static string FormatElements(byte[] rawBytes, int dataOffset, int elementSize, int elementCount, int maxShow = 32) { }
+        public static string FormatInt32List(System.Collections.Generic.IReadOnlyList<int> values, int maxShow = 2147483647) { }
+        public static string FormatInt32Preview(System.Collections.Generic.IReadOnlyList<int> values, int maxShow) { }
+        public static string FormatSlotList(System.Collections.Generic.IReadOnlyList<int> slots, int maxShow = 2147483647) { }
+        public static string GetElementLabel(string fingerprint, int index) { }
+        public static bool IsPointerLike(int value) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarPairing> MatchGroups(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> entriesA, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> entriesB) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> Parse(byte[] rawBytes, int startOffset = 12) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Semantic",
+                "PointerCount",
+                "Idx",
+                "VA",
+                "VB"})]
+        public static System.ValueTuple<System.Collections.Generic.List<System.ValueTuple<int, int, int>>, int> PartitionElementDiffs([System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Idx",
+                "VA",
+                "VB"})] System.Collections.Generic.List<System.ValueTuple<int, int, int>> diffs) { }
+    }
+    public sealed class CharacterSarDiffEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarDiffEntrySnapshot>
+    {
+        public CharacterSarDiffEntrySnapshot(ArcNET.Diagnostics.CharacterSarDiffKind Kind, string Fingerprint, int OccurrenceIndex, int OccurrenceCount, string Annotation, int? BeforeElementCount, int? AfterElementCount, string? BeforeValueSummary, string? AfterValueSummary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementValueDiffSnapshot> ChangedElements) { }
+        public int? AfterElementCount { get; init; }
+        public string? AfterValueSummary { get; init; }
+        public string Annotation { get; init; }
+        public int? BeforeElementCount { get; init; }
+        public string? BeforeValueSummary { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementValueDiffSnapshot> ChangedElements { get; init; }
+        public string Fingerprint { get; init; }
+        public ArcNET.Diagnostics.CharacterSarDiffKind Kind { get; init; }
+        public int OccurrenceCount { get; init; }
+        public int OccurrenceIndex { get; init; }
+    }
+    public enum CharacterSarDiffKind
+    {
+        ElementValuesChanged = 0,
+        SummaryChanged = 1,
+        Added = 2,
+        Removed = 3,
+    }
+    public static class CharacterSarDiffService
+    {
+        public static ArcNET.Diagnostics.CharacterSarDiffSnapshot Compare(byte[] rawA, byte[] rawB) { }
+        public static ArcNET.Diagnostics.CharacterSarDiffSnapshot Compare(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> sarsA, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> sarsB, byte[] rawA, byte[] rawB) { }
+    }
+    public sealed class CharacterSarDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarDiffSnapshot>
+    {
+        public CharacterSarDiffSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarDiffEntrySnapshot> Entries) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarDiffEntrySnapshot> Entries { get; init; }
+        public bool HasChanges { get; }
+    }
+    public sealed class CharacterSarDumpEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarDumpEntrySnapshot>
+    {
+        public CharacterSarDumpEntrySnapshot(int BitsetId, int ElementSize, int ElementCount, int BitsetWordCount, string Annotation, string ValuePreview, bool IsFiller) { }
+        public string Annotation { get; init; }
+        public int BitsetId { get; init; }
+        public int BitsetWordCount { get; init; }
+        public int ElementCount { get; init; }
+        public int ElementSize { get; init; }
+        public bool IsFiller { get; init; }
+        public string ValuePreview { get; init; }
+    }
+    public sealed class CharacterSarElementHexSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarElementHexSnapshot>
+    {
+        public CharacterSarElementHexSnapshot(int Index, string Hex) { }
+        public string Hex { get; init; }
+        public int Index { get; init; }
+    }
+    public readonly struct CharacterSarElementValueDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarElementValueDiffSnapshot>
+    {
+        public CharacterSarElementValueDiffSnapshot(int Index, int BeforeValue, int AfterValue) { }
+        public int AfterValue { get; init; }
+        public int BeforeValue { get; init; }
+        public int Index { get; init; }
+    }
+    public sealed class CharacterSarEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarEntrySnapshot>
+    {
+        public CharacterSarEntrySnapshot(int Offset, int TotalBytes, int DataOffset, int ElementSize, int ElementCount, int BitsetWordCount, int BitsetId, int BitSlotCount, string Fingerprint, System.Collections.Generic.IReadOnlyList<int> Values, System.Collections.Generic.IReadOnlyList<int> BitSlots, bool IsFiller) { }
+        public int BitSlotCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BitSlots { get; init; }
+        public int BitsetId { get; init; }
+        public int BitsetWordCount { get; init; }
+        public int DataOffset { get; init; }
+        public int ElementCount { get; init; }
+        public int ElementSize { get; init; }
+        public string Fingerprint { get; init; }
+        public bool IsFiller { get; init; }
+        public int Offset { get; init; }
+        public int TotalBytes { get; init; }
+        public string ValueSummary { get; }
+        public System.Collections.Generic.IReadOnlyList<int> Values { get; init; }
+    }
+    public sealed class CharacterSarFullDumpEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarFullDumpEntrySnapshot>
+    {
+        public CharacterSarFullDumpEntrySnapshot(int Offset, int BitsetId, int ElementSize, int ElementCount, int BitsetWordCount, string Fingerprint, string Annotation, bool IsFiller, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarInt32RowSnapshot> Int32Rows, string? ByteHex, string? ByteAscii, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementHexSnapshot> ElementHexes, int OmittedElementCount, System.Collections.Generic.IReadOnlyList<int> BitSlots) { }
+        public string Annotation { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BitSlots { get; init; }
+        public int BitsetId { get; init; }
+        public int BitsetWordCount { get; init; }
+        public string? ByteAscii { get; init; }
+        public string? ByteHex { get; init; }
+        public int ElementCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementHexSnapshot> ElementHexes { get; init; }
+        public int ElementSize { get; init; }
+        public string Fingerprint { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarInt32RowSnapshot> Int32Rows { get; init; }
+        public bool IsFiller { get; init; }
+        public int Offset { get; init; }
+        public int OmittedElementCount { get; init; }
+    }
+    public static class CharacterSarFullDumpService
+    {
+        public static ArcNET.Diagnostics.CharacterSarFullDumpSnapshot Create(byte[] rawBytes, int? bitsetWordCountFilter = default) { }
+    }
+    public sealed class CharacterSarFullDumpSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarFullDumpSnapshot>
+    {
+        public CharacterSarFullDumpSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarFullDumpEntrySnapshot> Entries) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarFullDumpEntrySnapshot> Entries { get; init; }
+        public int PrintedCount { get; }
+    }
+    public sealed class CharacterSarInt32RowSnapshot : System.IEquatable<ArcNET.Diagnostics.CharacterSarInt32RowSnapshot>
+    {
+        public CharacterSarInt32RowSnapshot(int StartIndex, System.Collections.Generic.IReadOnlyList<int> Values) { }
+        public int StartIndex { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Values { get; init; }
+    }
+    public readonly struct CharacterSarPairing : System.IEquatable<ArcNET.Diagnostics.CharacterSarPairing>
+    {
+        public CharacterSarPairing(int IndexA, int IndexB, int Score) { }
+        public int IndexA { get; init; }
+        public int IndexB { get; init; }
+        public int Score { get; init; }
+    }
+    public readonly struct CodeAnchor : System.IEquatable<ArcNET.Diagnostics.CodeAnchor>
+    {
+        public CodeAnchor(int Rva, string Key) { }
+        public string Key { get; init; }
+        public int Rva { get; init; }
+    }
+    public static class CodeCatalog
+    {
+        public static string DefaultModuleFileName { get; }
+        public static string FormatModuleAddress(uint rva) { }
+        public static string FormatModuleAddress(string moduleFileName, uint rva) { }
+        public static string FormatModuleOffset(uint rva) { }
+        public static string FormatModuleOffset(string moduleFileName, uint rva) { }
+        public static bool TryResolveAnchor(uint rva, out ArcNET.Diagnostics.ResolvedCodeAnchor resolvedAnchor) { }
+    }
+    public enum DiagnosticIssueSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
     }
     public static class DialogDumper
     {
@@ -8123,6 +8476,22 @@ namespace ArcNET.Dumpers
     {
         public static string Dump(ArcNET.Formats.FacadeWalk fac) { }
         public static void Dump(ArcNET.Formats.FacadeWalk fac, System.IO.TextWriter writer) { }
+    }
+    public sealed class FoodItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.FoodItemAnalysisSnapshot>
+    {
+        public FoodItemAnalysisSnapshot(int? Flags) { }
+        public int? Flags { get; init; }
+    }
+    public sealed class GenericItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.GenericItemAnalysisSnapshot>
+    {
+        public GenericItemAnalysisSnapshot(int? UsageBonus, int? UsesRemaining) { }
+        public int? UsageBonus { get; init; }
+        public int? UsesRemaining { get; init; }
+    }
+    public sealed class GoldItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.GoldItemAnalysisSnapshot>
+    {
+        public GoldItemAnalysisSnapshot(int? Quantity) { }
+        public int? Quantity { get; init; }
     }
     public static class ItemDumper
     {
@@ -8142,6 +8511,11 @@ namespace ArcNET.Dumpers
         public static string Dump(ArcNET.Formats.JmpFile jmp) { }
         public static void Dump(ArcNET.Formats.JmpFile jmp, System.IO.TextWriter writer) { }
     }
+    public sealed class KeyItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.KeyItemAnalysisSnapshot>
+    {
+        public KeyItemAnalysisSnapshot(int? KeyId) { }
+        public int? KeyId { get; init; }
+    }
     public static class MapPropertiesDumper
     {
         public static string Dump(ArcNET.Formats.MapProperties props) { }
@@ -8157,10 +8531,912 @@ namespace ArcNET.Dumpers
         public static string Dump(ArcNET.Formats.MobData mob) { }
         public static void Dump(ArcNET.Formats.MobData mob, System.IO.TextWriter writer) { }
     }
+    public static class MobItemAnalysisService
+    {
+        public static ArcNET.Diagnostics.MobItemAnalysisSnapshot Analyze(ArcNET.Formats.MobData mob) { }
+    }
+    public sealed class MobItemAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.MobItemAnalysisSnapshot>
+    {
+        public MobItemAnalysisSnapshot(ArcNET.GameObjects.ObjectType ObjectType, int? Weight, int? Worth, int? ItemFlags, System.Collections.Generic.IReadOnlyList<string> ItemFlagNames, int? Discipline, string? DisciplineLabel, int? Complexity, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobItemSpellEffectSnapshot> SpellEffects, ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot? Specific) { }
+        public int? Complexity { get; init; }
+        public int? Discipline { get; init; }
+        public string? DisciplineLabel { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> ItemFlagNames { get; init; }
+        public int? ItemFlags { get; init; }
+        public ArcNET.GameObjects.ObjectType ObjectType { get; init; }
+        public ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot? Specific { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobItemSpellEffectSnapshot> SpellEffects { get; init; }
+        public int? Weight { get; init; }
+        public int? Worth { get; init; }
+    }
+    public abstract class MobItemSpecificAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot>
+    {
+        protected MobItemSpecificAnalysisSnapshot() { }
+    }
+    public sealed class MobItemSpellEffectSnapshot : System.IEquatable<ArcNET.Diagnostics.MobItemSpellEffectSnapshot>
+    {
+        public MobItemSpellEffectSnapshot(int Slot, int SpellId) { }
+        public int Slot { get; init; }
+        public int SpellId { get; init; }
+    }
+    public sealed class MobileMdyAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.MobileMdyAuditSnapshot>
+    {
+        public MobileMdyAuditSnapshot(string Path, int RecordCount, int MobRecordCount, int CharacterRecordCount, int DuplicateObjectIdCount, int PropertyCount, int PropertyParseNoteCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileMdyObjectTypeSnapshot> ObjectTypes) { }
+        public int CharacterRecordCount { get; init; }
+        public int DuplicateObjectIdCount { get; init; }
+        public int MobRecordCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileMdyObjectTypeSnapshot> ObjectTypes { get; init; }
+        public string Path { get; init; }
+        public int PropertyCount { get; init; }
+        public int PropertyParseNoteCount { get; init; }
+        public int RecordCount { get; init; }
+    }
+    public sealed class MobileMdyObjectTypeSnapshot : System.IEquatable<ArcNET.Diagnostics.MobileMdyObjectTypeSnapshot>
+    {
+        public MobileMdyObjectTypeSnapshot(string ObjectType, int Count) { }
+        public int Count { get; init; }
+        public string ObjectType { get; init; }
+    }
+    public static class ModuleAddressFormatter
+    {
+        public static string FormatModuleAddress(string moduleFileName, uint rva) { }
+        public static string FormatModuleOffset(string moduleFileName, uint rva) { }
+    }
+    public readonly struct ModuleFunctionSymbol : System.IEquatable<ArcNET.Diagnostics.ModuleFunctionSymbol>
+    {
+        public ModuleFunctionSymbol(string Name, uint Rva, uint Size) { }
+        public string Name { get; init; }
+        public uint Rva { get; init; }
+        public uint Size { get; init; }
+    }
+    public sealed class ModuleSymbolCatalog
+    {
+        public ModuleSymbolCatalog(string modulePath, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ModuleFunctionSymbol> symbols) { }
+        public int DuplicateNameCount { get; }
+        public int FunctionCount { get; }
+        public string ModuleFileName { get; }
+        public string ModulePath { get; }
+        public ArcNET.Diagnostics.ModuleFunctionSymbol[] Symbols { get; }
+        public int UniqueNameCount { get; }
+        public ArcNET.Diagnostics.ModuleFunctionSymbol[] FindMatches(string token) { }
+        public System.Collections.Generic.IEnumerable<ArcNET.Diagnostics.ModuleFunctionSymbol> Query(string? filter, int limit, bool duplicatesOnly) { }
+        public ArcNET.Diagnostics.ModuleFunctionSymbol ResolveUnique(string token) { }
+        public bool TryResolveUnique(string token, out ArcNET.Diagnostics.ModuleFunctionSymbol symbol) { }
+    }
+    public sealed class ObjectFieldUsageSnapshot : System.IEquatable<ArcNET.Diagnostics.ObjectFieldUsageSnapshot>
+    {
+        public ObjectFieldUsageSnapshot(string Field, int Count, int ParseNoteCount, long TotalRawBytes) { }
+        public int Count { get; init; }
+        public string Field { get; init; }
+        public int ParseNoteCount { get; init; }
+        public long TotalRawBytes { get; init; }
+    }
+    public sealed class PlayerCharacterAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerCharacterAuditSnapshot>
+    {
+        public PlayerCharacterAuditSnapshot(
+                    string SourcePath,
+                    int RecordSize,
+                    bool HasCompleteData,
+                    string? Name,
+                    int Level,
+                    int Gold,
+                    int Arrows,
+                    int Bullets,
+                    int PowerCells,
+                    int TotalKills,
+                    int QuestCount,
+                    int RumorsCount,
+                    int BlessingCount,
+                    int CurseCount,
+                    int SchematicsCount,
+                    int ReputationCount,
+                    int EffectsCount,
+                    int? PositionAid,
+                    int? PositionLocation,
+                    int? PositionOffsetX,
+                    int HpDamage,
+                    int FatigueDamage,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarAuditSnapshot> Sars) { }
+        public int Arrows { get; init; }
+        public int BlessingCount { get; init; }
+        public int Bullets { get; init; }
+        public int CurseCount { get; init; }
+        public int EffectsCount { get; init; }
+        public int FatigueDamage { get; init; }
+        public int Gold { get; init; }
+        public bool HasCompleteData { get; init; }
+        public int HpDamage { get; init; }
+        public int Level { get; init; }
+        public string? Name { get; init; }
+        public int? PositionAid { get; init; }
+        public int? PositionLocation { get; init; }
+        public int? PositionOffsetX { get; init; }
+        public int PowerCells { get; init; }
+        public int QuestCount { get; init; }
+        public int RecordSize { get; init; }
+        public int ReputationCount { get; init; }
+        public int RumorsCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarAuditSnapshot> Sars { get; init; }
+        public int SchematicsCount { get; init; }
+        public string SourcePath { get; init; }
+        public int TotalKills { get; init; }
+    }
+    public sealed class PlayerCharacterProgressionSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerCharacterProgressionSnapshot>
+    {
+        public PlayerCharacterProgressionSnapshot(
+                    string? Name,
+                    int Level,
+                    int ExperiencePoints,
+                    int Alignment,
+                    int FatePoints,
+                    int Race,
+                    int Gender,
+                    int Age,
+                    int PoisonLevel,
+                    int UnspentPoints,
+                    int MagickPoints,
+                    int TechPoints,
+                    int Gold,
+                    int Arrows,
+                    int TotalKills,
+                    int Bullets,
+                    int PowerCells,
+                    int HpDamage,
+                    int FatigueDamage) { }
+        public int Age { get; init; }
+        public int Alignment { get; init; }
+        public int Arrows { get; init; }
+        public int Bullets { get; init; }
+        public int ExperiencePoints { get; init; }
+        public int FatePoints { get; init; }
+        public int FatigueDamage { get; init; }
+        public int Gender { get; init; }
+        public int Gold { get; init; }
+        public int HpDamage { get; init; }
+        public int Level { get; init; }
+        public int MagickPoints { get; init; }
+        public string? Name { get; init; }
+        public int PoisonLevel { get; init; }
+        public int PowerCells { get; init; }
+        public int Race { get; init; }
+        public int TechPoints { get; init; }
+        public int TotalKills { get; init; }
+        public int UnspentPoints { get; init; }
+    }
+    public sealed class PlayerCharacterSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerCharacterSnapshot>
+    {
+        public PlayerCharacterSnapshot(string Path, string? Name, int Level, int Race, int RawBytesLength, bool HasCompleteData, bool IsSelectedPlayer, int QuestCount, int ReputationCount, int BlessingCount, int CurseCount, int SchematicsCount, int RumorsCount) { }
+        public int BlessingCount { get; init; }
+        public int CurseCount { get; init; }
+        public bool HasCompleteData { get; init; }
+        public bool IsSelectedPlayer { get; init; }
+        public int Level { get; init; }
+        public string? Name { get; init; }
+        public string Path { get; init; }
+        public int QuestCount { get; init; }
+        public int Race { get; init; }
+        public int RawBytesLength { get; init; }
+        public int ReputationCount { get; init; }
+        public int RumorsCount { get; init; }
+        public int SchematicsCount { get; init; }
+    }
+    public sealed class PlayerIndexedValueSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerIndexedValueSnapshot>
+    {
+        public PlayerIndexedValueSnapshot(int Index, string Label, int Value) { }
+        public int Index { get; init; }
+        public string Label { get; init; }
+        public int Value { get; init; }
+    }
+    public sealed class PlayerProgressionChangeSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerProgressionChangeSnapshot>
+    {
+        public PlayerProgressionChangeSnapshot(string Category, string Key, string Description) { }
+        public string Category { get; init; }
+        public string Description { get; init; }
+        public string Key { get; init; }
+    }
+    public sealed class PlayerProgressionHistorySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerProgressionHistorySnapshot>
+    {
+        public PlayerProgressionHistorySnapshot(int FirstSlot, int LastSlot, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? QuestCatalog, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerProgressionSlotSnapshot> Slots) { }
+        public int FirstSlot { get; init; }
+        public int LastSlot { get; init; }
+        public ArcNET.Diagnostics.QuestLabelCatalogSnapshot? QuestCatalog { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerProgressionSlotSnapshot> Slots { get; init; }
+    }
+    public sealed class PlayerProgressionSlotSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerProgressionSlotSnapshot>
+    {
+        public PlayerProgressionSlotSnapshot(int Slot, string SlotStem, string LeaderName, int LeaderLevel, bool IsBaseline, ArcNET.Diagnostics.PlayerProgressionStateSnapshot? State, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerProgressionChangeSnapshot> Changes) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerProgressionChangeSnapshot> Changes { get; init; }
+        public bool IsBaseline { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public int Slot { get; init; }
+        public string SlotStem { get; init; }
+        public ArcNET.Diagnostics.PlayerProgressionStateSnapshot? State { get; init; }
+    }
+    public sealed class PlayerProgressionStateSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerProgressionStateSnapshot>
+    {
+        public PlayerProgressionStateSnapshot(
+                    string Path,
+                    string? Name,
+                    int Level,
+                    int Xp,
+                    int Alignment,
+                    int Fate,
+                    int MagicPoints,
+                    int TechPoints,
+                    int Gold,
+                    int QuestCount,
+                    int RumorsCount,
+                    int BlessingCount,
+                    int CurseCount,
+                    int SchematicsCount,
+                    int HpDamage,
+                    int FatigueDamage,
+                    int Bullets,
+                    int PowerCells,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerQuestEntrySnapshot> Quests,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BaseStats,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BasicSkills,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> SpellTech) { }
+        public int Alignment { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BaseStats { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BasicSkills { get; init; }
+        public int BlessingCount { get; init; }
+        public int Bullets { get; init; }
+        public int CurseCount { get; init; }
+        public int Fate { get; init; }
+        public int FatigueDamage { get; init; }
+        public int Gold { get; init; }
+        public int HpDamage { get; init; }
+        public int Level { get; init; }
+        public int MagicPoints { get; init; }
+        public string? Name { get; init; }
+        public string Path { get; init; }
+        public int PowerCells { get; init; }
+        public int QuestCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerQuestEntrySnapshot> Quests { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation { get; init; }
+        public int RumorsCount { get; init; }
+        public int SchematicsCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> SpellTech { get; init; }
+        public int TechPoints { get; init; }
+        public int Xp { get; init; }
+    }
+    public sealed class PlayerQuestBookSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerQuestBookSnapshot>
+    {
+        public PlayerQuestBookSnapshot(System.DateTimeOffset CapturedAt, string LeaderName, int LeaderLevel, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? QuestCatalog, ArcNET.Diagnostics.PlayerCharacterSnapshot? Player, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerCharacterSnapshot> QuestCharacters, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerQuestEntrySnapshot> Quests, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation, System.Collections.Generic.IReadOnlyList<int> Blessings, System.Collections.Generic.IReadOnlyList<int> Curses, System.Collections.Generic.IReadOnlyList<int> Schematics) { }
+        public System.Collections.Generic.IReadOnlyList<int> Blessings { get; init; }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Curses { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public ArcNET.Diagnostics.PlayerCharacterSnapshot? Player { get; init; }
+        public ArcNET.Diagnostics.QuestLabelCatalogSnapshot? QuestCatalog { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerCharacterSnapshot> QuestCharacters { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerQuestEntrySnapshot> Quests { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Schematics { get; init; }
+    }
+    public sealed class PlayerQuestEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerQuestEntrySnapshot>
+    {
+        public PlayerQuestEntrySnapshot(int ProtoId, string? Label, int Context, int Timestamp, int State, string StateDescription) { }
+        public int Context { get; init; }
+        public string? Label { get; init; }
+        public int ProtoId { get; init; }
+        public int State { get; init; }
+        public string StateDescription { get; init; }
+        public int Timestamp { get; init; }
+    }
+    public sealed class PlayerReputationEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerReputationEntrySnapshot>
+    {
+        public PlayerReputationEntrySnapshot(int Slot, int Value) { }
+        public int Slot { get; init; }
+        public int Value { get; init; }
+    }
+    public static class PlayerSarAnalysisService
+    {
+        public static ArcNET.Diagnostics.PlayerSarLifecycleAnalysisSnapshot CreateLifecycleAnalysis(ArcNET.Diagnostics.PlayerSarHistorySnapshot history) { }
+        public static ArcNET.Diagnostics.PlayerSarTransitionAnalysisSnapshot CreateTransitionAnalysis(ArcNET.Diagnostics.PlayerSarHistorySnapshot history) { }
+    }
+    public sealed class PlayerSarFingerprintAggregateSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarFingerprintAggregateSnapshot>
+    {
+        public PlayerSarFingerprintAggregateSnapshot(string Fingerprint, string Annotation, int FirstSlot, int LastSlot, int MinDuplicateCount, int MaxDuplicateCount, int TrackCount, int RecurringTrackCount, int SingleSlotTrackCount, int ChangedTrackCount) { }
+        public string Annotation { get; init; }
+        public int ChangedTrackCount { get; init; }
+        public string Fingerprint { get; init; }
+        public int FirstSlot { get; init; }
+        public int LastSlot { get; init; }
+        public int MaxDuplicateCount { get; init; }
+        public int MinDuplicateCount { get; init; }
+        public int RecurringTrackCount { get; init; }
+        public int SingleSlotTrackCount { get; init; }
+        public int TrackCount { get; init; }
+    }
+    public sealed class PlayerSarFingerprintCountSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarFingerprintCountSnapshot>
+    {
+        public PlayerSarFingerprintCountSnapshot(string Fingerprint, int Count) { }
+        public int Count { get; init; }
+        public string Fingerprint { get; init; }
+    }
+    public sealed class PlayerSarFingerprintSummaryRowSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarFingerprintSummaryRowSnapshot>
+    {
+        public PlayerSarFingerprintSummaryRowSnapshot(string Fingerprint, string Annotation, string SlotSpan, string DuplicateRange, int TrackCount, int RecurringTrackCount, int SingleSlotTrackCount, int ChangedTrackCount) { }
+        public string Annotation { get; init; }
+        public int ChangedTrackCount { get; init; }
+        public string DuplicateRange { get; init; }
+        public string Fingerprint { get; init; }
+        public int RecurringTrackCount { get; init; }
+        public int SingleSlotTrackCount { get; init; }
+        public string SlotSpan { get; init; }
+        public int TrackCount { get; init; }
+    }
+    public static class PlayerSarHistoryService
+    {
+        public static ArcNET.Diagnostics.PlayerSarHistorySnapshot Create(string saveDir, int firstSlot, int lastSlot, System.Action<string>? log = null) { }
+    }
+    public sealed class PlayerSarHistorySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarHistorySnapshot>
+    {
+        public PlayerSarHistorySnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarSlotSnapshot> Slots, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackSnapshot> Tracks) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarSlotSnapshot> Slots { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackSnapshot> Tracks { get; init; }
+    }
+    public sealed class PlayerSarLifecycleAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarLifecycleAnalysisSnapshot>
+    {
+        public PlayerSarLifecycleAnalysisSnapshot(int TotalSlots, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarLifecycleTrackSummarySnapshot> Tracks, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintAggregateSnapshot> Fingerprints) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintAggregateSnapshot> Fingerprints { get; init; }
+        public int TotalSlots { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarLifecycleTrackSummarySnapshot> Tracks { get; init; }
+    }
+    public enum PlayerSarLifecycleKind
+    {
+        AllSlots = 0,
+        OnlySlot = 1,
+        AppearedAndDisappeared = 2,
+        Appeared = 3,
+        Disappeared = 4,
+        PartialRange = 5,
+    }
+    public sealed class PlayerSarLifecycleReportSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarLifecycleReportSnapshot>
+    {
+        public PlayerSarLifecycleReportSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintSummaryRowSnapshot> Fingerprints, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackDetailRowSnapshot> Tracks, int OmittedTrackRowCount, int OmittedSingletonFingerprintCount) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintSummaryRowSnapshot> Fingerprints { get; init; }
+        public int OmittedSingletonFingerprintCount { get; init; }
+        public int OmittedTrackRowCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackDetailRowSnapshot> Tracks { get; init; }
+    }
+    public sealed class PlayerSarLifecycleTrackSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarLifecycleTrackSummarySnapshot>
+    {
+        public PlayerSarLifecycleTrackSummarySnapshot(string FingerprintKey, string Fingerprint, int PresentCount, int FirstSlot, int LastSlot, int MinElementCount, int MaxElementCount, bool ElementCountGrows, System.Collections.Generic.IReadOnlyList<int> BitsetWordCounts, System.Collections.Generic.IReadOnlyList<int> BitsetIds, string FirstValueSummary, string LastValueSummary, bool ValueChanged, string ValueAnnotation, ArcNET.Diagnostics.PlayerSarLifecycleKind Lifecycle) { }
+        public System.Collections.Generic.IReadOnlyList<int> BitsetIds { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BitsetWordCounts { get; init; }
+        public bool ElementCountGrows { get; init; }
+        public string Fingerprint { get; init; }
+        public string FingerprintKey { get; init; }
+        public int FirstSlot { get; init; }
+        public string FirstValueSummary { get; init; }
+        public int LastSlot { get; init; }
+        public string LastValueSummary { get; init; }
+        public ArcNET.Diagnostics.PlayerSarLifecycleKind Lifecycle { get; init; }
+        public int MaxElementCount { get; init; }
+        public int MinElementCount { get; init; }
+        public int PresentCount { get; init; }
+        public string ValueAnnotation { get; init; }
+        public bool ValueChanged { get; init; }
+    }
+    public static class PlayerSarReportService
+    {
+        public static ArcNET.Diagnostics.PlayerSarLifecycleReportSnapshot CreateLifecycleReport(ArcNET.Diagnostics.PlayerSarHistorySnapshot history, ArcNET.Diagnostics.PlayerSarLifecycleAnalysisSnapshot? analysis = null) { }
+        public static ArcNET.Diagnostics.PlayerSarTransitionReportSnapshot CreateTransitionReport(ArcNET.Diagnostics.PlayerSarTransitionAnalysisSnapshot analysis) { }
+    }
+    public sealed class PlayerSarSlotSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarSlotSnapshot>
+    {
+        public PlayerSarSlotSnapshot(int Slot, int Level, int RawBytesLength, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> Sars, string SaveName) { }
+        public int Level { get; init; }
+        public int RawBytesLength { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarEntrySnapshot> Sars { get; init; }
+        public string SaveName { get; init; }
+        public int Slot { get; init; }
+    }
+    public sealed class PlayerSarTrackDetailRowSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTrackDetailRowSnapshot>
+    {
+        public PlayerSarTrackDetailRowSnapshot(string FingerprintKey, string Fingerprint, string Annotation, string Lifecycle, string ElementCountRange, string BitsetWordCounts, string BitsetIdLabel, string FirstValueSummary, string LastValueSummary, bool ValueChanged, int PresentCount) { }
+        public string Annotation { get; init; }
+        public string BitsetIdLabel { get; init; }
+        public string BitsetWordCounts { get; init; }
+        public string ElementCountRange { get; init; }
+        public string Fingerprint { get; init; }
+        public string FingerprintKey { get; init; }
+        public string FirstValueSummary { get; init; }
+        public string LastValueSummary { get; init; }
+        public string Lifecycle { get; init; }
+        public int PresentCount { get; init; }
+        public bool ValueChanged { get; init; }
+    }
+    public sealed class PlayerSarTrackPointSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTrackPointSnapshot>
+    {
+        public PlayerSarTrackPointSnapshot(int Slot, ArcNET.Diagnostics.CharacterSarEntrySnapshot Sar) { }
+        public ArcNET.Diagnostics.CharacterSarEntrySnapshot Sar { get; init; }
+        public int Slot { get; init; }
+    }
+    public sealed class PlayerSarTrackSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTrackSnapshot>
+    {
+        public PlayerSarTrackSnapshot(string FingerprintKey, string Fingerprint, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackPointSnapshot> History) { }
+        public string Fingerprint { get; init; }
+        public string FingerprintKey { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTrackPointSnapshot> History { get; init; }
+    }
+    public sealed class PlayerSarTransitionAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionAnalysisSnapshot>
+    {
+        public PlayerSarTransitionAnalysisSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionSnapshot> Transitions) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionSnapshot> Transitions { get; init; }
+    }
+    public enum PlayerSarTransitionChangeKind
+    {
+        Added = 0,
+        Removed = 1,
+        Moved = 2,
+        Changed = 3,
+    }
+    public sealed class PlayerSarTransitionChangeSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionChangeSnapshot>
+    {
+        public PlayerSarTransitionChangeSnapshot(ArcNET.Diagnostics.PlayerSarTransitionChangeKind Kind, string Label, string Fingerprint, string Annotation, int? BeforeElementCount, int? AfterElementCount, string? BeforeValueSummary, string? AfterValueSummary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementValueDiffSnapshot> ElementDiffs, System.Collections.Generic.IReadOnlyList<int> BeforeBitSlots, System.Collections.Generic.IReadOnlyList<int> AfterBitSlots, int PointerNoiseSuppressedCount) { }
+        public System.Collections.Generic.IReadOnlyList<int> AfterBitSlots { get; init; }
+        public int? AfterElementCount { get; init; }
+        public string? AfterValueSummary { get; init; }
+        public string Annotation { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BeforeBitSlots { get; init; }
+        public int? BeforeElementCount { get; init; }
+        public string? BeforeValueSummary { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarElementValueDiffSnapshot> ElementDiffs { get; init; }
+        public string Fingerprint { get; init; }
+        public ArcNET.Diagnostics.PlayerSarTransitionChangeKind Kind { get; init; }
+        public string Label { get; init; }
+        public int PointerNoiseSuppressedCount { get; init; }
+    }
+    public sealed class PlayerSarTransitionChangedEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionChangedEntrySnapshot>
+    {
+        public PlayerSarTransitionChangedEntrySnapshot(string Label, string Fingerprint, string Annotation, int? BeforeElementCount, int? AfterElementCount, string? BeforeValueSummary, string? AfterValueSummary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionFieldDiffSnapshot> FieldDiffs, System.Collections.Generic.IReadOnlyList<int> BeforeBitSlots, System.Collections.Generic.IReadOnlyList<int> AfterBitSlots, int PointerNoiseSuppressedCount) { }
+        public System.Collections.Generic.IReadOnlyList<int> AfterBitSlots { get; init; }
+        public int? AfterElementCount { get; init; }
+        public string? AfterValueSummary { get; init; }
+        public string Annotation { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> BeforeBitSlots { get; init; }
+        public int? BeforeElementCount { get; init; }
+        public string? BeforeValueSummary { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionFieldDiffSnapshot> FieldDiffs { get; init; }
+        public string Fingerprint { get; init; }
+        public string Label { get; init; }
+        public int PointerNoiseSuppressedCount { get; init; }
+    }
+    public sealed class PlayerSarTransitionFieldDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionFieldDiffSnapshot>
+    {
+        public PlayerSarTransitionFieldDiffSnapshot(string FieldLabel, int BeforeValue, int AfterValue) { }
+        public int AfterValue { get; init; }
+        public int BeforeValue { get; init; }
+        public string FieldLabel { get; init; }
+    }
+    public sealed class PlayerSarTransitionListEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot>
+    {
+        public PlayerSarTransitionListEntrySnapshot(string Label, string Fingerprint, string Annotation) { }
+        public string Annotation { get; init; }
+        public string Fingerprint { get; init; }
+        public string Label { get; init; }
+    }
+    public sealed class PlayerSarTransitionReportEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionReportEntrySnapshot>
+    {
+        public PlayerSarTransitionReportEntrySnapshot(int FromSlot, int ToSlot, int FromLevel, int ToLevel, int FromRawBytesLength, int ToRawBytesLength, bool IsDiscontinuous, ArcNET.Diagnostics.PlayerSarTransitionSummarySnapshot Summary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Added, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Removed, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Moved, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionChangedEntrySnapshot> Changed) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Added { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionChangedEntrySnapshot> Changed { get; init; }
+        public int FromLevel { get; init; }
+        public int FromRawBytesLength { get; init; }
+        public int FromSlot { get; init; }
+        public bool IsDiscontinuous { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Moved { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionListEntrySnapshot> Removed { get; init; }
+        public ArcNET.Diagnostics.PlayerSarTransitionSummarySnapshot Summary { get; init; }
+        public int ToLevel { get; init; }
+        public int ToRawBytesLength { get; init; }
+        public int ToSlot { get; init; }
+    }
+    public sealed class PlayerSarTransitionReportSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionReportSnapshot>
+    {
+        public PlayerSarTransitionReportSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionReportEntrySnapshot> Transitions) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionReportEntrySnapshot> Transitions { get; init; }
+    }
+    public sealed class PlayerSarTransitionSnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionSnapshot>
+    {
+        public PlayerSarTransitionSnapshot(int FromSlot, int ToSlot, int FromLevel, int ToLevel, int FromRawBytesLength, int ToRawBytesLength, bool IsDiscontinuous, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionChangeSnapshot> Changes) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarTransitionChangeSnapshot> Changes { get; init; }
+        public int FromLevel { get; init; }
+        public int FromRawBytesLength { get; init; }
+        public int FromSlot { get; init; }
+        public bool IsDiscontinuous { get; init; }
+        public int ToLevel { get; init; }
+        public int ToRawBytesLength { get; init; }
+        public int ToSlot { get; init; }
+    }
+    public sealed class PlayerSarTransitionSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.PlayerSarTransitionSummarySnapshot>
+    {
+        public PlayerSarTransitionSummarySnapshot(int AddedCount, int RemovedCount, int MovedCount, int ChangedCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintCountSnapshot> MovedFingerprints, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintCountSnapshot> ChangedFingerprints) { }
+        public int AddedCount { get; init; }
+        public int ChangedCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintCountSnapshot> ChangedFingerprints { get; init; }
+        public int MovedCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerSarFingerprintCountSnapshot> MovedFingerprints { get; init; }
+        public int RemovedCount { get; init; }
+    }
     public static class ProtoDumper
     {
         public static string Dump(ArcNET.Formats.ProtoData proto) { }
         public static void Dump(ArcNET.Formats.ProtoData proto, System.IO.TextWriter writer) { }
+    }
+    public static class QuestLabelCatalogLoader
+    {
+        public static ArcNET.Diagnostics.QuestLabelCatalogSnapshot? TryLoadFromSaveDirectory(string saveDir) { }
+    }
+    public sealed class QuestLabelCatalogSnapshot : System.IEquatable<ArcNET.Diagnostics.QuestLabelCatalogSnapshot>
+    {
+        public QuestLabelCatalogSnapshot(string Source, System.Collections.Generic.IReadOnlyDictionary<int, string> Labels) { }
+        public System.Collections.Generic.IReadOnlyDictionary<int, string> Labels { get; init; }
+        public string Source { get; init; }
+        public string? Resolve(int protoId) { }
+    }
+    public static class QuestStateFormatter
+    {
+        public static string Format(int state) { }
+    }
+    public readonly struct ResolvedCodeAnchor : System.IEquatable<ArcNET.Diagnostics.ResolvedCodeAnchor>
+    {
+        public ResolvedCodeAnchor(ArcNET.Diagnostics.CodeAnchor Anchor, uint Delta) { }
+        public ArcNET.Diagnostics.CodeAnchor Anchor { get; init; }
+        public uint Delta { get; init; }
+        public string DisplayLabel { get; }
+    }
+    public static class RuntimeOffsets
+    {
+        public const int ActionPointsRva = 2081332;
+        public const int AreaGetLastKnownAreaRva = 831744;
+        public const int AreaIsKnownRva = 831312;
+        public const int AreaResetLastKnownAreaRva = 831840;
+        public const int AreaSetKnownRva = 831440;
+        public const int BackgroundClearRva = 796240;
+        public const int BackgroundDescriptionGetBodyRva = 795952;
+        public const int BackgroundDescriptionGetNameRva = 796048;
+        public const int BackgroundEducateFollowersRva = 797008;
+        public const int BackgroundGetDescriptionRva = 795824;
+        public const int BackgroundGetRva = 796304;
+        public const int BackgroundSetRva = 796128;
+        public const int BackgroundTextGetRva = 796368;
+        public const int BlessAddRva = 803568;
+        public const int BlessGetLogbookDataRva = 803328;
+        public const int BlessRemoveRva = 803920;
+        public const int CharacterSheetPropertyHookRva = 35527;
+        public const int CharacterSheetSubstructureHookRva = 35910;
+        public const int CombatTurnBasedWhosTurnSetRva = 749168;
+        public const int CritterGiveXpRva = 389392;
+        public const int CritterKillRva = 383232;
+        public const int CurrentCharacterSheetIdRva = 2416656;
+        public const int CurseAddRva = 802368;
+        public const int CurseGetLogbookDataRva = 802128;
+        public const int CurseRemoveRva = 802720;
+        public const int EffectAddRva = 958320;
+        public const int EffectCountEffectsOfTypeRva = 959648;
+        public const int EffectRemoveAllCausedByRva = 959424;
+        public const int EffectRemoveAllTypedRva = 958976;
+        public const int EffectRemoveInternalRva = 959776;
+        public const int EffectRemoveOneCausedByRva = 959200;
+        public const int EffectRemoveOneTypedRva = 958720;
+        public const int GamelibDrawGameRva = 18160;
+        public const int GamelibDrawRva = 11856;
+        public const int GamelibInvalidateRectRva = 11568;
+        public const int ItemEquippedRva = 423856;
+        public const int ItemFindKeyRingRva = 405920;
+        public const int ItemForceRemoveRva = 424032;
+        public const int ItemGetKeysRva = 405776;
+        public const int ItemInsertRva = 419392;
+        public const int ItemUnequippedRva = 425136;
+        public const int LevelRecalcRva = 682432;
+        public const int LightDrawRva = 885584;
+        public const int LogbookAddInjuryRva = 1005200;
+        public const int LogbookAddKillRva = 1004336;
+        public const int LogbookGetKillsRva = 1004944;
+        public const int MagicTechRunInfoPointerRva = 2651872;
+        public const int MapOpenInGameRva = 64624;
+        public const string ModuleName = "Arcanum.exe";
+        public const int ObjArrayFieldInt32GetRva = 29392;
+        public const int ObjArrayFieldInt32SetRva = 29504;
+        public const int ObjArrayFieldInt64SetRva = 30128;
+        public const int ObjArrayFieldLengthSetRva = 31264;
+        public const int ObjArrayFieldObjSetRva = 30640;
+        public const int ObjArrayFieldPcQuestSetRva = 31072;
+        public const int ObjArrayFieldScriptGetRva = 30784;
+        public const int ObjArrayFieldScriptSetRva = 30880;
+        public const int ObjArrayFieldUInt32SetRva = 29920;
+        public const int ObjFieldHandleSetRva = 28448;
+        public const int ObjFieldInt32GetRva = 27808;
+        public const int ObjFieldInt32SetRva = 27968;
+        public const int ObjFieldInt64SetRva = 28176;
+        public const int ObjHandleIndexShift = 29;
+        public const ulong ObjHandleMarkerMask = 7ul;
+        public const ulong ObjHandleMarkerValue = 2ul;
+        public const ulong ObjHandleSequenceMask = 8388607ul;
+        public const int ObjHandleSequenceShift = 3;
+        public const int ObjPoolBucketSize = 8192;
+        public const int ObjPoolBucketsRva = 2111164;
+        public const int ObjPoolElementByteSizeRva = 2111204;
+        public const int ObjPoolEntryHeaderByteSize = 4;
+        public const int ObjectCreateRva = 248736;
+        public const int ObjectDestroyRva = 248992;
+        public const int ObjectDrawRva = 242576;
+        public const int ObjectGetResistanceRva = 251600;
+        public const int ObjectHoverDrawRva = 247440;
+        public const int ObjectScriptExecuteRva = 268672;
+        public const string ProcessName = "Arcanum";
+        public const int PrototypeHandleByObjectTypeRva = 427376;
+        public const int PrototypeHandleByProtoNumberRva = 427424;
+        public const int QuestGetLogbookDataRva = 807648;
+        public const int QuestGlobalStateGetRva = 807328;
+        public const int QuestGlobalStateSetRva = 807360;
+        public const int QuestStateGetRva = 806064;
+        public const int QuestStateSetRva = 806176;
+        public const int ReactionAdjRva = 789984;
+        public const int ReputationAddRva = 793888;
+        public const int ReputationGetLogbookDataRva = 793648;
+        public const int ReputationRemoveRva = 794128;
+        public const int RoofDrawRva = 233792;
+        public const int RumorGetLogbookDataRva = 809536;
+        public const int RumorKnownGetRva = 809168;
+        public const int RumorKnownSetRva = 808928;
+        public const int RumorQstateGetRva = 808528;
+        public const int RumorQstateSetRva = 808592;
+        public const int ScriptGlobalFlagGetRva = 281840;
+        public const int ScriptGlobalFlagSetRva = 281888;
+        public const int ScriptGlobalVarGetRva = 281728;
+        public const int ScriptGlobalVarSetRva = 281744;
+        public const int ScriptLocalCounterGetRva = 282576;
+        public const int ScriptLocalCounterSetRva = 282656;
+        public const int ScriptLocalFlagGetRva = 282384;
+        public const int ScriptLocalFlagSetRva = 282464;
+        public const int ScriptPcFlagGetRva = 282160;
+        public const int ScriptPcFlagSetRva = 282256;
+        public const int ScriptPcVarGetRva = 282032;
+        public const int ScriptPcVarSetRva = 282096;
+        public const int ScriptStoryStateGetRva = 282768;
+        public const int ScriptStoryStateSetRva = 282784;
+        public const int SpellAddEndExclusiveRva = 727376;
+        public const int SpellAddRva = 726928;
+        public const int SpellCollegeLevelGetRva = 727728;
+        public const int SpellCollegeLevelSetRva = 727856;
+        public const int SpellRemoveEndExclusiveRva = 727616;
+        public const int SpellRemoveRva = 727472;
+        public const int StatBaseGetRva = 722752;
+        public const int StatBaseSetRva = 723328;
+        public const int TechLearnSchematicRva = 721184;
+        public const int TeleportDoRva = 865152;
+        public const int TextBubbleDrawRva = 876304;
+        public const int TextConversationDrawRva = 824816;
+        public const int TextFloaterDrawRva = 873232;
+        public const int TigVideoFlipRva = 1177840;
+        public const int TigWindowBlitArtRva = 1170048;
+        public const int TigWindowComposeDirtyRectRva = 1167440;
+        public const int TigWindowCopyFromVBufferRva = 1171104;
+        public const int TigWindowDisplayRva = 1167168;
+        public const int TigWindowInvalidateRectRva = 1172528;
+        public const int TileDrawRva = 878928;
+        public const int TimeEventAddDelayRva = 374784;
+        public const int TimeEventNotifyPcTeleportedRva = 378656;
+        public const int UiShowInvenLootRva = 393936;
+        public const int UiSpellAddRva = 394368;
+        public const int UiSpellMaintainAddRva = 394400;
+        public const int UiSpellMaintainEndRva = 394432;
+        public const int UiStartDialogRva = 395744;
+        public const int UpdateFollowerLevelRva = 683184;
+        public const int WmapLoadWorldmapInfoRva = 1444512;
+        public const int WmapRndEncounterCheckRva = 1413136;
+        public const int WmapUiEncounterStartRva = 1443616;
+    }
+    public sealed class SaveBinaryDiffPreviewSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveBinaryDiffPreviewSnapshot>
+    {
+        public SaveBinaryDiffPreviewSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionPreviewSnapshot> Regions, int OmittedRegionCount) { }
+        public int OmittedRegionCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionPreviewSnapshot> Regions { get; init; }
+    }
+    public sealed class SaveBinaryDiffRegionPreviewSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveBinaryDiffRegionPreviewSnapshot>
+    {
+        public SaveBinaryDiffRegionPreviewSnapshot(int Offset, int Length, int ChangedByteCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryHexRowSnapshot> Rows) { }
+        public int ChangedByteCount { get; init; }
+        public int Length { get; init; }
+        public int Offset { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryHexRowSnapshot> Rows { get; init; }
+    }
+    public sealed class SaveBinaryDiffRegionSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveBinaryDiffRegionSnapshot>
+    {
+        public SaveBinaryDiffRegionSnapshot(int Offset, byte[] BeforeBytes, byte[] AfterBytes, int ChangedByteCount) { }
+        public byte[] AfterBytes { get; init; }
+        public byte[] BeforeBytes { get; init; }
+        public int ChangedByteCount { get; init; }
+        public int Offset { get; init; }
+    }
+    public static class SaveBinaryDiffService
+    {
+        public static ArcNET.Diagnostics.SaveBinaryDiffSetSnapshot CompareInnerFiles(System.Collections.Generic.IReadOnlyDictionary<string, byte[]> filesA, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> filesB) { }
+        public static ArcNET.Diagnostics.SaveBinaryDiffPreviewSnapshot CreatePreview(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionSnapshot> regions, int maxRegions = 20, int bytesPerRow = 8) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionSnapshot> FindDiffRegions(byte[] beforeBytes, byte[] afterBytes, int contextBytes = 8, int mergeGap = 16) { }
+    }
+    public sealed class SaveBinaryDiffSetSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveBinaryDiffSetSnapshot>
+    {
+        public SaveBinaryDiffSetSnapshot(int TotalFiles, int ChangedFileCount, int IdenticalFileCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveInnerFileDiffSnapshot> Files) { }
+        public int ChangedFileCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveInnerFileDiffSnapshot> Files { get; init; }
+        public int IdenticalFileCount { get; init; }
+        public int TotalFiles { get; init; }
+    }
+    public sealed class SaveBinaryHexRowSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveBinaryHexRowSnapshot>
+    {
+        public SaveBinaryHexRowSnapshot(int AbsoluteOffset, string BeforeHex, string BeforeAscii, string AfterHex, string AfterAscii) { }
+        public int AbsoluteOffset { get; init; }
+        public string AfterAscii { get; init; }
+        public string AfterHex { get; init; }
+        public string BeforeAscii { get; init; }
+        public string BeforeHex { get; init; }
+    }
+    public sealed class SaveCharacterCatalogRecordSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterCatalogRecordSnapshot>
+    {
+        public SaveCharacterCatalogRecordSnapshot(
+                    string SourcePath,
+                    int RecordIndex,
+                    bool HasCompleteData,
+                    string? Name,
+                    int Level,
+                    int ExperiencePoints,
+                    int Alignment,
+                    int RaceId,
+                    string RaceName,
+                    int GenderId,
+                    string GenderName,
+                    int MagickPoints,
+                    int TechPoints,
+                    int Gold,
+                    int Bullets,
+                    int PowerCells,
+                    int HpDamage,
+                    int FatigueDamage,
+                    int RawBytesLength,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> NonZeroBasicSkills) { }
+        public int Alignment { get; init; }
+        public int Bullets { get; init; }
+        public int ExperiencePoints { get; init; }
+        public int FatigueDamage { get; init; }
+        public int GenderId { get; init; }
+        public string GenderName { get; init; }
+        public int Gold { get; init; }
+        public bool HasCompleteData { get; init; }
+        public int HpDamage { get; init; }
+        public int Level { get; init; }
+        public int MagickPoints { get; init; }
+        public string? Name { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> NonZeroBasicSkills { get; init; }
+        public int PowerCells { get; init; }
+        public int RaceId { get; init; }
+        public string RaceName { get; init; }
+        public int RawBytesLength { get; init; }
+        public int RecordIndex { get; init; }
+        public string SourcePath { get; init; }
+        public int TechPoints { get; init; }
+    }
+    public static class SaveCharacterCatalogService
+    {
+        public static ArcNET.Diagnostics.SaveCharacterCatalogSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+    }
+    public sealed class SaveCharacterCatalogSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterCatalogSnapshot>
+    {
+        public SaveCharacterCatalogSnapshot(System.DateTimeOffset CapturedAt, string LeaderName, int LeaderLevel, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCharacterCatalogRecordSnapshot> Records) { }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCharacterCatalogRecordSnapshot> Records { get; init; }
+    }
+    public static class SaveCharacterSarDumpService
+    {
+        public static ArcNET.Diagnostics.SaveCharacterSarDumpSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+    }
+    public sealed class SaveCharacterSarDumpSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterSarDumpSnapshot>
+    {
+        public SaveCharacterSarDumpSnapshot(System.DateTimeOffset CapturedAt, string LeaderName, int LeaderLevel, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCharacterSarRecordSnapshot> Records) { }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCharacterSarRecordSnapshot> Records { get; init; }
+    }
+    public sealed class SaveCharacterSarRecordSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterSarRecordSnapshot>
+    {
+        public SaveCharacterSarRecordSnapshot(
+                    string SourcePath,
+                    bool HasCompleteData,
+                    string? Name,
+                    int Level,
+                    int RawBytesLength,
+                    int Gold,
+                    int Arrows,
+                    int Bullets,
+                    int PowerCells,
+                    int TotalKills,
+                    int PortraitIndex,
+                    int MaxFollowers,
+                    int HpDamage,
+                    int FatigueDamage,
+                    int QuestCount,
+                    int? QuestDataRawBytesLength,
+                    int? QuestBitsetWordCount,
+                    System.Collections.Generic.IReadOnlyList<int> QuestSlotIds,
+                    System.Collections.Generic.IReadOnlyList<int> Reputation,
+                    System.Collections.Generic.IReadOnlyList<int> Blessings,
+                    System.Collections.Generic.IReadOnlyList<int> Curses,
+                    System.Collections.Generic.IReadOnlyList<int> Schematics,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarDumpEntrySnapshot> Sars) { }
+        public int Arrows { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Blessings { get; init; }
+        public int Bullets { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Curses { get; init; }
+        public int FatigueDamage { get; init; }
+        public int Gold { get; init; }
+        public bool HasCompleteData { get; init; }
+        public int HpDamage { get; init; }
+        public int Level { get; init; }
+        public int MaxFollowers { get; init; }
+        public string? Name { get; init; }
+        public int PortraitIndex { get; init; }
+        public int PowerCells { get; init; }
+        public int? QuestBitsetWordCount { get; init; }
+        public int QuestCount { get; init; }
+        public int? QuestDataRawBytesLength { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> QuestSlotIds { get; init; }
+        public int RawBytesLength { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Reputation { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.CharacterSarDumpEntrySnapshot> Sars { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Schematics { get; init; }
+        public string SourcePath { get; init; }
+        public int TotalKills { get; init; }
+    }
+    public sealed class SaveCompactDifAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCompactDifAnalysisSnapshot>
+    {
+        public SaveCompactDifAnalysisSnapshot(int Magic, ArcNET.Diagnostics.SaveCompactDifVariant Variant, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCompactDifRecordSnapshot> Records, int? TrailingValue, bool MissingStartSentinel) { }
+        public int Magic { get; init; }
+        public bool MissingStartSentinel { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveCompactDifRecordSnapshot> Records { get; init; }
+        public int? TrailingValue { get; init; }
+        public ArcNET.Diagnostics.SaveCompactDifVariant Variant { get; init; }
+    }
+    public sealed class SaveCompactDifFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveCompactDifFileDetailSnapshot>
+    {
+        public SaveCompactDifFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveCompactDifAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveCompactDifAnalysisSnapshot Analysis { get; init; }
+    }
+    public sealed class SaveCompactDifRecordSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCompactDifRecordSnapshot>
+    {
+        public SaveCompactDifRecordSnapshot(int Index, int? B, int DataLength) { }
+        public int? B { get; init; }
+        public int DataLength { get; init; }
+        public int Index { get; init; }
+    }
+    public enum SaveCompactDifVariant
+    {
+        VariantAWithB = 0,
+        VariantBWithoutB = 1,
+        VariantCMagic18 = 2,
+    }
+    public sealed class SaveDestroyedObjectsAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveDestroyedObjectsAnalysisSnapshot>
+    {
+        public SaveDestroyedObjectsAnalysisSnapshot(int ByteLength, bool HasAlignmentWarning, System.Collections.Generic.IReadOnlyList<string> ObjectIds) { }
+        public int ByteLength { get; init; }
+        public bool HasAlignmentWarning { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> ObjectIds { get; init; }
+    }
+    public sealed class SaveDestroyedObjectsFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveDestroyedObjectsFileDetailSnapshot>
+    {
+        public SaveDestroyedObjectsFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveDestroyedObjectsAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveDestroyedObjectsAnalysisSnapshot Analysis { get; init; }
     }
     public static class SaveDumper
     {
@@ -8168,6 +9444,472 @@ namespace ArcNET.Dumpers
         public static void Dump(string saveDir, System.IO.TextWriter writer) { }
         public static string Dump(string gsiPath, string tfaiPath, string tfafPath) { }
         public static void Dump(string gsiPath, string tfaiPath, string tfafPath, System.IO.TextWriter writer) { }
+    }
+    public sealed class SaveDynamicMobileAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveDynamicMobileAnalysisSnapshot>
+    {
+        public SaveDynamicMobileAnalysisSnapshot(int ObjectCount, int SkippedSentinelCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveDynamicMobileEntrySnapshot> Entries) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveDynamicMobileEntrySnapshot> Entries { get; init; }
+        public int ObjectCount { get; init; }
+        public int SkippedSentinelCount { get; init; }
+    }
+    public sealed class SaveDynamicMobileEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveDynamicMobileEntrySnapshot>
+    {
+        public SaveDynamicMobileEntrySnapshot(int Index, int Offset, ArcNET.Formats.MobData? Mob, string? ParseError) { }
+        public int Index { get; init; }
+        public ArcNET.Formats.MobData? Mob { get; init; }
+        public int Offset { get; init; }
+        public string? ParseError { get; init; }
+    }
+    public sealed class SaveDynamicMobileFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveDynamicMobileFileDetailSnapshot>
+    {
+        public SaveDynamicMobileFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveDynamicMobileAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveDynamicMobileAnalysisSnapshot Analysis { get; init; }
+    }
+    public static class SaveEmbeddedFileAnalysisService
+    {
+        public static ArcNET.Diagnostics.SaveCompactDifAnalysisSnapshot AnalyzeCompactDif(byte[] data) { }
+        public static ArcNET.Diagnostics.SaveDestroyedObjectsAnalysisSnapshot AnalyzeDestroyedObjects(System.ReadOnlyMemory<byte> memory) { }
+        public static ArcNET.Diagnostics.SaveDynamicMobileAnalysisSnapshot AnalyzeDynamicMobiles(System.ReadOnlyMemory<byte> memory) { }
+        public static ArcNET.Diagnostics.SaveModifiedObjectsAnalysisSnapshot AnalyzeModifiedObjects(System.ReadOnlyMemory<byte> memory) { }
+        public static ArcNET.Diagnostics.SaveTimeEventAnalysisSnapshot AnalyzeTimeEvents(System.ReadOnlyMemory<byte> memory) { }
+        public static ArcNET.Diagnostics.SaveTownMapFogFileAnalysisSnapshot AnalyzeTownMapFog(System.ReadOnlyMemory<byte> memory) { }
+        public static bool IsCompactDifFormat(byte[] data) { }
+        public static ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot? TryAnalyze(string fileName, byte[] data) { }
+    }
+    public enum SaveEmbeddedFileDetailKind
+    {
+        DynamicMobiles = 0,
+        CompactDif = 1,
+        DestroyedObjects = 2,
+        ModifiedObjects = 3,
+        TimeEvents = 4,
+        TownMapFog = 5,
+    }
+    public abstract class SaveEmbeddedFileDetailSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot>
+    {
+        protected SaveEmbeddedFileDetailSnapshot(ArcNET.Diagnostics.SaveEmbeddedFileDetailKind Kind, string FileName) { }
+        public string FileName { get; init; }
+        public ArcNET.Diagnostics.SaveEmbeddedFileDetailKind Kind { get; init; }
+    }
+    public sealed class SaveEmbeddedFileExtensionSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveEmbeddedFileExtensionSnapshot>
+    {
+        public SaveEmbeddedFileExtensionSnapshot(string Extension, string DisplayExtension, int Count, long TotalBytes) { }
+        public int Count { get; init; }
+        public string DisplayExtension { get; init; }
+        public string Extension { get; init; }
+        public long TotalBytes { get; init; }
+    }
+    public sealed class SaveExploredAreaCoverageSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveExploredAreaCoverageSnapshot>
+    {
+        public SaveExploredAreaCoverageSnapshot(string Area, int RevealedTiles, int TotalTiles, double CoveragePercent) { }
+        public string Area { get; init; }
+        public double CoveragePercent { get; init; }
+        public int RevealedTiles { get; init; }
+        public int TotalTiles { get; init; }
+    }
+    public sealed class SaveFileAuditRequest : System.IEquatable<ArcNET.Diagnostics.SaveFileAuditRequest>
+    {
+        public SaveFileAuditRequest(ArcNET.Editor.LoadedSave Save) { }
+        public int CharacterSarLimit { get; init; }
+        public int FieldLimit { get; init; }
+        public int MobileMdyLimit { get; init; }
+        public ArcNET.Editor.LoadedSave Save { get; init; }
+        public int ValidationIssueLimit { get; init; }
+    }
+    public static class SaveFileAuditService
+    {
+        public static ArcNET.Diagnostics.SaveFileAuditSnapshot Create(ArcNET.Diagnostics.SaveFileAuditRequest request) { }
+        public static ArcNET.Diagnostics.SaveFileAuditSnapshot Create(string gsiPath, string tfaiPath, string tfafPath) { }
+    }
+    public sealed class SaveFileAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveFileAuditSnapshot>
+    {
+        public SaveFileAuditSnapshot(System.DateTimeOffset CapturedAt, string LeaderName, int LeaderLevel, int MapId, ArcNET.Diagnostics.SaveTypedAssetSummarySnapshot Assets, ArcNET.Diagnostics.SaveValidationSummarySnapshot Validation, ArcNET.Diagnostics.SaveObjectFieldAuditSnapshot Objects, ArcNET.Diagnostics.PlayerCharacterAuditSnapshot? PlayerCharacter, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveParseErrorSnapshot> ParseErrors, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveValidationIssueSnapshot> ValidationIssues, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileMdyAuditSnapshot> MobileMdys, int ValidationIssueLimit, int MobileMdyLimit) { }
+        public ArcNET.Diagnostics.SaveTypedAssetSummarySnapshot Assets { get; init; }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public int MapId { get; init; }
+        public int MobileMdyLimit { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileMdyAuditSnapshot> MobileMdys { get; init; }
+        public ArcNET.Diagnostics.SaveObjectFieldAuditSnapshot Objects { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveParseErrorSnapshot> ParseErrors { get; init; }
+        public ArcNET.Diagnostics.PlayerCharacterAuditSnapshot? PlayerCharacter { get; init; }
+        public ArcNET.Diagnostics.SaveValidationSummarySnapshot Validation { get; init; }
+        public int ValidationIssueLimit { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveValidationIssueSnapshot> ValidationIssues { get; init; }
+    }
+    public sealed class SaveGameClockSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGameClockSnapshot>
+    {
+        public SaveGameClockSnapshot(int DayNumber, int Hours, int Minutes, int Seconds) { }
+        public int DayNumber { get; init; }
+        public int Hours { get; init; }
+        public int Minutes { get; init; }
+        public int Seconds { get; init; }
+    }
+    public readonly struct SaveGlobalAlignedQuadDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalAlignedQuadDiffSnapshot>
+    {
+        public SaveGlobalAlignedQuadDiffSnapshot(int BeforeSectionCount, int AfterSectionCount, int BeforeZeroSectionCount, int AfterZeroSectionCount, int BeforeLongestZeroSectionStart, int BeforeLongestZeroSectionLength, int AfterLongestZeroSectionStart, int AfterLongestZeroSectionLength, ArcNET.Diagnostics.SaveGlobalFrontMatterDiffSnapshot? FrontMatter, ArcNET.Diagnostics.SaveGlobalTailDiffSnapshot? Tail) { }
+        public int AfterLongestZeroSectionLength { get; init; }
+        public int AfterLongestZeroSectionStart { get; init; }
+        public int AfterSectionCount { get; init; }
+        public int AfterZeroSectionCount { get; init; }
+        public int BeforeLongestZeroSectionLength { get; init; }
+        public int BeforeLongestZeroSectionStart { get; init; }
+        public int BeforeSectionCount { get; init; }
+        public int BeforeZeroSectionCount { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalFrontMatterDiffSnapshot? FrontMatter { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalTailDiffSnapshot? Tail { get; init; }
+    }
+    public static class SaveGlobalAnalysisService
+    {
+        public static System.Collections.Generic.IReadOnlyList<string> KnownFileNames { get; }
+        public static ArcNET.Diagnostics.SaveGlobalFileSnapshot Analyze(string fileName, byte[] bytes, ArcNET.Formats.DataSavFile? dataSav, ArcNET.Formats.Data2SavFile? data2Sav) { }
+        public static ArcNET.Diagnostics.SaveGlobalSlotSnapshot CreateSlotSnapshot(int slot, string slotStem, ArcNET.Editor.LoadedSave save) { }
+        public static int GetData2PrefixIntCount(in ArcNET.Diagnostics.SaveIdPairTableSnapshot saveIdPairs) { }
+        public static int GetData2SuffixIntCount(int totalInts, in ArcNET.Diagnostics.SaveIdPairTableSnapshot saveIdPairs) { }
+    }
+    public sealed class SaveGlobalAsciiCandidateSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalAsciiCandidateSnapshot>
+    {
+        public SaveGlobalAsciiCandidateSnapshot(int Offset, int Length, string Text) { }
+        public int Length { get; init; }
+        public int Offset { get; init; }
+        public string Text { get; init; }
+    }
+    public readonly struct SaveGlobalChangedIntSampleSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalChangedIntSampleSnapshot>
+    {
+        public SaveGlobalChangedIntSampleSnapshot(int Index, int BeforeValue, int AfterValue) { }
+        public int AfterValue { get; init; }
+        public int BeforeValue { get; init; }
+        public int Index { get; init; }
+    }
+    public readonly struct SaveGlobalContiguousIntWindow : System.IEquatable<ArcNET.Diagnostics.SaveGlobalContiguousIntWindow>
+    {
+        public SaveGlobalContiguousIntWindow(int StartInt, int RemovedInts, int AddedInts, int CommonSuffixInts) { }
+        public int AddedInts { get; init; }
+        public int CommonSuffixInts { get; init; }
+        public int RemovedInts { get; init; }
+        public int StartInt { get; init; }
+    }
+    public readonly struct SaveGlobalData2RegionFamilySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalData2RegionFamilySnapshot>
+    {
+        public SaveGlobalData2RegionFamilySnapshot(System.Collections.Generic.IReadOnlyList<int> Slots, int IntCount, string Sequence, string Preview) { }
+        public int IntCount { get; init; }
+        public string Preview { get; init; }
+        public string Sequence { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Slots { get; init; }
+    }
+    public sealed class SaveGlobalData2RegionPreviewSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalData2RegionPreviewSnapshot>
+    {
+        public SaveGlobalData2RegionPreviewSnapshot(int IntCount, System.Collections.Generic.IReadOnlyList<int> HeadValues, System.Collections.Generic.IReadOnlyList<int> TailValues) { }
+        public System.Collections.Generic.IReadOnlyList<int> HeadValues { get; init; }
+        public int IntCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> TailValues { get; init; }
+    }
+    public static class SaveGlobalDiffService
+    {
+        public static ArcNET.Diagnostics.SaveGlobalFileDiffSnapshot Compare(in ArcNET.Diagnostics.SaveGlobalFileSnapshot before, in ArcNET.Diagnostics.SaveGlobalFileSnapshot after, int maxChangedSamples = 6, int maxWindowInts = 16, int minWindowSuffixInts = 16, int maxSaveIdPairPreview = 10) { }
+    }
+    public static class SaveGlobalDumpService
+    {
+        public static ArcNET.Diagnostics.SaveGlobalFileDumpSnapshot Create(in ArcNET.Diagnostics.SaveGlobalFileSnapshot file, int maxQuadPreviewRows = 6, int maxHexRows = 16, int maxPreviewInts = 64, int firstNonZeroEntries = 20, int lastNonZeroEntries = 10, int maxAsciiPreviewStrings = 10, int maxSaveIdPairPreview = 16, int maxData2RegionPreviewInts = 8) { }
+    }
+    public readonly struct SaveGlobalFileDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalFileDiffSnapshot>
+    {
+        public SaveGlobalFileDiffSnapshot(
+                    bool IsIdentical,
+                    int BeforeByteLength,
+                    int AfterByteLength,
+                    int BeforeHeader0,
+                    int BeforeHeader1,
+                    int AfterHeader0,
+                    int AfterHeader1,
+                    int BeforeNonZeroCount,
+                    int AfterNonZeroCount,
+                    int ChangedInts,
+                    int PrefixInts,
+                    int AddedInts,
+                    int RemovedInts,
+                    int ChangedTailBytes,
+                    int BeforeTrailingBytes,
+                    int AfterTrailingBytes,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalChangedIntSampleSnapshot> ChangedSamples,
+                    ArcNET.Diagnostics.SaveGlobalContiguousIntWindow? Window,
+                    ArcNET.Diagnostics.SaveGlobalAlignedQuadDiffSnapshot? AlignedQuad,
+                    ArcNET.Diagnostics.SaveGlobalSaveIdPairDiffSnapshot? SaveIdPairs) { }
+        public int AddedInts { get; init; }
+        public int AfterByteLength { get; init; }
+        public int AfterHeader0 { get; init; }
+        public int AfterHeader1 { get; init; }
+        public int AfterNonZeroCount { get; init; }
+        public int AfterTrailingBytes { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalAlignedQuadDiffSnapshot? AlignedQuad { get; init; }
+        public int BeforeByteLength { get; init; }
+        public int BeforeHeader0 { get; init; }
+        public int BeforeHeader1 { get; init; }
+        public int BeforeNonZeroCount { get; init; }
+        public int BeforeTrailingBytes { get; init; }
+        public int ChangedInts { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalChangedIntSampleSnapshot> ChangedSamples { get; init; }
+        public int ChangedTailBytes { get; init; }
+        public bool IsIdentical { get; init; }
+        public int PrefixInts { get; init; }
+        public int RemovedInts { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalSaveIdPairDiffSnapshot? SaveIdPairs { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalContiguousIntWindow? Window { get; init; }
+    }
+    public sealed class SaveGlobalFileDumpSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalFileDumpSnapshot>
+    {
+        public SaveGlobalFileDumpSnapshot(int Header0, int Header1, int TotalInts, int TrailingBytes, int BeefCafeCount, int MinusOneCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalQuadPreviewRowSnapshot> QuadPreviewRows, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalHexPreviewRowSnapshot> HexRows, int HexOmittedBytes, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIntPreviewRowSnapshot> IntRows, ArcNET.Diagnostics.SaveGlobalNonZeroSummarySnapshot NonZeroSummary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalAsciiCandidateSnapshot> AsciiCandidates, ArcNET.Diagnostics.SaveGlobalSaveIdPairDetailsSnapshot? SaveIdPairDetails) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalAsciiCandidateSnapshot> AsciiCandidates { get; init; }
+        public int BeefCafeCount { get; init; }
+        public int Header0 { get; init; }
+        public int Header1 { get; init; }
+        public int HexOmittedBytes { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalHexPreviewRowSnapshot> HexRows { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIntPreviewRowSnapshot> IntRows { get; init; }
+        public int MinusOneCount { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalNonZeroSummarySnapshot NonZeroSummary { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalQuadPreviewRowSnapshot> QuadPreviewRows { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalSaveIdPairDetailsSnapshot? SaveIdPairDetails { get; init; }
+        public int TotalInts { get; init; }
+        public int TrailingBytes { get; init; }
+    }
+    public readonly struct SaveGlobalFileSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalFileSnapshot>
+    {
+        public SaveGlobalFileSnapshot(byte[] Bytes, int Header0, int Header1, int TotalInts, int TrailingBytes, int NonZeroCount, int BeefCafeCount, int MinusOneCount, ArcNET.Diagnostics.SaveIdPairTableSnapshot? SaveIdPairs, ArcNET.Diagnostics.AlignedQuadSummary? QuadSummary, ArcNET.Formats.Data2SavFile? Data2Sav) { }
+        public int BeefCafeCount { get; init; }
+        public byte[] Bytes { get; init; }
+        public ArcNET.Formats.Data2SavFile? Data2Sav { get; init; }
+        public int Header0 { get; init; }
+        public int Header1 { get; init; }
+        public int MinusOneCount { get; init; }
+        public int NonZeroCount { get; init; }
+        public ArcNET.Diagnostics.AlignedQuadSummary? QuadSummary { get; init; }
+        public ArcNET.Diagnostics.SaveIdPairTableSnapshot? SaveIdPairs { get; init; }
+        public int TotalInts { get; init; }
+        public int TrailingBytes { get; init; }
+    }
+    public readonly struct SaveGlobalFrontMatterDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalFrontMatterDiffSnapshot>
+    {
+        public SaveGlobalFrontMatterDiffSnapshot(int BeforeRowCount, int AfterRowCount, int BeforeSectionCount, int AfterSectionCount, int SamePrefixCount, ArcNET.Diagnostics.AlignedQuadRunSummary? BeforeNextRun, ArcNET.Diagnostics.AlignedQuadRunSummary? AfterNextRun) { }
+        public ArcNET.Diagnostics.AlignedQuadRunSummary? AfterNextRun { get; init; }
+        public int AfterRowCount { get; init; }
+        public int AfterSectionCount { get; init; }
+        public ArcNET.Diagnostics.AlignedQuadRunSummary? BeforeNextRun { get; init; }
+        public int BeforeRowCount { get; init; }
+        public int BeforeSectionCount { get; init; }
+        public int SamePrefixCount { get; init; }
+    }
+    public readonly struct SaveGlobalFrontMatterFamilySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalFrontMatterFamilySnapshot>
+    {
+        public SaveGlobalFrontMatterFamilySnapshot(System.Collections.Generic.IReadOnlyList<int> Slots, int RowCount, int SectionCount, string Sequence) { }
+        public int RowCount { get; init; }
+        public int SectionCount { get; init; }
+        public string Sequence { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Slots { get; init; }
+    }
+    public readonly struct SaveGlobalHexPreviewRowSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalHexPreviewRowSnapshot>
+    {
+        public SaveGlobalHexPreviewRowSnapshot(int Offset, byte[] Bytes) { }
+        public byte[] Bytes { get; init; }
+        public int Offset { get; init; }
+    }
+    public readonly struct SaveGlobalHotIndexHitSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalHotIndexHitSnapshot>
+    {
+        public SaveGlobalHotIndexHitSnapshot(int Index, int Hits) { }
+        public int Hits { get; init; }
+        public int Index { get; init; }
+    }
+    public readonly struct SaveGlobalIndexedIntSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot>
+    {
+        public SaveGlobalIndexedIntSnapshot(int Index, int Value) { }
+        public int Index { get; init; }
+        public int Value { get; init; }
+    }
+    public static class SaveGlobalInt32Reader
+    {
+        public static int CountValue(byte[] bytes, int totalInts, int match) { }
+        public static int ReadInt32(byte[] bytes, int intIndex) { }
+    }
+    public readonly struct SaveGlobalIntPreviewRowSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalIntPreviewRowSnapshot>
+    {
+        public SaveGlobalIntPreviewRowSnapshot(int StartIndex, System.Collections.Generic.IReadOnlyList<int> Values) { }
+        public int StartIndex { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Values { get; init; }
+    }
+    public sealed class SaveGlobalNonZeroSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalNonZeroSummarySnapshot>
+    {
+        public SaveGlobalNonZeroSummarySnapshot(int Count, int TotalInts, double Density, bool IsDense, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> Entries, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> FirstEntries, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> LastEntries) { }
+        public int Count { get; init; }
+        public double Density { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> Entries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> FirstEntries { get; init; }
+        public bool IsDense { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalIndexedIntSnapshot> LastEntries { get; init; }
+        public int TotalInts { get; init; }
+    }
+    public readonly struct SaveGlobalQuadPreviewRowSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalQuadPreviewRowSnapshot>
+    {
+        public SaveGlobalQuadPreviewRowSnapshot(int RowIndex, int A, int B, int C, int D) { }
+        public int A { get; init; }
+        public int B { get; init; }
+        public int C { get; init; }
+        public int D { get; init; }
+        public int RowIndex { get; init; }
+    }
+    public static class SaveGlobalRangeAnalysisService
+    {
+        public static ArcNET.Diagnostics.SaveGlobalRangeAnalysisSnapshot Analyze(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalSlotSnapshot> snapshots, System.Collections.Generic.IReadOnlyList<string>? fileNames = null) { }
+        public static int CountChangedIntRegion(byte[] beforeBytes, int beforeStartInt, int beforeCount, byte[] afterBytes, int afterStartInt, int afterCount) { }
+        public static ArcNET.Diagnostics.SaveGlobalContiguousIntWindow? TryDetectContiguousIntWindow(in ArcNET.Diagnostics.SaveGlobalFileSnapshot before, in ArcNET.Diagnostics.SaveGlobalFileSnapshot after, int prefixInts, int maxWindowInts = 16, int minWindowSuffixInts = 16) { }
+    }
+    public readonly struct SaveGlobalRangeAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalRangeAnalysisSnapshot>
+    {
+        public SaveGlobalRangeAnalysisSnapshot(System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalHotIndexHitSnapshot>> HotIndices, System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalWindowPatternHitSnapshot>> WindowPatterns, System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalWindowTraceHitSnapshot>> WindowTraces, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalFrontMatterFamilySnapshot> FrontMatterFamilies, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalTailFamilySnapshot> TailFamilies, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalData2RegionFamilySnapshot> PrefixFamilies, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalData2RegionFamilySnapshot> SuffixFamilies) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalFrontMatterFamilySnapshot> FrontMatterFamilies { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalHotIndexHitSnapshot>> HotIndices { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalData2RegionFamilySnapshot> PrefixFamilies { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalData2RegionFamilySnapshot> SuffixFamilies { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalTailFamilySnapshot> TailFamilies { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalWindowPatternHitSnapshot>> WindowPatterns { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalWindowTraceHitSnapshot>> WindowTraces { get; init; }
+    }
+    public sealed class SaveGlobalSaveIdPairDetailsSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalSaveIdPairDetailsSnapshot>
+    {
+        public SaveGlobalSaveIdPairDetailsSnapshot(int StartInt, int EndInt, int PairCount, int FirstId, int LastId, int NonZeroPairs, int MaxValue, ArcNET.Diagnostics.SaveGlobalData2RegionPreviewSnapshot? PrefixPreview, ArcNET.Diagnostics.SaveGlobalData2RegionPreviewSnapshot? SuffixPreview, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueSnapshot> NonZeroPairPreview, int OmittedNonZeroPairCount) { }
+        public int EndInt { get; init; }
+        public int FirstId { get; init; }
+        public int LastId { get; init; }
+        public int MaxValue { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueSnapshot> NonZeroPairPreview { get; init; }
+        public int NonZeroPairs { get; init; }
+        public int OmittedNonZeroPairCount { get; init; }
+        public int PairCount { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalData2RegionPreviewSnapshot? PrefixPreview { get; init; }
+        public int StartInt { get; init; }
+        public ArcNET.Diagnostics.SaveGlobalData2RegionPreviewSnapshot? SuffixPreview { get; init; }
+    }
+    public readonly struct SaveGlobalSaveIdPairDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalSaveIdPairDiffSnapshot>
+    {
+        public SaveGlobalSaveIdPairDiffSnapshot(int BeforeStartInt, int AfterStartInt, int BeforePairCount, int AfterPairCount, int BeforeNonZeroPairs, int AfterNonZeroPairs, int BeforePrefixIntCount, int AfterPrefixIntCount, int PrefixChangedInts, int BeforeSuffixIntCount, int AfterSuffixIntCount, int SuffixChangedInts, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueDiffSnapshot> ChangedPairs, int TotalChangedPairs) { }
+        public int AfterNonZeroPairs { get; init; }
+        public int AfterPairCount { get; init; }
+        public int AfterPrefixIntCount { get; init; }
+        public int AfterStartInt { get; init; }
+        public int AfterSuffixIntCount { get; init; }
+        public int BeforeNonZeroPairs { get; init; }
+        public int BeforePairCount { get; init; }
+        public int BeforePrefixIntCount { get; init; }
+        public int BeforeStartInt { get; init; }
+        public int BeforeSuffixIntCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueDiffSnapshot> ChangedPairs { get; init; }
+        public int PrefixChangedInts { get; init; }
+        public int SuffixChangedInts { get; init; }
+        public int TotalChangedPairs { get; init; }
+    }
+    public readonly struct SaveGlobalSaveIdPairValueDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueDiffSnapshot>
+    {
+        public SaveGlobalSaveIdPairValueDiffSnapshot(int Id, int? BeforeValue, int? AfterValue) { }
+        public int? AfterValue { get; init; }
+        public int? BeforeValue { get; init; }
+        public int Id { get; init; }
+    }
+    public readonly struct SaveGlobalSaveIdPairValueSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalSaveIdPairValueSnapshot>
+    {
+        public SaveGlobalSaveIdPairValueSnapshot(int Id, int Value) { }
+        public int Id { get; init; }
+        public int Value { get; init; }
+    }
+    public readonly struct SaveGlobalSlotSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalSlotSnapshot>
+    {
+        public SaveGlobalSlotSnapshot(int Slot, string SlotStem, string LeaderName, int LeaderLevel, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Diagnostics.SaveGlobalFileSnapshot> Files, ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? Player, ArcNET.Diagnostics.SaveTownMapFogSnapshot TownMapFogs) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Diagnostics.SaveGlobalFileSnapshot> Files { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? Player { get; init; }
+        public int Slot { get; init; }
+        public string SlotStem { get; init; }
+        public ArcNET.Diagnostics.SaveTownMapFogSnapshot TownMapFogs { get; init; }
+    }
+    public readonly struct SaveGlobalTailDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalTailDiffSnapshot>
+    {
+        public SaveGlobalTailDiffSnapshot(int BeforeStartRow, int AfterStartRow, int BeforeRowCount, int AfterRowCount, int BeforeSectionCount, int AfterSectionCount, int SamePrefixCount, ArcNET.Diagnostics.AlignedQuadRunSummary? BeforeNextRun, ArcNET.Diagnostics.AlignedQuadRunSummary? AfterNextRun) { }
+        public ArcNET.Diagnostics.AlignedQuadRunSummary? AfterNextRun { get; init; }
+        public int AfterRowCount { get; init; }
+        public int AfterSectionCount { get; init; }
+        public int AfterStartRow { get; init; }
+        public ArcNET.Diagnostics.AlignedQuadRunSummary? BeforeNextRun { get; init; }
+        public int BeforeRowCount { get; init; }
+        public int BeforeSectionCount { get; init; }
+        public int BeforeStartRow { get; init; }
+        public int SamePrefixCount { get; init; }
+    }
+    public readonly struct SaveGlobalTailFamilySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalTailFamilySnapshot>
+    {
+        public SaveGlobalTailFamilySnapshot(System.Collections.Generic.IReadOnlyList<int> Slots, int RowCount, int SectionCount, string Sequence) { }
+        public int RowCount { get; init; }
+        public int SectionCount { get; init; }
+        public string Sequence { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Slots { get; init; }
+    }
+    public readonly struct SaveGlobalWindowPatternHitSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalWindowPatternHitSnapshot>
+    {
+        public SaveGlobalWindowPatternHitSnapshot(int StartInt, int RemovedInts, int AddedInts, int Hits) { }
+        public int AddedInts { get; init; }
+        public int Hits { get; init; }
+        public int RemovedInts { get; init; }
+        public int StartInt { get; init; }
+    }
+    public readonly struct SaveGlobalWindowTraceHitSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGlobalWindowTraceHitSnapshot>
+    {
+        public SaveGlobalWindowTraceHitSnapshot(int StartInt, int Width, int Hits) { }
+        public int Hits { get; init; }
+        public int StartInt { get; init; }
+        public int Width { get; init; }
+    }
+    public sealed class SaveGoldItemEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGoldItemEntrySnapshot>
+    {
+        public SaveGoldItemEntrySnapshot(byte[] ObjectIdBytes, int Quantity, bool HasParent, bool FoundInPlayerCharacter, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemPropertySnapshot> PositiveInt32Properties) { }
+        public bool FoundInPlayerCharacter { get; init; }
+        public bool HasParent { get; init; }
+        public byte[] ObjectIdBytes { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemPropertySnapshot> PositiveInt32Properties { get; init; }
+        public int Quantity { get; init; }
+    }
+    public sealed class SaveGoldItemFileSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGoldItemFileSnapshot>
+    {
+        public SaveGoldItemFileSnapshot(string Path, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemEntrySnapshot> Items) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemEntrySnapshot> Items { get; init; }
+        public string Path { get; init; }
+    }
+    public static class SaveGoldItemInspectionService
+    {
+        public static ArcNET.Diagnostics.SaveGoldItemInspectionSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+    }
+    public sealed class SaveGoldItemInspectionSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGoldItemInspectionSnapshot>
+    {
+        public SaveGoldItemInspectionSnapshot(string LeaderName, int LeaderLevel, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemFileSnapshot> Files) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveGoldItemFileSnapshot> Files { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+    }
+    public sealed class SaveGoldItemPropertySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGoldItemPropertySnapshot>
+    {
+        public SaveGoldItemPropertySnapshot(int Field, int Value) { }
+        public int Field { get; init; }
+        public int Value { get; init; }
+    }
+    public readonly struct SaveIdPairTableSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveIdPairTableSnapshot>
+    {
+        public SaveIdPairTableSnapshot(int StartInt, int PairCount, int EndInt, int FirstId, int LastId, int NonZeroPairs, int MaxValue, System.Collections.Generic.IReadOnlyDictionary<int, int> Values) { }
+        public int EndInt { get; init; }
+        public int FirstId { get; init; }
+        public int LastId { get; init; }
+        public int MaxValue { get; init; }
+        public int NonZeroPairs { get; init; }
+        public int PairCount { get; init; }
+        public int StartInt { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<int, int> Values { get; init; }
     }
     public static class SaveIndexDumper
     {
@@ -8179,10 +9921,354 @@ namespace ArcNET.Dumpers
         public static string Dump(ArcNET.Formats.SaveInfo info) { }
         public static void Dump(ArcNET.Formats.SaveInfo info, System.IO.TextWriter writer) { }
     }
+    public sealed class SaveInnerFileDiffSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveInnerFileDiffSnapshot>
+    {
+        public SaveInnerFileDiffSnapshot(string Path, bool OnlyInA, bool OnlyInB, int SizeA, int SizeB, byte[] BytesA, byte[] BytesB, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionSnapshot> Regions, int ChangedByteCount) { }
+        public byte[] BytesA { get; init; }
+        public byte[] BytesB { get; init; }
+        public int ChangedByteCount { get; init; }
+        public bool OnlyInA { get; init; }
+        public bool OnlyInB { get; init; }
+        public string Path { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveBinaryDiffRegionSnapshot> Regions { get; init; }
+        public int SizeA { get; init; }
+        public int SizeB { get; init; }
+    }
+    public sealed class SaveMapWorldStateSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveMapWorldStateSnapshot>
+    {
+        public SaveMapWorldStateSnapshot(string MapName, int DestroyedObjectCount, int ModifiedObjectCount, int DynamicMobileCount, int ObjectDiffCount) { }
+        public int DestroyedObjectCount { get; init; }
+        public int DynamicMobileCount { get; init; }
+        public string MapName { get; init; }
+        public int ModifiedObjectCount { get; init; }
+        public int ObjectDiffCount { get; init; }
+    }
+    public sealed class SaveModifiedObjectEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveModifiedObjectEntrySnapshot>
+    {
+        public SaveModifiedObjectEntrySnapshot(int Index, string FileObjectId, ArcNET.Formats.MobData? Mob, string? ParseError, string? Warning) { }
+        public string FileObjectId { get; init; }
+        public int Index { get; init; }
+        public ArcNET.Formats.MobData? Mob { get; init; }
+        public string? ParseError { get; init; }
+        public string? Warning { get; init; }
+    }
+    public sealed class SaveModifiedObjectsAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveModifiedObjectsAnalysisSnapshot>
+    {
+        public SaveModifiedObjectsAnalysisSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveModifiedObjectEntrySnapshot> Entries, string? TerminalWarning) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveModifiedObjectEntrySnapshot> Entries { get; init; }
+        public string? TerminalWarning { get; init; }
+    }
+    public sealed class SaveModifiedObjectsFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveModifiedObjectsFileDetailSnapshot>
+    {
+        public SaveModifiedObjectsFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveModifiedObjectsAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveModifiedObjectsAnalysisSnapshot Analysis { get; init; }
+    }
+    public sealed class SaveObjectFieldAuditSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveObjectFieldAuditSnapshot>
+    {
+        public SaveObjectFieldAuditSnapshot(int ObjectCount, int MobileFileCount, int MobileMdyMobCount, int DistinctFieldCount, int TotalPropertyCount, int ParseNoteCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldUsageSnapshot> TopFields, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldUsageSnapshot> LinkFields) { }
+        public int DistinctFieldCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldUsageSnapshot> LinkFields { get; init; }
+        public int MobileFileCount { get; init; }
+        public int MobileMdyMobCount { get; init; }
+        public int ObjectCount { get; init; }
+        public int ParseNoteCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldUsageSnapshot> TopFields { get; init; }
+        public int TotalPropertyCount { get; init; }
+    }
+    public sealed class SaveParseErrorSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveParseErrorSnapshot>
+    {
+        public SaveParseErrorSnapshot(string FilePath, string Message) { }
+        public string FilePath { get; init; }
+        public string Message { get; init; }
+    }
+    public sealed class SavePlayerCharacterResolution : System.IEquatable<ArcNET.Diagnostics.SavePlayerCharacterResolution>
+    {
+        public SavePlayerCharacterResolution(string Path, ArcNET.Formats.CharacterMdyRecord Record) { }
+        public string Path { get; init; }
+        public ArcNET.Formats.CharacterMdyRecord Record { get; init; }
+    }
+    public static class SavePlayerCharacterResolver
+    {
+        public static ArcNET.Diagnostics.SavePlayerCharacterResolution? Resolve(ArcNET.Editor.LoadedSave save) { }
+    }
+    public static class SavePlayerCharacterSummaryService
+    {
+        public static ArcNET.Diagnostics.SavePlayerCharacterSummarySnapshot? Create(ArcNET.Editor.LoadedSave save) { }
+    }
+    public sealed class SavePlayerCharacterSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SavePlayerCharacterSummarySnapshot>
+    {
+        public SavePlayerCharacterSummarySnapshot(
+                    System.DateTimeOffset CapturedAt,
+                    string LeaderName,
+                    int LeaderLevel,
+                    string Path,
+                    bool HasCompleteData,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> PrimaryAttributes,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> DerivedStats,
+                    ArcNET.Diagnostics.PlayerCharacterProgressionSnapshot Progression,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BasicSkills,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> TechSkills,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> SpellColleges,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> TechDisciplines,
+                    ArcNET.Diagnostics.SaveQuestLogSummarySnapshot QuestLog,
+                    System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation,
+                    System.Collections.Generic.IReadOnlyList<int> Blessings,
+                    System.Collections.Generic.IReadOnlyList<int> Curses,
+                    System.Collections.Generic.IReadOnlyList<int> Schematics,
+                    ArcNET.Diagnostics.SaveRumorSummarySnapshot Rumors) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> BasicSkills { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Blessings { get; init; }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Curses { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> DerivedStats { get; init; }
+        public bool HasCompleteData { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public string Path { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> PrimaryAttributes { get; init; }
+        public ArcNET.Diagnostics.PlayerCharacterProgressionSnapshot Progression { get; init; }
+        public ArcNET.Diagnostics.SaveQuestLogSummarySnapshot QuestLog { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerReputationEntrySnapshot> Reputation { get; init; }
+        public ArcNET.Diagnostics.SaveRumorSummarySnapshot Rumors { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> Schematics { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> SpellColleges { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> TechDisciplines { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.PlayerIndexedValueSnapshot> TechSkills { get; init; }
+    }
+    public static class SavePlayerProgressionHistoryService
+    {
+        public const string TrackedFieldsSummary = "lv, XP, align, fate, magicPts, techPts, gold, quests, quest-state deltas, rumors," +
+            " blessings, curses, schematics, hp_dmg, fat_dmg, bullets, powerCells, reputation" +
+            ", SpellTech ranks, base stats, basic skills";
+        public static ArcNET.Diagnostics.PlayerProgressionHistorySnapshot Create(string saveDir, int firstSlot, int lastSlot, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? questCatalog = null) { }
+    }
+    public static class SavePlayerQuestBookService
+    {
+        public static ArcNET.Diagnostics.PlayerQuestBookSnapshot Create(ArcNET.Editor.LoadedSave save, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? questCatalog = null) { }
+    }
+    public sealed class SaveQuestLogSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveQuestLogSummarySnapshot>
+    {
+        public SaveQuestLogSummarySnapshot(int Count, int? RawBytesLength, int? BitsetWordCount) { }
+        public int? BitsetWordCount { get; init; }
+        public int Count { get; init; }
+        public int? RawBytesLength { get; init; }
+    }
+    public sealed class SaveRumorSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveRumorSummarySnapshot>
+    {
+        public SaveRumorSummarySnapshot(int Count, int? RawBytesLength) { }
+        public int Count { get; init; }
+        public int? RawBytesLength { get; init; }
+    }
+    public static class SaveSlotLoadService
+    {
+        public static ArcNET.Diagnostics.SaveSlotLoadSnapshot Load(string saveDir, int slot) { }
+        public static ArcNET.Diagnostics.SaveSlotLoadSnapshot Load(string saveDir, string slotText) { }
+        public static ArcNET.Editor.LoadedSave LoadFiles(string gsiPath, string tfaiPath, string tfafPath) { }
+    }
+    public sealed class SaveSlotLoadSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveSlotLoadSnapshot>
+    {
+        public SaveSlotLoadSnapshot(int Slot, string SlotStem, ArcNET.Editor.LoadedSave Save) { }
+        public ArcNET.Editor.LoadedSave Save { get; init; }
+        public int Slot { get; init; }
+        public string SlotStem { get; init; }
+    }
+    public static class SaveStructureAnalysisService
+    {
+        public static ArcNET.Diagnostics.SaveStructureAnalysisSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveStructureAnalysisSnapshot Create(string gsiPath, string tfaiPath, string tfafPath) { }
+    }
+    public sealed class SaveStructureAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveStructureAnalysisSnapshot>
+    {
+        public SaveStructureAnalysisSnapshot(string DisplayName, string LeaderName, int LeaderLevel, int LeaderPortraitId, string ModuleName, int MapId, int LeaderTileX, int LeaderTileY, ArcNET.Diagnostics.SaveGameClockSnapshot GameTime, int TotalFileCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveEmbeddedFileExtensionSnapshot> Extensions, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveExploredAreaCoverageSnapshot> ExploredAreas, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveMapWorldStateSnapshot> Maps) { }
+        public string DisplayName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveExploredAreaCoverageSnapshot> ExploredAreas { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveEmbeddedFileExtensionSnapshot> Extensions { get; init; }
+        public ArcNET.Diagnostics.SaveGameClockSnapshot GameTime { get; init; }
+        public int LeaderLevel { get; init; }
+        public string LeaderName { get; init; }
+        public int LeaderPortraitId { get; init; }
+        public int LeaderTileX { get; init; }
+        public int LeaderTileY { get; init; }
+        public int MapId { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveMapWorldStateSnapshot> Maps { get; init; }
+        public string ModuleName { get; init; }
+        public int TotalFileCount { get; init; }
+    }
+    public sealed class SaveTimeEventAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTimeEventAnalysisSnapshot>
+    {
+        public SaveTimeEventAnalysisSnapshot(bool IsTooShort, int ByteLength, int DeclaredCount, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveTimeEventEntrySnapshot> Entries, bool HasMoreEntries) { }
+        public int ByteLength { get; init; }
+        public int DeclaredCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SaveTimeEventEntrySnapshot> Entries { get; init; }
+        public bool HasMoreEntries { get; init; }
+        public bool IsTooShort { get; init; }
+    }
+    public sealed class SaveTimeEventEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTimeEventEntrySnapshot>
+    {
+        public SaveTimeEventEntrySnapshot(int Index, int Days, int Milliseconds, int Type) { }
+        public int Days { get; init; }
+        public int Index { get; init; }
+        public int Milliseconds { get; init; }
+        public int Type { get; init; }
+    }
+    public sealed class SaveTimeEventFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveTimeEventFileDetailSnapshot>
+    {
+        public SaveTimeEventFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveTimeEventAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveTimeEventAnalysisSnapshot Analysis { get; init; }
+    }
+    public sealed class SaveTownMapFogDeltaSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTownMapFogDeltaSnapshot>
+    {
+        public SaveTownMapFogDeltaSnapshot(int ChangedFiles, int RevealedTileDelta) { }
+        public int ChangedFiles { get; init; }
+        public int RevealedTileDelta { get; init; }
+    }
+    public sealed class SaveTownMapFogFileAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTownMapFogFileAnalysisSnapshot>
+    {
+        public SaveTownMapFogFileAnalysisSnapshot(int ByteLength, int RevealedTiles, int TotalTiles, double CoveragePercent) { }
+        public int ByteLength { get; init; }
+        public double CoveragePercent { get; init; }
+        public int RevealedTiles { get; init; }
+        public int TotalTiles { get; init; }
+    }
+    public sealed class SaveTownMapFogFileDetailSnapshot : ArcNET.Diagnostics.SaveEmbeddedFileDetailSnapshot, System.IEquatable<ArcNET.Diagnostics.SaveTownMapFogFileDetailSnapshot>
+    {
+        public SaveTownMapFogFileDetailSnapshot(string FileName, ArcNET.Diagnostics.SaveTownMapFogFileAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.SaveTownMapFogFileAnalysisSnapshot Analysis { get; init; }
+    }
+    public sealed class SaveTownMapFogFileSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTownMapFogFileSnapshot>
+    {
+        public SaveTownMapFogFileSnapshot(byte[] Bytes, int RevealedTiles) { }
+        public byte[] Bytes { get; init; }
+        public int RevealedTiles { get; init; }
+    }
+    public sealed class SaveTownMapFogSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTownMapFogSnapshot>
+    {
+        public SaveTownMapFogSnapshot(int FileCount, int RevealedTiles, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Diagnostics.SaveTownMapFogFileSnapshot> Files) { }
+        public int FileCount { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Diagnostics.SaveTownMapFogFileSnapshot> Files { get; init; }
+        public int RevealedTiles { get; init; }
+    }
+    public sealed class SaveTypedAssetSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedAssetSummarySnapshot>
+    {
+        public SaveTypedAssetSummarySnapshot(int TotalFileCount, int RawFileCount, int ParseErrorCount, int MobCount, int MobileMdCount, int MobileMdyCount, int SectorCount, int JumpFileCount, int MapPropertiesCount, int MessageCount, int TownMapFogCount, int DataSavCount, int Data2SavCount, int ScriptCount, int DialogCount) { }
+        public int Data2SavCount { get; init; }
+        public int DataSavCount { get; init; }
+        public int DialogCount { get; init; }
+        public int JumpFileCount { get; init; }
+        public int MapPropertiesCount { get; init; }
+        public int MessageCount { get; init; }
+        public int MobCount { get; init; }
+        public int MobileMdCount { get; init; }
+        public int MobileMdyCount { get; init; }
+        public int ParseErrorCount { get; init; }
+        public int RawFileCount { get; init; }
+        public int ScriptCount { get; init; }
+        public int SectorCount { get; init; }
+        public int TotalFileCount { get; init; }
+        public int TownMapFogCount { get; init; }
+    }
+    public static class SaveTypedContextAnalysisService
+    {
+        public static ArcNET.Diagnostics.SaveTypedContextDeltaSnapshot CreateDelta(ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? beforePlayer, ArcNET.Diagnostics.SaveTownMapFogSnapshot beforeTownMapFogs, ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? afterPlayer, ArcNET.Diagnostics.SaveTownMapFogSnapshot afterTownMapFogs) { }
+        public static ArcNET.Diagnostics.SaveTypedContextOverviewSnapshot CreateOverview(ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? player, ArcNET.Diagnostics.SaveTownMapFogSnapshot townMapFogs) { }
+    }
+    public sealed class SaveTypedContextDeltaSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedContextDeltaSnapshot>
+    {
+        public SaveTypedContextDeltaSnapshot(ArcNET.Diagnostics.SaveTypedPlayerDeltaSnapshot Player, ArcNET.Diagnostics.SaveTownMapFogDeltaSnapshot TownMapFogs) { }
+        public ArcNET.Diagnostics.SaveTypedPlayerDeltaSnapshot Player { get; init; }
+        public ArcNET.Diagnostics.SaveTownMapFogDeltaSnapshot TownMapFogs { get; init; }
+    }
+    public sealed class SaveTypedContextOverviewSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedContextOverviewSnapshot>
+    {
+        public SaveTypedContextOverviewSnapshot(bool HasPlayer, int QuestCount, int RumorsCount, int Blessings, int Curses, int Schematics, int? ReputationCount, int TownMapFogFileCount, int RevealedTiles) { }
+        public int Blessings { get; init; }
+        public int Curses { get; init; }
+        public bool HasPlayer { get; init; }
+        public int QuestCount { get; init; }
+        public int? ReputationCount { get; init; }
+        public int RevealedTiles { get; init; }
+        public int RumorsCount { get; init; }
+        public int Schematics { get; init; }
+        public int TownMapFogFileCount { get; init; }
+    }
+    public static class SaveTypedContextService
+    {
+        public static ArcNET.Diagnostics.SaveTypedContextSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+    }
+    public sealed class SaveTypedContextSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedContextSnapshot>
+    {
+        public SaveTypedContextSnapshot(System.DateTimeOffset CapturedAt, ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? Player, ArcNET.Diagnostics.SaveTownMapFogSnapshot TownMapFogs) { }
+        public System.DateTimeOffset CapturedAt { get; init; }
+        public ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot? Player { get; init; }
+        public ArcNET.Diagnostics.SaveTownMapFogSnapshot TownMapFogs { get; init; }
+    }
+    public enum SaveTypedPlayerDeltaKind
+    {
+        Missing = 0,
+        Added = 1,
+        Removed = 2,
+        Changed = 3,
+    }
+    public sealed class SaveTypedPlayerDeltaSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedPlayerDeltaSnapshot>
+    {
+        public SaveTypedPlayerDeltaSnapshot(ArcNET.Diagnostics.SaveTypedPlayerDeltaKind Kind, int QuestDelta, int RumorsDelta, int BlessingsDelta, int CursesDelta, int SchematicsDelta, ArcNET.Diagnostics.SaveTypedReputationDeltaSnapshot Reputation) { }
+        public int BlessingsDelta { get; init; }
+        public int CursesDelta { get; init; }
+        public ArcNET.Diagnostics.SaveTypedPlayerDeltaKind Kind { get; init; }
+        public int QuestDelta { get; init; }
+        public ArcNET.Diagnostics.SaveTypedReputationDeltaSnapshot Reputation { get; init; }
+        public int RumorsDelta { get; init; }
+        public int SchematicsDelta { get; init; }
+    }
+    public sealed class SaveTypedPlayerStateSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedPlayerStateSnapshot>
+    {
+        public SaveTypedPlayerStateSnapshot(int QuestCount, int RumorsCount, int Blessings, int Curses, int Schematics, System.Collections.Generic.IReadOnlyDictionary<int, int>? Reputation) { }
+        public int Blessings { get; init; }
+        public int Curses { get; init; }
+        public int QuestCount { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<int, int>? Reputation { get; init; }
+        public int RumorsCount { get; init; }
+        public int Schematics { get; init; }
+    }
+    public enum SaveTypedReputationDeltaKind
+    {
+        Absent = 0,
+        Added = 1,
+        Removed = 2,
+        Changed = 3,
+    }
+    public sealed class SaveTypedReputationDeltaSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedReputationDeltaSnapshot>
+    {
+        public SaveTypedReputationDeltaSnapshot(ArcNET.Diagnostics.SaveTypedReputationDeltaKind Kind, int Count, System.Collections.Generic.IReadOnlyList<int> ChangedSlots) { }
+        public System.Collections.Generic.IReadOnlyList<int> ChangedSlots { get; init; }
+        public int Count { get; init; }
+        public ArcNET.Diagnostics.SaveTypedReputationDeltaKind Kind { get; init; }
+    }
+    public sealed class SaveValidationIssueSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveValidationIssueSnapshot>
+    {
+        public SaveValidationIssueSnapshot(ArcNET.Diagnostics.DiagnosticIssueSeverity Severity, string? FilePath, string Message) { }
+        public string? FilePath { get; init; }
+        public string Message { get; init; }
+        public ArcNET.Diagnostics.DiagnosticIssueSeverity Severity { get; init; }
+    }
+    public sealed class SaveValidationSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveValidationSummarySnapshot>
+    {
+        public SaveValidationSummarySnapshot(int IssueCount, int ErrorCount, int WarningCount, int InfoCount, int FileCountWithIssues) { }
+        public int ErrorCount { get; init; }
+        public int FileCountWithIssues { get; init; }
+        public int InfoCount { get; init; }
+        public int IssueCount { get; init; }
+        public int WarningCount { get; init; }
+    }
     public static class ScriptDumper
     {
         public static string Dump(ArcNET.Formats.ScrFile scr) { }
         public static void Dump(ArcNET.Formats.ScrFile scr, System.IO.TextWriter writer) { }
+    }
+    public sealed class ScrollItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.ScrollItemAnalysisSnapshot>
+    {
+        public ScrollItemAnalysisSnapshot(int? Flags) { }
+        public int? Flags { get; init; }
     }
     public static class SectorDumper
     {
@@ -8198,5 +10284,26 @@ namespace ArcNET.Dumpers
     {
         public static string Dump(ArcNET.Formats.TextDataFile file) { }
         public static void Dump(ArcNET.Formats.TextDataFile file, System.IO.TextWriter writer) { }
+    }
+    public sealed class WeaponItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.WeaponItemAnalysisSnapshot>
+    {
+        public WeaponItemAnalysisSnapshot(int? DamageLower, int? DamageUpper, int? MagicDamageBonus, int? Speed, int? MagicSpeedBonus, int? Range, int? BonusToHit, int? MagicHitBonus, int? MinStrength) { }
+        public int? BonusToHit { get; init; }
+        public int? DamageLower { get; init; }
+        public int? DamageUpper { get; init; }
+        public int? MagicDamageBonus { get; init; }
+        public int? MagicHitBonus { get; init; }
+        public int? MagicSpeedBonus { get; init; }
+        public int? MinStrength { get; init; }
+        public int? Range { get; init; }
+        public int? Speed { get; init; }
+    }
+    public sealed class WrittenItemAnalysisSnapshot : ArcNET.Diagnostics.MobItemSpecificAnalysisSnapshot, System.IEquatable<ArcNET.Diagnostics.WrittenItemAnalysisSnapshot>
+    {
+        public WrittenItemAnalysisSnapshot(int? Subtype, string? SubtypeLabel, int? StartLine, int? EndLine) { }
+        public int? EndLine { get; init; }
+        public int? StartLine { get; init; }
+        public int? Subtype { get; init; }
+        public string? SubtypeLabel { get; init; }
     }
 }```
