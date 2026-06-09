@@ -1,0 +1,1908 @@
+<Window
+    x:Class="ArcanumDebugger.App.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:composition="using:ArcanumDebugger.App.Composition"
+    xmlns:contracts="using:ArcNET.Diagnostics.Contracts"
+    xmlns:core="using:ArcNET.Diagnostics"
+    xmlns:diag="using:ArcNET.Diagnostics"
+    xmlns:viewmodels="using:ArcanumDebugger.App.ViewModels"
+    x:DataType="viewmodels:MainWindowViewModel"
+    Width="1480"
+    Height="960"
+    MinWidth="1260"
+    MinHeight="780"
+    Background="Transparent"
+    Title="ArcanumDebugger Preview">
+    <Window.Resources>
+        <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#0D1117" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#11161D" />
+        <SolidColorBrush x:Key="PanelBrush" Color="#161B22" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#30363D" />
+        <SolidColorBrush x:Key="InkBrush" Color="#E6EDF3" />
+        <SolidColorBrush x:Key="MutedInkBrush" Color="#8B949E" />
+        <SolidColorBrush x:Key="SoftLineBrush" Color="#30363D" />
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="Background" Value="{DynamicResource ShellBackgroundBrush}" />
+        </Style>
+        <Style Selector="Border.panel">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10" />
+        </Style>
+        <Style Selector="Border.metric">
+            <Setter Property="Background" Value="#11161D" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SoftLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+        <Style Selector="TextBlock.h1">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.h2">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.h3">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.meta">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedInkBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.code">
+            <Setter Property="FontFamily" Value="Cascadia Code, Consolas" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#21262D" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Duration="0:0:0.15" Property="Background" />
+                    <BrushTransition Duration="0:0:0.15" Property="BorderBrush" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#30363D" />
+            <Setter Property="BorderBrush" Value="#58A6FF" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1F6FEB" />
+            <Setter Property="BorderBrush" Value="#58A6FF" />
+        </Style>
+        <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#161B22" />
+            <Setter Property="BorderBrush" Value="#21262D" />
+            <Setter Property="Foreground" Value="#6E7681" />
+        </Style>
+        <Style Selector="Button.action">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="#1F6FEB" />
+            <Setter Property="BorderBrush" Value="#1F6FEB" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="#21262D" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#0D1117" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#0D1117" />
+            <Setter Property="BorderBrush" Value="#58A6FF" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#0D1117" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,5" />
+        </Style>
+        <Style Selector="ComboBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#21262D" />
+            <Setter Property="BorderBrush" Value="#58A6FF" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style Selector="ListBox.sidebar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <Border Background="{DynamicResource ShellBackgroundBrush}" />
+
+        <Grid Margin="12" RowDefinitions="Auto,*" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
+            <Border Grid.ColumnSpan="2" Classes="panel" Padding="8,6">
+                <Grid ColumnDefinitions="1.35*,0.8*,0.8*,0.7*" ColumnSpacing="8">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="h2" Text="{CompiledBinding RuntimeTitle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Border Background="{CompiledBinding SupportAccentBrush}" CornerRadius="999" Padding="8,3">
+                                <TextBlock Classes="meta" FontWeight="SemiBold" Foreground="White" Text="{CompiledBinding SupportBadgeText}" />
+                            </Border>
+                            <Border Background="#21262D" CornerRadius="999" Padding="8,3">
+                                <TextBlock Classes="meta" Text="{CompiledBinding RuntimeKindText}" />
+                            </Border>
+                            <Border Background="#21262D" CornerRadius="999" Padding="8,3">
+                                <TextBlock Classes="meta" Text="{CompiledBinding SymbolStateText}" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Classes="metric" Grid.Column="1">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="meta" Text="Workspace" />
+                            <TextBlock Classes="h3" Text="{CompiledBinding WorkspaceSourceText}" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding GeneratedAgoText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="metric" Grid.Column="2">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="meta" Text="Session" />
+                            <TextBlock Classes="h3" Text="{CompiledBinding SessionSupportBadgeText}" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding SessionHeadlineText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="metric" Grid.Column="3">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="meta" Text="Watch" />
+                            <TextBlock Classes="h3" Text="{CompiledBinding TimelineHeadlineText}" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding LiveTimelineStatusText}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Classes="panel" Background="{DynamicResource SidebarBrush}" Padding="10">
+                <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="h1" Text="ArcanumDebugger" />
+                        <Button
+                            Classes="action"
+                            Command="{CompiledBinding RefreshWorkspaceCommand}"
+                            Content="Refresh" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Spacing="8">
+                        <TextBlock Classes="h2" Text="Runtime profiles" />
+                        <ListBox
+                            Classes="sidebar"
+                            ItemsSource="{CompiledBinding Scenarios}"
+                            SelectedItem="{CompiledBinding SelectedScenario, Mode=TwoWay}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="composition:ArcanumDebuggerPreviewScenario">
+                                    <Border
+                                        Margin="0,0,0,6"
+                                        Background="#151A20"
+                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Classes="h3" Text="{CompiledBinding DisplayName}" />
+                                            <TextBlock Classes="meta" Text="{CompiledBinding WorkspaceRequest.RuntimeProfile.DisplayName}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Grid.Column="1" Classes="panel" Padding="0">
+                <TabControl Margin="12" TabStripPlacement="Top">
+                    <TabItem Header="Connect">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid Margin="2,12,2,2" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
+                                <Grid ColumnDefinitions="1.1*,0.9*" ColumnSpacing="16">
+                                    <Border Classes="metric">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Classes="h2" Text="Live Sessions" />
+                                            <Button
+                                                Classes="action"
+                                                Command="{CompiledBinding AttachSelectedRuntimeCommand}"
+                                                Content="Attach"
+                                                IsEnabled="{CompiledBinding CanAttachSelectedRuntime}" />
+                                            <TextBlock Classes="h3" Text="Processes" />
+                                            <ItemsControl ItemsSource="{CompiledBinding ProcessCandidates}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="core:ProcessCandidateSnapshot">
+                                                        <Border
+                                                            Margin="0,0,0,6"
+                                                            Background="#151A20"
+                                                            BorderBrush="{DynamicResource SoftLineBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="8,6">
+                                                            <DockPanel>
+                                                                <StackPanel DockPanel.Dock="Left" Spacing="2">
+                                                                    <TextBlock Classes="h3" Text="{CompiledBinding DisplayName}" />
+                                                                    <TextBlock Classes="meta" Text="{CompiledBinding StatusText}" />
+                                                                </StackPanel>
+                                                                <Border DockPanel.Dock="Right" Background="#21262D" CornerRadius="999" Padding="8,3">
+                                                                    <TextBlock Classes="meta" Text="{CompiledBinding RunningInstanceCount}" />
+                                                                </Border>
+                                                            </DockPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Classes="h3" Text="Sessions" />
+                                            <ListBox
+                                                Classes="sidebar"
+                                                ItemsSource="{CompiledBinding LiveRuntimes}"
+                                                MaxHeight="260"
+                                                SelectedItem="{CompiledBinding SelectedLiveRuntime, Mode=TwoWay}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="core:LiveRuntimeSnapshot">
+                                                        <Border
+                                                            Margin="0,0,0,6"
+                                                            Background="#151A20"
+                                                            BorderBrush="{DynamicResource SoftLineBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="8,6">
+                                                            <StackPanel Spacing="3">
+                                                                <TextBlock Classes="h3" Text="{CompiledBinding DisplayName}" />
+                                                                <TextBlock Classes="code" Text="{CompiledBinding Fingerprint.ModulePath}" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Classes="metric" Grid.Column="1">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Classes="h2" Text="Launch" />
+                                            <TextBox
+                                                PlaceholderText="C:\Games\Arcanum"
+                                                Text="{CompiledBinding InstallPath, Mode=TwoWay}" />
+                                            <ComboBox
+                                                ItemsSource="{CompiledBinding LaunchExecutableOptions}"
+                                                SelectedItem="{CompiledBinding SelectedLaunchExecutableOption, Mode=TwoWay}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewmodels:LaunchExecutableKindOption">
+                                                        <TextBlock Text="{CompiledBinding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <CheckBox
+                                                Content="CE windowed"
+                                                IsChecked="{CompiledBinding LaunchWindowed, Mode=TwoWay}" />
+                                            <Button
+                                                Classes="action"
+                                                Command="{CompiledBinding LaunchAndAttachCommand}"
+                                                Content="Launch &amp; Attach" />
+                                            <Border Background="#151A20" BorderBrush="{DynamicResource SoftLineBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Classes="h3" Text="{CompiledBinding LaunchPreviewSummaryText}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Border Classes="metric" Grid.Row="1">
+                                    <StackPanel Spacing="8">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Left" Spacing="2">
+                                                <TextBlock Classes="h2" Text="Current Session" />
+                                            </StackPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                                                <Button
+                                                    Classes="secondary"
+                                                    Command="{CompiledBinding RefreshActiveSessionCommand}"
+                                                    Content="Refresh" />
+                                                <Button
+                                                    Classes="secondary"
+                                                    Command="{CompiledBinding DisconnectSessionCommand}"
+                                                    Content="Disconnect" />
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Border Background="#21262D" CornerRadius="999" Padding="8,3">
+                                                <TextBlock Classes="meta" Text="{CompiledBinding SessionOriginText}" />
+                                            </Border>
+                                            <Border Background="{CompiledBinding SessionSupportAccentBrush}" CornerRadius="999" Padding="8,3">
+                                                <TextBlock Classes="meta" FontWeight="SemiBold" Foreground="White" Text="{CompiledBinding SessionSupportBadgeText}" />
+                                            </Border>
+                                        </StackPanel>
+
+                                        <TextBlock Classes="h1" Text="{CompiledBinding SessionHeadlineText}" />
+                                        <TextBlock Classes="code" Text="{CompiledBinding SessionDetailText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="16">
+                                    <Border Classes="metric">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Classes="h2" Text="Panels" />
+                                            <ItemsControl ItemsSource="{CompiledBinding FeaturedPanels}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="diag:WorkspacePanelWorkflowSnapshot">
+                                                        <Border
+                                                            Margin="0,0,0,6"
+                                                            Background="#151A20"
+                                                            BorderBrush="{DynamicResource SoftLineBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="8,6">
+                                                            <StackPanel Spacing="3">
+                                                                <DockPanel>
+                                                                    <TextBlock DockPanel.Dock="Left" Classes="h3" Text="{CompiledBinding PanelDisplayName}" />
+                                                                    <Border DockPanel.Dock="Right" Background="#21262D" CornerRadius="999" Padding="8,3">
+                                                                        <TextBlock Classes="meta" Text="{CompiledBinding ShellSurfaceText}" />
+                                                                    </Border>
+                                                                </DockPanel>
+                                                                <TextBlock Classes="code" Text="{CompiledBinding WorkflowTitle}" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Classes="metric" Grid.Column="1">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Classes="h2" Text="Profiles" />
+                                            <ItemsControl ItemsSource="{CompiledBinding FeaturedProbeProfiles}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="contracts:ProbeProfile">
+                                                        <Border
+                                                            Margin="0,0,0,6"
+                                                            Background="#151A20"
+                                                            BorderBrush="{DynamicResource SoftLineBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="8,6">
+                                                            <StackPanel Spacing="3">
+                                                                <TextBlock Classes="h3" Text="{CompiledBinding DisplayName}" />
+                                                                <TextBlock Classes="code" Text="{CompiledBinding Key}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Read">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="2,12,2,2" Spacing="16">
+                                <TabControl>
+                                    <TabItem Header="Player">
+                                        <StackPanel Margin="0,12,0,0" Spacing="16">
+                                            <TabControl>
+                                                <TabItem Header="Character Sheet">
+                                                    <Grid Margin="0,0,0,0" ColumnDefinitions="0.95*,1.05*" ColumnSpacing="16">
+                                                        <Border Classes="metric">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Classes="h2" Text="Character Sheet" />
+                                                                <TextBox
+                                                                    PlaceholderText="Handle token (player)"
+                                                                    Text="{CompiledBinding SheetHandleTokenText, Mode=TwoWay}" />
+                                                                <Grid ColumnDefinitions="1.1*,0.7*" ColumnSpacing="8">
+                                                                    <TextBox
+                                                                        PlaceholderText="Field (level, strength, haggle)"
+                                                                        Text="{CompiledBinding SheetLabelText, Mode=TwoWay}" />
+                                                                    <TextBox
+                                                                        Grid.Column="1"
+                                                                        PlaceholderText="Diff delay ms"
+                                                                        Text="{CompiledBinding SheetDiffDelayText, Mode=TwoWay}" />
+                                                                </Grid>
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <Button
+                                                                        Classes="secondary"
+                                                                        Command="{CompiledBinding ReadSheetDiagnosticsCommand}"
+                                                                        Content="Read" />
+                                                                    <Button
+                                                                        Classes="secondary"
+                                                                        Command="{CompiledBinding ScanSheetDiagnosticsCommand}"
+                                                                        Content="Scan" />
+                                                                    <Button
+                                                                        Classes="secondary"
+                                                                        Command="{CompiledBinding DiffSheetDiagnosticsCommand}"
+                                                                        Content="Diff" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1" Spacing="16">
+                                                            <Border Classes="metric">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Results" />
+                                                                    <TextBlock Classes="h3" Text="{CompiledBinding SheetStatusText}" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding SheetResultLines}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </TabItem>
+
+                                                <TabItem Header="Journal">
+                                                    <Grid Margin="0,0,0,0" ColumnDefinitions="0.92*,1.08*" ColumnSpacing="16">
+                                                        <Border Classes="metric">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Classes="h2" Text="Journal" />
+                                                                <TextBox
+                                                                    PlaceholderText="Handle token (player)"
+                                                                    Text="{CompiledBinding LogbookHandleTokenText, Mode=TwoWay}" />
+                                                                <ComboBox
+                                                                    ItemsSource="{CompiledBinding LogbookPageOptions}"
+                                                                    SelectedItem="{CompiledBinding SelectedLogbookPageOption, Mode=TwoWay}">
+                                                                    <ComboBox.ItemTemplate>
+                                                                        <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                                                            <TextBlock Text="{CompiledBinding Label}" />
+                                                                        </DataTemplate>
+                                                                    </ComboBox.ItemTemplate>
+                                                                </ComboBox>
+                                                                <Button
+                                                                    Classes="secondary"
+                                                                    Command="{CompiledBinding ReadLogbookDiagnosticsCommand}"
+                                                                    Content="Load Page" />
+                                                                <TextBlock Classes="h3" Text="{CompiledBinding LogbookStatusText}" />
+
+                                                                <ItemsControl ItemsSource="{CompiledBinding LogbookHighlights}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="viewmodels:DebuggerLogbookSummaryCard">
+                                                                            <Border
+                                                                                Width="170"
+                                                                                Margin="0,0,10,10"
+                                                                                Background="#151A20"
+                                                                                BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="6"
+                                                                                Padding="8,6">
+                                                                                <StackPanel Spacing="2">
+                                                                                    <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
+                                                                                    <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
+                                                                                    <TextBlock
+                                                                                        Classes="meta"
+                                                                                        Text="{CompiledBinding Detail}"
+                                                                                        TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1" Spacing="16">
+                                                            <Border Classes="metric" IsVisible="{CompiledBinding HasLogbookSections}">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Sections" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding LogbookSections}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="viewmodels:DebuggerLogbookSection">
+                                                                                <Border
+                                                                                    Margin="0,0,0,10"
+                                                                                    Background="#151A20"
+                                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="8,6">
+                                                                                    <StackPanel Spacing="6">
+                                                                                        <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                                                        <TextBlock
+                                                                                            Classes="meta"
+                                                                                            Text="{CompiledBinding Summary}"
+                                                                                            TextWrapping="Wrap" />
+                                                                                        <ItemsControl ItemsSource="{CompiledBinding Entries}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <TextBlock
+                                                                                                        Classes="meta"
+                                                                                                        Margin="0,0,0,4"
+                                                                                                        Text="{Binding}"
+                                                                                                        TextWrapping="Wrap" />
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <Border Classes="metric" IsVisible="{CompiledBinding ShowLogbookFallbackLines}">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Fallback" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding LogbookResultLines}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <Border Classes="metric">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Notes" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding LogbookNotes}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </TabItem>
+                                            </TabControl>
+                                        </StackPanel>
+                                    </TabItem>
+
+                                    <TabItem Header="Runtime">
+                                        <TabControl Margin="0,12,0,0">
+                                            <TabItem Header="Reads">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Runtime Reads" />
+                                                        <TextBox
+                                                            PlaceholderText="Proto token / number"
+                                                            Text="{CompiledBinding PrototypeTokenText, Mode=TwoWay}" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding ResolvePrototypeCommand}"
+                                                            Content="Resolve" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding PrototypeStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding PrototypeResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+
+                                                        <TextBox
+                                                            PlaceholderText="Adapter key"
+                                                            Text="{CompiledBinding ReadAdapterKeyText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            PlaceholderText="Args (player|42)"
+                                                            Text="{CompiledBinding ReadArgumentsText, Mode=TwoWay}" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding RunStructuredReadCommand}"
+                                                            Content="Run Read" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding ReadStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding ReadResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+
+                                            <TabItem Header="Symbols">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Status / Symbols" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding InspectRuntimeStatusCommand}"
+                                                            Content="Inspect" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding RuntimeStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding RuntimeStatusResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+
+                                                        <TextBlock Classes="h3" Text="Module symbols" />
+                                                        <Grid ColumnDefinitions="1.2*,0.45*,0.5*,0.55*" ColumnSpacing="8">
+                                                            <TextBox
+                                                                PlaceholderText="Symbol filter"
+                                                                Text="{CompiledBinding RuntimeModuleFilterText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="1"
+                                                                PlaceholderText="Limit"
+                                                                Text="{CompiledBinding RuntimeModuleLimitText, Mode=TwoWay}" />
+                                                            <CheckBox
+                                                                Grid.Column="2"
+                                                                Content="Duplicates only"
+                                                                IsChecked="{CompiledBinding RuntimeModuleDuplicatesOnly, Mode=TwoWay}" />
+                                                            <Button
+                                                                Grid.Column="3"
+                                                                Classes="secondary"
+                                                                Command="{CompiledBinding QueryRuntimeModuleSymbolsCommand}"
+                                                                Content="Query" />
+                                                        </Grid>
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding RuntimeModuleStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding RuntimeModuleResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+
+                                            <TabItem Header="Scripts">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Script Attachments" />
+                                                        <TextBox
+                                                            PlaceholderText="Handle token (player)"
+                                                            Text="{CompiledBinding ScriptHandleTokenText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            PlaceholderText="Attachment point"
+                                                            Text="{CompiledBinding ScriptAttachmentPointText, Mode=TwoWay}" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding ReadScriptAttachmentDiagnosticsCommand}"
+                                                            Content="Read Attachment" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding ScriptStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding ScriptResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+
+                                        </TabControl>
+                                    </TabItem>
+                                </TabControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Offline">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="2,12,2,2" Spacing="16">
+                                <TabControl>
+                                    <TabItem Header="Saves">
+                                        <StackPanel Margin="0,12,0,0" Spacing="16">
+                                            <TabControl>
+                                                <TabItem Header="Single Save">
+                                                    <Grid Margin="0,0,0,0" ColumnDefinitions="0.92*,1.08*" ColumnSpacing="16">
+                                                        <Border Classes="metric">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Classes="h2" Text="Single Save" />
+                                                                <TextBox
+                                                                    PlaceholderText="Save directory"
+                                                                    Text="{CompiledBinding OfflineSaveDirectoryText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    PlaceholderText="Slot number (1 or 0001)"
+                                                                    Text="{CompiledBinding OfflineSlotText, Mode=TwoWay}" />
+                                                                <Button
+                                                                    Classes="action"
+                                                                    Command="{CompiledBinding RunOfflineSaveDiagnosticsCommand}"
+                                                                    Content="Load Save" />
+                                                                <TextBlock Classes="h3" Text="Explicit Files" />
+                                                                <TextBox
+                                                                    PlaceholderText=".gsi path"
+                                                                    Text="{CompiledBinding OfflineSaveGsiPathText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    PlaceholderText=".tfai path"
+                                                                    Text="{CompiledBinding OfflineSaveTfaiPathText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    PlaceholderText=".tfaf path"
+                                                                    Text="{CompiledBinding OfflineSaveTfafPathText, Mode=TwoWay}" />
+                                                                <Button
+                                                                    Classes="secondary"
+                                                                    Command="{CompiledBinding RunOfflineSaveFileDiagnosticsCommand}"
+                                                                    Content="Load Files" />
+                                                                <TextBlock Classes="h3" Text="{CompiledBinding OfflineSaveStatusText}" />
+                                                                <ItemsControl ItemsSource="{CompiledBinding OfflineSaveHighlights}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="viewmodels:DebuggerInsightCard">
+                                                                            <Border
+                                                                                Width="170"
+                                                                                Margin="0,0,10,10"
+                                                                                Background="#151A20"
+                                                                                BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="6"
+                                                                                Padding="8,6">
+                                                                                <StackPanel Spacing="2">
+                                                                                    <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
+                                                                                    <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
+                                                                                    <TextBlock
+                                                                                        Classes="meta"
+                                                                                        Text="{CompiledBinding Detail}"
+                                                                                        TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1" Spacing="16">
+                                                            <Border Classes="metric" IsVisible="{CompiledBinding HasOfflineSaveSections}">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Sections" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding OfflineSaveSections}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="viewmodels:DebuggerInsightSection">
+                                                                                <Border
+                                                                                    Margin="0,0,0,10"
+                                                                                    Background="#151A20"
+                                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="8,6">
+                                                                                    <StackPanel Spacing="6">
+                                                                                        <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                                                        <TextBlock
+                                                                                            Classes="meta"
+                                                                                            Text="{CompiledBinding Summary}"
+                                                                                            TextWrapping="Wrap" />
+                                                                                        <ItemsControl ItemsSource="{CompiledBinding Entries}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <TextBlock
+                                                                                                        Classes="meta"
+                                                                                                        Margin="0,0,0,4"
+                                                                                                        Text="{Binding}"
+                                                                                                        TextWrapping="Wrap" />
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <Border Classes="metric">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Reference detail" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding OfflineSaveResultLines}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </TabItem>
+
+                                                <TabItem Header="Compare Saves">
+                                                    <Grid Margin="0,0,0,0" ColumnDefinitions="0.92*,1.08*" ColumnSpacing="16">
+                                                        <Border Classes="metric">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Classes="h2" Text="Save Range Diff" />
+                                                                <TextBox
+                                                                    PlaceholderText="Save directory"
+                                                                    Text="{CompiledBinding OfflineSaveDirectoryText, Mode=TwoWay}" />
+                                                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                                                    <TextBox
+                                                                        Grid.Column="0"
+                                                                        PlaceholderText="First slot (0001)"
+                                                                        Text="{CompiledBinding OfflineRangeFirstSlotText, Mode=TwoWay}" />
+                                                                    <TextBox
+                                                                        Grid.Column="1"
+                                                                        PlaceholderText="Last slot (0005)"
+                                                                        Text="{CompiledBinding OfflineRangeLastSlotText, Mode=TwoWay}" />
+                                                                </Grid>
+                                                                <Button
+                                                                    Classes="action"
+                                                                    Command="{CompiledBinding RunOfflineRangeDiagnosticsCommand}"
+                                                                    Content="Compare" />
+                                                                <TextBlock Classes="h3" Text="{CompiledBinding OfflineRangeStatusText}" />
+                                                                <ItemsControl ItemsSource="{CompiledBinding OfflineRangeHighlights}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="viewmodels:DebuggerInsightCard">
+                                                                            <Border
+                                                                                Width="170"
+                                                                                Margin="0,0,10,10"
+                                                                                Background="#151A20"
+                                                                                BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="6"
+                                                                                Padding="8,6">
+                                                                                <StackPanel Spacing="2">
+                                                                                    <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
+                                                                                    <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
+                                                                                    <TextBlock
+                                                                                        Classes="meta"
+                                                                                        Text="{CompiledBinding Detail}"
+                                                                                        TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1" Spacing="16">
+                                                            <Border Classes="metric" IsVisible="{CompiledBinding HasOfflineRangeSections}">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Sections" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding OfflineRangeSections}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="viewmodels:DebuggerInsightSection">
+                                                                                <Border
+                                                                                    Margin="0,0,0,10"
+                                                                                    Background="#151A20"
+                                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="8,6">
+                                                                                    <StackPanel Spacing="6">
+                                                                                        <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                                                        <TextBlock
+                                                                                            Classes="meta"
+                                                                                            Text="{CompiledBinding Summary}"
+                                                                                            TextWrapping="Wrap" />
+                                                                                        <ItemsControl ItemsSource="{CompiledBinding Entries}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <TextBlock
+                                                                                                        Classes="meta"
+                                                                                                        Margin="0,0,0,4"
+                                                                                                        Text="{Binding}"
+                                                                                                        TextWrapping="Wrap" />
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <Border Classes="metric">
+                                                                <StackPanel Spacing="8">
+                                                                    <TextBlock Classes="h2" Text="Reference detail" />
+                                                                    <ItemsControl ItemsSource="{CompiledBinding OfflineRangeResultLines}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </TabItem>
+                                            </TabControl>
+                                        </StackPanel>
+                                    </TabItem>
+
+                                    <TabItem Header="Reference">
+                                        <TabControl Margin="0,12,0,0">
+                                            <TabItem Header="Module">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Module Symbols" />
+                                                        <TextBox
+                                                            PlaceholderText="Module path"
+                                                            Text="{CompiledBinding OfflineModulePathText, Mode=TwoWay}" />
+                                                        <Grid ColumnDefinitions="1.1*,0.45*,0.65*" ColumnSpacing="8">
+                                                            <TextBox
+                                                                PlaceholderText="Symbol filter"
+                                                                Text="{CompiledBinding OfflineModuleFilterText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="1"
+                                                                PlaceholderText="Limit"
+                                                                Text="{CompiledBinding OfflineModuleLimitText, Mode=TwoWay}" />
+                                                            <CheckBox
+                                                                Grid.Column="2"
+                                                                Content="Duplicates only"
+                                                                IsChecked="{CompiledBinding OfflineModuleDuplicatesOnly, Mode=TwoWay}" />
+                                                        </Grid>
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding QueryOfflineModuleSymbolsCommand}"
+                                                            Content="Load Symbols" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding OfflineModuleStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding OfflineModuleResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+
+                                            <TabItem Header="Source">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Source Coverage" />
+                                                        <TextBox
+                                                            PlaceholderText="CE source root"
+                                                            Text="{CompiledBinding OfflineSourceRootText, Mode=TwoWay}" />
+                                                        <Grid ColumnDefinitions="1.1*,0.8*,0.45*" ColumnSpacing="8">
+                                                            <TextBox
+                                                                PlaceholderText="Function filter"
+                                                                Text="{CompiledBinding OfflineSourceFilterText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="1"
+                                                                PlaceholderText="Area"
+                                                                Text="{CompiledBinding OfflineSourceAreaText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="2"
+                                                                PlaceholderText="Limit"
+                                                                Text="{CompiledBinding OfflineSourceLimitText, Mode=TwoWay}" />
+                                                        </Grid>
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <CheckBox
+                                                                Content="Missing only"
+                                                                IsChecked="{CompiledBinding OfflineSourceMissingOnly, Mode=TwoWay}" />
+                                                            <CheckBox
+                                                                Content="Covered only"
+                                                                IsChecked="{CompiledBinding OfflineSourceCoveredOnly, Mode=TwoWay}" />
+                                                        </StackPanel>
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding RunOfflineCeSourceAuditCommand}"
+                                                            Content="Load Coverage" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding OfflineSourceStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding OfflineSourceResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+                                        </TabControl>
+                                    </TabItem>
+
+                                    <TabItem Header="Reports">
+                                        <TabControl Margin="0,12,0,0">
+                                            <TabItem Header="Templates">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Report Templates" />
+                                                        <ComboBox
+                                                            ItemsSource="{CompiledBinding OfflineDumpTemplateOptions}"
+                                                            SelectedItem="{CompiledBinding SelectedOfflineDumpTemplateOption, Mode=TwoWay}">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                                                    <TextBlock Text="{CompiledBinding Label}" />
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+                                                        <TextBox
+                                                            PlaceholderText="File path or save directory"
+                                                            Text="{CompiledBinding OfflineDumpPathText, Mode=TwoWay}" />
+                                                        <Button
+                                                            Classes="action"
+                                                            Command="{CompiledBinding RunOfflineDumpTemplateCommand}"
+                                                            Content="Render" />
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding OfflineDumpStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding OfflineDumpHighlights}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="viewmodels:DebuggerInsightCard">
+                                                                    <Border
+                                                                        Width="170"
+                                                                        Margin="0,0,10,10"
+                                                                        Background="#151A20"
+                                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,6">
+                                                                        <StackPanel Spacing="2">
+                                                                            <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
+                                                                            <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
+                                                                            <TextBlock
+                                                                                Classes="meta"
+                                                                                Text="{CompiledBinding Detail}"
+                                                                                TextWrapping="Wrap" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <ItemsControl
+                                                            IsVisible="{CompiledBinding HasOfflineDumpSections}"
+                                                            ItemsSource="{CompiledBinding OfflineDumpSections}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="viewmodels:DebuggerInsightSection">
+                                                                    <Border
+                                                                        Margin="0,0,0,10"
+                                                                        Background="#151A20"
+                                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,6">
+                                                                        <StackPanel Spacing="6">
+                                                                            <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                                            <TextBlock
+                                                                                Classes="meta"
+                                                                                Text="{CompiledBinding Summary}"
+                                                                                TextWrapping="Wrap" />
+                                                                            <ItemsControl ItemsSource="{CompiledBinding Entries}">
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <TextBlock
+                                                                                            Classes="meta"
+                                                                                            Margin="0,0,0,4"
+                                                                                            Text="{Binding}"
+                                                                                            TextWrapping="Wrap" />
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <ItemsControl ItemsSource="{CompiledBinding OfflineDumpResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+
+                                            <TabItem Header="Report Text">
+                                                <Border Classes="metric" Margin="0,0,0,0">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Report Text" />
+                                                        <TextBox
+                                                            AcceptsReturn="True"
+                                                            FontFamily="Cascadia Code, Consolas"
+                                                            IsReadOnly="True"
+                                                            MinHeight="520"
+                                                            Text="{CompiledBinding OfflineDumpOutputText}"
+                                                            TextWrapping="Wrap"
+                                                            ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                            ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </TabItem>
+                                        </TabControl>
+                                    </TabItem>
+                                </TabControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Watch">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="2,12,2,2" Spacing="16">
+                                <TabControl>
+                                    <TabItem Header="Live">
+                                        <Grid Margin="0,12,0,0" ColumnDefinitions="1.1*,0.9*" ColumnSpacing="16">
+                                            <Border Classes="metric">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Live Watch" />
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding TimelineStatusText}" />
+                                                    <ComboBox
+                                                        ItemsSource="{CompiledBinding WatchPresetOptions}"
+                                                        SelectedItem="{CompiledBinding SelectedWatchPresetOption, Mode=TwoWay}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="core:TimelinePresetDescriptor">
+                                                                <TextBlock Text="{CompiledBinding DisplayName}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <Button
+                                                            Classes="action"
+                                                            Command="{CompiledBinding StartTimelineWatchCommand}"
+                                                            Content="Start"
+                                                            IsEnabled="{CompiledBinding CanStartTimelineWatch}" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding RefreshTimelineWatchCommand}"
+                                                            Content="Poll" />
+                                                        <Button
+                                                            Classes="secondary"
+                                                            Command="{CompiledBinding StopTimelineWatchCommand}"
+                                                            Content="Stop" />
+                                                    </StackPanel>
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding LiveTimelineSummaryText}" TextWrapping="Wrap" />
+                                                    <ListBox
+                                                        Classes="sidebar"
+                                                        ItemsSource="{CompiledBinding LiveTimelineEvents}"
+                                                        SelectedItem="{CompiledBinding SelectedLiveTimelineEvent, Mode=TwoWay}">
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="core:WatchEventSnapshot">
+                                                                <Border
+                                                                    Margin="0,0,0,6"
+                                                                    Background="#151A20"
+                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    Padding="8,6">
+                                                                    <StackPanel Spacing="3">
+                                                                        <DockPanel>
+                                                                            <TextBlock DockPanel.Dock="Left" Classes="h3" Text="{CompiledBinding SemanticEvent}" />
+                                                                            <Border DockPanel.Dock="Right" Background="#21262D" CornerRadius="999" Padding="8,3">
+                                                                                <TextBlock Classes="meta" Text="{CompiledBinding Sequence}" />
+                                                                            </Border>
+                                                                        </DockPanel>
+                                                                        <TextBlock Classes="code" Text="{CompiledBinding Signature}" />
+                                                                        <TextBlock Classes="code" Text="{CompiledBinding CallerAddress}" />
+                                                                        <TextBlock Classes="meta" Text="{CompiledBinding SuggestedHandleHex}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Classes="metric" Grid.Column="1">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Selection" />
+                                                    <TextBlock Classes="h3" Text="{CompiledBinding SelectedLiveTimelineEventSummaryText}" />
+                                                    <TextBlock
+                                                        Classes="meta"
+                                                        Text="{CompiledBinding SelectedLiveTimelineEventHandleSummaryText}"
+                                                        TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="Presets">
+                                        <Grid Margin="0,12,0,0" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+                                            <Border Classes="metric">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Presets" />
+                                                    <ItemsControl ItemsSource="{CompiledBinding FeaturedTimelinePresets}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="viewmodels:DebuggerTimelineCard">
+                                                                <Border
+                                                                    Margin="0,0,0,6"
+                                                                    Background="#151A20"
+                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    Padding="8,6">
+                                                                    <StackPanel Spacing="3">
+                                                                        <DockPanel>
+                                                                            <TextBlock DockPanel.Dock="Left" Classes="h3" Text="{CompiledBinding DisplayName}" />
+                                                                            <Border
+                                                                                DockPanel.Dock="Right"
+                                                                                Background="#3A311A"
+                                                                                CornerRadius="999"
+                                                                                IsVisible="{CompiledBinding UsesHighVolumeHooks}"
+                                                                                Padding="8,3">
+                                                                                <TextBlock Classes="meta" Text="High volume" />
+                                                                            </Border>
+                                                                        </DockPanel>
+                                                                        <TextBlock Classes="code" Text="{CompiledBinding HookSummary}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Classes="metric" Grid.Column="1">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Custom Profiles" />
+                                                    <ItemsControl ItemsSource="{CompiledBinding FeaturedAdvancedProfiles}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="viewmodels:DebuggerAdvancedProfileCard">
+                                                                <Border
+                                                                    Margin="0,0,0,6"
+                                                                    Background="#151A20"
+                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    Padding="8,6">
+                                                                    <StackPanel Spacing="3">
+                                                                        <TextBlock Classes="h3" Text="{CompiledBinding Key}" />
+                                                                        <TextBlock Classes="meta" Text="{CompiledBinding HookSummary}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </TabItem>
+                                </TabControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Act">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="2,12,2,2" Spacing="16">
+                                <TabControl>
+                                    <TabItem Header="Guided">
+                                        <Grid Margin="0,12,0,0" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+                                            <Border Classes="metric">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Guided Action" />
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionStatusText}" />
+                                                    <ComboBox
+                                                        ItemsSource="{CompiledBinding GuidedActionOptions}"
+                                                        SelectedItem="{CompiledBinding SelectedGuidedActionOption, Mode=TwoWay}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="core:GuidedActionDescriptor">
+                                                                <TextBlock Text="{CompiledBinding DisplayName}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionTargetSummaryText}" TextWrapping="Wrap" />
+                                                    <Grid ColumnDefinitions="1.1*,0.7*,0.7*" ColumnSpacing="8">
+                                                        <TextBox
+                                                            PlaceholderText="Traveler handle or player"
+                                                            Text="{CompiledBinding GuidedActionTravelerText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="1"
+                                                            PlaceholderText="Tile X"
+                                                            Text="{CompiledBinding GuidedActionTileXText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            PlaceholderText="Tile Y"
+                                                            Text="{CompiledBinding GuidedActionTileYText, Mode=TwoWay}" />
+                                                    </Grid>
+                                                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                                        <TextBox
+                                                            PlaceholderText="Map id (-1 current map)"
+                                                            Text="{CompiledBinding GuidedActionMapIdText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="1"
+                                                            PlaceholderText="Flags"
+                                                            Text="{CompiledBinding GuidedActionFlagsText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            PlaceholderText="Timeout ms"
+                                                            Text="{CompiledBinding GuidedActionTimeoutText, Mode=TwoWay}" />
+                                                    </Grid>
+                                                    <Button
+                                                        Classes="action"
+                                                        Command="{CompiledBinding InvokeGuidedActionCommand}"
+                                                        Content="Run"
+                                                        IsEnabled="{CompiledBinding CanInvokeGuidedAction}" />
+                                                    <Border Background="#151A20" BorderBrush="{DynamicResource SoftLineBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                                        <StackPanel Spacing="4">
+                                                            <TextBlock Classes="h3" Text="Result" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionDispatcherText}" TextWrapping="Wrap" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionExecutionDetailText}" TextWrapping="Wrap" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding GuidedActionResultText}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1" Spacing="16">
+                                                <Border Classes="metric">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Writes" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBox
+                                                                Width="220"
+                                                                PlaceholderText="Action points value"
+                                                                Text="{CompiledBinding RuntimeActionPointsText, Mode=TwoWay}" />
+                                                            <Button
+                                                                Classes="action"
+                                                                Command="{CompiledBinding WriteRuntimeActionPointsCommand}"
+                                                                Content="Write AP" />
+                                                        </StackPanel>
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding RuntimeStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding RuntimeStatusResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Classes="metric">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Dumps" />
+                                                        <TextBox
+                                                            PlaceholderText="Manual dump path"
+                                                            Text="{CompiledBinding RuntimeDumpPathText, Mode=TwoWay}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBox
+                                                                Width="220"
+                                                                PlaceholderText="Dump kind (mini/full)"
+                                                                Text="{CompiledBinding RuntimeDumpKindText, Mode=TwoWay}" />
+                                                            <Button
+                                                                Classes="action"
+                                                                Command="{CompiledBinding WriteRuntimeCrashDumpCommand}"
+                                                                Content="Write Dump" />
+                                                        </StackPanel>
+                                                        <TextBox
+                                                            PlaceholderText="Process exe (Arcanum.exe)"
+                                                            Text="{CompiledBinding RuntimeDumpProcessNameText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            PlaceholderText="Automatic dump directory"
+                                                            Text="{CompiledBinding RuntimeDumpDirectoryText, Mode=TwoWay}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBox
+                                                                Width="120"
+                                                                PlaceholderText="Dump count"
+                                                                Text="{CompiledBinding RuntimeDumpCountText, Mode=TwoWay}" />
+                                                            <Button
+                                                                Classes="secondary"
+                                                                Command="{CompiledBinding InspectAutomaticCrashDumpsCommand}"
+                                                                Content="Inspect Auto" />
+                                                            <Button
+                                                                Classes="secondary"
+                                                                Command="{CompiledBinding EnableAutomaticCrashDumpsCommand}"
+                                                                Content="Enable Auto" />
+                                                            <Button
+                                                                Classes="secondary"
+                                                                Command="{CompiledBinding DisableAutomaticCrashDumpsCommand}"
+                                                                Content="Disable Auto" />
+                                                        </StackPanel>
+                                                        <TextBlock Classes="h3" Text="{CompiledBinding RuntimeDumpStatusText}" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding RuntimeDumpResultLines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="Native Calls">
+                                        <Grid Margin="0,12,0,0" ColumnDefinitions="1.1*,0.9*" ColumnSpacing="16">
+                                            <Border Classes="metric">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="h2" Text="Native Call" />
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding FunctionCallStatusText}" />
+                                                    <ComboBox
+                                                        ItemsSource="{CompiledBinding FunctionCallOptions}"
+                                                        SelectedItem="{CompiledBinding SelectedFunctionCallOption, Mode=TwoWay}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="diag:FunctionDefinition">
+                                                                <TextBlock Text="{CompiledBinding Key}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <TextBox
+                                                        PlaceholderText="ui_start_dialog or 0x000609E0"
+                                                        Text="{CompiledBinding FunctionCallTargetText, Mode=TwoWay}" />
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding FunctionCallTargetSummaryText}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="meta" Text="{CompiledBinding FunctionCallExampleText}" TextWrapping="Wrap" />
+                                                    <TextBox
+                                                        AcceptsReturn="True"
+                                                        MinHeight="72"
+                                                        PlaceholderText="handle(player), 0x20, -1"
+                                                        Text="{CompiledBinding FunctionCallStackArgumentsText, Mode=TwoWay}"
+                                                        TextWrapping="Wrap" />
+                                                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                                        <TextBox
+                                                            PlaceholderText="ECX or handle_low(player)"
+                                                            Text="{CompiledBinding FunctionCallEcxText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="1"
+                                                            PlaceholderText="EDX or handle_high(player)"
+                                                            Text="{CompiledBinding FunctionCallEdxText, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            PlaceholderText="Timeout ms"
+                                                            Text="{CompiledBinding FunctionCallTimeoutText, Mode=TwoWay}" />
+                                                    </Grid>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <CheckBox
+                                                            Content="Use cleanup"
+                                                            IsChecked="{CompiledBinding FunctionCallUseSuggestedCleanup, Mode=TwoWay}" />
+                                                        <ComboBox
+                                                            Width="140"
+                                                            ItemsSource="{CompiledBinding FunctionCallCleanupOptions}"
+                                                            SelectedItem="{CompiledBinding SelectedFunctionCallCleanupOption, Mode=TwoWay}">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate x:DataType="viewmodels:DebuggerCleanupModeOption">
+                                                                    <TextBlock Text="{CompiledBinding Label}" />
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                    <Button
+                                                        Classes="action"
+                                                        Command="{CompiledBinding InvokeFunctionCallCommand}"
+                                                        Content="Invoke"
+                                                        IsEnabled="{CompiledBinding CanInvokeFunctionCall}" />
+                                                    <Border Background="#151A20" BorderBrush="{DynamicResource SoftLineBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                                        <StackPanel Spacing="4">
+                                                            <TextBlock Classes="h3" Text="Result" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding FunctionCallDispatcherText}" TextWrapping="Wrap" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding FunctionCallExecutionDetailText}" TextWrapping="Wrap" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding FunctionCallResultText}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ItemsControl ItemsSource="{CompiledBinding FunctionCallArguments}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="core:FunctionCallArgumentSnapshot">
+                                                                <Border
+                                                                    Margin="0,0,0,6"
+                                                                    Background="#151A20"
+                                                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    Padding="8,6">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Classes="meta" FontWeight="SemiBold" Text="{CompiledBinding SourceText}" />
+                                                                        <TextBlock Classes="code" Text="{CompiledBinding ValueText}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1" Spacing="16">
+                                                <Border Classes="metric">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Known Entry Points" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding FeaturedFunctions}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="viewmodels:DebuggerFunctionCard">
+                                                                    <Border
+                                                                        Margin="0,0,0,6"
+                                                                        Background="#151A20"
+                                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,6">
+                                                                        <StackPanel Spacing="3">
+                                                                            <TextBlock Classes="h3" Text="{CompiledBinding Key}" />
+                                                                            <TextBlock Classes="code" Text="{CompiledBinding Site}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Classes="metric">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Classes="h2" Text="Dispatcher" />
+                                                        <ItemsControl ItemsSource="{CompiledBinding DispatcherCandidates}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="diag:DispatcherCandidateDefinition">
+                                                                    <Border
+                                                                        Margin="0,0,0,6"
+                                                                        Background="#151A20"
+                                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,6">
+                                                                        <StackPanel Spacing="3">
+                                                                            <TextBlock Classes="h3" Text="{CompiledBinding Key}" />
+                                                                            <TextBlock Classes="code" Text="{CompiledBinding Site}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="Hooks">
+                                        <StackPanel Margin="0,12,0,0" Spacing="16">
+                                            <TabControl>
+                                                <TabItem Header="Audit">
+                                                    <Border Classes="metric" Margin="0,0,0,0">
+                                                        <StackPanel Spacing="8">
+                                                            <TextBlock Classes="h2" Text="Audit" />
+                                                            <CheckBox
+                                                                Content="Audit passes"
+                                                                IsChecked="{CompiledBinding AuditIncludeHooks, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                PlaceholderText="Hooks: session-core|teleport_do"
+                                                                Text="{CompiledBinding AuditHookSelectorsText, Mode=TwoWay}" />
+                                                            <Grid ColumnDefinitions="0.8*,0.8*,0.8*" ColumnSpacing="8">
+                                                                <TextBox
+                                                                    PlaceholderText="Hook duration ms"
+                                                                    Text="{CompiledBinding AuditHookDurationMillisecondsText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    Grid.Column="1"
+                                                                    PlaceholderText="Stack dwords"
+                                                                    Text="{CompiledBinding AuditStackCaptureDwordCountText, Mode=TwoWay}" />
+                                                                <CheckBox
+                                                                    Grid.Column="2"
+                                                                    Content="Stop on failure"
+                                                                    IsChecked="{CompiledBinding AuditStopOnFailure, Mode=TwoWay}" />
+                                                            </Grid>
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <CheckBox
+                                                                    Content="Watch"
+                                                                    IsChecked="{CompiledBinding AuditIncludeWatchPass, Mode=TwoWay}" />
+                                                                <CheckBox
+                                                                    Content="Intercept"
+                                                                    IsChecked="{CompiledBinding AuditIncludeInterceptPass, Mode=TwoWay}" />
+                                                                <Button
+                                                                    Classes="action"
+                                                                    Command="{CompiledBinding RunRuntimeAuditCommand}"
+                                                                    Content="Run Audit" />
+                                                            </StackPanel>
+                                                            <TextBlock Classes="h3" Text="{CompiledBinding AuditStatusText}" />
+                                                            <ItemsControl ItemsSource="{CompiledBinding AuditResultLines}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </TabItem>
+
+                                                <TabItem Header="Interception">
+                                                    <Border Classes="metric" Margin="0,0,0,0">
+                                                        <StackPanel Spacing="8">
+                                                            <TextBlock Classes="h2" Text="Interception" />
+                                                            <Grid ColumnDefinitions="1.2*,0.45*,0.45*,0.45*,0.45*" ColumnSpacing="8">
+                                                                <TextBox
+                                                                    PlaceholderText="teleport_do or 0x000609E0"
+                                                                    Text="{CompiledBinding InterceptTargetText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    Grid.Column="1"
+                                                                    PlaceholderText="Stack dwords"
+                                                                    Text="{CompiledBinding InterceptStackCaptureCountText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    Grid.Column="2"
+                                                                    PlaceholderText="Cleanup bytes"
+                                                                    Text="{CompiledBinding InterceptCleanupBytesText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    Grid.Column="3"
+                                                                    PlaceholderText="Return EAX"
+                                                                    Text="{CompiledBinding InterceptReturnEaxText, Mode=TwoWay}" />
+                                                                <TextBox
+                                                                    Grid.Column="4"
+                                                                    PlaceholderText="Return EDX"
+                                                                    Text="{CompiledBinding InterceptReturnEdxText, Mode=TwoWay}" />
+                                                            </Grid>
+                                                            <CheckBox
+                                                                Content="Mutation only"
+                                                                IsChecked="{CompiledBinding InterceptSkipOriginal, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                PlaceholderText="Regs: eax=0x1|ecx=42"
+                                                                Text="{CompiledBinding InterceptRegisterOverridesText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                PlaceholderText="Args: 0=0x123|1=42"
+                                                                Text="{CompiledBinding InterceptArgumentOverridesText, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                PlaceholderText="Deref: eax:16|stack0:32"
+                                                                Text="{CompiledBinding InterceptDereferencesText, Mode=TwoWay}" />
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Button
+                                                                    Classes="action"
+                                                                    Command="{CompiledBinding StartRuntimeInterceptCommand}"
+                                                                    Content="Start" />
+                                                                <Button
+                                                                    Classes="secondary"
+                                                                    Command="{CompiledBinding PollRuntimeInterceptCommand}"
+                                                                    Content="Poll" />
+                                                                <Button
+                                                                    Classes="secondary"
+                                                                    Command="{CompiledBinding StopRuntimeInterceptCommand}"
+                                                                    Content="Stop" />
+                                                            </StackPanel>
+                                                            <TextBlock Classes="h3" Text="{CompiledBinding InterceptStatusText}" />
+                                                            <ItemsControl ItemsSource="{CompiledBinding InterceptResultLines}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </TabItem>
+                                            </TabControl>
+                                        </StackPanel>
+                                    </TabItem>
+                                </TabControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Inspect">
+                        <Grid Margin="2,12,2,2" ColumnDefinitions="320,*" ColumnSpacing="16">
+                            <Border Classes="metric">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Classes="h2" Text="Target" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding ObjectProbeStatusText}" />
+                                        <TextBox
+                                            PlaceholderText="0x000000004000004A or player"
+                                            Text="{CompiledBinding ObjectProbeHandleText, Mode=TwoWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button
+                                                Classes="secondary"
+                                                Command="{CompiledBinding UseSelectedEventHandleCommand}"
+                                                Content="Use Event"
+                                                IsEnabled="{CompiledBinding CanUseSelectedEventHandle}" />
+                                            <Button
+                                                Classes="secondary"
+                                                Command="{CompiledBinding InspectActivePlayerCommand}"
+                                                Content="Player"
+                                                IsEnabled="{CompiledBinding CanInspectActivePlayer}" />
+                                            <Button
+                                                Classes="action"
+                                                Command="{CompiledBinding InspectObjectHandleCommand}"
+                                                Content="Inspect"
+                                                IsEnabled="{CompiledBinding CanInspectObjectHandle}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Spacing="8">
+                                        <TextBlock Classes="h3" Text="Recent" />
+                                        <ListBox
+                                            Classes="sidebar"
+                                            ItemsSource="{CompiledBinding ObjectProbeObjects}"
+                                            SelectedItem="{CompiledBinding SelectedObjectProbeObject, Mode=TwoWay}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="core:ObjectProbeObjectSnapshot">
+                                                    <Border
+                                                        Margin="0,0,0,6"
+                                                        Background="#151A20"
+                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="8,6">
+                                                        <StackPanel Spacing="3">
+                                                            <TextBlock Classes="h3" Text="{CompiledBinding ObjectTypeText}" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding StatusText}" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding HandleHex}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Classes="metric" Grid.Column="1">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Classes="h2" Text="Details" />
+                                        <ItemsControl ItemsSource="{CompiledBinding ObjectProbeHighlightCards}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="viewmodels:DebuggerInsightCard">
+                                                    <Border
+                                                        Width="170"
+                                                        Margin="0,0,10,10"
+                                                        Background="#151A20"
+                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="8,6">
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
+                                                            <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
+                                                            <TextBlock
+                                                                Classes="meta"
+                                                                Text="{CompiledBinding Detail}"
+                                                                TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl
+                                            IsVisible="{CompiledBinding HasObjectProbeSectionSummaries}"
+                                            ItemsSource="{CompiledBinding ObjectProbeSectionSummaries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="viewmodels:DebuggerInsightSection">
+                                                    <Border
+                                                        Margin="0,0,0,10"
+                                                        Background="#151A20"
+                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="8,6">
+                                                        <StackPanel Spacing="6">
+                                                            <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                            <TextBlock
+                                                                Classes="meta"
+                                                                Text="{CompiledBinding Summary}"
+                                                                TextWrapping="Wrap" />
+                                                            <ItemsControl ItemsSource="{CompiledBinding Entries}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock
+                                                                            Classes="meta"
+                                                                            Margin="0,0,0,4"
+                                                                            Text="{Binding}"
+                                                                            TextWrapping="Wrap" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ContentControl Content="{CompiledBinding SelectedObjectProbeObject}">
+                                            <ContentControl.ContentTemplate>
+                                                <DataTemplate x:DataType="core:ObjectProbeObjectSnapshot">
+                                                    <StackPanel Spacing="12">
+                                                        <StackPanel Spacing="4">
+                                                            <DockPanel>
+                                                                <TextBlock DockPanel.Dock="Left" Classes="h1" Text="{CompiledBinding ObjectTypeText}" />
+                                                                <Border DockPanel.Dock="Right" Background="#21262D" CornerRadius="999" Padding="8,3">
+                                                                    <TextBlock Classes="meta" Text="{CompiledBinding ResolutionSource}" />
+                                                                </Border>
+                                                            </DockPanel>
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding StatusText}" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding HandleHex}" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding ObjectIdText}" />
+                                                            <TextBlock Classes="meta" Text="{CompiledBinding PrototypeText}" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding PrototypeHandleText}" />
+                                                            <TextBlock Classes="code" Text="{CompiledBinding AddressText}" />
+                                                        </StackPanel>
+
+                                                        <ItemsControl ItemsSource="{CompiledBinding Sections}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="core:ObjectProbeSectionSnapshot">
+                                                                    <Border
+                                                                        Width="265"
+                                                                        Margin="0,0,10,10"
+                                                                        Background="#151A20"
+                                                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,6">
+                                                                        <StackPanel Spacing="6">
+                                                                            <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
+                                                                            <ItemsControl ItemsSource="{CompiledBinding Details}">
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate x:DataType="core:ObjectProbeDetailSnapshot">
+                                                                                        <DockPanel LastChildFill="False">
+                                                                                            <TextBlock
+                                                                                                DockPanel.Dock="Left"
+                                                                                                Classes="meta"
+                                                                                                FontWeight="SemiBold"
+                                                                                                Text="{CompiledBinding Label}" />
+                                                                                            <TextBlock
+                                                                                                DockPanel.Dock="Right"
+                                                                                                Classes="meta"
+                                                                                                Text="{CompiledBinding Value}" />
+                                                                                        </DockPanel>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ContentControl.ContentTemplate>
+                                        </ContentControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
+
+
+
+

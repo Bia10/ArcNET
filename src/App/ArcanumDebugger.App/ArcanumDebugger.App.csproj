@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcanumDebugger.App</RootNamespace>
+    <AssemblyName>ArcanumDebugger.App</AssemblyName>
+    <OutputType>WinExe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Description>Preview Avalonia shell for the standalone ArcanumDebugger desktop app.</Description>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="R3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
+    <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
+    <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.Windows\ArcNET.Diagnostics.Windows.csproj" />
+  </ItemGroup>
+</Project>
