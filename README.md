@@ -17,6 +17,8 @@ Span-based, low-allocation, UI-agnostic library APIs — usable from console too
 
 ## Packages
 
+Published NuGet libraries currently tracked in `src/ArcNET.PackageVersions.props`:
+
 | Package | Description | NuGet | Status |
 |---|---|---|---|
 | `ArcNET.Core` | `SpanReader` / `SpanWriter`, primitive types (`Location`, `ArtId`, `Color`, `GameObjectGuid`, `PrefixedString`) | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Core?label=NuGet)](https://www.nuget.org/packages/ArcNET.Core) | 🚧 WIP |
@@ -24,14 +26,23 @@ Span-based, low-allocation, UI-agnostic library APIs — usable from console too
 | `ArcNET.Formats` | Binary format parsers/writers: MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, TFAI, TFAF, GSI, TMF, and structural save-global files | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Formats?label=NuGet)](https://www.nuget.org/packages/ArcNET.Formats) | 🚧 WIP |
 | `ArcNET.Archive` | DAT archive pack / unpack backed by `MemoryMappedFile`; TFAF sub-archive support | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Archive?label=NuGet)](https://www.nuget.org/packages/ArcNET.Archive) | 🚧 WIP |
 | `ArcNET.GameData` | `GameDataLoader`, `GameDataStore`, `GameDataSaver`, and `GameDataExporter` for loose/extracted content with per-source MES/SEC/PRO/MOB/SCR/DLG tracking | [![NuGet](https://img.shields.io/nuget/v/ArcNET.GameData?label=NuGet)](https://www.nuget.org/packages/ArcNET.GameData) | 🚧 WIP |
-| `ArcNET.Diagnostics` | Runtime diagnostics foundation, launch planning, probe services, and HighRes patch orchestration shared by debugger and console tooling | — | 🚧 WIP |
-| `ArcNET.Dumpers` | Human-readable text dumpers for game data, archive, and save formats | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Dumpers?label=NuGet)](https://www.nuget.org/packages/ArcNET.Dumpers) | 🚧 WIP |
 | `ArcNET.BinaryPatch` | JSON-driven binary patching — field-level PRO/MOB mutations and raw byte patches with backup/revert/verify | [![NuGet](https://img.shields.io/nuget/v/ArcNET.BinaryPatch?label=NuGet)](https://www.nuget.org/packages/ArcNET.BinaryPatch) | 🚧 WIP |
 | `ArcNET.Editor` | Unified editor workspace loading, asset catalog with DAT/loose provenance, map/sector/proto/dialog/script/art index queries, dialog and script composition builders, save-game editing pipeline. See [Editor SDK Roadmap](docs/EditorSdkRoadmap.md). | [![NuGet](https://img.shields.io/nuget/v/ArcNET.Editor?label=NuGet)](https://www.nuget.org/packages/ArcNET.Editor) | 🚧 WIP |
 
 All packages target `net10.0` and are AOT / trim compatible. Runtime dependencies are intentionally small; the shared non-BCL package currently used across the core libraries is `Bia.ValueBuffers` for low-allocation buffer building.
 
-The packable NuGet libraries are intended to remain multiplatform across Windows, Linux, and macOS. Shared diagnostics foundations now live under `src/Diagnostics/*`; platform-specific hosts such as probe and research consoles build on top of that layer.
+The packable NuGet libraries are intended to remain multiplatform across Windows, Linux, and macOS. Internal diagnostics foundations and host applications live alongside them under `src/Diagnostics/*`, `src/App/*`, `src/Benchmarks/*`, and `src/DocTest/*`.
+
+Key internal projects in the current repo:
+
+| Project | Role | Platform |
+|---|---|---|
+| `ArcNET.Diagnostics` | Runtime-oriented diagnostics services, launch planning, capability models, and debugger-facing snapshots | Cross-platform library |
+| `ArcNET.Diagnostics.FileTime` | Offline save/object audits, dump templates, and analysis services shared by diagnostics tooling | Cross-platform library |
+| `ArcNET.Diagnostics.Windows` | Windows runtime/process integration used by live debugger workflows | Windows-only library |
+| `ArcNET.App` | Console host for archive, editor, patch, and diagnostics workflows | Cross-platform executable |
+| `ArcanumDebugger.App` | Avalonia desktop shell for diagnostics workflows | Windows desktop executable |
+| `ArcNET.Benchmarks` and `ArcNET.DocTest` | Performance probes plus public API/documentation verification | Internal tooling |
 
 Package versions are now explicit per library via `src/ArcNET.PackageVersions.props`. Use `dotnet Build.cs package-version ArcNET.Core` to inspect the current version, then tag `ArcNET.Core-v<that version>` to publish that package. See [docs/NuGetPublishing.md](docs/NuGetPublishing.md) for the local pack and CI publish flow.
 
@@ -62,47 +73,44 @@ For more examples see the [Example Catalogue](docs/examples.md).
 
 ## Example Catalogue
 
-The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples for every library and format:
+The [docs/examples.md](docs/examples.md) file contains copy-paste-ready examples for the main public libraries and tooling surfaces:
 
 - **ArcNET.Formats** — MES, SEC, ART, DLG, SCR, PRO, MOB, JMP, FAC, TDF, GSI, TFAI, TFAF, PRP parsers; round-trip serialization; file discovery
 - **ArcNET.Archive** — open, enumerate, extract single/all entries, read without extracting, pack a directory, TFAF sub-archive
 - **ArcNET.GameObjects** — read full game objects, read headers only, `GameObjectStore`
 - **ArcNET.GameData** — load MES/SEC/PRO/MOB/SCR/DLG from directory or in-memory buffers (per-source origin tracking), save to disk / memory restoring original source paths, dirty tracking, AOT-safe JSON export
-- **ArcNET.Diagnostics** — runtime workspace composition, launch planning, probe foundations, and HighRes patch install / uninstall helpers
-- **ArcNET.Dumpers** — human-readable text dumps for all parsed formats (mob, proto, sector, art, dialog, script, message, etc.)
+- **ArcNET.Diagnostics** — runtime workspace composition, launch planning, file-time save/object audits, and HighRes patch install / uninstall helpers
 - **ArcNET.BinaryPatch** — JSON-driven binary patching: field-level PRO/MOB mutations, raw byte offsets, backup/revert/verify, patch state tracking
 - **ArcNET.Editor** — workspace loading (`EditorWorkspaceLoader`), asset catalog with DAT/loose provenance (`EditorWorkspace.Assets`), load diagnostics (`EditorWorkspace.LoadReport`), workspace validation (`EditorWorkspace.Validation`), map/sector/proto/dialog/script/art index queries (`EditorWorkspace.Index`), dialog and script builders (`DialogBuilder`, `DialogEditor`, `ScriptBuilder`), save-game round-trip (`LoadedSave`, `SaveGameEditor`), and fluent content builders
 - **ArcNET.Core** — low-level `SpanReader` / `SpanWriter`, primitive round-trips, `EnumLookup`
 
 ---
 
-## Package dependency graph
+## NuGet dependency graph
 
 ```
-ArcNET.App (exe)
-  ├── ArcNET.BinaryPatch
-  │     ├── ArcNET.Formats
-  │     │     ├── ArcNET.GameObjects → ArcNET.Core
-  │     │     └── ArcNET.Core
-  │     └── ArcNET.Archive → ArcNET.Core
-  ├── ArcNET.Dumpers
-  │     ├── ArcNET.Formats  (→ see above)
-  │     ├── ArcNET.GameObjects → ArcNET.Core
-  │     └── ArcNET.Archive  → ArcNET.Core
-  ├── ArcNET.Editor
-  │     ├── ArcNET.GameData
-  │     │     ├── ArcNET.Formats  (→ see above)
-  │     │     ├── ArcNET.GameObjects → ArcNET.Core
-  │     │     └── ArcNET.Core
-  │     ├── ArcNET.Formats  (→ see above)
-  │     ├── ArcNET.GameObjects → ArcNET.Core
-  │     └── ArcNET.Archive  → ArcNET.Core
-  ├── ArcNET.GameData
-  │     ├── ArcNET.Formats  (→ see above)
-  │     ├── ArcNET.GameObjects → ArcNET.Core
-  │     └── ArcNET.Core
-  └── ArcNET.Archive  → ArcNET.Core
+ArcNET.Core
+ArcNET.GameObjects -> ArcNET.Core
+ArcNET.Archive -> ArcNET.Core
+ArcNET.Formats
+  ├── ArcNET.Core
+  └── ArcNET.GameObjects -> ArcNET.Core
+ArcNET.GameData
+  ├── ArcNET.Core
+  ├── ArcNET.GameObjects -> ArcNET.Core
+  └── ArcNET.Formats  (→ see above)
+ArcNET.BinaryPatch
+  ├── ArcNET.Archive  -> ArcNET.Core
+  └── ArcNET.Formats  (→ see above)
+ArcNET.Editor
+  ├── ArcNET.Archive  -> ArcNET.Core
+  ├── ArcNET.Core
+  ├── ArcNET.Formats  (→ see above)
+  ├── ArcNET.GameData (→ see above)
+  └── ArcNET.GameObjects -> ArcNET.Core
 ```
+
+Internal diagnostics libraries and host applications layer on top of this package graph rather than shipping as NuGet packages today.
 
 ---
 
@@ -110,7 +118,7 @@ ArcNET.App (exe)
 
 ```shell
 dotnet tool restore
-dotnet build ArcNET.slnx -c Release
+dotnet Build.cs build
 ```
 
 ## NuGet Packaging
@@ -132,7 +140,7 @@ TUnit tests use the Microsoft Testing Platform runner:
 
 ```shell
 dotnet Build.cs test
-dotnet dotnet-coverage collect "dotnet run --project src/Core/ArcNET.Core.Tests -c Release" --output artifacts/TestResults/ArcNET.Core.Tests.coverage.cobertura.xml --output-format cobertura
+dotnet Build.cs coverage
 ```
 
 ## Formatting
