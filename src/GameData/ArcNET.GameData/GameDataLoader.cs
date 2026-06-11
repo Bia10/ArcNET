@@ -165,7 +165,9 @@ public static class GameDataLoader
         string dirPath,
         IProgress<float>? progress = null,
         CancellationToken ct = default,
-        IProgress<GameDataLoadProgress>? loadProgress = null
+        IProgress<GameDataLoadProgress>? loadProgress = null,
+        IProgress<GameDataLoadStageTiming>? stageProgress = null,
+        GameDataLoadOptions? options = null
     )
     {
         if (!Directory.Exists(dirPath))
@@ -173,7 +175,14 @@ public static class GameDataLoader
 
         loadProgress?.Report(new GameDataLoadProgress("Discovering game data files", 0f));
         var files = await Task.Run(() => DiscoverFiles(dirPath), ct).ConfigureAwait(false);
-        var result = await LoadFromEntriesAsync(CreateFileEntries(dirPath, files), progress, ct, loadProgress)
+        var result = await LoadFromEntriesAsync(
+                CreateFileEntries(dirPath, files),
+                progress,
+                ct,
+                loadProgress,
+                stageProgress,
+                options
+            )
             .ConfigureAwait(false);
         ThrowIfFailures(result.Failures);
         return result.Store;
@@ -187,7 +196,9 @@ public static class GameDataLoader
         IReadOnlyDictionary<string, ReadOnlyMemory<byte>> files,
         IProgress<float>? progress = null,
         CancellationToken ct = default,
-        IProgress<GameDataLoadProgress>? loadProgress = null
+        IProgress<GameDataLoadProgress>? loadProgress = null,
+        IProgress<GameDataLoadStageTiming>? stageProgress = null,
+        GameDataLoadOptions? options = null
     )
     {
         ArgumentNullException.ThrowIfNull(files);
@@ -201,7 +212,8 @@ public static class GameDataLoader
             })
             .ToArray();
 
-        var result = await LoadFromEntriesAsync(entries, progress, ct, loadProgress).ConfigureAwait(false);
+        var result = await LoadFromEntriesAsync(entries, progress, ct, loadProgress, stageProgress, options)
+            .ConfigureAwait(false);
         ThrowIfFailures(result.Failures);
         return result.Store;
     }
@@ -215,13 +227,30 @@ public static class GameDataLoader
         IReadOnlyList<GameDataLoadEntry> entries,
         IProgress<float>? progress = null,
         CancellationToken ct = default,
-        IProgress<GameDataLoadProgress>? loadProgress = null
+        IProgress<GameDataLoadProgress>? loadProgress = null,
+        IProgress<GameDataLoadStageTiming>? stageProgress = null,
+        GameDataLoadOptions? options = null
     )
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        var parsedEntries = await ParseEntriesAsync(entries, progress, ct, loadProgress).ConfigureAwait(false);
-        return ApplyParsedEntries(parsedEntries);
+        options ??= GameDataLoadOptions.Default;
+        var effectiveEntries = FilterLoadEntries(entries, options);
+        var parsedEntries = await MeasureStageAsync(
+                "GameData.ParseEntries",
+                stageProgress,
+                () => ParseEntriesAsync(effectiveEntries, progress, ct, loadProgress, stageProgress),
+                effectiveEntries.Count,
+                "assets"
+            )
+            .ConfigureAwait(false);
+        return MeasureStage(
+            "GameData.ApplyParsedEntries",
+            stageProgress,
+            () => ApplyParsedEntries(parsedEntries),
+            parsedEntries.Length,
+            "assets"
+        );
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -247,11 +276,84 @@ public static class GameDataLoader
             )
             .ToArray();
 
+    private static IReadOnlyList<GameDataLoadEntry> FilterLoadEntries(
+        IReadOnlyList<GameDataLoadEntry> entries,
+        GameDataLoadOptions options
+    )
+    {
+        if (options.LoadArtMetadata)
+            return entries;
+
+        var filteredEntries = entries.Where(static entry => entry.Format != FileFormat.Art).ToArray();
+        return filteredEntries.Length == entries.Count ? entries : filteredEntries;
+    }
+
+    private static async Task<T> MeasureStageAsync<T>(
+        string stageName,
+        IProgress<GameDataLoadStageTiming>? progress,
+        Func<Task<T>> action,
+        int? itemCount = null,
+        string? unitLabel = null
+    )
+    {
+        if (progress is null)
+            return await action().ConfigureAwait(false);
+
+        var startedTimestamp = Stopwatch.GetTimestamp();
+        try
+        {
+            return await action().ConfigureAwait(false);
+        }
+        finally
+        {
+            progress.Report(
+                new GameDataLoadStageTiming
+                {
+                    StageName = stageName,
+                    ElapsedMs = GetElapsedMilliseconds(startedTimestamp),
+                    ItemCount = itemCount,
+                    UnitLabel = unitLabel,
+                }
+            );
+        }
+    }
+
+    private static T MeasureStage<T>(
+        string stageName,
+        IProgress<GameDataLoadStageTiming>? progress,
+        Func<T> action,
+        int? itemCount = null,
+        string? unitLabel = null
+    )
+    {
+        if (progress is null)
+            return action();
+
+        var startedTimestamp = Stopwatch.GetTimestamp();
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            progress.Report(
+                new GameDataLoadStageTiming
+                {
+                    StageName = stageName,
+                    ElapsedMs = GetElapsedMilliseconds(startedTimestamp),
+                    ItemCount = itemCount,
+                    UnitLabel = unitLabel,
+                }
+            );
+        }
+    }
+
     private static async Task<ParsedLoadEntry[]> ParseEntriesAsync(
         IReadOnlyList<GameDataLoadEntry> entries,
         IProgress<float>? progress,
         CancellationToken ct,
-        IProgress<GameDataLoadProgress>? loadProgress
+        IProgress<GameDataLoadProgress>? loadProgress,
+        IProgress<GameDataLoadStageTiming>? stageProgress
     )
     {
         var parsedEntries = new ParsedLoadEntry[entries.Count];
@@ -266,6 +368,7 @@ public static class GameDataLoader
         var parseParallelism = GetParseParallelism();
         var readParallelism = GetReadParallelism(parseParallelism);
         var loadedEntryByteBudget = GetLoadedEntryByteBudget(parseParallelism);
+        var timingAccumulator = stageProgress is null ? null : new GameDataLoadTimingAccumulator();
         Debug.WriteLine(
             $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, BufferedEntries={GetLoadedEntryBufferSize(parseParallelism)}, RetainedByteBudget={loadedEntryByteBudget}, TotalAssets={entries.Count}"
         );
@@ -285,7 +388,12 @@ public static class GameDataLoader
 
         var parseWorkers = Enumerable
             .Range(0, parseParallelism)
-            .Select(_ => Task.Run(() => ConsumeLoadedEntriesAsync(loadedEntryChannel.Reader, parsedEntries, ct), ct))
+            .Select(_ =>
+                Task.Run(
+                    () => ConsumeLoadedEntriesAsync(loadedEntryChannel.Reader, parsedEntries, timingAccumulator, ct),
+                    ct
+                )
+            )
             .ToArray();
 
         Exception? loadFailure = null;
@@ -304,7 +412,11 @@ public static class GameDataLoader
 
                         try
                         {
-                            var memory = await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false);
+                            var memory = timingAccumulator is null
+                                ? await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false)
+                                : await timingAccumulator
+                                    .MeasureLoadAsync(entry, entry.LoadContentAsync, cancellationToken)
+                                    .ConfigureAwait(false);
                             await loadedEntryChannel
                                 .Writer.WriteAsync(new LoadedEntry(index, entry, memory, byteLease), cancellationToken)
                                 .ConfigureAwait(false);
@@ -328,6 +440,7 @@ public static class GameDataLoader
         }
 
         await Task.WhenAll(parseWorkers).ConfigureAwait(false);
+        timingAccumulator?.Report(stageProgress);
 
         // Final progress report
         progress?.Report(1f);
@@ -339,6 +452,7 @@ public static class GameDataLoader
     private static async Task ConsumeLoadedEntriesAsync(
         ChannelReader<LoadedEntry> reader,
         ParsedLoadEntry[] parsedEntries,
+        GameDataLoadTimingAccumulator? timingAccumulator,
         CancellationToken ct
     )
     {
@@ -346,7 +460,9 @@ public static class GameDataLoader
         {
             try
             {
-                parsedEntries[loadedEntry.Index] = ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory);
+                parsedEntries[loadedEntry.Index] = timingAccumulator is null
+                    ? ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory)
+                    : timingAccumulator.MeasureParse(loadedEntry.Entry, loadedEntry.Memory);
             }
             finally
             {
@@ -442,6 +558,107 @@ public static class GameDataLoader
 
     private static bool IsSkippableAssetParseFailure(Exception exception) =>
         exception is ArgumentOutOfRangeException or InvalidDataException;
+
+    private static long GetElapsedMilliseconds(long startedTimestamp)
+    {
+        var elapsedTicks = Stopwatch.GetTimestamp() - startedTimestamp;
+        return Math.Max(0L, (long)Math.Round(elapsedTicks * 1000d / Stopwatch.Frequency));
+    }
+
+    private sealed class GameDataLoadTimingAccumulator
+    {
+        private const int FormatCount = (int)FileFormat.TownMapFog + 1;
+        private readonly long[] _loadTicksByFormat = new long[FormatCount];
+        private readonly int[] _loadCountsByFormat = new int[FormatCount];
+        private readonly long[] _parseTicksByFormat = new long[FormatCount];
+        private readonly int[] _parseCountsByFormat = new int[FormatCount];
+
+        public async Task<ReadOnlyMemory<byte>> MeasureLoadAsync(
+            GameDataLoadEntry entry,
+            Func<CancellationToken, Task<ReadOnlyMemory<byte>>> loadContentAsync,
+            CancellationToken cancellationToken
+        )
+        {
+            var startedTimestamp = Stopwatch.GetTimestamp();
+            try
+            {
+                return await loadContentAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                AddTiming(_loadTicksByFormat, _loadCountsByFormat, entry.Format, startedTimestamp);
+            }
+        }
+
+        public ParsedLoadEntry MeasureParse(GameDataLoadEntry entry, ReadOnlyMemory<byte> memory)
+        {
+            var startedTimestamp = Stopwatch.GetTimestamp();
+            try
+            {
+                return ParseLoadedEntry(entry, memory);
+            }
+            finally
+            {
+                AddTiming(_parseTicksByFormat, _parseCountsByFormat, entry.Format, startedTimestamp);
+            }
+        }
+
+        public void Report(IProgress<GameDataLoadStageTiming>? progress)
+        {
+            if (progress is null)
+                return;
+
+            ReportFormatTimings(progress, "GameData.LoadContent", _loadTicksByFormat, _loadCountsByFormat);
+            ReportFormatTimings(progress, "GameData.ParseCpu", _parseTicksByFormat, _parseCountsByFormat);
+        }
+
+        private static void AddTiming(long[] ticksByFormat, int[] countsByFormat, FileFormat format, long started)
+        {
+            var index = GetFormatIndex(format);
+            Interlocked.Add(ref ticksByFormat[index], Stopwatch.GetTimestamp() - started);
+            Interlocked.Increment(ref countsByFormat[index]);
+        }
+
+        private static int GetFormatIndex(FileFormat format)
+        {
+            var index = (int)format;
+            return index >= 0 && index < FormatCount ? index : 0;
+        }
+
+        private static void ReportFormatTimings(
+            IProgress<GameDataLoadStageTiming> progress,
+            string prefix,
+            long[] ticksByFormat,
+            int[] countsByFormat
+        )
+        {
+            var stages = Enumerable
+                .Range(0, FormatCount)
+                .Where(index => Volatile.Read(ref countsByFormat[index]) > 0)
+                .Select(index => new
+                {
+                    Format = (FileFormat)index,
+                    Ticks = Volatile.Read(ref ticksByFormat[index]),
+                    Count = Volatile.Read(ref countsByFormat[index]),
+                })
+                .OrderByDescending(stage => stage.Ticks)
+                .ThenBy(stage => stage.Format.ToString(), StringComparer.Ordinal)
+                .ToArray();
+
+            foreach (var stage in stages)
+            {
+                progress.Report(
+                    new GameDataLoadStageTiming
+                    {
+                        StageName = $"{prefix}.{stage.Format}",
+                        ElapsedMs = Math.Max(0L, (long)Math.Round(stage.Ticks * 1000d / Stopwatch.Frequency)),
+                        ItemCount = stage.Count,
+                        UnitLabel = "assets",
+                    }
+                );
+            }
+        }
+    }
 
     private sealed class InFlightByteBudget(long maxRetainedBytes)
     {

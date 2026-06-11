@@ -332,6 +332,62 @@ public class GameDataLoaderTests
     }
 
     [Test]
+    public async Task LoadFromEntriesAsync_ReportsStageTimingsByFormat()
+    {
+        var stageTimings = new List<GameDataLoadStageTiming>();
+
+        var result = await GameDataLoader.LoadFromEntriesAsync(
+            [GameDataLoadEntry.FromMemory(FileFormat.Message, "mes/game.mes", Encoding.UTF8.GetBytes("{10}{Alpha}\n"))],
+            stageProgress: new SyncProgress<GameDataLoadStageTiming>(stageTimings.Add)
+        );
+
+        await Assert.That(result.Store.Messages.Count).IsEqualTo(1);
+        await Assert
+            .That(stageTimings.Any(static stage => stage is { StageName: "GameData.ParseEntries", ItemCount: 1 }))
+            .IsTrue();
+        await Assert
+            .That(
+                stageTimings.Any(static stage =>
+                    stage is { StageName: "GameData.LoadContent.Message", ItemCount: 1, UnitLabel: "assets" }
+                )
+            )
+            .IsTrue();
+        await Assert
+            .That(
+                stageTimings.Any(static stage =>
+                    stage is { StageName: "GameData.ParseCpu.Message", ItemCount: 1, UnitLabel: "assets" }
+                )
+            )
+            .IsTrue();
+        await Assert
+            .That(stageTimings.Any(static stage => stage is { StageName: "GameData.ApplyParsedEntries", ItemCount: 1 }))
+            .IsTrue();
+    }
+
+    [Test]
+    public async Task LoadFromEntriesAsync_CanSkipArtMetadata()
+    {
+        var result = await GameDataLoader.LoadFromEntriesAsync(
+            [
+                GameDataLoadEntry.FromMemory(
+                    FileFormat.Message,
+                    "mes/game.mes",
+                    Encoding.UTF8.GetBytes("{10}{Alpha}\n")
+                ),
+                GameDataLoadEntry.FromMemory(
+                    FileFormat.Art,
+                    "art/critters/barbarian.art",
+                    ArtFormat.WriteToArray(MakeArt())
+                ),
+            ],
+            options: new GameDataLoadOptions { LoadArtMetadata = false }
+        );
+
+        await Assert.That(result.Store.Messages.Count).IsEqualTo(1);
+        await Assert.That(result.Store.Arts.Count).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task LoadFromDirectoryAsync_NonExistentDir_Throws()
     {
         await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
@@ -471,5 +527,10 @@ public class GameDataLoaderTests
         await Assert.That(store.Arts[0].IsMetadataOnly).IsTrue();
         await Assert.That(store.Arts[0].Frames[0][0].Pixels.Length).IsEqualTo(0);
         await Assert.That(store.ArtsBySource.ContainsKey("art/critters/barbarian.art")).IsTrue();
+    }
+
+    private sealed class SyncProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        public void Report(T value) => callback(value);
     }
 }
