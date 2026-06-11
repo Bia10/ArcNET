@@ -51,6 +51,57 @@ public sealed class EditorMapFloorRenderBuilderTests
     }
 
     [Test]
+    public async Task Build_WithFocusedTerrainSectors_KeepsFullBoundsAndAllObjects()
+    {
+        var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 911, Guid.NewGuid());
+        var protoId = new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, Guid.Empty);
+        var scenePreview = CreateScenePreview(
+            CreateSectorScenePreview("maps/map01/0_0.sec", 0, 0, CreateFilledMapTileArtIds()),
+            new EditorMapSectorScenePreview
+            {
+                AssetPath = "maps/map01/1_0.sec",
+                SectorX = 1,
+                SectorY = 0,
+                LocalX = 1,
+                LocalY = 0,
+                PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                TileArtIds = CreateFilledMapTileArtIds(200u),
+                RoofArtIds = null,
+                BlockMask = new uint[128],
+                Lights = [],
+                TileScripts = [],
+                Objects =
+                [
+                    CreateObjectPreview(objectId, protoId, ObjectType.Scenery, new ArtId(2001), new Location(0, 0)),
+                ],
+            }
+        );
+        var fullRequest = EditorMapFloorRenderRequest.CreateWorldEditPreset();
+        var focusedRequest = fullRequest.WithMaterializedTerrainSectors(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "maps/map01/0_0.sec" },
+            EditorMapFloorRenderBuilder.TryCreateTerrainBounds(scenePreview, fullRequest)
+        );
+
+        var fullPreview = EditorMapFloorRenderBuilder.Build(scenePreview, fullRequest);
+        var focusedPreview = EditorMapFloorRenderBuilder.Build(scenePreview, focusedRequest);
+        var fullTileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(fullPreview, 0, 0);
+        var focusedTileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(focusedPreview, 0, 0);
+
+        await Assert.That(focusedPreview.IsTerrainMaterializationPartial).IsTrue();
+        await Assert.That(focusedPreview.MaterializedTerrainSectorCount).IsEqualTo(1);
+        await Assert.That(focusedPreview.TotalTerrainSectorCount).IsEqualTo(2);
+        await Assert.That(focusedPreview.Tiles.Count).IsEqualTo(4096);
+        await Assert.That(focusedPreview.Objects.Count).IsEqualTo(1);
+        await Assert.That(focusedPreview.Objects[0].ObjectId).IsEqualTo(objectId);
+        await Assert.That(focusedPreview.WidthPixels).IsEqualTo(fullPreview.WidthPixels);
+        await Assert.That(focusedPreview.HeightPixels).IsEqualTo(fullPreview.HeightPixels);
+        await Assert.That(focusedTileCenter.X).IsEqualTo(fullTileCenter.X);
+        await Assert.That(focusedTileCenter.Y).IsEqualTo(fullTileCenter.Y);
+    }
+
+    [Test]
     public async Task Build_KeepsNonFlatObjectsAfterFloorsOnLargeWorldMaps()
     {
         const int sectorCount = 37;
@@ -1651,6 +1702,66 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.RenderQueue.Count).IsEqualTo(2);
         await Assert.That(preview.RenderQueue[0].Kind).IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
         await Assert.That(preview.RenderQueue[1].Kind).IsEqualTo(EditorMapRenderQueueItemKind.TileOverlay);
+    }
+
+    [Test]
+    public async Task Build_ProjectsJumpPointTileOverlays()
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[(63 * 64) + 2] = 100u;
+
+        var preview = EditorMapFloorRenderBuilder.Build(
+            CreateScenePreview(
+                new EditorMapSectorScenePreview
+                {
+                    AssetPath = "maps/map01/sector_a.sec",
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                    TileArtIds = tileArtIds,
+                    RoofArtIds = null,
+                    BlockMask = new uint[128],
+                    Lights = [],
+                    TileScripts = [],
+                    JumpPoints =
+                    [
+                        new EditorMapJumpPointPreview
+                        {
+                            TileIndex = (63 * 64) + 2,
+                            TileX = 2,
+                            TileY = 63,
+                            MapTileX = 2,
+                            MapTileY = 63,
+                            DestinationMapId = 42,
+                            DestinationTileX = 10,
+                            DestinationTileY = 11,
+                            Flags = 0u,
+                        },
+                    ],
+                    Objects = [],
+                }
+            ),
+            new EditorMapFloorRenderRequest
+            {
+                ViewMode = EditorMapSceneViewMode.TopDown,
+                TileWidthPixels = 32d,
+                TileHeightPixels = 32d,
+            }
+        );
+
+        await Assert.That(preview.Overlays).HasSingleItem();
+        await Assert.That(preview.Overlays[0].Kind).IsEqualTo(EditorMapTileOverlayKind.JumpPoint);
+        await Assert.That(preview.Overlays[0].MapTileX).IsEqualTo(2);
+        await Assert.That(preview.Overlays[0].MapTileY).IsEqualTo(63);
+        await Assert.That(preview.Overlays[0].CenterX).IsEqualTo(16d);
+        await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(16d);
+        await Assert.That(preview.Overlays[0].SuggestedTintColor).IsEqualTo(0x8866BBDDu);
+        await Assert.That(preview.RenderQueue.Count).IsEqualTo(2);
+        await Assert.That(preview.RenderQueue[1].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.JumpPoint);
     }
 
     private static EditorMapScenePreview CreateScenePreview(params EditorMapSectorScenePreview[] sectors) =>
