@@ -27,4 +27,10 @@ public sealed class EditorWorkspaceLoadOptions
     /// <see cref="SaveFolder"/>.
     /// </summary>
     public string? SaveSlotName { get; init; }
+
+    /// <summary>
+    /// When true, workspace loading eagerly parses ART metadata into the game-data store.
+    /// Editors can set this to false and rely on the asset catalog plus lazy art loading for faster cold start.
+    /// </summary>
+    public bool LoadArtMetadata { get; init; } = true;
 }

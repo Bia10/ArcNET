@@ -17,4 +17,6 @@ public sealed class EditorWorkspaceLoadProgress
     public TimeSpan? EstimatedRemaining { get; init; }
 
     public DateTimeOffset? EstimatedCompletionTime { get; init; }
+
+    public IReadOnlyList<EditorWorkspaceLoadStageTiming> StageTimings { get; init; } = [];
 }
