@@ -37,6 +37,21 @@ public sealed class EditorMapRenderSpriteCoverage
     public required int UnresolvedSpriteReferenceCount { get; init; }
 
     /// <summary>
+    /// Distinct sprite-frame requests referenced by paintable scene items.
+    /// </summary>
+    public IReadOnlyList<EditorMapRenderSpriteCoverageReference> ReferencedSpriteReferences { get; init; } = [];
+
+    /// <summary>
+    /// Distinct sprite-frame requests that the configured sprite source successfully resolved.
+    /// </summary>
+    public IReadOnlyList<EditorMapRenderSpriteCoverageReference> ResolvedSpriteReferences { get; init; } = [];
+
+    /// <summary>
+    /// Distinct sprite-frame requests that remained unresolved by the configured sprite source.
+    /// </summary>
+    public IReadOnlyList<EditorMapRenderSpriteCoverageReference> UnresolvedSpriteReferences { get; init; } = [];
+
+    /// <summary>
     /// Distinct ART identifiers referenced by paintable scene items that can carry sprites.
     /// </summary>
     public required IReadOnlyList<ArtId> ReferencedArtIds { get; init; }

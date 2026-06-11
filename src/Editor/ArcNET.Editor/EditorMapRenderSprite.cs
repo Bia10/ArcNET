@@ -177,6 +177,15 @@ public interface IEditorMapRenderSpriteSource
     /// </summary>
     Task PreloadAsync(IEnumerable<EditorMapRenderQueueItem> items, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
+
+    /// <summary>
+    /// Asynchronously preloads sprites referenced by a committed slice-backed scene without requiring the unified queue to expand.
+    /// </summary>
+    Task PreloadAsync(EditorMapFloorRenderPreview sceneRender, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        return PreloadAsync(sceneRender.RenderQueue, cancellationToken);
+    }
 }
 
 /// <summary>
@@ -410,6 +419,74 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
         }
 
         return _workspace.PreloadArtsAsync(assetPaths, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task PreloadAsync(EditorMapFloorRenderPreview sceneRender, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+
+        var assetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
+        {
+            var slice = sceneRender.Slices[sliceIndex];
+            for (var i = 0; i < slice.Tiles.Count; i++)
+                AddAssetPath(assetPaths, slice.Tiles[i].ArtId, EditorMapRenderQueueItemKind.FloorTile);
+
+            for (var i = 0; i < slice.Objects.Count; i++)
+                AddAssetPath(assetPaths, slice.Objects[i].CurrentArtId, EditorMapRenderQueueItemKind.Object);
+
+            for (var i = 0; i < slice.ObjectAuxiliaryItems.Count; i++)
+                AddAssetPath(
+                    assetPaths,
+                    slice.ObjectAuxiliaryItems[i].ArtId,
+                    EditorMapRenderQueueItemKind.ObjectAuxiliary
+                );
+
+            for (var i = 0; i < slice.Roofs.Count; i++)
+                AddAssetPath(assetPaths, slice.Roofs[i].ArtId, EditorMapRenderQueueItemKind.Roof);
+
+            for (var i = 0; i < slice.Lights.Count; i++)
+                AddAssetPath(assetPaths, slice.Lights[i].ArtId, EditorMapRenderQueueItemKind.Light);
+        }
+
+        for (var sectorIndex = 0; sectorIndex < sceneRender.VirtualTerrainSectors.Count; sectorIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sector = sceneRender.VirtualTerrainSectors[sectorIndex];
+            if (sceneRender.IsTerrainSectorMaterialized(sector.AssetPath))
+                continue;
+
+            var floorArtIds = sector.UniqueTerrainFloorArtIds;
+            for (var tileIndex = 0; tileIndex < floorArtIds.Count; tileIndex++)
+                AddAssetPath(assetPaths, floorArtIds[tileIndex], EditorMapRenderQueueItemKind.FloorTile);
+
+            if (sceneRender.IncludeTerrainRoofs)
+            {
+                var roofArtIds = sector.UniqueTerrainRoofArtIds;
+                for (var roofIndex = 0; roofIndex < roofArtIds.Count; roofIndex++)
+                    AddAssetPath(assetPaths, roofArtIds[roofIndex], EditorMapRenderQueueItemKind.Roof);
+            }
+
+            if (!sceneRender.IncludeTerrainLightOverlays)
+                continue;
+
+            var lightArtIds = sector.UniqueTerrainLightArtIds;
+            for (var lightIndex = 0; lightIndex < lightArtIds.Count; lightIndex++)
+                AddAssetPath(assetPaths, lightArtIds[lightIndex], EditorMapRenderQueueItemKind.Light);
+        }
+
+        return _workspace.PreloadArtsAsync(assetPaths, cancellationToken);
+    }
+
+    private void AddAssetPath(HashSet<string> assetPaths, ArtId artId, EditorMapRenderQueueItemKind renderItemKind)
+    {
+        if (artId.Value == 0)
+            return;
+
+        var request = new EditorMapRenderSpriteRequest { RenderItemKind = renderItemKind };
+        if (TryResolveAssetPath(artId, request) is { } assetPath)
+            assetPaths.Add(assetPath);
     }
 
     private static ArtId? TryGetArtId(EditorMapRenderQueueItem item) =>

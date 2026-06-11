@@ -39,4 +39,9 @@ public sealed class EditorProjectMapPreviewState
     /// Indicates whether sector and tile scripts are highlighted in the scene preview.
     /// </summary>
     public bool ShowScripts { get; init; }
+
+    /// <summary>
+    /// Indicates whether map jump points are highlighted in the scene preview.
+    /// </summary>
+    public bool ShowJumpPoints { get; init; } = true;
 }

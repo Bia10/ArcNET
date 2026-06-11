@@ -749,18 +749,28 @@ public static class EditorMapFloorRenderBuilder
             .Sectors.OrderBy(static sector => sector.LocalY)
             .ThenBy(static sector => sector.LocalX)
             .ToArray();
+        var materializedTerrainSectorPaths = request.MaterializedTerrainSectorAssetPaths;
         var ambientLightingBySectorAssetPath = BuildSectorAmbientLightingLookup(sectors, request.AmbientLighting);
         var mapTileWidth = checked(scenePreview.Width * sectorTileWidth);
         var sceneSectorLookup = new SceneSectorLookup(sectors, sectorTileWidth, sectorTileHeight);
+        var materializedTerrainSectorCount = 0;
 
         // Phase 1: Collect one owned raw accumulator per sector to avoid retaining worker-local bags.
         var accumulators = new SectorAccumulator[sectors.Length];
         Parallel.For(
             0,
             sectors.Length,
-            new ParallelOptions { CancellationToken = cancellationToken },
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = EditorParallelism.InteractiveMaxDegreeOfParallelism,
+            },
             sectorIndex =>
             {
+                var materializeTerrain = ShouldMaterializeTerrain(sectors[sectorIndex], materializedTerrainSectorPaths);
+                if (materializeTerrain)
+                    System.Threading.Interlocked.Increment(ref materializedTerrainSectorCount);
+
                 var local = new SectorAccumulator { SectorAssetPath = sectors[sectorIndex].AssetPath };
                 ProcessSector(
                     sectors[sectorIndex],
@@ -769,6 +779,7 @@ public static class EditorMapFloorRenderBuilder
                     sectorTileHeight,
                     mapTileWidth,
                     sceneSectorLookup,
+                    materializeTerrain,
                     local
                 );
                 accumulators[sectorIndex] = local;
@@ -841,6 +852,7 @@ public static class EditorMapFloorRenderBuilder
 
         // Phase 2: Sort and build final output.
         cancellationToken.ThrowIfCancellationRequested();
+        ApplySceneBoundsOverride(request, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
         var offsetX = -minLeft;
         var offsetY = -minTop;
 
@@ -850,6 +862,7 @@ public static class EditorMapFloorRenderBuilder
         return BuildResult(
             scenePreview.MapName,
             request,
+            sectors,
             rawTiles,
             rawTileOverlays,
             rawObjects,
@@ -863,7 +876,9 @@ public static class EditorMapFloorRenderBuilder
             minLeft,
             maxRight,
             minTop,
-            maxBottom
+            maxBottom,
+            materializedTerrainSectorCount,
+            sectors.Length
         );
     }
 
@@ -1022,7 +1037,16 @@ public static class EditorMapFloorRenderBuilder
 
             cancellationToken.ThrowIfCancellationRequested();
             var local = new SectorAccumulator();
-            ProcessSector(sector, request, sectorTileWidth, sectorTileHeight, mapTileWidth, sceneSectorLookup, local);
+            ProcessSector(
+                sector,
+                request,
+                sectorTileWidth,
+                sectorTileHeight,
+                mapTileWidth,
+                sceneSectorLookup,
+                materializeTerrain: true,
+                local
+            );
 
             rawTiles.AddRange(local.RawTiles);
             rawTileOverlays.AddRange(local.RawTileOverlays);
@@ -1047,6 +1071,7 @@ public static class EditorMapFloorRenderBuilder
         if (rawTiles.Count == 0)
             return CreateEmptyPreview(scenePreview.MapName, request);
 
+        ApplySceneBoundsOverride(request, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
         var offsetX = -minLeft;
         var offsetY = -minTop;
         SortRawItems(rawTiles, rawTileOverlays, rawObjects, rawRoofs, rawAuxiliaries);
@@ -1054,6 +1079,7 @@ public static class EditorMapFloorRenderBuilder
         return BuildResult(
             scenePreview.MapName,
             request,
+            sectors,
             rawTiles,
             rawTileOverlays,
             rawObjects,
@@ -1068,6 +1094,8 @@ public static class EditorMapFloorRenderBuilder
             maxRight,
             minTop,
             maxBottom,
+            scenePreview.Sectors.Count,
+            scenePreview.Sectors.Count,
             preservedSliceRevisionsByAssetPath
         );
     }
@@ -1089,6 +1117,141 @@ public static class EditorMapFloorRenderBuilder
         }
 
         return result;
+    }
+
+    internal static EditorMapFloorRenderBounds? TryCreateTerrainBounds(
+        EditorMapScenePreview scenePreview,
+        EditorMapFloorRenderRequest request
+    )
+    {
+        ArgumentNullException.ThrowIfNull(scenePreview);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (scenePreview.Sectors.Count == 0)
+            return null;
+
+        var sectorTileWidth = scenePreview.Sectors[0].TileWidth;
+        var sectorTileHeight = scenePreview.Sectors[0].TileHeight;
+        if (sectorTileWidth <= 0 || sectorTileHeight <= 0)
+            return null;
+
+        var halfTileWidth = request.TileWidthPixels / 2d;
+        var halfTileHeight = request.TileHeightPixels / 2d;
+        var minLeft = double.PositiveInfinity;
+        var minTop = double.PositiveInfinity;
+        var maxRight = double.NegativeInfinity;
+        var maxBottom = double.NegativeInfinity;
+
+        for (var sectorIndex = 0; sectorIndex < scenePreview.Sectors.Count; sectorIndex++)
+        {
+            var sector = scenePreview.Sectors[sectorIndex];
+            var minTileX = sector.LocalX * sectorTileWidth;
+            var minTileY = sector.LocalY * sectorTileHeight;
+            var maxTileX = minTileX + sectorTileWidth - 1;
+            var maxTileY = minTileY + sectorTileHeight - 1;
+
+            ExpandTerrainBoundsForTile(
+                request,
+                minTileX,
+                minTileY,
+                halfTileWidth,
+                halfTileHeight,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
+            ExpandTerrainBoundsForTile(
+                request,
+                minTileX,
+                maxTileY,
+                halfTileWidth,
+                halfTileHeight,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
+            ExpandTerrainBoundsForTile(
+                request,
+                maxTileX,
+                minTileY,
+                halfTileWidth,
+                halfTileHeight,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
+            ExpandTerrainBoundsForTile(
+                request,
+                maxTileX,
+                maxTileY,
+                halfTileWidth,
+                halfTileHeight,
+                ref minLeft,
+                ref minTop,
+                ref maxRight,
+                ref maxBottom
+            );
+        }
+
+        var bounds = new EditorMapFloorRenderBounds(minLeft, minTop, maxRight, maxBottom);
+        return bounds.IsValid ? bounds : null;
+    }
+
+    private static void ExpandTerrainBoundsForTile(
+        EditorMapFloorRenderRequest request,
+        int mapTileX,
+        int mapTileY,
+        double halfTileWidth,
+        double halfTileHeight,
+        ref double minLeft,
+        ref double minTop,
+        ref double maxRight,
+        ref double maxBottom
+    )
+    {
+        var (centerX, centerY) = ProjectTileCenter(
+            request.ViewMode,
+            request.TileWidthPixels,
+            request.TileHeightPixels,
+            mapTileX,
+            mapTileY
+        );
+
+        minLeft = Math.Min(minLeft, centerX - halfTileWidth);
+        minTop = Math.Min(minTop, centerY - halfTileHeight);
+        maxRight = Math.Max(maxRight, centerX + halfTileWidth);
+        maxBottom = Math.Max(maxBottom, centerY + halfTileHeight);
+    }
+
+    private static void ApplySceneBoundsOverride(
+        EditorMapFloorRenderRequest request,
+        ref double minLeft,
+        ref double minTop,
+        ref double maxRight,
+        ref double maxBottom
+    )
+    {
+        if (request.SceneBoundsOverride is not { IsValid: true } bounds)
+            return;
+
+        minLeft = Math.Min(minLeft, bounds.MinLeft);
+        minTop = Math.Min(minTop, bounds.MinTop);
+        maxRight = Math.Max(maxRight, bounds.MaxRight);
+        maxBottom = Math.Max(maxBottom, bounds.MaxBottom);
+    }
+
+    private static bool ShouldMaterializeTerrain(
+        EditorMapSectorScenePreview sector,
+        IReadOnlySet<string>? materializedTerrainSectorPaths
+    )
+    {
+        if (materializedTerrainSectorPaths is null)
+            return true;
+
+        return materializedTerrainSectorPaths.Contains(ArcNET.Core.VirtualPath.Normalize(sector.AssetPath));
     }
 
     private static bool ItemBelongsToSector<T>(T item, IReadOnlySet<string> sectorAssetPaths) =>
@@ -1129,6 +1292,7 @@ public static class EditorMapFloorRenderBuilder
             IncludeBlockedTileOverlays = true,
             IncludeLightOverlays = true,
             IncludeScriptOverlays = true,
+            IncludeJumpPointOverlays = true,
             IncludeEditorObjectStateTint = existingPreview.IncludeEditorObjectStateTint,
             IncludeFloorLightTint = existingPreview.IncludeFloorLightTint,
             AmbientLighting = existingPreview.AmbientLighting,
@@ -1717,6 +1881,7 @@ public static class EditorMapFloorRenderBuilder
         int sectorTileHeight,
         int mapTileWidth,
         SceneSectorLookup sceneSectorLookup,
+        bool materializeTerrain,
         SectorAccumulator local
     )
     {
@@ -1726,18 +1891,43 @@ public static class EditorMapFloorRenderBuilder
 
         var lightTileIndices = sector.LightTileIndices;
         var scriptedTileIndices = sector.ScriptedTileIndices;
+        var jumpPointTileIndices = sector.JumpPointTileIndices;
 
-        // Tiles: use precomputed row bitmasks to skip empty rows/columns.
-        var tileRowMasks = sector.TileRowMasks;
-        for (var tileY = 0; tileY < sectorTileHeight; tileY++)
+        if (materializeTerrain)
         {
-            var rowMask = tileRowMasks[tileY];
-            if (rowMask == 0 && !request.IncludeEmptyTiles)
-                continue;
-
-            if (request.IncludeEmptyTiles)
+            // Tiles: use precomputed row bitmasks to skip empty rows/columns.
+            var tileRowMasks = sector.TileRowMasks;
+            for (var tileY = 0; tileY < sectorTileHeight; tileY++)
             {
-                for (var tileX = 0; tileX < sectorTileWidth; tileX++)
+                var rowMask = tileRowMasks[tileY];
+                if (rowMask == 0 && !request.IncludeEmptyTiles)
+                    continue;
+
+                if (request.IncludeEmptyTiles)
+                {
+                    for (var tileX = 0; tileX < sectorTileWidth; tileX++)
+                        ProcessTile(
+                            sector,
+                            request,
+                            sectorTileWidth,
+                            sectorTileHeight,
+                            mapTileWidth,
+                            halfTileWidth,
+                            halfTileHeight,
+                            tileX,
+                            tileY,
+                            lightTileIndices,
+                            scriptedTileIndices,
+                            jumpPointTileIndices,
+                            local
+                        );
+                    continue;
+                }
+
+                var remaining = rowMask;
+                while (remaining != 0)
+                {
+                    var tileX = BitOperations.TrailingZeroCount(remaining);
                     ProcessTile(
                         sector,
                         request,
@@ -1750,30 +1940,11 @@ public static class EditorMapFloorRenderBuilder
                         tileY,
                         lightTileIndices,
                         scriptedTileIndices,
+                        jumpPointTileIndices,
                         local
                     );
-                continue;
-            }
-
-            var remaining = rowMask;
-            while (remaining != 0)
-            {
-                var tileX = BitOperations.TrailingZeroCount(remaining);
-                ProcessTile(
-                    sector,
-                    request,
-                    sectorTileWidth,
-                    sectorTileHeight,
-                    mapTileWidth,
-                    halfTileWidth,
-                    halfTileHeight,
-                    tileX,
-                    tileY,
-                    lightTileIndices,
-                    scriptedTileIndices,
-                    local
-                );
-                remaining &= remaining - 1;
+                    remaining &= remaining - 1;
+                }
             }
         }
 
@@ -1962,7 +2133,7 @@ public static class EditorMapFloorRenderBuilder
         }
 
         // Roofs: use precomputed row bitmasks.
-        if (request.IncludeRoofs && sector.RoofArtIds is not null)
+        if (materializeTerrain && request.IncludeRoofs && sector.RoofArtIds is not null)
         {
             var roofRowMasks = sector.RoofRowMasks;
             for (var roofY = 0; roofY < sector.RoofHeight; roofY++)
@@ -2008,7 +2179,7 @@ public static class EditorMapFloorRenderBuilder
         }
 
         // Sector lights
-        if (request.IncludeLightOverlays)
+        if (materializeTerrain && request.IncludeLightOverlays)
         {
             for (var i = 0; i < sector.Lights.Count; i++)
             {
@@ -2068,6 +2239,7 @@ public static class EditorMapFloorRenderBuilder
         int tileY,
         HashSet<int> lightTileIndices,
         HashSet<int> scriptedTileIndices,
+        HashSet<int> jumpPointTileIndices,
         SectorAccumulator local
     )
     {
@@ -2162,6 +2334,24 @@ public static class EditorMapFloorRenderBuilder
                 )
             );
         }
+
+        if (jumpPointTileIndices.Contains(tileIndex) && request.IncludeJumpPointOverlays)
+        {
+            local.RawTileOverlays.Add(
+                new RawTileOverlayRenderItem(
+                    SectorAssetPath: sector.AssetPath,
+                    MapTileX: mapTileX,
+                    MapTileY: mapTileY,
+                    Tile: new Location(checked((short)tileX), checked((short)tileY)),
+                    Kind: EditorMapTileOverlayKind.JumpPoint,
+                    SortKey: GetTileOverlaySortKey(drawOrder, EditorMapTileOverlayKind.JumpPoint),
+                    CenterX: centerX,
+                    CenterY: centerY,
+                    SuggestedOpacity: GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind.JumpPoint),
+                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.JumpPoint)
+                )
+            );
+        }
     }
 
     private static void ProcessRoof(
@@ -2246,7 +2436,16 @@ public static class EditorMapFloorRenderBuilder
             RenderQueueOrderMap = [],
             IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
             IncludeFloorLightTint = request.IncludeFloorLightTint,
+            IncludeEmptyTerrainTiles = request.IncludeEmptyTiles,
+            IncludeTerrainRoofs = request.IncludeRoofs,
+            IncludeTerrainBlockedTileOverlays = request.IncludeBlockedTileOverlays,
+            IncludeTerrainLightOverlays = request.IncludeLightOverlays,
+            IncludeTerrainScriptOverlays = request.IncludeScriptOverlays,
+            IncludeTerrainJumpPointOverlays = request.IncludeJumpPointOverlays,
             AmbientLighting = request.AmbientLighting,
+            IsTerrainMaterializationPartial = request.MaterializedTerrainSectorAssetPaths is not null,
+            MaterializedTerrainSectorCount = 0,
+            TotalTerrainSectorCount = 0,
         };
 
     private static int[] BuildCeSameTileOrders(IReadOnlyList<EditorMapObjectPreview> objects)
@@ -2430,7 +2629,7 @@ public static class EditorMapFloorRenderBuilder
             || (item.ParentObjectType is ObjectType.Npc && item.IsParentDead && item.ArtId.ArtNum == 243)
         );
 
-    private sealed record NonFlatSortItem(
+    private readonly record struct NonFlatSortItem(
         EditorMapRenderQueueItemKind Kind,
         int Index,
         long BaseTileDrawOrder,
@@ -2451,13 +2650,7 @@ public static class EditorMapFloorRenderBuilder
         List<RawAuxiliaryRenderItem> rawAuxiliaries
     )
     {
-        rawTiles.Sort(
-            (a, b) =>
-            {
-                var cmp = a.DrawOrder.CompareTo(b.DrawOrder);
-                return cmp != 0 ? cmp : a.MapTileX.CompareTo(b.MapTileX);
-            }
-        );
+        SortRawTiles(rawTiles);
 
         rawTileOverlays.Sort(
             (a, b) =>
@@ -2516,6 +2709,62 @@ public static class EditorMapFloorRenderBuilder
                 return a.MapTileX.CompareTo(b.MapTileX);
             }
         );
+    }
+
+    private static void SortRawTiles(List<RawTileRenderItem> rawTiles)
+    {
+        if (rawTiles.Count < 4096 || !TryBucketSortRawTiles(rawTiles))
+        {
+            rawTiles.Sort(CompareRawTiles);
+        }
+    }
+
+    private static bool TryBucketSortRawTiles(List<RawTileRenderItem> rawTiles)
+    {
+        var minBucket = int.MaxValue;
+        var maxBucket = int.MinValue;
+        for (var index = 0; index < rawTiles.Count; index++)
+        {
+            var bucket = GetRawTileDrawOrderBucket(rawTiles[index]);
+            minBucket = Math.Min(minBucket, bucket);
+            maxBucket = Math.Max(maxBucket, bucket);
+        }
+
+        var bucketCountLong = (long)maxBucket - minBucket + 1L;
+        if (bucketCountLong <= 0L || bucketCountLong > Math.Max(4096, rawTiles.Count))
+            return false;
+
+        var buckets = new List<RawTileRenderItem>?[(int)bucketCountLong];
+        for (var index = 0; index < rawTiles.Count; index++)
+        {
+            var tile = rawTiles[index];
+            var bucketIndex = GetRawTileDrawOrderBucket(tile) - minBucket;
+            (buckets[bucketIndex] ??= []).Add(tile);
+        }
+
+        var writeIndex = 0;
+        for (var bucketIndex = 0; bucketIndex < buckets.Length; bucketIndex++)
+        {
+            var bucket = buckets[bucketIndex];
+            if (bucket is null)
+                continue;
+
+            if (bucket.Count > 1)
+                bucket.Sort(CompareRawTiles);
+
+            for (var itemIndex = 0; itemIndex < bucket.Count; itemIndex++)
+                rawTiles[writeIndex++] = bucket[itemIndex];
+        }
+
+        return writeIndex == rawTiles.Count;
+    }
+
+    private static int GetRawTileDrawOrderBucket(RawTileRenderItem tile) => (int)(tile.DrawOrder / 10_000_000L);
+
+    private static int CompareRawTiles(RawTileRenderItem a, RawTileRenderItem b)
+    {
+        var cmp = a.DrawOrder.CompareTo(b.DrawOrder);
+        return cmp != 0 ? cmp : a.MapTileX.CompareTo(b.MapTileX);
     }
 
     private static uint SampleLightColor(
@@ -2611,6 +2860,7 @@ public static class EditorMapFloorRenderBuilder
     private static EditorMapFloorRenderPreview BuildResult(
         string mapName,
         EditorMapFloorRenderRequest request,
+        IReadOnlyList<EditorMapSectorScenePreview> sourceSectors,
         List<RawTileRenderItem> rawTiles,
         List<RawTileOverlayRenderItem> rawTileOverlays,
         List<RawObjectRenderItem> rawObjects,
@@ -2625,6 +2875,8 @@ public static class EditorMapFloorRenderBuilder
         double maxRight,
         double minTop,
         double maxBottom,
+        int materializedTerrainSectorCount,
+        int totalTerrainSectorCount,
         IReadOnlyDictionary<string, long>? preservedSliceRevisionsByAssetPath = null
     )
     {
@@ -3004,6 +3256,15 @@ public static class EditorMapFloorRenderBuilder
             slices[sliceIndex] = sliceBuilder.Build(bounds, revisionOverride);
         }
 
+        var isTerrainMaterializationPartial =
+            request.MaterializedTerrainSectorAssetPaths is not null
+            && materializedTerrainSectorCount < totalTerrainSectorCount;
+        EditorMapSectorScenePreview[] virtualTerrainSectors = isTerrainMaterializationPartial
+            ? sourceSectors.ToArray()
+            : [];
+        var materializedTerrainSectorAssetPaths = request.MaterializedTerrainSectorAssetPaths is not null
+            ? new HashSet<string>(request.MaterializedTerrainSectorAssetPaths, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var sceneRevision = ComputeSceneRevision(mapName, request, slices, maxRight - minLeft, maxBottom - minTop);
         return new EditorMapFloorRenderPreview
         {
@@ -3015,6 +3276,8 @@ public static class EditorMapFloorRenderBuilder
             HeightPixels = maxBottom - minTop,
             SceneRevision = sceneRevision,
             Slices = slices,
+            VirtualTerrainSectors = virtualTerrainSectors,
+            MaterializedTerrainSectorAssetPaths = materializedTerrainSectorAssetPaths,
             TileOrderMap = tileOrderMap,
             ObjectOrderMap = objectOrderMap,
             ObjectAuxiliaryOrderMap = objectAuxiliaryOrderMap,
@@ -3024,7 +3287,16 @@ public static class EditorMapFloorRenderBuilder
             RenderQueueOrderMap = renderQueueOrderMap,
             IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
             IncludeFloorLightTint = request.IncludeFloorLightTint,
+            IncludeEmptyTerrainTiles = request.IncludeEmptyTiles,
+            IncludeTerrainRoofs = request.IncludeRoofs,
+            IncludeTerrainBlockedTileOverlays = request.IncludeBlockedTileOverlays,
+            IncludeTerrainLightOverlays = request.IncludeLightOverlays,
+            IncludeTerrainScriptOverlays = request.IncludeScriptOverlays,
+            IncludeTerrainJumpPointOverlays = request.IncludeJumpPointOverlays,
             AmbientLighting = request.AmbientLighting,
+            IsTerrainMaterializationPartial = isTerrainMaterializationPartial,
+            MaterializedTerrainSectorCount = materializedTerrainSectorCount,
+            TotalTerrainSectorCount = totalTerrainSectorCount,
             OffsetX = offsetX,
             OffsetY = offsetY,
             RawMinLeft = minLeft,
@@ -3194,6 +3466,7 @@ public static class EditorMapFloorRenderBuilder
             EditorMapTileOverlayKind.BlockedTile => 0.45d,
             EditorMapTileOverlayKind.Light => 0.4d,
             EditorMapTileOverlayKind.Script => 0.45d,
+            EditorMapTileOverlayKind.JumpPoint => 0.45d,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported tile overlay kind."),
         };
 
@@ -3203,6 +3476,7 @@ public static class EditorMapFloorRenderBuilder
             EditorMapTileOverlayKind.BlockedTile => 0x88CC6666u,
             EditorMapTileOverlayKind.Light => 0x88E0C85Au,
             EditorMapTileOverlayKind.Script => 0x88996CCCu,
+            EditorMapTileOverlayKind.JumpPoint => 0x8866BBDDu,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported tile overlay kind."),
         };
 
@@ -3414,17 +3688,33 @@ public static class EditorMapFloorRenderBuilder
         IReadOnlyList<SectorRenderSliceBuilder> sliceBuilders
     )
     {
-        List<RenderQueueSortItem> queue = new(
+        var renderQueueOrderMap = new uint[
             rawTiles.Count
                 + rawTileOverlays.Count
                 + rawObjects.Count
                 + rawRoofs.Count
                 + rawAuxiliaries.Count
                 + lights.Count
-        );
-
+        ];
         for (var i = 0; i < rawTiles.Count; i++)
-            queue.Add(new RenderQueueSortItem(-2_000_000_000d + i, EditorMapRenderQueueItemKind.FloorTile, i));
+        {
+            var packedPayloadIndex = tileOrderMap[i];
+            var (sliceIndex, payloadIndex) = EditorMapFloorRenderPreview.UnpackSliceItemIndex(packedPayloadIndex);
+            var sliceQueue = sliceBuilders[sliceIndex].Queue;
+            renderQueueOrderMap[i] = EditorMapFloorRenderPreview.PackSliceItemIndex(sliceIndex, sliceQueue.Count);
+            sliceQueue.Add(
+                new EditorMapRenderIndexEntry(
+                    EditorMapRenderQueueItemKind.FloorTile,
+                    payloadIndex,
+                    -2_000_000_000d + i,
+                    i
+                )
+            );
+        }
+
+        List<RenderQueueSortItem> queue = new(
+            rawTileOverlays.Count + rawObjects.Count + rawRoofs.Count + rawAuxiliaries.Count + lights.Count
+        );
 
         for (var i = 0; i < rawTileOverlays.Count; i++)
             queue.Add(
@@ -3605,13 +3895,12 @@ public static class EditorMapFloorRenderBuilder
             }
         );
 
-        var renderQueueOrderMap = new uint[queue.Count];
-        for (var drawOrder = 0; drawOrder < queue.Count; drawOrder++)
+        for (var queueIndex = 0; queueIndex < queue.Count; queueIndex++)
         {
-            var item = queue[drawOrder];
+            var drawOrder = rawTiles.Count + queueIndex;
+            var item = queue[queueIndex];
             var packedPayloadIndex = item.Kind switch
             {
-                EditorMapRenderQueueItemKind.FloorTile => tileOrderMap[item.Index],
                 EditorMapRenderQueueItemKind.Object => objectOrderMap[item.Index],
                 EditorMapRenderQueueItemKind.TileOverlay => overlayOrderMap[item.Index],
                 EditorMapRenderQueueItemKind.Roof => roofOrderMap[item.Index],

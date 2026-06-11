@@ -25,14 +25,16 @@ public static class EditorMapScenePreviewBuilder
     /// </summary>
     public static EditorMapScenePreview Build(
         EditorMapProjection projection,
-        IReadOnlyDictionary<string, Sector> sectorsByAssetPath
+        IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
+        JmpFile? jumpPoints = null
     ) =>
         Build(
             projection,
             sectorsByAssetPath,
             artResolver: null,
             currentArtIdFallbackResolver: null,
-            mapMobsByAssetPath: null
+            mapMobsByAssetPath: null,
+            jumpPoints
         );
 
     /// <summary>
@@ -43,14 +45,16 @@ public static class EditorMapScenePreviewBuilder
     public static EditorMapScenePreview Build(
         EditorMapProjection projection,
         IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
-        Func<ArtId, ArtFile?>? artResolver
+        Func<ArtId, ArtFile?>? artResolver,
+        JmpFile? jumpPoints = null
     ) =>
         Build(
             projection,
             sectorsByAssetPath,
             artResolver,
             currentArtIdFallbackResolver: null,
-            mapMobsByAssetPath: null
+            mapMobsByAssetPath: null,
+            jumpPoints
         );
 
     /// <summary>
@@ -65,20 +69,25 @@ public static class EditorMapScenePreviewBuilder
         IReadOnlyDictionary<string, Sector> sectorsByAssetPath,
         Func<ArtId, ArtFile?>? artResolver,
         Func<MobData, ArtId?>? currentArtIdFallbackResolver,
-        IReadOnlyDictionary<string, IReadOnlyList<MobData>>? mapMobsByAssetPath
+        IReadOnlyDictionary<string, IReadOnlyList<MobData>>? mapMobsByAssetPath,
+        JmpFile? jumpPoints = null,
+        IReadOnlySet<string>? objectSectorAssetPaths = null
     )
     {
         ArgumentNullException.ThrowIfNull(projection);
         ArgumentNullException.ThrowIfNull(sectorsByAssetPath);
 
+        var normalizedObjectSectorAssetPaths = NormalizeSectorAssetPaths(objectSectorAssetPaths);
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache = artResolver is null ? null : new();
+        var jumpPointsBySectorAssetPath = BuildJumpPointPreviews(projection, jumpPoints);
         var extraObjectsBySectorAssetPath = BuildMapMobObjectPreviews(
             projection,
             sectorsByAssetPath,
             mapMobsByAssetPath,
             artResolver,
             spriteBoundsCache,
-            currentArtIdFallbackResolver
+            currentArtIdFallbackResolver,
+            normalizedObjectSectorAssetPaths
         );
         var sectors = new List<EditorMapSectorScenePreview>(projection.Sectors.Count);
         foreach (var sectorProjection in projection.Sectors)
@@ -97,9 +106,13 @@ public static class EditorMapScenePreviewBuilder
                     artResolver,
                     spriteBoundsCache,
                     currentArtIdFallbackResolver,
+                    jumpPointsBySectorAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var sectorJumpPoints)
+                        ? sectorJumpPoints
+                        : [],
                     extraObjectsBySectorAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var extraObjects)
                         ? extraObjects
-                        : null
+                        : null,
+                    ShouldIncludeSectorObjects(sectorProjection.Asset.AssetPath, normalizedObjectSectorAssetPaths)
                 )
             );
         }
@@ -159,6 +172,7 @@ public static class EditorMapScenePreviewBuilder
             artResolver,
             spriteBoundsCache,
             currentArtIdFallbackResolver: null,
+            jumpPoints: [],
             extraObjects: null
         );
 
@@ -168,7 +182,9 @@ public static class EditorMapScenePreviewBuilder
         Func<ArtId, ArtFile?>? artResolver,
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
         Func<MobData, ArtId?>? currentArtIdFallbackResolver,
-        IReadOnlyList<EditorMapObjectPreview>? extraObjects
+        IReadOnlyList<EditorMapJumpPointPreview> jumpPoints,
+        IReadOnlyList<EditorMapObjectPreview>? extraObjects,
+        bool includeSectorObjects = true
     )
     {
         ArgumentNullException.ThrowIfNull(sectorProjection);
@@ -190,22 +206,25 @@ public static class EditorMapScenePreviewBuilder
             BlockMask = [.. sector.BlockMask],
             Lights = [.. sector.Lights.Select(BuildLight)],
             TileScripts = [.. sector.TileScripts.Select(BuildTileScript)],
-            Objects =
-            [
-                .. sector.Objects.Select(
-                    (mob, objectIndex) =>
-                        BuildObject(
-                            mob,
-                            artResolver,
-                            spriteBoundsCache,
-                            currentArtIdFallbackResolver,
-                            locationOverride: TryGetNormalizedSectorObjectLocation(sectorProjection, mob),
-                            sourceAssetPath: sectorProjection.Asset.AssetPath,
-                            sourceObjectIndex: objectIndex
-                        )
-                ),
-                .. (extraObjects ?? []),
-            ],
+            JumpPoints = [.. jumpPoints],
+            Objects = includeSectorObjects
+                ?
+                [
+                    .. sector.Objects.Select(
+                        (mob, objectIndex) =>
+                            BuildObject(
+                                mob,
+                                artResolver,
+                                spriteBoundsCache,
+                                currentArtIdFallbackResolver,
+                                locationOverride: TryGetNormalizedSectorObjectLocation(sectorProjection, mob),
+                                sourceAssetPath: sectorProjection.Asset.AssetPath,
+                                sourceObjectIndex: objectIndex
+                            )
+                    ),
+                    .. (extraObjects ?? []),
+                ]
+                : extraObjects ?? [],
         };
     }
 
@@ -215,7 +234,8 @@ public static class EditorMapScenePreviewBuilder
         IReadOnlyDictionary<string, IReadOnlyList<MobData>>? mapMobsByAssetPath,
         Func<ArtId, ArtFile?>? artResolver,
         Dictionary<ArtId, EditorMapObjectSpriteBounds?>? spriteBoundsCache,
-        Func<MobData, ArtId?>? currentArtIdFallbackResolver
+        Func<MobData, ArtId?>? currentArtIdFallbackResolver,
+        IReadOnlySet<string>? objectSectorAssetPaths
     )
     {
         var previewsBySectorAssetPath = new Dictionary<string, List<EditorMapObjectPreview>>(
@@ -247,6 +267,9 @@ public static class EditorMapScenePreviewBuilder
                 )
                     continue;
 
+                if (!ShouldIncludeSectorObjects(sectorProjection.Asset.AssetPath, objectSectorAssetPaths))
+                    continue;
+
                 if (!previewsBySectorAssetPath.TryGetValue(sectorProjection.Asset.AssetPath, out var previews))
                 {
                     previews = [];
@@ -260,6 +283,84 @@ public static class EditorMapScenePreviewBuilder
         }
 
         return previewsBySectorAssetPath;
+    }
+
+    private static IReadOnlySet<string>? NormalizeSectorAssetPaths(IReadOnlySet<string>? sectorAssetPaths)
+    {
+        if (sectorAssetPaths is null)
+            return null;
+
+        var normalizedSectorAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sectorAssetPath in sectorAssetPaths)
+        {
+            if (!string.IsNullOrWhiteSpace(sectorAssetPath))
+                normalizedSectorAssetPaths.Add(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath));
+        }
+
+        return normalizedSectorAssetPaths.Count == 0 ? null : normalizedSectorAssetPaths;
+    }
+
+    private static bool ShouldIncludeSectorObjects(string assetPath, IReadOnlySet<string>? objectSectorAssetPaths) =>
+        objectSectorAssetPaths is null || objectSectorAssetPaths.Contains(ArcNET.Core.VirtualPath.Normalize(assetPath));
+
+    private static Dictionary<string, IReadOnlyList<EditorMapJumpPointPreview>> BuildJumpPointPreviews(
+        EditorMapProjection projection,
+        JmpFile? jumpPoints
+    )
+    {
+        var jumpPointsBySectorAssetPath = new Dictionary<string, IReadOnlyList<EditorMapJumpPointPreview>>(
+            StringComparer.OrdinalIgnoreCase
+        );
+        if (jumpPoints is null || jumpPoints.Jumps.Count == 0)
+            return jumpPointsBySectorAssetPath;
+
+        var sectorProjectionByCoordinates = projection.Sectors.ToDictionary(static sectorProjection =>
+            (sectorProjection.SectorX, sectorProjection.SectorY)
+        );
+        var mutableJumpPointsBySectorAssetPath = new Dictionary<string, List<EditorMapJumpPointPreview>>(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        foreach (var jumpPoint in jumpPoints.Jumps)
+        {
+            var sectorX = FloorDivide(jumpPoint.SourceX, TileGridWidth);
+            var sectorY = FloorDivide(jumpPoint.SourceY, TileGridWidth);
+            if (!sectorProjectionByCoordinates.TryGetValue((sectorX, sectorY), out var sectorProjection))
+                continue;
+
+            if (
+                !mutableJumpPointsBySectorAssetPath.TryGetValue(
+                    sectorProjection.Asset.AssetPath,
+                    out var sectorJumpPoints
+                )
+            )
+            {
+                sectorJumpPoints = [];
+                mutableJumpPointsBySectorAssetPath[sectorProjection.Asset.AssetPath] = sectorJumpPoints;
+            }
+
+            var tileX = PositiveModulo(jumpPoint.SourceX, TileGridWidth);
+            var tileY = PositiveModulo(jumpPoint.SourceY, TileGridWidth);
+            sectorJumpPoints.Add(
+                new EditorMapJumpPointPreview
+                {
+                    TileIndex = (tileY * TileGridWidth) + tileX,
+                    TileX = tileX,
+                    TileY = tileY,
+                    MapTileX = jumpPoint.SourceX,
+                    MapTileY = jumpPoint.SourceY,
+                    DestinationMapId = jumpPoint.DestinationMapId,
+                    DestinationTileX = jumpPoint.DestX,
+                    DestinationTileY = jumpPoint.DestY,
+                    Flags = jumpPoint.Flags,
+                }
+            );
+        }
+
+        foreach (var (assetPath, sectorJumpPoints) in mutableJumpPointsBySectorAssetPath)
+            jumpPointsBySectorAssetPath[assetPath] = sectorJumpPoints;
+
+        return jumpPointsBySectorAssetPath;
     }
 
     private static HashSet<Guid> CollectSectorObjectGuids(IReadOnlyDictionary<string, Sector> sectorsByAssetPath)

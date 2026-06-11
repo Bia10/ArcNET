@@ -149,7 +149,7 @@ internal static class EditorAudioAssetLoader
             new ParallelOptions
             {
                 CancellationToken = cancellationToken,
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                MaxDegreeOfParallelism = EditorParallelism.InteractiveMaxDegreeOfParallelism,
             },
             entry =>
             {

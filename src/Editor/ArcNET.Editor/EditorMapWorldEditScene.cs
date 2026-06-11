@@ -12,6 +12,18 @@ public sealed class EditorMapWorldEditSceneRequest
     public EditorMapFloorRenderRequest? RenderRequest { get; init; }
 
     /// <summary>
+    /// Optional radius, in sectors around the current camera, whose terrain should be materialized.
+    /// Objects remain projected for every sector so editor object catalogs stay complete.
+    /// </summary>
+    public int? FocusedTerrainSectorRadius { get; init; }
+
+    /// <summary>
+    /// Optional radius, in sectors around the current camera, whose objects should be projected.
+    /// Use <see langword="null"/> to project objects for every sector.
+    /// </summary>
+    public int? FocusedObjectSectorRadius { get; init; }
+
+    /// <summary>
     /// Optional single palette placement request to project as a live ghost preview.
     /// </summary>
     public EditorObjectPalettePlacementRequest? PlacementRequest { get; init; }
@@ -43,6 +55,12 @@ public sealed class EditorMapWorldEditSceneRequest
     /// Optional ART-backed sprite source used to enrich paintable scene items with packed frames.
     /// </summary>
     public IEditorMapRenderSpriteSource? SpriteSource { get; init; }
+
+    /// <summary>
+    /// Indicates whether committed scene sprites should be preloaded before the scene is returned.
+    /// Hosts that render through retained/on-demand chunk caches can disable this to reduce first-shell latency.
+    /// </summary>
+    public bool PreloadSceneSprites { get; init; } = true;
 
     /// <summary>
     /// Optional existing render preview to use for delta building.

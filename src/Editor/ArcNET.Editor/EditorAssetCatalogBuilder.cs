@@ -36,13 +36,18 @@ internal static class EditorAssetCatalogBuilder
                     throw new InvalidOperationException($"No provenance was recorded for asset '{assetPath}'.");
 
                 return assetSource;
-            }
+            },
+            assetSources
         );
     }
 
     private static EditorAssetCatalog Create(
         GameDataStore gameData,
-        Func<string, (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)> resolveSource
+        Func<string, (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)> resolveSource,
+        IReadOnlyDictionary<
+            string,
+            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
+        >? discoveredAssetSources = null
     )
     {
         var entries = new List<EditorAssetEntry>();
@@ -58,6 +63,7 @@ internal static class EditorAssetCatalogBuilder
         AddEntries(entries, gameData.DialogsBySource, FileFormat.Dialog, resolveSource);
         AddEntries(entries, gameData.TerrainsBySource, FileFormat.Terrain, resolveSource);
         AddEntries(entries, gameData.FacadeWalksBySource, FileFormat.FacadeWalk, resolveSource);
+        AddDiscoveredEntries(entries, discoveredAssetSources);
 
         return EditorAssetCatalog.Create(entries);
     }
@@ -86,10 +92,61 @@ internal static class EditorAssetCatalogBuilder
         }
     }
 
+    private static void AddDiscoveredEntries(
+        List<EditorAssetEntry> entries,
+        IReadOnlyDictionary<
+            string,
+            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
+        >? discoveredAssetSources
+    )
+    {
+        if (discoveredAssetSources is null || discoveredAssetSources.Count == 0)
+            return;
+
+        var knownPaths = entries.Select(static entry => entry.AssetPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (
+            var (assetPath, source) in discoveredAssetSources.OrderBy(
+                pair => pair.Key,
+                StringComparer.OrdinalIgnoreCase
+            )
+        )
+        {
+            var normalizedPath = NormalizeAssetPath(assetPath);
+            if (!knownPaths.Add(normalizedPath))
+                continue;
+
+            var format = ResolveDiscoveredFormat(normalizedPath);
+            if (format is FileFormat.Unknown or FileFormat.DataArchive)
+                continue;
+
+            entries.Add(
+                new EditorAssetEntry
+                {
+                    AssetPath = normalizedPath,
+                    Format = format,
+                    ItemCount = 1,
+                    SourceKind = source.SourceKind,
+                    SourcePath = source.SourcePath,
+                    SourceEntryPath = source.SourceEntryPath,
+                }
+            );
+        }
+    }
+
     private static string GetLooseAssetPath(string contentDirectory, string assetPath) =>
         Path.GetFullPath(
             Path.Combine(contentDirectory, NormalizeAssetPath(assetPath).Replace('/', Path.DirectorySeparatorChar))
         );
+
+    private static FileFormat ResolveDiscoveredFormat(string assetPath)
+    {
+        var format = FileFormatExtensions.FromPath(assetPath);
+        return
+            format == FileFormat.Unknown
+            && Path.GetFileName(assetPath).StartsWith("facwalk.", StringComparison.OrdinalIgnoreCase)
+            ? FileFormat.FacadeWalk
+            : format;
+    }
 
     private static string NormalizeAssetPath(string assetPath) => ArcNET.Core.VirtualPath.Normalize(assetPath);
 }

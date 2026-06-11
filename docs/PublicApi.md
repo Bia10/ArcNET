@@ -2696,6 +2696,12 @@ namespace ArcNET.GameData
         public string Reason { get; }
         public string SourcePath { get; }
     }
+    public sealed class GameDataLoadOptions : System.IEquatable<ArcNET.GameData.GameDataLoadOptions>
+    {
+        public GameDataLoadOptions() { }
+        public bool LoadArtMetadata { get; init; }
+        public static ArcNET.GameData.GameDataLoadOptions Default { get; }
+    }
     public sealed class GameDataLoadProgress
     {
         public GameDataLoadProgress(string activity, float progress, int? completedEntries = default, int? totalEntries = default) { }
@@ -2710,12 +2716,20 @@ namespace ArcNET.GameData
         public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadFailure> Failures { get; }
         public ArcNET.GameData.GameDataStore Store { get; }
     }
+    public sealed class GameDataLoadStageTiming : System.IEquatable<ArcNET.GameData.GameDataLoadStageTiming>
+    {
+        public GameDataLoadStageTiming() { }
+        public required long ElapsedMs { get; init; }
+        public int? ItemCount { get; init; }
+        public required string StageName { get; init; }
+        public string? UnitLabel { get; init; }
+    }
     public static class GameDataLoader
     {
         public static System.Collections.Generic.IReadOnlyDictionary<ArcNET.Formats.FileFormat, System.Collections.Generic.IReadOnlyList<string>> DiscoverFiles(string dirPath) { }
-        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromDirectoryAsync(string dirPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
-        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataLoadResult> LoadFromEntriesAsync(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadEntry> entries, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
-        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromMemoryAsync(System.Collections.Generic.IReadOnlyDictionary<string, System.ReadOnlyMemory<byte>> files, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromDirectoryAsync(string dirPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadStageTiming>? stageProgress = null, ArcNET.GameData.GameDataLoadOptions? options = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataLoadResult> LoadFromEntriesAsync(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.GameDataLoadEntry> entries, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadStageTiming>? stageProgress = null, ArcNET.GameData.GameDataLoadOptions? options = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.GameDataStore> LoadFromMemoryAsync(System.Collections.Generic.IReadOnlyDictionary<string, System.ReadOnlyMemory<byte>> files, System.IProgress<float>? progress = null, System.Threading.CancellationToken ct = default, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? loadProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadStageTiming>? stageProgress = null, ArcNET.GameData.GameDataLoadOptions? options = null) { }
         public static System.Collections.Generic.IReadOnlyDictionary<int, string> LoadMessages(string dirPath) { }
     }
     public static class GameDataSaver
@@ -5112,6 +5126,15 @@ namespace ArcNET.Editor
     {
         public static ArcNET.Editor.EditorMapPaintableScene? Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorTerrainPaletteEntry? terrainEntry, ArcNET.Formats.FacadeWalk? facadeWalk, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
     }
+    public readonly struct EditorMapFloorRenderBounds : System.IEquatable<ArcNET.Editor.EditorMapFloorRenderBounds>
+    {
+        public EditorMapFloorRenderBounds(double MinLeft, double MinTop, double MaxRight, double MaxBottom) { }
+        public bool IsValid { get; }
+        public double MaxBottom { get; init; }
+        public double MaxRight { get; init; }
+        public double MinLeft { get; init; }
+        public double MinTop { get; init; }
+    }
     public static class EditorMapFloorRenderBuilder
     {
         public static ArcNET.Editor.EditorMapFloorRenderPreview Build(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorMapFloorRenderRequest? request = null, System.Threading.CancellationToken cancellationToken = default) { }
@@ -5131,10 +5154,19 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapAmbientLightingState? AmbientLighting { get; init; }
         public required double HeightPixels { get; init; }
         public bool IncludeEditorObjectStateTint { get; init; }
+        public bool IncludeEmptyTerrainTiles { get; init; }
         public bool IncludeFloorLightTint { get; init; }
+        public bool IncludeTerrainBlockedTileOverlays { get; init; }
+        public bool IncludeTerrainJumpPointOverlays { get; init; }
+        public bool IncludeTerrainLightOverlays { get; init; }
+        public bool IncludeTerrainRoofs { get; init; }
+        public bool IncludeTerrainScriptOverlays { get; init; }
+        public bool IsTerrainMaterializationPartial { get; init; }
         public int LightCount { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightRenderItem> Lights { get; init; }
         public required string MapName { get; init; }
+        public System.Collections.Generic.IReadOnlySet<string> MaterializedTerrainSectorAssetPaths { get; init; }
+        public int MaterializedTerrainSectorCount { get; init; }
         public int ObjectAuxiliaryCount { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectAuxiliaryRenderItem> ObjectAuxiliaryItems { get; init; }
         public int ObjectCount { get; }
@@ -5151,14 +5183,19 @@ namespace ArcNET.Editor
         public required double TileHeightPixels { get; init; }
         public required double TileWidthPixels { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapFloorTileRenderItem> Tiles { get; init; }
+        public int TotalTerrainSectorCount { get; init; }
         public required ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSectorScenePreview> VirtualTerrainSectors { get; init; }
         public required double WidthPixels { get; init; }
         public System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> EnumerateVisibleRenderItems(ArcNET.Editor.EditorMapSceneViewportLayout viewport) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapObjectRenderItem> GetObjectsAtTile(string? sectorAssetPath, ArcNET.Core.Primitives.Location tile) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSectorRenderSliceBounds> GetSectorBounds() { }
+        public ArcNET.Editor.EditorMapSectorRenderSliceBounds GetVirtualTerrainSectorBounds(ArcNET.Editor.EditorMapSectorScenePreview sector) { }
+        public bool IsTerrainSectorMaterialized(string sectorAssetPath) { }
         public bool TryGetObject(ArcNET.Core.Primitives.GameObjectGuid objectId, out ArcNET.Editor.EditorMapObjectRenderItem? item) { }
         public bool TryGetObjectDrawOrder(ArcNET.Core.Primitives.GameObjectGuid objectId, out int drawOrder) { }
         public bool TryGetTile(string sectorAssetPath, ArcNET.Core.Primitives.Location tile, out ArcNET.Editor.EditorMapFloorTileRenderItem? item) { }
+        public bool TryGetVirtualTerrainSector(string sectorAssetPath, out ArcNET.Editor.EditorMapSectorScenePreview? sector) { }
     }
     public sealed class EditorMapFloorRenderRequest
     {
@@ -5169,15 +5206,19 @@ namespace ArcNET.Editor
         public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeEmptyTiles { get; init; }
         public bool IncludeFloorLightTint { get; init; }
+        public bool IncludeJumpPointOverlays { get; init; }
         public bool IncludeLightOverlays { get; init; }
         public bool IncludeObjects { get; init; }
         public bool IncludeRoofs { get; init; }
         public bool IncludeScriptOverlays { get; init; }
+        public System.Collections.Generic.IReadOnlySet<string>? MaterializedTerrainSectorAssetPaths { get; init; }
+        public ArcNET.Editor.EditorMapFloorRenderBounds? SceneBoundsOverride { get; init; }
         public double TileHeightPixels { get; init; }
         public double TileWidthPixels { get; init; }
         public ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
         public ArcNET.Editor.EditorMapFloorRenderRequest WithAmbientLighting(ArcNET.Editor.EditorMapAmbientLightingState? ambientLighting) { }
         public ArcNET.Editor.EditorMapFloorRenderRequest WithArtResolver(ArcNET.Editor.EditorArtResolver? artResolver) { }
+        public ArcNET.Editor.EditorMapFloorRenderRequest WithMaterializedTerrainSectors(System.Collections.Generic.IReadOnlySet<string>? sectorAssetPaths, ArcNET.Editor.EditorMapFloorRenderBounds? sceneBoundsOverride) { }
         public ArcNET.Editor.EditorMapFloorRenderRequest WithPreviewState(ArcNET.Editor.EditorProjectMapPreviewState previewState) { }
         public static ArcNET.Editor.EditorMapFloorRenderRequest CreateWorldEditPreset(ArcNET.Editor.EditorMapSceneViewMode viewMode = 1) { }
     }
@@ -5217,6 +5258,19 @@ namespace ArcNET.Editor
         public required string SectorAssetPath { get; init; }
         public string? SourceAssetPath { get; init; }
         public required ArcNET.Core.Primitives.Location Tile { get; init; }
+    }
+    public sealed class EditorMapJumpPointPreview
+    {
+        public EditorMapJumpPointPreview() { }
+        public required int DestinationMapId { get; init; }
+        public required int DestinationTileX { get; init; }
+        public required int DestinationTileY { get; init; }
+        public required uint Flags { get; init; }
+        public required int MapTileX { get; init; }
+        public required int MapTileY { get; init; }
+        public required int TileIndex { get; init; }
+        public required int TileX { get; init; }
+        public required int TileY { get; init; }
     }
     public enum EditorMapLayerBrushMode
     {
@@ -5769,11 +5823,24 @@ namespace ArcNET.Editor
         public bool IsComplete { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> ReferencedArtIds { get; init; }
         public required int ReferencedSpriteReferenceCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapRenderSpriteCoverageReference> ReferencedSpriteReferences { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> ResolvedArtIds { get; init; }
         public required int ResolvedSpriteReferenceCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapRenderSpriteCoverageReference> ResolvedSpriteReferences { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UnresolvedArtIds { get; init; }
         public required int UnresolvedSpriteReferenceCount { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapRenderSpriteCoverageReference> UnresolvedSpriteReferences { get; init; }
         public static ArcNET.Editor.EditorMapRenderSpriteCoverage Empty { get; }
+    }
+    public sealed class EditorMapRenderSpriteCoverageReference
+    {
+        public EditorMapRenderSpriteCoverageReference() { }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public required bool IsShrunk { get; init; }
+        public required ArcNET.Editor.EditorMapRenderQueueItemKind RenderItemKind { get; init; }
+        public required int RotationIndex { get; init; }
+        public required int ScalePercent { get; init; }
+        public ArcNET.Editor.EditorMapRenderSpriteRequest CreateRequest() { }
     }
     public sealed class EditorMapRenderSpriteMetrics
     {
@@ -5851,8 +5918,8 @@ namespace ArcNET.Editor
     }
     public static class EditorMapScenePreviewBuilder
     {
-        public static ArcNET.Editor.EditorMapScenePreview Build(ArcNET.Editor.EditorMapProjection projection, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> sectorsByAssetPath) { }
-        public static ArcNET.Editor.EditorMapScenePreview Build(ArcNET.Editor.EditorMapProjection projection, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> sectorsByAssetPath, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver) { }
+        public static ArcNET.Editor.EditorMapScenePreview Build(ArcNET.Editor.EditorMapProjection projection, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> sectorsByAssetPath, ArcNET.Formats.JmpFile? jumpPoints = null) { }
+        public static ArcNET.Editor.EditorMapScenePreview Build(ArcNET.Editor.EditorMapProjection projection, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> sectorsByAssetPath, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver, ArcNET.Formats.JmpFile? jumpPoints = null) { }
         public static ArcNET.Editor.EditorMapObjectPreview BuildObjectPreview(ArcNET.Formats.MobData mob, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver = null) { }
         public static ArcNET.Editor.EditorMapSectorScenePreview BuildSector(ArcNET.Editor.EditorMapSectorProjection sectorProjection, ArcNET.Formats.Sector sector) { }
         public static ArcNET.Editor.EditorMapSectorScenePreview BuildSector(ArcNET.Editor.EditorMapSectorProjection sectorProjection, ArcNET.Formats.Sector sector, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver) { }
@@ -5967,6 +6034,8 @@ namespace ArcNET.Editor
         public required string AssetPath { get; init; }
         public required uint[] BlockMask { get; init; }
         public required ArcNET.Editor.EditorMapSectorDensityBand BlockedTileDensityBand { get; init; }
+        public System.Collections.Generic.HashSet<int> JumpPointTileIndices { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapJumpPointPreview> JumpPoints { get; init; }
         public int LightSchemeIdx { get; init; }
         public System.Collections.Generic.HashSet<int> LightTileIndices { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapLightPreview> Lights { get; init; }
@@ -5982,11 +6051,15 @@ namespace ArcNET.Editor
         public System.Collections.Generic.HashSet<int> ScriptedTileIndices { get; }
         public required int SectorX { get; init; }
         public required int SectorY { get; init; }
+        public long TerrainRevision { get; }
         public required uint[] TileArtIds { get; init; }
         public int TileHeight { get; }
         public ulong[] TileRowMasks { get; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapTileScriptPreview> TileScripts { get; init; }
         public int TileWidth { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainFloorArtIds { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainLightArtIds { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainRoofArtIds { get; }
         public uint? GetRoofArtId(int roofX, int roofY) { }
         public uint GetTileArtId(int tileX, int tileY) { }
         public bool IsTileBlocked(int tileX, int tileY) { }
@@ -6049,6 +6122,7 @@ namespace ArcNET.Editor
         BlockedTile = 0,
         Light = 1,
         Script = 2,
+        JumpPoint = 3,
     }
     public sealed class EditorMapTileOverlayRenderItem
     {
@@ -6109,7 +6183,10 @@ namespace ArcNET.Editor
         public string? ChangedSectorAssetPath { get; init; }
         public ArcNET.Editor.EditorMapFloorRenderPreview? ExistingPreview { get; init; }
         public ArcNET.Editor.EditorMapRenderSpriteCoverage? ExistingSpriteCoverage { get; init; }
+        public int? FocusedObjectSectorRadius { get; init; }
+        public int? FocusedTerrainSectorRadius { get; init; }
         public ArcNET.Editor.EditorObjectPalettePlacementRequest? PlacementRequest { get; init; }
+        public bool PreloadSceneSprites { get; init; }
         public ArcNET.Editor.EditorMapFloorRenderRequest? RenderRequest { get; init; }
         public ArcNET.Editor.IEditorMapRenderSpriteSource? SpriteSource { get; init; }
         public ArcNET.Editor.EditorMapRenderViewportState? Viewport { get; init; }
@@ -6120,6 +6197,8 @@ namespace ArcNET.Editor
     {
         public EditorMapWorldEditShell() { }
         public required ArcNET.Editor.EditorProjectMapWorldEditActiveTool ActiveTool { get; init; }
+        public int? FocusedObjectSectorRadius { get; init; }
+        public int? FocusedTerrainSectorRadius { get; init; }
         public bool HasTrackedPlacementPreview { get; }
         public ArcNET.Formats.JmpFile? JumpPoints { get; init; }
         public required string MapName { get; init; }
@@ -6150,12 +6229,15 @@ namespace ArcNET.Editor
         public EditorMapWorldEditShellRequest() { }
         public ArcNET.Editor.EditorMapAmbientLightingState? AmbientLighting { get; init; }
         public ArcNET.Editor.EditorArtResolver? ArtResolver { get; init; }
+        public int? FocusedObjectSectorRadius { get; init; }
+        public int? FocusedTerrainSectorRadius { get; init; }
         public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeFloorLightTint { get; init; }
         public bool IncludeFullObjectPaletteBrowse { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }
+        public bool PreloadSceneSprites { get; init; }
         public ArcNET.Editor.IEditorMapRenderSpriteSource? SpriteSource { get; init; }
         public ArcNET.Editor.EditorMapSceneViewMode ViewMode { get; init; }
         public double? ViewportHeight { get; init; }
@@ -6655,6 +6737,7 @@ namespace ArcNET.Editor
         public EditorProjectMapPreviewState() { }
         public ArcNET.Editor.EditorMapPreviewMode OutlineMode { get; init; }
         public bool ShowBlockedTiles { get; init; }
+        public bool ShowJumpPoints { get; init; }
         public bool ShowLights { get; init; }
         public bool ShowObjects { get; init; }
         public bool ShowRoofs { get; init; }
@@ -7101,6 +7184,31 @@ namespace ArcNET.Editor
         public required ulong PaletteY { get; init; }
         public ArcNET.Editor.EditorMapLayerBrushRequest CreateTileArtBrushRequest() { }
     }
+    public sealed class EditorTerrainPresetEntry
+    {
+        public EditorTerrainPresetEntry() { }
+        public required string DisplayName { get; init; }
+        public required int DistinctTileArtCount { get; init; }
+        public string? PreviewArtAssetPath { get; init; }
+        public string PrimaryTemplateSectorAssetPath { get; }
+        public required int SceneryObjectCount { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> TemplateSectorAssetPaths { get; init; }
+        public required string TerrainDirectoryName { get; init; }
+        public ArcNET.Formats.TerrainType? TerrainType { get; }
+        public required int TerrainTypeId { get; init; }
+    }
+    public sealed class EditorTileArtPaletteEntry
+    {
+        public EditorTileArtPaletteEntry() { }
+        public string ArtAssetPath { get; }
+        public ArcNET.Editor.EditorArtDefinition? ArtDetail { get; init; }
+        public required ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public ArcNET.Editor.EditorArtPreview? ArtPreview { get; init; }
+        public required ArcNET.Editor.EditorAssetEntry Asset { get; init; }
+        public required string DisplayName { get; init; }
+        public ArcNET.Formats.FileFormat Format { get; }
+        public ArcNET.Editor.EditorMapLayerBrushRequest CreateTileArtBrushRequest() { }
+    }
     public static class EditorWallSpriteFallback
     {
         public static int BindFallbackAssets(ArcNET.Editor.EditorWorkspace workspace, ArcNET.Editor.EditorArtResolver artResolver, System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> unresolvedArtIds) { }
@@ -7138,6 +7246,8 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, ArcNET.Editor.EditorArtResolver artResolver) { }
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy) { }
         public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver) { }
+        public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, ArcNET.Editor.EditorArtResolver artResolver, System.Collections.Generic.IReadOnlySet<string>? objectSectorAssetPaths) { }
+        public ArcNET.Editor.EditorMapScenePreview CreateMapScenePreview(string mapName, System.Func<ArcNET.Core.Primitives.ArtId, ArcNET.Formats.ArtFile?>? artResolver, System.Collections.Generic.IReadOnlySet<string>? objectSectorAssetPaths) { }
         public ArcNET.Editor.EditorProject CreateProject() { }
         public ArcNET.Editor.SaveGameEditor CreateSaveEditor() { }
         public ArcNET.Editor.ScriptEditor CreateScriptEditor(string assetPath) { }
@@ -7149,6 +7259,7 @@ namespace ArcNET.Editor
         public ArcNET.Formats.DlgFile? FindDialog(string assetPath) { }
         public ArcNET.Formats.FacadeWalk? FindFacadeWalk(string assetPath) { }
         public ArcNET.Formats.JmpFile? FindJumpFile(string assetPath) { }
+        public ArcNET.Formats.JmpFile? FindMapJumpFile(string mapName) { }
         public ArcNET.Formats.MapProperties? FindMapProperties(string assetPath) { }
         public ArcNET.Editor.EditorMessageDefinition? FindMessageDetail(string assetPath) { }
         public ArcNET.Formats.MesFile? FindMessageFile(string assetPath) { }
@@ -7193,6 +7304,8 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry> GetTerrainPaletteForMap(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null) { }
         public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteForMapAsync(string mapName, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPaletteEntry>> GetTerrainPaletteForMapAsync(string mapName, ArcNET.Editor.EditorArtResolverBindingStrategy artBindingStrategy, ArcNET.Editor.EditorArtPreviewOptions? artPreviewOptions = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainPresetEntry> GetTerrainPresetPalette() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTileArtPaletteEntry> GetTileArtPalette() { }
         public ArcNET.Editor.EditorWorldAreaCatalog GetWorldAreaCatalog() { }
         public System.Threading.Tasks.Task PreloadArtsAsync(System.Collections.Generic.IEnumerable<string> assetPaths, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorWorkspaceDefaultMap? ResolveDefaultMap() { }
@@ -7234,6 +7347,7 @@ namespace ArcNET.Editor
     {
         public EditorWorkspaceLoadOptions() { }
         public string? GameDirectory { get; init; }
+        public bool LoadArtMetadata { get; init; }
         public string? ModuleName { get; init; }
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
@@ -7247,6 +7361,7 @@ namespace ArcNET.Editor
         public System.DateTimeOffset? EstimatedCompletionTime { get; init; }
         public System.TimeSpan? EstimatedRemaining { get; init; }
         public required float OverallProgress { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorWorkspaceLoadStageTiming> StageTimings { get; init; }
         public int? TotalUnits { get; init; }
         public string? UnitLabel { get; init; }
     }
@@ -7257,6 +7372,15 @@ namespace ArcNET.Editor
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedArchiveCandidate> SkippedArchiveCandidates { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedAsset> SkippedAssets { get; init; }
         public static ArcNET.Editor.EditorWorkspaceLoadReport Empty { get; }
+    }
+    public sealed class EditorWorkspaceLoadStageTiming : System.IEquatable<ArcNET.Editor.EditorWorkspaceLoadStageTiming>
+    {
+        public EditorWorkspaceLoadStageTiming() { }
+        public required long ElapsedMs { get; init; }
+        public bool IsDominant { get; init; }
+        public int? ItemCount { get; init; }
+        public required string StageName { get; init; }
+        public string? UnitLabel { get; init; }
     }
     public static class EditorWorkspaceLoader
     {
@@ -7271,6 +7395,7 @@ namespace ArcNET.Editor
         public long CachedFrameRetainedBytes { get; }
         public bool CanResolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
         public ArcNET.Editor.EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
+        public System.Threading.Tasks.Task PreloadAsync(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task PreloadAsync(System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> items, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapRenderSprite? Resolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
     }
@@ -7327,6 +7452,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTerrainPaletteEntry(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, ArcNET.Editor.EditorTerrainPaletteEntry entry) { }
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTerrainPaletteEntry(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapAreaSelectionState areaSelection, ArcNET.Editor.EditorTerrainPaletteEntry entry) { }
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTerrainPaletteEntry(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapSelectionState selection, ArcNET.Editor.EditorTerrainPaletteEntry entry) { }
+        public ArcNET.Editor.EditorMapLayerBrushResult ApplyTerrainPreset(System.Collections.Generic.IReadOnlyList<string> sectorAssetPaths, ArcNET.Editor.EditorTerrainPresetEntry entry) { }
         public ArcNET.Editor.EditorMapObjectBrushResult ApplyTrackedObjectBrush(string mapViewStateId, ArcNET.Editor.EditorMapObjectBrushRequest request) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Formats.MobData> ApplyTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState selection) { }
@@ -7434,6 +7560,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapObjectBrushResult MoveTrackedSelectedObjects(string mapViewStateId, int deltaTileX, int deltaTileY) { }
         public ArcNET.Editor.EditorProjectOpenAsset OpenAsset(ArcNET.Editor.EditorProjectOpenAsset openAsset) { }
         public ArcNET.Editor.EditorProjectOpenAsset OpenAsset(string assetPath) { }
+        public ArcNET.Editor.EditorMapPaintableScene? PreviewSectorLayerBrush(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, ArcNET.Editor.EditorMapLayerBrushRequest request, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(ArcNET.Editor.EditorProjectMapViewState mapViewState, ArcNET.Editor.EditorObjectPalettePlacementRequest request, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(string mapViewStateId, ArcNET.Editor.EditorObjectPalettePlacementRequest request, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacement(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapAreaSelectionState areaSelection, ArcNET.Editor.EditorObjectPalettePlacementRequest request, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
@@ -7449,6 +7576,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapAreaSelectionState areaSelection, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(ArcNET.Editor.EditorMapScenePreview scenePreview, ArcNET.Editor.EditorProjectMapSelectionState selection, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewSectorObjectPalettePlacementSet(ArcNET.Editor.EditorMapScenePreview scenePreview, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, ArcNET.Editor.EditorObjectPalettePlacementSet placementSet, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
+        public ArcNET.Editor.EditorMapPaintableScene? PreviewTerrainPreset(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, System.Collections.Generic.IReadOnlyList<string> sectorAssetPaths, ArcNET.Editor.EditorTerrainPresetEntry entry, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementTool(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
         public ArcNET.Editor.EditorMapPlacementPreview PreviewTrackedObjectPlacementToolOverlay(string mapViewStateId, ArcNET.Editor.EditorProjectMapSelectionState? selection, ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapFloorRenderRequest? renderRequest = null) { }
@@ -7610,6 +7738,7 @@ namespace ArcNET.Editor
     {
         bool CanResolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
         ArcNET.Editor.EditorMapRenderSpriteMetrics? GetSpriteMetrics(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
+        System.Threading.Tasks.Task PreloadAsync(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.Task PreloadAsync(System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> items, System.Threading.CancellationToken cancellationToken = default);
         ArcNET.Editor.EditorMapRenderSprite? Resolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null);
     }
