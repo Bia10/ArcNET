@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using ArcNET.Formats;
 using ArcNET.GameData;
 using ArcNET.GameObjects;
@@ -6,6 +8,11 @@ namespace ArcNET.Editor;
 
 internal static class EditorAssetReferenceCounter
 {
+    private const int SarDataOffset = 13;
+    private const int ScriptArrayElementSize = 12;
+    private const int LegacyScriptIdArrayElementSize = 4;
+    private const int ParallelSectorSourceThreshold = 32;
+
     public static void CountReferences(
         GameDataStore gameData,
         IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath,
@@ -26,178 +33,43 @@ internal static class EditorAssetReferenceCounter
         var rawArtById = new Dictionary<uint, List<EditorArtReference>>();
         var rawArtByAsset = new Dictionary<string, List<EditorArtReference>>(StringComparer.OrdinalIgnoreCase);
 
-        var tempIntCounts = new Dictionary<int, int>();
-        var tempUintCounts = new Dictionary<uint, int>();
+        var tempProtoCounts = new Dictionary<int, int>();
+        var tempScriptCounts = new Dictionary<int, int>();
+        var tempArtCounts = new Dictionary<uint, int>();
 
-        // 1. Traverse Mobs By Source
         foreach (var (assetPath, mobs) in gameData.MobsBySource)
         {
             if (!assetsByPath.TryGetValue(assetPath, out var asset))
                 continue;
 
-            // Proto references in Mobs
-            CountMobProtoReferences(mobs, tempIntCounts);
-            foreach (var (protoNumber, count) in tempIntCounts)
-            {
-                var reference = new EditorProtoReference
-                {
-                    Asset = asset,
-                    ProtoNumber = protoNumber,
-                    Count = count,
-                };
-                GetOrCreate(rawProtoByNumber, protoNumber).Add(reference);
-                GetOrCreate(rawProtoByAsset, assetPath).Add(reference);
-            }
-
-            // Script references in Mobs
-            CountMobScriptReferences(mobs, tempIntCounts);
-            foreach (var (scriptId, count) in tempIntCounts)
-            {
-                var reference = new EditorScriptReference
-                {
-                    Asset = asset,
-                    ScriptId = scriptId,
-                    Count = count,
-                };
-                GetOrCreate(rawScriptById, scriptId).Add(reference);
-                GetOrCreate(rawScriptByAsset, assetPath).Add(reference);
-            }
-
-            // Art references in Mobs
-            CountMobArtReferences(mobs, tempUintCounts);
-            foreach (var (artId, count) in tempUintCounts)
-            {
-                var reference = new EditorArtReference
-                {
-                    Asset = asset,
-                    ArtId = artId,
-                    Count = count,
-                };
-                GetOrCreate(rawArtById, artId).Add(reference);
-                GetOrCreate(rawArtByAsset, assetPath).Add(reference);
-            }
+            CountMobReferences(mobs, tempProtoCounts, tempScriptCounts, tempArtCounts);
+            AddProtoReferences(asset, assetPath, tempProtoCounts, rawProtoByNumber, rawProtoByAsset);
+            AddScriptReferences(asset, assetPath, tempScriptCounts, rawScriptById, rawScriptByAsset);
+            AddArtReferences(asset, assetPath, tempArtCounts, rawArtById, rawArtByAsset);
         }
 
-        // 2. Traverse Protos By Source
         foreach (var (assetPath, protos) in gameData.ProtosBySource)
         {
             if (!assetsByPath.TryGetValue(assetPath, out var asset))
                 continue;
 
-            // Script references in Protos
-            CountProtoScriptReferences(protos, tempIntCounts);
-            foreach (var (scriptId, count) in tempIntCounts)
-            {
-                var reference = new EditorScriptReference
-                {
-                    Asset = asset,
-                    ScriptId = scriptId,
-                    Count = count,
-                };
-                GetOrCreate(rawScriptById, scriptId).Add(reference);
-                GetOrCreate(rawScriptByAsset, assetPath).Add(reference);
-            }
-
-            // Art references in Protos
-            CountProtoArtReferences(protos, tempUintCounts);
-            foreach (var (artId, count) in tempUintCounts)
-            {
-                var reference = new EditorArtReference
-                {
-                    Asset = asset,
-                    ArtId = artId,
-                    Count = count,
-                };
-                GetOrCreate(rawArtById, artId).Add(reference);
-                GetOrCreate(rawArtByAsset, assetPath).Add(reference);
-            }
+            CountProtoReferences(protos, tempScriptCounts, tempArtCounts);
+            AddScriptReferences(asset, assetPath, tempScriptCounts, rawScriptById, rawScriptByAsset);
+            AddArtReferences(asset, assetPath, tempArtCounts, rawArtById, rawArtByAsset);
         }
 
-        // 3. Traverse Sectors By Source
-        foreach (var (assetPath, sectors) in gameData.SectorsBySource)
+        var sectorGroups = CreateSourceGroups(gameData.SectorsBySource, assetsByPath);
+        var sectorCounts = CountSectorReferences(sectorGroups);
+        for (var index = 0; index < sectorCounts.Length; index++)
         {
-            if (!assetsByPath.TryGetValue(assetPath, out var asset))
-                continue;
-
-            // Proto references in Sectors
-            CountSectorProtoReferences(sectors, tempIntCounts);
-            foreach (var (protoNumber, count) in tempIntCounts)
-            {
-                var reference = new EditorProtoReference
-                {
-                    Asset = asset,
-                    ProtoNumber = protoNumber,
-                    Count = count,
-                };
-                GetOrCreate(rawProtoByNumber, protoNumber).Add(reference);
-                GetOrCreate(rawProtoByAsset, assetPath).Add(reference);
-            }
-
-            // Script references in Sectors
-            CountSectorScriptReferences(sectors, tempIntCounts);
-            foreach (var (scriptId, count) in tempIntCounts)
-            {
-                var reference = new EditorScriptReference
-                {
-                    Asset = asset,
-                    ScriptId = scriptId,
-                    Count = count,
-                };
-                GetOrCreate(rawScriptById, scriptId).Add(reference);
-                GetOrCreate(rawScriptByAsset, assetPath).Add(reference);
-            }
-
-            // Art references in Sectors
-            CountSectorArtReferences(sectors, tempUintCounts);
-            foreach (var (artId, count) in tempUintCounts)
-            {
-                var reference = new EditorArtReference
-                {
-                    Asset = asset,
-                    ArtId = artId,
-                    Count = count,
-                };
-                GetOrCreate(rawArtById, artId).Add(reference);
-                GetOrCreate(rawArtByAsset, assetPath).Add(reference);
-            }
+            var counts = sectorCounts[index];
+            AddProtoReferences(counts, rawProtoByNumber, rawProtoByAsset);
+            AddScriptReferences(counts, rawScriptById, rawScriptByAsset);
+            AddArtReferences(counts, rawArtById, rawArtByAsset);
         }
 
-        // 4. In-place sorting to match original behavior exactly
+        SortReferences(rawProtoByNumber, rawProtoByAsset, rawScriptById, rawScriptByAsset, rawArtById, rawArtByAsset);
 
-        // Proto references sorted:
-        // - By AssetPath when grouped by ProtoNumber
-        // - By ProtoNumber when grouped by AssetPath
-        foreach (var list in rawProtoByNumber.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
-        foreach (var list in rawProtoByAsset.Values)
-            list.Sort(static (a, b) => a.ProtoNumber.CompareTo(b.ProtoNumber));
-
-        // Script references sorted:
-        // - By AssetPath when grouped by ScriptId
-        // - By ScriptId when grouped by AssetPath
-        foreach (var list in rawScriptById.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
-        foreach (var list in rawScriptByAsset.Values)
-            list.Sort(static (a, b) => a.ScriptId.CompareTo(b.ScriptId));
-
-        // Art references sorted:
-        // - By AssetPath when grouped by ArtId
-        // - By ArtId when grouped by AssetPath
-        foreach (var list in rawArtById.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
-        foreach (var list in rawArtByAsset.Values)
-            list.Sort(static (a, b) => a.ArtId.CompareTo(b.ArtId));
-
-        // 5. Expose as read-only views (no Array copy allocations, directly cast Lists!)
         protoReferencesByNumber = AsReadOnly(rawProtoByNumber);
         protoReferencesByAssetPath = AsReadOnly(rawProtoByAsset);
 
@@ -208,175 +80,403 @@ internal static class EditorAssetReferenceCounter
         artReferencesByAssetPath = AsReadOnly(rawArtByAsset);
     }
 
-    private static void CountMobProtoReferences(IReadOnlyList<MobData> mobs, Dictionary<int, int> counts)
+    private static SourceGroup<T>[] CreateSourceGroups<T>(
+        IReadOnlyDictionary<string, IReadOnlyList<T>> assetsBySource,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    )
     {
-        counts.Clear();
-        for (var index = 0; index < mobs.Count; index++)
+        var groups = new List<SourceGroup<T>>(assetsBySource.Count);
+        foreach (var (assetPath, entries) in assetsBySource)
         {
-            var protoNumber = mobs[index].Header.ProtoId.GetProtoNumber();
-            if (protoNumber.HasValue)
-                IncrementCount(counts, protoNumber.Value);
+            if (assetsByPath.TryGetValue(assetPath, out var asset))
+                groups.Add(new SourceGroup<T>(assetPath, asset, entries));
         }
+
+        groups.Sort(static (a, b) => string.Compare(a.AssetPath, b.AssetPath, StringComparison.OrdinalIgnoreCase));
+        return [.. groups];
     }
 
-    private static void CountMobScriptReferences(IReadOnlyList<MobData> mobs, Dictionary<int, int> counts)
+    private static SourceReferenceCounts[] CountSectorReferences(SourceGroup<Sector>[] groups)
     {
-        counts.Clear();
-        for (var index = 0; index < mobs.Count; index++)
-            AddObjectScriptReferences(counts, mobs[index].Properties);
-    }
-
-    private static void CountMobArtReferences(IReadOnlyList<MobData> mobs, Dictionary<uint, int> counts)
-    {
-        counts.Clear();
-        for (var index = 0; index < mobs.Count; index++)
-            AddObjectArtReferences(counts, mobs[index].Properties);
-    }
-
-    private static void CountProtoScriptReferences(IReadOnlyList<ProtoData> protos, Dictionary<int, int> counts)
-    {
-        counts.Clear();
-        for (var index = 0; index < protos.Count; index++)
-            AddObjectScriptReferences(counts, protos[index].Properties);
-    }
-
-    private static void CountProtoArtReferences(IReadOnlyList<ProtoData> protos, Dictionary<uint, int> counts)
-    {
-        counts.Clear();
-        for (var index = 0; index < protos.Count; index++)
-            AddObjectArtReferences(counts, protos[index].Properties);
-    }
-
-    private static void CountSectorProtoReferences(IReadOnlyList<Sector> sectors, Dictionary<int, int> counts)
-    {
-        counts.Clear();
-        for (var i = 0; i < sectors.Count; i++)
+        var counts = new SourceReferenceCounts[groups.Length];
+        if (groups.Length < ParallelSectorSourceThreshold || Environment.ProcessorCount <= 1)
         {
-            var sector = sectors[i];
-            for (var j = 0; j < sector.Objects.Count; j++)
-            {
-                var protoNumber = sector.Objects[j].Header.ProtoId.GetProtoNumber();
-                if (protoNumber.HasValue)
-                    IncrementCount(counts, protoNumber.Value);
-            }
+            for (var index = 0; index < groups.Length; index++)
+                counts[index] = CountSectorReferences(groups[index]);
+
+            return counts;
         }
+
+        Parallel.For(
+            0,
+            groups.Length,
+            new ParallelOptions { MaxDegreeOfParallelism = EditorParallelism.InteractiveMaxDegreeOfParallelism },
+            index => counts[index] = CountSectorReferences(groups[index])
+        );
+        return counts;
     }
 
-    private static void CountSectorScriptReferences(IReadOnlyList<Sector> sectors, Dictionary<int, int> counts)
+    private static SourceReferenceCounts CountSectorReferences(SourceGroup<Sector> group)
     {
-        counts.Clear();
-        for (var i = 0; i < sectors.Count; i++)
+        var counts = new SourceReferenceCounts(group.AssetPath, group.Asset);
+
+        for (var i = 0; i < group.Entries.Count; i++)
         {
-            var sector = sectors[i];
+            var sector = group.Entries[i];
+
             if (sector.SectorScript is { } sectorScript && !sectorScript.IsEmpty)
-                IncrementCount(counts, sectorScript.ScriptId);
+                counts.IncrementScript(sectorScript.ScriptId);
 
             for (var j = 0; j < sector.TileScripts.Count; j++)
             {
                 var tileScript = sector.TileScripts[j];
                 if (tileScript.ScriptNum != 0)
-                    IncrementCount(counts, tileScript.ScriptNum);
+                    counts.IncrementScript(tileScript.ScriptNum);
             }
 
-            for (var j = 0; j < sector.Objects.Count; j++)
-                AddObjectScriptReferences(counts, sector.Objects[j].Properties);
-        }
-    }
-
-    private static void CountSectorArtReferences(IReadOnlyList<Sector> sectors, Dictionary<uint, int> counts)
-    {
-        counts.Clear();
-        for (var i = 0; i < sectors.Count; i++)
-        {
-            var sector = sectors[i];
             for (var j = 0; j < sector.Lights.Count; j++)
-                IncrementNonZeroCount(counts, sector.Lights[j].ArtId);
+                counts.IncrementNonZeroArt(sector.Lights[j].ArtId);
 
             for (var j = 0; j < sector.Tiles.Length; j++)
-                IncrementNonZeroCount(counts, sector.Tiles[j]);
+                counts.IncrementNonZeroArt(sector.Tiles[j]);
 
             if (sector.Roofs is not null)
             {
                 for (var j = 0; j < sector.Roofs.Length; j++)
-                    IncrementNonZeroCount(counts, sector.Roofs[j]);
+                    counts.IncrementNonZeroArt(sector.Roofs[j]);
             }
 
             for (var j = 0; j < sector.Objects.Count; j++)
-                AddObjectArtReferences(counts, sector.Objects[j].Properties);
-        }
-    }
-
-    private static void AddObjectScriptReferences(Dictionary<int, int> counts, IReadOnlyList<ObjectProperty> properties)
-    {
-        for (var i = 0; i < properties.Count; i++)
-        {
-            var property = properties[i];
-            if (property.Field != ObjectField.ScriptsIdx)
-                continue;
-
-            if (!TryGetScriptArray(property, out var scripts))
-                continue;
-
-            for (var j = 0; j < scripts.Length; j++)
             {
-                var script = scripts[j];
-                if (script.ScriptId != 0)
-                    IncrementCount(counts, script.ScriptId);
+                var obj = sector.Objects[j];
+                var protoNumber = obj.Header.ProtoId.GetProtoNumber();
+                if (protoNumber.HasValue)
+                    counts.IncrementProto(protoNumber.Value);
+
+                AddObjectReferences(counts, obj.Properties);
             }
         }
+
+        return counts;
     }
 
-    private static void AddObjectArtReferences(Dictionary<uint, int> counts, IReadOnlyList<ObjectProperty> properties)
+    private static void CountMobReferences(
+        IReadOnlyList<MobData> mobs,
+        Dictionary<int, int> protoCounts,
+        Dictionary<int, int> scriptCounts,
+        Dictionary<uint, int> artCounts
+    )
     {
-        for (var i = 0; i < properties.Count; i++)
+        protoCounts.Clear();
+        scriptCounts.Clear();
+        artCounts.Clear();
+
+        for (var index = 0; index < mobs.Count; index++)
         {
-            var property = properties[i];
+            var mob = mobs[index];
+            var protoNumber = mob.Header.ProtoId.GetProtoNumber();
+            if (protoNumber.HasValue)
+                IncrementCount(protoCounts, protoNumber.Value);
+
+            AddObjectReferences(scriptCounts, artCounts, mob.Properties);
+        }
+    }
+
+    private static void CountProtoReferences(
+        IReadOnlyList<ProtoData> protos,
+        Dictionary<int, int> scriptCounts,
+        Dictionary<uint, int> artCounts
+    )
+    {
+        scriptCounts.Clear();
+        artCounts.Clear();
+
+        for (var index = 0; index < protos.Count; index++)
+            AddObjectReferences(scriptCounts, artCounts, protos[index].Properties);
+    }
+
+    private static void AddObjectReferences(
+        Dictionary<int, int> scriptCounts,
+        Dictionary<uint, int> artCounts,
+        IReadOnlyList<ObjectProperty> properties
+    )
+    {
+        for (var index = 0; index < properties.Count; index++)
+        {
+            var property = properties[index];
             switch (property.Field)
             {
+                case ObjectField.ScriptsIdx:
+                    AddObjectScriptReferences(scriptCounts, property);
+                    break;
                 case ObjectField.CurrentAid:
                 case ObjectField.Shadow:
                 case ObjectField.LightAid:
                 case ObjectField.Aid:
                 case ObjectField.DestroyedAid:
                     if (TryGetArtId(property, out var artId))
-                        IncrementNonZeroCount(counts, artId);
+                        IncrementNonZeroCount(artCounts, artId);
                     break;
             }
         }
     }
 
-    private static bool TryGetScriptArray(ObjectProperty property, out ObjectPropertyScript[] scripts)
+    private static void AddObjectReferences(SourceReferenceCounts counts, IReadOnlyList<ObjectProperty> properties)
     {
-        try
+        for (var index = 0; index < properties.Count; index++)
         {
-            scripts = property.GetScriptArray();
-            return true;
+            var property = properties[index];
+            switch (property.Field)
+            {
+                case ObjectField.ScriptsIdx:
+                    AddObjectScriptReferences(counts, property);
+                    break;
+                case ObjectField.CurrentAid:
+                case ObjectField.Shadow:
+                case ObjectField.LightAid:
+                case ObjectField.Aid:
+                case ObjectField.DestroyedAid:
+                    if (TryGetArtId(property, out var artId))
+                        counts.IncrementNonZeroArt(artId);
+                    break;
+            }
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentOutOfRangeException)
+    }
+
+    private static void AddObjectScriptReferences(Dictionary<int, int> counts, ObjectProperty property)
+    {
+        var rawBytes = property.RawBytes;
+        if (!TryGetScriptArrayPayload(rawBytes, out var elementSize, out var elementCount, out var dataOffset))
+            return;
+
+        switch (elementSize)
         {
-            scripts = [];
+            case ScriptArrayElementSize:
+                for (var index = 0; index < elementCount; index++)
+                {
+                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(
+                        rawBytes.AsSpan(dataOffset + (index * ScriptArrayElementSize) + 8)
+                    );
+                    if (scriptId != 0)
+                        IncrementCount(counts, scriptId);
+                }
+                break;
+            case LegacyScriptIdArrayElementSize:
+                for (var index = 0; index < elementCount; index++)
+                {
+                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(
+                        rawBytes.AsSpan(dataOffset + (index * LegacyScriptIdArrayElementSize))
+                    );
+                    if (scriptId > 0)
+                        IncrementCount(counts, scriptId);
+                }
+                break;
+        }
+    }
+
+    private static void AddObjectScriptReferences(SourceReferenceCounts counts, ObjectProperty property)
+    {
+        var rawBytes = property.RawBytes;
+        if (!TryGetScriptArrayPayload(rawBytes, out var elementSize, out var elementCount, out var dataOffset))
+            return;
+
+        switch (elementSize)
+        {
+            case ScriptArrayElementSize:
+                for (var index = 0; index < elementCount; index++)
+                {
+                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(
+                        rawBytes.AsSpan(dataOffset + (index * ScriptArrayElementSize) + 8)
+                    );
+                    if (scriptId != 0)
+                        counts.IncrementScript(scriptId);
+                }
+                break;
+            case LegacyScriptIdArrayElementSize:
+                for (var index = 0; index < elementCount; index++)
+                {
+                    var scriptId = BinaryPrimitives.ReadInt32LittleEndian(
+                        rawBytes.AsSpan(dataOffset + (index * LegacyScriptIdArrayElementSize))
+                    );
+                    if (scriptId > 0)
+                        counts.IncrementScript(scriptId);
+                }
+                break;
+        }
+    }
+
+    private static bool TryGetScriptArrayPayload(
+        byte[] rawBytes,
+        out int elementSize,
+        out int elementCount,
+        out int dataOffset
+    )
+    {
+        elementSize = 0;
+        elementCount = 0;
+        dataOffset = SarDataOffset;
+
+        if ((rawBytes.Length == 1 && rawBytes[0] == 0) || rawBytes.Length < SarDataOffset)
             return false;
-        }
+
+        elementSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(1));
+        elementCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(rawBytes.AsSpan(5));
+        if (elementSize is not (ScriptArrayElementSize or LegacyScriptIdArrayElementSize))
+            return false;
+
+        return HasCompleteSarPayload(elementSize, elementCount, rawBytes.Length);
+    }
+
+    private static bool HasCompleteSarPayload(int elementSize, int elementCount, int rawLength)
+    {
+        if (elementSize <= 0 || elementCount < 0)
+            return false;
+
+        var dataByteLength = (long)elementSize * elementCount;
+        return dataByteLength <= int.MaxValue && SarDataOffset + dataByteLength + sizeof(int) <= rawLength;
     }
 
     private static bool TryGetArtId(ObjectProperty property, out uint artId)
     {
-        try
+        if (property.RawBytes.Length == sizeof(int))
         {
-            artId = unchecked((uint)property.GetInt32());
+            artId = unchecked((uint)BinaryPrimitives.ReadInt32LittleEndian(property.RawBytes));
             return true;
         }
-        catch (InvalidOperationException)
+
+        artId = 0;
+        return false;
+    }
+
+    private static void AddProtoReferences(
+        EditorAssetEntry asset,
+        string assetPath,
+        IReadOnlyDictionary<int, int>? counts,
+        Dictionary<int, List<EditorProtoReference>> referencesByNumber,
+        Dictionary<string, List<EditorProtoReference>> referencesByAsset
+    )
+    {
+        if (counts is null)
+            return;
+
+        foreach (var (protoNumber, count) in counts)
         {
-            artId = 0;
-            return false;
+            var reference = new EditorProtoReference
+            {
+                Asset = asset,
+                ProtoNumber = protoNumber,
+                Count = count,
+            };
+            GetOrCreate(referencesByNumber, protoNumber).Add(reference);
+            GetOrCreate(referencesByAsset, assetPath).Add(reference);
         }
+    }
+
+    private static void AddProtoReferences(
+        SourceReferenceCounts counts,
+        Dictionary<int, List<EditorProtoReference>> referencesByNumber,
+        Dictionary<string, List<EditorProtoReference>> referencesByAsset
+    ) => AddProtoReferences(counts.Asset, counts.AssetPath, counts.ProtoCounts, referencesByNumber, referencesByAsset);
+
+    private static void AddScriptReferences(
+        EditorAssetEntry asset,
+        string assetPath,
+        IReadOnlyDictionary<int, int>? counts,
+        Dictionary<int, List<EditorScriptReference>> referencesById,
+        Dictionary<string, List<EditorScriptReference>> referencesByAsset
+    )
+    {
+        if (counts is null)
+            return;
+
+        foreach (var (scriptId, count) in counts)
+        {
+            var reference = new EditorScriptReference
+            {
+                Asset = asset,
+                ScriptId = scriptId,
+                Count = count,
+            };
+            GetOrCreate(referencesById, scriptId).Add(reference);
+            GetOrCreate(referencesByAsset, assetPath).Add(reference);
+        }
+    }
+
+    private static void AddScriptReferences(
+        SourceReferenceCounts counts,
+        Dictionary<int, List<EditorScriptReference>> referencesById,
+        Dictionary<string, List<EditorScriptReference>> referencesByAsset
+    ) => AddScriptReferences(counts.Asset, counts.AssetPath, counts.ScriptCounts, referencesById, referencesByAsset);
+
+    private static void AddArtReferences(
+        EditorAssetEntry asset,
+        string assetPath,
+        IReadOnlyDictionary<uint, int>? counts,
+        Dictionary<uint, List<EditorArtReference>> referencesById,
+        Dictionary<string, List<EditorArtReference>> referencesByAsset
+    )
+    {
+        if (counts is null)
+            return;
+
+        foreach (var (artId, count) in counts)
+        {
+            var reference = new EditorArtReference
+            {
+                Asset = asset,
+                ArtId = artId,
+                Count = count,
+            };
+            GetOrCreate(referencesById, artId).Add(reference);
+            GetOrCreate(referencesByAsset, assetPath).Add(reference);
+        }
+    }
+
+    private static void AddArtReferences(
+        SourceReferenceCounts counts,
+        Dictionary<uint, List<EditorArtReference>> referencesById,
+        Dictionary<string, List<EditorArtReference>> referencesByAsset
+    ) => AddArtReferences(counts.Asset, counts.AssetPath, counts.ArtCounts, referencesById, referencesByAsset);
+
+    private static void SortReferences(
+        Dictionary<int, List<EditorProtoReference>> rawProtoByNumber,
+        Dictionary<string, List<EditorProtoReference>> rawProtoByAsset,
+        Dictionary<int, List<EditorScriptReference>> rawScriptById,
+        Dictionary<string, List<EditorScriptReference>> rawScriptByAsset,
+        Dictionary<uint, List<EditorArtReference>> rawArtById,
+        Dictionary<string, List<EditorArtReference>> rawArtByAsset
+    )
+    {
+        foreach (var list in rawProtoByNumber.Values)
+            list.Sort(
+                static (a, b) =>
+                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+            );
+        foreach (var list in rawProtoByAsset.Values)
+            list.Sort(static (a, b) => a.ProtoNumber.CompareTo(b.ProtoNumber));
+
+        foreach (var list in rawScriptById.Values)
+            list.Sort(
+                static (a, b) =>
+                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+            );
+        foreach (var list in rawScriptByAsset.Values)
+            list.Sort(static (a, b) => a.ScriptId.CompareTo(b.ScriptId));
+
+        foreach (var list in rawArtById.Values)
+            list.Sort(
+                static (a, b) =>
+                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+            );
+        foreach (var list in rawArtByAsset.Values)
+            list.Sort(static (a, b) => a.ArtId.CompareTo(b.ArtId));
     }
 
     private static void IncrementCount<TKey>(Dictionary<TKey, int> counts, TKey key)
         where TKey : notnull
     {
-        counts[key] = counts.GetValueOrDefault(key) + 1;
+        ref var count = ref CollectionsMarshal.GetValueRefOrAddDefault(counts, key, out _);
+        count++;
     }
 
     private static void IncrementNonZeroCount(Dictionary<uint, int> counts, uint key)
@@ -390,12 +490,11 @@ internal static class EditorAssetReferenceCounter
     private static List<T> GetOrCreate<TKey, T>(Dictionary<TKey, List<T>> dict, TKey key)
         where TKey : notnull
     {
-        if (!dict.TryGetValue(key, out var list))
-        {
+        ref var list = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out var exists);
+        if (!exists)
             list = [];
-            dict[key] = list;
-        }
-        return list;
+
+        return list!;
     }
 
     private static IReadOnlyDictionary<TKey, IReadOnlyList<TValue>> AsReadOnly<TKey, TValue>(
@@ -405,9 +504,35 @@ internal static class EditorAssetReferenceCounter
     {
         var result = new Dictionary<TKey, IReadOnlyList<TValue>>(dict.Count);
         foreach (var pair in dict)
-        {
             result[pair.Key] = pair.Value;
-        }
         return result;
+    }
+
+    private sealed class SourceGroup<T>(string assetPath, EditorAssetEntry asset, IReadOnlyList<T> entries)
+    {
+        public string AssetPath { get; } = assetPath;
+        public EditorAssetEntry Asset { get; } = asset;
+        public IReadOnlyList<T> Entries { get; } = entries;
+    }
+
+    private sealed class SourceReferenceCounts(string assetPath, EditorAssetEntry asset)
+    {
+        public string AssetPath { get; } = assetPath;
+        public EditorAssetEntry Asset { get; } = asset;
+        public Dictionary<int, int>? ProtoCounts { get; private set; }
+        public Dictionary<int, int>? ScriptCounts { get; private set; }
+        public Dictionary<uint, int>? ArtCounts { get; private set; }
+
+        public void IncrementProto(int protoNumber) => IncrementCount(ProtoCounts ??= [], protoNumber);
+
+        public void IncrementScript(int scriptId) => IncrementCount(ScriptCounts ??= [], scriptId);
+
+        public void IncrementNonZeroArt(uint artId)
+        {
+            if (artId == 0)
+                return;
+
+            IncrementCount(ArtCounts ??= [], artId);
+        }
     }
 }
