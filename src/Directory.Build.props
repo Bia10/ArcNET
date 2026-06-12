@@ -64,6 +64,13 @@
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
 
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or '$(MSBuildProjectName)' == 'ArcNET.DocTest'">
+    <Compile
+      Include="$(MSBuildThisFileDirectory)Tests\TUnitAssemblyConfiguration.cs"
+      Link="TUnitAssemblyConfiguration.cs"
+    />
+  </ItemGroup>
+
   <!-- Non-CLS-compliant: required for low-level types -->
   <ItemGroup>
     <AssemblyAttribute Include="System.CLSCompliantAttribute">

@@ -36,9 +36,35 @@ switch (command)
         return 0;
 
     case "test":
+        var treeFilter = commandArgs.FirstOrDefault();
+        var testResultsDirectory = CreateRunResultsDirectory(coverageOutputDirectory, "test");
+        var matchedProjects = 0;
+
         foreach (var testProject in runnableTestProjects)
         {
-            Run("dotnet", ["run", "--project", testProject, "-c", "Release"], repoRoot);
+            var exitCode = Run(
+                "dotnet",
+                BuildTUnitTestArguments(
+                    testProject,
+                    CreateProjectResultsDirectory(testResultsDirectory, testProject),
+                    treeFilter
+                ),
+                repoRoot,
+                treeFilter is null ? [] : [8]
+            );
+
+            if (exitCode == 0)
+            {
+                matchedProjects++;
+                continue;
+            }
+
+            Console.WriteLine($"No tests matched filter in {Path.GetFileNameWithoutExtension(testProject)}.");
+        }
+
+        if (treeFilter is not null && matchedProjects == 0)
+        {
+            throw new InvalidOperationException($"Tree filter '{treeFilter}' did not match any tests.");
         }
 
         return 0;
@@ -183,6 +209,10 @@ static void CollectCoverage(string repoRoot, string projectPath, string coverage
         Path.GetDirectoryName(projectRelativePath) ?? projectRelativePath
     );
     var outputPath = Path.Combine(coverageOutputDirectory, $"{projectName}.coverage.cobertura.xml");
+    var resultsDirectory = CreateProjectResultsDirectory(
+        CreateRunResultsDirectory(Path.Combine(coverageOutputDirectory, "coverage-runs"), "coverage"),
+        projectPath
+    );
 
     Console.WriteLine($"Collecting coverage for {projectName} from {projectRelativeDirectory}");
     Run(
@@ -190,7 +220,16 @@ static void CollectCoverage(string repoRoot, string projectPath, string coverage
         [
             "dotnet-coverage",
             "collect",
-            $"dotnet run --project {QuoteCommandValue(projectRelativePath)} -c Release --no-build --no-restore",
+            BuildCommandLine(
+                "dotnet",
+                BuildTUnitTestArguments(
+                    projectRelativePath,
+                    resultsDirectory,
+                    treeFilter: null,
+                    noBuild: true,
+                    noRestore: true
+                )
+            ),
             "--output",
             outputPath,
             "--output-format",
@@ -260,7 +299,7 @@ static void PrintHelp(IReadOnlyList<PackageProject> packageProjects)
     Console.WriteLine("Usage:");
     Console.WriteLine("  dotnet Build.cs help");
     Console.WriteLine("  dotnet Build.cs build");
-    Console.WriteLine("  dotnet Build.cs test");
+    Console.WriteLine("  dotnet Build.cs test [treenode-filter]");
     Console.WriteLine("  dotnet Build.cs coverage");
     Console.WriteLine("  dotnet Build.cs format");
     Console.WriteLine("  dotnet Build.cs format-check");
@@ -277,7 +316,12 @@ static void PrintHelp(IReadOnlyList<PackageProject> packageProjects)
     }
 }
 
-static void Run(string executable, IEnumerable<string> arguments, string workingDirectory)
+static int Run(
+    string executable,
+    IEnumerable<string> arguments,
+    string workingDirectory,
+    IReadOnlyCollection<int>? allowedExitCodes = null
+)
 {
     var argumentList = arguments.ToArray();
     Console.WriteLine();
@@ -298,10 +342,69 @@ static void Run(string executable, IEnumerable<string> arguments, string working
         Process.Start(processStartInfo) ?? throw new InvalidOperationException($"Failed to start '{executable}'.");
 
     process.WaitForExit();
-    if (process.ExitCode != 0)
+    if (process.ExitCode != 0 && !(allowedExitCodes?.Contains(process.ExitCode) ?? false))
     {
         throw new InvalidOperationException($"Command failed with exit code {process.ExitCode}: {executable}");
     }
+
+    return process.ExitCode;
+}
+
+static string BuildCommandLine(string executable, IEnumerable<string> arguments) =>
+    $"{QuoteCommandValue(executable)} {string.Join(' ', arguments.Select(EscapeArgument))}";
+
+static string CreateRunResultsDirectory(string rootDirectory, string prefix)
+{
+    var resultsDirectory = Path.Combine(rootDirectory, $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmssfff}");
+    Directory.CreateDirectory(resultsDirectory);
+    return resultsDirectory;
+}
+
+static string CreateProjectResultsDirectory(string rootDirectory, string projectPath)
+{
+    var projectDirectory = Path.Combine(rootDirectory, Path.GetFileNameWithoutExtension(projectPath));
+    Directory.CreateDirectory(projectDirectory);
+    return projectDirectory;
+}
+
+static IReadOnlyList<string> BuildTUnitTestArguments(
+    string projectPath,
+    string resultsDirectory,
+    string? treeFilter,
+    bool noBuild = false,
+    bool noRestore = false
+)
+{
+    List<string> arguments =
+    [
+        "test",
+        "--project",
+        projectPath,
+        "-c",
+        "Release",
+        "--timeout",
+        "10m",
+        "--results-directory",
+        resultsDirectory,
+    ];
+
+    if (noBuild)
+    {
+        arguments.Add("--no-build");
+    }
+
+    if (noRestore)
+    {
+        arguments.Add("--no-restore");
+    }
+
+    if (!string.IsNullOrWhiteSpace(treeFilter))
+    {
+        arguments.Add("--treenode-filter");
+        arguments.Add(treeFilter);
+    }
+
+    return arguments;
 }
 
 static string EscapeArgument(string argument) =>
