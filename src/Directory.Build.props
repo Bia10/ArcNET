@@ -57,8 +57,7 @@
     <EnableTrimAnalyzer Condition="'$(EnableTrimAnalyzer)' == ''">$(IsAotCompatible)</EnableTrimAnalyzer>
     <EnableAotAnalyzer Condition="'$(EnableAotAnalyzer)' == ''">$(IsAotCompatible)</EnableAotAnalyzer>
     <EnableSingleFileAnalyzer Condition="'$(EnableSingleFileAnalyzer)' == ''"
-      >$(IsAotCompatible)</EnableSingleFileAnalyzer
-    >
+      >$(IsAotCompatible)</EnableSingleFileAnalyzer>
 
     <!-- TUnit + .NET 10 SDK compatibility -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
