@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
     <ProjectReference Include="..\..\Core\ArcNET.Core\ArcNET.Core.csproj" />
+    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
     <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
   </ItemGroup>
 </Project>

@@ -1598,6 +1598,40 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadAsync_CreateArtResolver_WithArcanumMessageTablesStrategy_UsesSiblingWallDamageVariant()
+    {
+        var damagedArtId = new ArtId(0x10E06880u);
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "art", "wall"));
+
+        try
+        {
+            MessageFormat.WriteToFile(
+                new MesFile { Entries = [new MessageEntry(14, "shk0 shk0 dir nul")] },
+                Path.Combine(contentDir, "art", "wall", "structure.mes")
+            );
+            ArtFormat.WriteToFile(MakeArtFile(frameRate: 12), Path.Combine(contentDir, "art", "wall", "shklfcL0.art"));
+
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var artResolver = workspace.CreateArtResolver(EditorArtResolverBindingStrategy.ArcanumMessageTables);
+            var spriteSource = workspace.CreateMapRenderSpriteSource(artResolver);
+
+            var sprite = spriteSource.Resolve(
+                damagedArtId,
+                new EditorMapRenderSpriteRequest { RenderItemKind = EditorMapRenderQueueItemKind.Object }
+            );
+
+            await Assert.That(artResolver.FindAssetPath(damagedArtId)).IsEqualTo("art/wall/shklfcL0.art");
+            await Assert.That(sprite).IsNotNull();
+            await Assert.That(sprite!.AssetPath).IsEqualTo("art/wall/shklfcL0.art");
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_FindObjectPaletteEntry_WithArcanumMessageTablesStrategy_UsesWallProtoFallbackWhenCurrentArtIdMissing()
     {
         const int protoNumber = 1021;
@@ -4845,6 +4879,46 @@ public class EditorWorkspaceLoaderTests
     }
 
     [Test]
+    public async Task LoadFromGameInstallAsync_CanLazyLoadArchivedArtMetadata()
+    {
+        var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(gameDir);
+        Directory.CreateDirectory(Path.Combine(gameDir, "modules"));
+
+        try
+        {
+            var archivePath = Path.Combine(gameDir, "modules", "Arcanum.dat");
+            var artFile = MakeArtFile(frameRate: 15);
+            await WriteDatAsync(
+                archivePath,
+                new Dictionary<string, byte[]> { ["art\\critters\\barbarian.art"] = ArtFormat.WriteToArray(in artFile) }
+            );
+
+            using var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(
+                gameDir,
+                new EditorWorkspaceLoadOptions { LoadArtMetadata = false }
+            );
+            var asset = workspace.Assets.Find("art/critters/barbarian.art");
+            var art = workspace.FindArt("art/critters/barbarian.art");
+            var preview = workspace.CreateArtPreview("art/critters/barbarian.art");
+
+            await Assert.That(workspace.GameData.Arts.Count).IsEqualTo(0);
+            await Assert.That(workspace.Assets.FindByFormat(FileFormat.Art).Count).IsEqualTo(1);
+            await Assert.That(asset).IsNotNull();
+            await Assert.That(asset!.SourceKind).IsEqualTo(EditorAssetSourceKind.DatArchive);
+            await Assert.That(asset.SourcePath).IsEqualTo(archivePath);
+            await Assert.That(asset.SourceEntryPath).IsEqualTo("art/critters/barbarian.art");
+            await Assert.That(art).IsNotNull();
+            await Assert.That(art!.IsMetadataOnly).IsFalse();
+            await Assert.That(preview.FrameRate).IsEqualTo(15u);
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task GameInstallContentLoader_LoadAsync_ReusesArchiveAcrossEntryReads()
     {
         var gameDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -5271,6 +5345,66 @@ public class EditorWorkspaceLoaderTests
         finally
         {
             Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_ReportsWorkspaceIndexBuildPhases()
+    {
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var mesDirectory = Path.Combine(contentDir, "mes");
+        Directory.CreateDirectory(mesDirectory);
+        var progressUpdates = new List<EditorWorkspaceLoadProgress>();
+
+        try
+        {
+            var mes = new MesFile { Entries = [new MessageEntry(1, "Index progress probe")] };
+            await File.WriteAllBytesAsync(Path.Combine(mesDirectory, "game.mes"), MessageFormat.WriteToArray(in mes));
+
+            using var workspace = await EditorWorkspaceLoader.LoadAsync(
+                contentDir,
+                loadProgress: new SyncProgress<EditorWorkspaceLoadProgress>(progressUpdates.Add)
+            );
+
+            var indexActivities = progressUpdates
+                .Select(static update => update.Activity)
+                .Where(static activity => activity.StartsWith("Indexing workspace assets:", StringComparison.Ordinal))
+                .ToArray();
+
+            await Assert
+                .That(
+                    indexActivities.Any(static activity =>
+                        activity == "Indexing workspace assets: Indexing asset paths"
+                    )
+                )
+                .IsTrue();
+            await Assert
+                .That(
+                    indexActivities.Any(static activity =>
+                        activity == "Indexing workspace assets: Validating workspace"
+                    )
+                )
+                .IsTrue();
+            await Assert.That(indexActivities).Count().IsGreaterThan(2);
+
+            var stageTimings = progressUpdates.SelectMany(static update => update.StageTimings).ToArray();
+
+            await Assert.That(stageTimings.Any(static stage => stage.StageName == "Content.LoadGameData")).IsTrue();
+            await Assert
+                .That(stageTimings.Any(static stage => stage.StageName == "Content.GameData.ParseEntries"))
+                .IsTrue();
+            await Assert
+                .That(stageTimings.Any(static stage => stage.StageName == "Content.GameData.ParseCpu.Message"))
+                .IsTrue();
+            await Assert.That(stageTimings.Any(static stage => stage.StageName == "AudioLoad.Total")).IsTrue();
+            await Assert
+                .That(stageTimings.Any(static stage => stage.StageName == "BuildWorkspace.BuildAssetIndex"))
+                .IsTrue();
+            await Assert.That(stageTimings.Count(static stage => stage.IsDominant)).IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(contentDir, recursive: true);
         }
     }
 

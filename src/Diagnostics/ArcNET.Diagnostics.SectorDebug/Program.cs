@@ -1,95 +1,293 @@
-﻿using ArcNET.Archive;
-using ArcNET.Core;
+using System.Numerics;
+using ArcNET.Editor;
 using ArcNET.Formats;
 
-var gameRoot = args.Length > 0 ? args[0] : @"C:\Games\Arcanum\ArcanumCleanUAPnohighres - Copy";
+const string DefaultGameRoot = @"C:\Games\Arcanum\ArcanumCleanUAPnohighres - Copy";
+const int DefaultTop = 10;
+const int SampleLimit = 3;
 
-// Find a sector file in the DAT archives
-var datPaths = new List<string>();
-foreach (var p in Directory.GetFiles(gameRoot, "Arcanum*.dat"))
-    datPaths.Add(p);
-var moduleDat = Path.Combine(gameRoot, "modules", "Arcanum.dat");
-if (File.Exists(moduleDat))
-    datPaths.Add(moduleDat);
+var gameRoot = args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]) ? args[0].Trim() : DefaultGameRoot;
+var mapFilter = args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]) ? args[1].Trim() : null;
+var top = args.Length > 2 && int.TryParse(args[2], out var parsedTop) ? Math.Max(parsedTop, 0) : DefaultTop;
 
-foreach (var datPath in datPaths)
+Console.WriteLine($"Loading editor workspace from '{gameRoot}'...");
+var workspace = await EditorWorkspaceLoader.LoadFromGameInstallAsync(gameRoot);
+
+var candidateMapNames = workspace
+    .Index.MapNames.Where(mapName =>
+        mapFilter is null || mapName.Contains(mapFilter, StringComparison.OrdinalIgnoreCase)
+    )
+    .OrderBy(mapName => mapName, StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+if (candidateMapNames.Length == 0)
 {
-    using var dat = DatArchive.Open(datPath);
-    var secEntries = dat
-        .Entries.Where(e => e.Path.EndsWith(".sec", StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(e => e.UncompressedSize)
-        .Take(1)
-        .ToList();
+    Console.WriteLine($"No maps matched filter '{mapFilter ?? "*"}'.");
+    return;
+}
 
-    if (secEntries.Count == 0)
-        continue;
+Console.WriteLine($"Analyzing {candidateMapNames.Length} map(s)...");
 
-    Console.WriteLine($"Archive: {Path.GetFileName(datPath)}");
+var mapReports = new List<MapSpecialTileReport>(candidateMapNames.Length);
+var sectorReports = new List<SectorSpecialTileReport>();
+var mapErrors = new List<string>();
 
-    foreach (var entry in secEntries)
+for (var mapIndex = 0; mapIndex < candidateMapNames.Length; mapIndex++)
+{
+    if (mapIndex > 0 && mapIndex % 25 == 0)
+        Console.WriteLine($"  Progress: {mapIndex}/{candidateMapNames.Length} maps");
+
+    var mapName = candidateMapNames[mapIndex];
+    try
     {
-        Console.WriteLine($"\n--- {entry.Path} ({entry.UncompressedSize:N0} bytes) ---");
+        var preview = workspace.CreateMapScenePreview(mapName);
+        var mapSceneBlockedTiles = 0;
+        var mapRawBlockedTiles = 0;
+        var mapTerrainOnlyBlockedTiles = 0;
+        var mapTileScriptCount = 0;
+        var mapJumpCount = 0;
+        var jumpSamples = new List<string>(SampleLimit);
+        var terrainSectorSamples = new List<string>(SampleLimit);
 
-        var data = dat.GetEntryData(entry.Path);
-        var reader = new SpanReader(data.Span);
-
-        // Skip to objects section
-        var lightCount = reader.ReadInt32();
-        reader.Skip(lightCount * 48); // lights
-        reader.Skip(4096 * 4); // tiles
-        var roofFlag = reader.ReadInt32();
-        if (roofFlag == 0)
-            reader.Skip(256 * 4); // roofs
-        var version = reader.ReadInt32();
-        Console.WriteLine($"  Version: 0x{version:X8}");
-
-        // Skip version-dependent sections
-        if (version >= 0xAA0001)
+        foreach (
+            var sector in preview.Sectors.OrderBy(static sector => sector.AssetPath, StringComparer.OrdinalIgnoreCase)
+        )
         {
-            var tsCount = reader.ReadInt32();
-            reader.Skip(tsCount * 24);
-        }
-        if (version >= 0xAA0002)
-            reader.Skip(12); // sector script
-        if (version >= 0xAA0003)
-        {
-            reader.Skip(12); // townmap/apt/lightscheme
-            reader.Skip(12); // sound list
-        }
-        if (version >= 0xAA0004)
-            reader.Skip(128 * 4); // block mask
+            var rawSector = workspace.FindSector(sector.AssetPath);
+            var sceneBlockedTiles = CountBlockedTiles(sector.BlockMask);
+            var rawMapBlockedTiles = rawSector is null ? sceneBlockedTiles : CountBlockedTiles(rawSector.BlockMask);
+            var terrainOnlyBlockedTiles = Math.Max(0, sceneBlockedTiles - rawMapBlockedTiles);
+            var tileScriptCount = sector.TileScripts.Count;
+            var jumpCount = sector.JumpPoints.Count;
 
-        // Now at objects section
-        var remaining = reader.Remaining;
-        var trailingCount = reader.PeekInt32At(remaining - 4);
-        Console.WriteLine($"  Object section at 0x{reader.Position:X6}, remaining={remaining}, count={trailingCount}");
+            mapSceneBlockedTiles += sceneBlockedTiles;
+            mapRawBlockedTiles += rawMapBlockedTiles;
+            mapTerrainOnlyBlockedTiles += terrainOnlyBlockedTiles;
+            mapTileScriptCount += tileScriptCount;
+            mapJumpCount += jumpCount;
 
-        // Try parsing objects one at a time
-        for (var i = 0; i < trailingCount; i++)
-        {
-            var posBefore = reader.Position;
-            try
+            if (jumpSamples.Count < SampleLimit)
             {
-                var mob = MobFormat.Parse(ref reader);
-                if (i < 3 || i == trailingCount - 1)
-                    Console.WriteLine(
-                        $"    [{i}] OK at 0x{posBefore:X6}, read {reader.Position - posBefore} bytes, type={mob.Header.GameObjectType}"
-                    );
-                else if (i == 3)
-                    Console.WriteLine("    ...");
+                foreach (var jumpSample in CollectJumpSamples(sector, SampleLimit - jumpSamples.Count))
+                {
+                    jumpSamples.Add(jumpSample);
+                    if (jumpSamples.Count == SampleLimit)
+                        break;
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"    [{i}] FAIL at 0x{posBefore:X6}: {ex.GetType().Name}: {ex.Message}");
-                // Dump hex around failure point
-                Console.Write("    HEX @ failure: ");
-                for (var b = 0; b < Math.Min(48, data.Length - posBefore); b++)
-                    Console.Write($"{data.Span[posBefore + b]:X2} ");
-                Console.WriteLine();
-                break;
-            }
+
+            if (terrainSectorSamples.Count < SampleLimit && terrainOnlyBlockedTiles > 0)
+                terrainSectorSamples.Add($"{sector.AssetPath}:{terrainOnlyBlockedTiles}");
+
+            if (sceneBlockedTiles == 0 && tileScriptCount == 0 && jumpCount == 0)
+                continue;
+
+            sectorReports.Add(
+                new SectorSpecialTileReport(
+                    mapName,
+                    sector.AssetPath,
+                    sceneBlockedTiles,
+                    rawMapBlockedTiles,
+                    terrainOnlyBlockedTiles,
+                    tileScriptCount,
+                    jumpCount,
+                    [.. CollectBlockedSamples(sector, rawSector, SampleLimit)],
+                    [.. CollectTileScriptSamples(sector, SampleLimit)],
+                    [.. CollectJumpSamples(sector, SampleLimit)]
+                )
+            );
+        }
+
+        mapReports.Add(
+            new MapSpecialTileReport(
+                mapName,
+                preview.Sectors.Count,
+                mapSceneBlockedTiles,
+                mapRawBlockedTiles,
+                mapTerrainOnlyBlockedTiles,
+                mapTileScriptCount,
+                mapJumpCount,
+                [.. jumpSamples],
+                [.. terrainSectorSamples]
+            )
+        );
+    }
+    catch (Exception ex)
+    {
+        mapErrors.Add($"{mapName}: {ex.GetType().Name}: {ex.Message}");
+    }
+}
+
+Console.WriteLine();
+Console.WriteLine(
+    $"SUMMARY|maps={candidateMapNames.Length}|sceneBlockedMaps={mapReports.Count(static report => report.SceneBlockedTiles > 0)}|scriptedMaps={mapReports.Count(static report => report.TileScriptCount > 0)}|jumpMaps={mapReports.Count(static report => report.JumpCount > 0)}|terrainAugmentedMaps={mapReports.Count(static report => report.TerrainOnlyBlockedTiles > 0)}|failures={mapErrors.Count}"
+);
+
+WriteMapSection(
+    "MAP",
+    mapReports.Where(static report =>
+        report.SceneBlockedTiles > 0 || report.TileScriptCount > 0 || report.JumpCount > 0
+    ),
+    top,
+    report =>
+        $"MAP|{report.MapName}|sectors={report.SectorCount}|sceneBlocked={report.SceneBlockedTiles}|rawMapBlocked={report.RawMapBlockedTiles}|terrainOnlyBlocked={report.TerrainOnlyBlockedTiles}|tileScripts={report.TileScriptCount}|jumps={report.JumpCount}|jumpSamples={FormatSamples(report.JumpSamples)}"
+);
+
+WriteSectorSection(
+    "BLOCKED-SECTOR",
+    sectorReports.Where(static report => report.SceneBlockedTiles > 0),
+    top,
+    report =>
+        $"BLOCKED-SECTOR|map={report.MapName}|asset={report.AssetPath}|sceneBlocked={report.SceneBlockedTiles}|rawMapBlocked={report.RawMapBlockedTiles}|terrainOnlyBlocked={report.TerrainOnlyBlockedTiles}|samples={FormatSamples(report.BlockedSamples)}",
+    static report => report.SceneBlockedTiles
+);
+
+WriteSectorSection(
+    "SCRIPT-SECTOR",
+    sectorReports.Where(static report => report.TileScriptCount > 0),
+    top,
+    report =>
+        $"SCRIPT-SECTOR|map={report.MapName}|asset={report.AssetPath}|tileScripts={report.TileScriptCount}|samples={FormatSamples(report.TileScriptSamples)}",
+    static report => report.TileScriptCount
+);
+
+WriteMapSection(
+    "JUMP-MAP",
+    mapReports.Where(static report => report.JumpCount > 0),
+    top,
+    report => $"JUMP-MAP|map={report.MapName}|jumps={report.JumpCount}|samples={FormatSamples(report.JumpSamples)}",
+    static report => report.JumpCount
+);
+
+WriteMapSection(
+    "TERRAIN-BLOCKED-MAP",
+    mapReports.Where(static report => report.TerrainOnlyBlockedTiles > 0),
+    top,
+    report =>
+        $"TERRAIN-BLOCKED-MAP|map={report.MapName}|sceneBlocked={report.SceneBlockedTiles}|rawMapBlocked={report.RawMapBlockedTiles}|terrainOnlyBlocked={report.TerrainOnlyBlockedTiles}|sampleSectors={FormatSamples(report.TerrainSectorSamples)}",
+    static report => report.TerrainOnlyBlockedTiles
+);
+
+if (mapErrors.Count > 0)
+{
+    Console.WriteLine();
+    Console.WriteLine("FAILURES");
+    foreach (var mapError in mapErrors.Take(top))
+        Console.WriteLine($"ERROR|{mapError}");
+}
+
+static int CountBlockedTiles(uint[] blockMask)
+{
+    var count = 0;
+    for (var index = 0; index < blockMask.Length; index++)
+        count += BitOperations.PopCount(blockMask[index]);
+
+    return count;
+}
+
+static IEnumerable<string> CollectBlockedSamples(EditorMapSectorScenePreview sector, Sector? rawSector, int limit)
+{
+    var produced = 0;
+    for (var tileY = 0; tileY < sector.TileHeight; tileY++)
+    {
+        for (var tileX = 0; tileX < sector.TileWidth; tileX++)
+        {
+            if (!sector.IsTileBlocked(tileX, tileY))
+                continue;
+
+            var source = rawSector is not null && rawSector.BlockMask.IsBlocked(tileX, tileY) ? "map" : "terrain";
+            yield return $"({tileX},{tileY})[{source}]";
+
+            produced++;
+            if (produced == limit)
+                yield break;
         }
     }
-
-    break; // Just first archive
 }
+
+static IEnumerable<string> CollectTileScriptSamples(EditorMapSectorScenePreview sector, int limit)
+{
+    for (var index = 0; index < Math.Min(limit, sector.TileScripts.Count); index++)
+    {
+        var tileScript = sector.TileScripts[index];
+        yield return $"({tileScript.TileX},{tileScript.TileY})->script:{tileScript.ScriptId}";
+    }
+}
+
+static IEnumerable<string> CollectJumpSamples(EditorMapSectorScenePreview sector, int limit)
+{
+    for (var index = 0; index < Math.Min(limit, sector.JumpPoints.Count); index++)
+    {
+        var jumpPoint = sector.JumpPoints[index];
+        yield return $"{jumpPoint.MapTileX},{jumpPoint.MapTileY}->{jumpPoint.DestinationMapId}:{jumpPoint.DestinationTileX},{jumpPoint.DestinationTileY}";
+    }
+}
+
+static string FormatSamples(IReadOnlyList<string> samples) => samples.Count == 0 ? "-" : string.Join(',', samples);
+
+static void WriteSectorSection(
+    string title,
+    IEnumerable<SectorSpecialTileReport> reports,
+    int top,
+    Func<SectorSpecialTileReport, string> formatter,
+    Func<SectorSpecialTileReport, int> orderBy
+)
+{
+    Console.WriteLine();
+    Console.WriteLine(title);
+
+    foreach (
+        var report in reports
+            .OrderByDescending(orderBy)
+            .ThenBy(static report => report.MapName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static report => report.AssetPath, StringComparer.OrdinalIgnoreCase)
+            .Take(top)
+    )
+    {
+        Console.WriteLine(formatter(report));
+    }
+}
+
+static void WriteMapSection(
+    string title,
+    IEnumerable<MapSpecialTileReport> reports,
+    int top,
+    Func<MapSpecialTileReport, string> formatter,
+    Func<MapSpecialTileReport, int>? orderBy = null
+)
+{
+    Console.WriteLine();
+    Console.WriteLine(title);
+
+    var orderedReports = orderBy is null
+        ? reports.OrderBy(static report => report.MapName, StringComparer.OrdinalIgnoreCase)
+        : reports.OrderByDescending(orderBy).ThenBy(static report => report.MapName, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var report in orderedReports.Take(top))
+        Console.WriteLine(formatter(report));
+}
+
+sealed record MapSpecialTileReport(
+    string MapName,
+    int SectorCount,
+    int SceneBlockedTiles,
+    int RawMapBlockedTiles,
+    int TerrainOnlyBlockedTiles,
+    int TileScriptCount,
+    int JumpCount,
+    IReadOnlyList<string> JumpSamples,
+    IReadOnlyList<string> TerrainSectorSamples
+);
+
+sealed record SectorSpecialTileReport(
+    string MapName,
+    string AssetPath,
+    int SceneBlockedTiles,
+    int RawMapBlockedTiles,
+    int TerrainOnlyBlockedTiles,
+    int TileScriptCount,
+    int JumpCount,
+    IReadOnlyList<string> BlockedSamples,
+    IReadOnlyList<string> TileScriptSamples,
+    IReadOnlyList<string> JumpSamples
+);

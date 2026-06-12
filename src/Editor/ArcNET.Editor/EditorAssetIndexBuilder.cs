@@ -15,35 +15,79 @@ internal static partial class EditorAssetIndexBuilder
     public static (EditorAssetIndex Index, EditorWorkspaceValidationReport Validation) Create(
         GameDataStore gameData,
         EditorAssetCatalog assets,
-        ArcanumInstallationType? installationType = null
+        ArcanumInstallationType? installationType = null,
+        IProgress<EditorAssetIndexBuildProgress>? progress = null
     )
     {
         ArgumentNullException.ThrowIfNull(gameData);
         ArgumentNullException.ThrowIfNull(assets);
 
+        const int TotalPhases = 13;
+        var completedPhases = 0;
+        void Report(string activity) =>
+            progress?.Report(
+                new EditorAssetIndexBuildProgress(
+                    activity,
+                    completedPhases / (float)TotalPhases,
+                    completedPhases,
+                    TotalPhases
+                )
+            );
+
+        Report("Indexing asset paths");
         var assetsByPath = assets.Entries.ToDictionary(entry => entry.AssetPath, StringComparer.OrdinalIgnoreCase);
+        completedPhases++;
+
+        Report("Indexing map assets");
         var (mapNames, mapAssetsByName, mapNameByAssetPath) = BuildMapAssets(assets.Entries);
+        completedPhases++;
+
+        Report("Summarizing sectors");
         var (mapSectorsByName, sectorSummariesByAssetPath) = BuildSectorSummaries(
             gameData,
             assetsByPath,
             mapNameByAssetPath
         );
         var sectorSummaries = sectorSummariesByAssetPath.Values.ToArray();
+        completedPhases++;
+
+        Report("Building scheme lookups");
         var (lightSchemeSectorsByIndex, musicSchemeSectorsByIndex, ambientSchemeSectorsByIndex) =
             BuildSectorSchemeLookups(sectorSummaries);
+        completedPhases++;
+
+        Report("Projecting map sectors");
         var mapProjectionsByName = EditorSectorProjectionBuilder.Build(mapSectorsByName);
+        completedPhases++;
+
+        Report("Indexing message assets");
         var messageAssetsByIndex = BuildMessageAssetsByIndex(gameData, assetsByPath);
         var protoDisplayNameMessageIndices = BuildProtoDisplayNameMessageIndices(gameData);
+        completedPhases++;
+
+        Report("Indexing asset definitions");
         var protoDefinitionsByNumber = BuildProtoDefinitionsByNumber(assets.Entries);
         var scriptDefinitionsById = BuildScriptDefinitionsById(assets.Entries);
         var dialogDefinitionsById = BuildDialogDefinitionsById(assets.Entries);
+        completedPhases++;
+
+        Report("Indexing script details");
         var scriptDetailsById = BuildScriptDetailsById(gameData, assetsByPath);
+        completedPhases++;
+
+        Report("Indexing dialog details");
         var dialogDetailsById = BuildDialogDetailsById(gameData, assetsByPath);
+        completedPhases++;
+
+        Report("Indexing art and map details");
         var artDetailsByAssetPath = BuildArtDetailsByAssetPath(gameData, assetsByPath);
         var jumpDetailsByAssetPath = BuildJumpDetailsByAssetPath(gameData, assetsByPath);
         var mapPropertiesDetailsByAssetPath = BuildMapPropertiesDetailsByAssetPath(gameData, assetsByPath);
         var terrainDetailsByAssetPath = BuildTerrainDetailsByAssetPath(gameData, assetsByPath);
         var facadeWalkDetailsByAssetPath = BuildFacadeWalkDetailsByAssetPath(gameData, assetsByPath);
+        completedPhases++;
+
+        Report("Counting asset references");
         EditorAssetReferenceCounter.CountReferences(
             gameData,
             assetsByPath,
@@ -54,6 +98,9 @@ internal static partial class EditorAssetIndexBuilder
             out var artReferencesById,
             out var artReferencesByAssetPath
         );
+        completedPhases++;
+
+        Report("Building dependency summaries");
         var assetDependencySummariesByAssetPath = BuildAssetDependencySummaries(
             assets.Entries,
             mapNameByAssetPath,
@@ -64,6 +111,7 @@ internal static partial class EditorAssetIndexBuilder
             artReferencesById,
             artReferencesByAssetPath
         );
+        completedPhases++;
 
         var index = EditorAssetIndex.Create(
             new EditorAssetIndexData
@@ -94,6 +142,7 @@ internal static partial class EditorAssetIndexBuilder
                 ArtReferencesById = artReferencesById,
             }
         );
+        Report("Validating workspace");
         var validation = new EditorWorkspaceValidator().Build(
             protoDefinitionsByNumber,
             scriptDefinitionsById,
@@ -104,6 +153,9 @@ internal static partial class EditorAssetIndexBuilder
             protoDisplayNameMessageIndices,
             installationType
         );
+        completedPhases++;
+
+        progress?.Report(new EditorAssetIndexBuildProgress("Asset index complete", 1f, TotalPhases, TotalPhases));
 
         return (index, validation);
     }
@@ -156,6 +208,7 @@ internal static partial class EditorAssetIndexBuilder
     {
         var mapSectorsByName = new Dictionary<string, List<EditorSectorSummary>>(StringComparer.OrdinalIgnoreCase);
         var sectorSummariesByAssetPath = new Dictionary<string, EditorSectorSummary>(StringComparer.OrdinalIgnoreCase);
+        var distinctTileArtScratch = new HashSet<uint>();
 
         foreach (var (assetPath, sectors) in gameData.SectorsBySource)
         {
@@ -178,7 +231,7 @@ internal static partial class EditorAssetIndexBuilder
                     TileScriptCount = sector.TileScripts.Count,
                     SectorScriptId = sectorScriptId,
                     HasRoofs = sector.HasRoofs,
-                    DistinctTileArtCount = sector.Tiles.Distinct().Count(),
+                    DistinctTileArtCount = CountDistinctValues(sector.Tiles, distinctTileArtScratch),
                     BlockedTileCount = CountBlockedTiles(sector.BlockMask),
                     LightSchemeIndex = sector.LightSchemeIdx,
                     MusicSchemeIndex = sector.SoundList.MusicSchemeIdx,
@@ -724,6 +777,14 @@ internal static partial class EditorAssetIndexBuilder
     }
 
     private static int CountBlockedTiles(uint[] blockMask) => blockMask.Sum(mask => int.PopCount((int)mask));
+
+    private static int CountDistinctValues(uint[] values, HashSet<uint> scratch)
+    {
+        scratch.Clear();
+        for (var index = 0; index < values.Length; index++)
+            scratch.Add(values[index]);
+        return scratch.Count;
+    }
 
     private static bool IsControlEntry(DialogEntry entry)
     {

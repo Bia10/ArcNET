@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ArcNET.Archive;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -32,6 +33,8 @@ internal static class GameInstallContentLoader
         CancellationToken cancellationToken = default,
         IProgress<EditorAssetLoadProgress>? assetProgress = null,
         IProgress<GameDataLoadProgress>? gameDataProgress = null,
+        IProgress<EditorWorkspaceLoadStageTiming>? stageProgress = null,
+        GameDataLoadOptions? gameDataLoadOptions = null,
         Func<string, DatArchive>? archiveOpener = null
     )
     {
@@ -41,27 +44,35 @@ internal static class GameInstallContentLoader
 
         archiveOpener ??= DatArchive.Open;
 
-        using var installFiles = await ReadInstallFilesAsync(
-                gameDir,
-                progress,
-                cancellationToken,
-                assetProgress,
-                archiveOpener
+        using var installFiles = await MeasureAsync(
+                "InstallContent.ReadSources",
+                stageProgress,
+                () => ReadInstallFilesAsync(gameDir, progress, cancellationToken, assetProgress, archiveOpener)
             )
             .ConfigureAwait(false);
 
-        var loadResult = await GameDataLoader
-            .LoadFromEntriesAsync(
-                [.. installFiles.LoadEntries.Values],
-                CreateWeightedProgress(progress, ArchiveReadProgressWeight, 1f - ArchiveReadProgressWeight),
-                cancellationToken,
-                gameDataProgress
+        var loadResult = await MeasureAsync(
+                "InstallContent.ParseGameData",
+                stageProgress,
+                () =>
+                    GameDataLoader.LoadFromEntriesAsync(
+                        [.. installFiles.LoadEntries.Values],
+                        CreateWeightedProgress(progress, ArchiveReadProgressWeight, 1f - ArchiveReadProgressWeight),
+                        cancellationToken,
+                        gameDataProgress,
+                        CreateGameDataStageProgress("InstallContent", stageProgress),
+                        gameDataLoadOptions
+                    )
             )
             .ConfigureAwait(false);
         AppendSkippedAssets(installFiles, loadResult.Failures);
         var gameData = loadResult.Store;
 
-        var assetCatalog = EditorAssetCatalogBuilder.CreateForInstall(gameData, installFiles.AssetSources);
+        var assetCatalog = Measure(
+            "InstallContent.BuildAssetCatalog",
+            stageProgress,
+            () => EditorAssetCatalogBuilder.CreateForInstall(gameData, installFiles.AssetSources)
+        );
         return (
             gameData,
             assetCatalog,
@@ -71,6 +82,65 @@ internal static class GameInstallContentLoader
                 SkippedAssets = [.. installFiles.SkippedAssets],
             }
         );
+    }
+
+    private static async Task<T> MeasureAsync<T>(
+        string stageName,
+        IProgress<EditorWorkspaceLoadStageTiming>? progress,
+        Func<Task<T>> action
+    )
+    {
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            return await action().ConfigureAwait(false);
+        }
+        finally
+        {
+            stopwatch.Stop();
+            progress?.Report(
+                new EditorWorkspaceLoadStageTiming { StageName = stageName, ElapsedMs = stopwatch.ElapsedMilliseconds }
+            );
+        }
+    }
+
+    private static T Measure<T>(string stageName, IProgress<EditorWorkspaceLoadStageTiming>? progress, Func<T> action)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            stopwatch.Stop();
+            progress?.Report(
+                new EditorWorkspaceLoadStageTiming { StageName = stageName, ElapsedMs = stopwatch.ElapsedMilliseconds }
+            );
+        }
+    }
+
+    private static IProgress<GameDataLoadStageTiming>? CreateGameDataStageProgress(
+        string prefix,
+        IProgress<EditorWorkspaceLoadStageTiming>? progress
+    ) =>
+        progress is null
+            ? null
+            : new DelegateProgress<GameDataLoadStageTiming>(stage =>
+                progress.Report(
+                    new EditorWorkspaceLoadStageTiming
+                    {
+                        StageName = $"{prefix}.{stage.StageName}",
+                        ElapsedMs = stage.ElapsedMs,
+                        ItemCount = stage.ItemCount,
+                        UnitLabel = stage.UnitLabel,
+                    }
+                )
+            );
+
+    private sealed class DelegateProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private static async Task<InstallFileSet> ReadInstallFilesAsync(

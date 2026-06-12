@@ -19,4 +19,9 @@ public enum EditorMapTileOverlayKind
     /// Highlights one floor tile targeted by a tile script.
     /// </summary>
     Script = 2,
+
+    /// <summary>
+    /// Highlights one floor tile targeted by a map jump point.
+    /// </summary>
+    JumpPoint = 3,
 }

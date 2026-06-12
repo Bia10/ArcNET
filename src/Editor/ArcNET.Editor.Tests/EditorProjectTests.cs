@@ -117,6 +117,7 @@ public sealed class EditorProjectTests
                         ShowLights = true,
                         ShowBlockedTiles = true,
                         ShowScripts = false,
+                        ShowJumpPoints = false,
                     },
                     WorldEdit = new EditorProjectMapWorldEditState
                     {
@@ -1451,6 +1452,7 @@ public sealed class EditorProjectTests
                             ShowLights = true,
                             ShowBlockedTiles = false,
                             ShowScripts = true,
+                            ShowJumpPoints = false,
                         },
                         WorldEdit = new EditorProjectMapWorldEditState
                         {
@@ -1541,6 +1543,7 @@ public sealed class EditorProjectTests
             await Assert.That(roundTripped.MapViewStates[0].Preview.OutlineMode).IsEqualTo(EditorMapPreviewMode.Lights);
             await Assert.That(roundTripped.MapViewStates[0].Preview.ShowRoofs).IsFalse();
             await Assert.That(roundTripped.MapViewStates[0].Preview.ShowBlockedTiles).IsFalse();
+            await Assert.That(roundTripped.MapViewStates[0].Preview.ShowJumpPoints).IsFalse();
             await Assert
                 .That(session.GetMapViewStates()[0].WorldEdit.Shell.ViewMode)
                 .IsEqualTo(EditorMapSceneViewMode.TopDown);

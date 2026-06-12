@@ -1165,6 +1165,31 @@ public sealed class EditorWorkspace : IDisposable
     }
 
     /// <summary>
+    /// Looks up one loaded jump file for the supplied map name.
+    /// Returns <see langword="null"/> when the workspace did not load jump-point data for that map.
+    /// </summary>
+    public JmpFile? FindMapJumpFile(string mapName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+
+        var defaultPath = $"maps/{mapName}/map.jmp";
+        if (FindJumpFile(defaultPath) is { } jumpFile)
+            return jumpFile;
+
+        foreach (var asset in Index.FindMapAssets(mapName))
+        {
+            if (asset.Format != FileFormat.Jmp)
+                continue;
+
+            var resolvedJumpFile = FindJumpFile(asset.AssetPath);
+            if (resolvedJumpFile is not null)
+                return resolvedJumpFile;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Looks up one loaded map-properties file by asset path.
     /// Returns <see langword="null"/> when the workspace did not load that asset.
     /// </summary>
@@ -1277,7 +1302,7 @@ public sealed class EditorWorkspace : IDisposable
                     new ParallelOptions
                     {
                         CancellationToken = cancellationToken,
-                        MaxDegreeOfParallelism = Environment.ProcessorCount,
+                        MaxDegreeOfParallelism = EditorParallelism.InteractiveMaxDegreeOfParallelism,
                     },
                     path => FindArt(path)
                 );
@@ -1389,6 +1414,90 @@ public sealed class EditorWorkspace : IDisposable
         return GameData.TerrainsBySource.TryGetValue(normalizedPath, out var terrains)
             ? terrains.FirstOrDefault()
             : null;
+    }
+
+    /// <summary>
+    /// Returns terrain presets backed by reusable terrain sector templates.
+    /// </summary>
+    public IReadOnlyList<EditorTerrainPresetEntry> GetTerrainPresetPalette()
+    {
+        var terrainMessage = FindMessageFile("terrain/terrain.mes");
+        if (terrainMessage is null)
+            return [];
+
+        var sectorAssetPaths = GameData.SectorsBySource.Keys.ToArray();
+        List<EditorTerrainPresetEntry> entries = [];
+        foreach (var messageEntry in terrainMessage.Entries.OrderBy(static entry => entry.Index))
+        {
+            var terrainDirectoryName = NormalizeTerrainTypeAssetName(messageEntry.Text);
+            if (string.IsNullOrWhiteSpace(terrainDirectoryName))
+                continue;
+
+            var prefix = NormalizeAssetPath($"terrain/{terrainDirectoryName}/");
+            var templateSectorAssetPaths = sectorAssetPaths
+                .Where(assetPath =>
+                    assetPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    && assetPath.EndsWith(".sec", StringComparison.OrdinalIgnoreCase)
+                )
+                .OrderBy(static assetPath => assetPath, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (templateSectorAssetPaths.Length == 0)
+                continue;
+
+            var representativeSector = FindSector(templateSectorAssetPaths[0]);
+            if (representativeSector is null)
+                continue;
+
+            entries.Add(
+                new EditorTerrainPresetEntry
+                {
+                    TerrainTypeId = messageEntry.Index,
+                    DisplayName = messageEntry.Text.Trim(),
+                    TerrainDirectoryName = terrainDirectoryName,
+                    TemplateSectorAssetPaths = templateSectorAssetPaths,
+                    PreviewArtAssetPath = TryResolveTerrainPresetPreviewArtAssetPath(representativeSector),
+                    DistinctTileArtCount = representativeSector
+                        .Tiles.Where(static tile => tile != 0u)
+                        .Distinct()
+                        .Count(),
+                    SceneryObjectCount = representativeSector.Objects.Count(static obj =>
+                        obj.Header.GameObjectType == ObjectType.Scenery
+                    ),
+                }
+            );
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Returns tile-art entries that can be painted directly onto floor tiles.
+    /// </summary>
+    public IReadOnlyList<EditorTileArtPaletteEntry> GetTileArtPalette()
+    {
+        List<EditorTileArtPaletteEntry> entries = [];
+        foreach (
+            var asset in Assets
+                .FindByFormat(FileFormat.Art)
+                .Where(asset => asset.AssetPath.StartsWith("art/tile/", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(static asset => asset.AssetPath, StringComparer.OrdinalIgnoreCase)
+        )
+        {
+            if (!TryResolveTileArtPaletteEntryId(asset.AssetPath, out var artId))
+                continue;
+
+            entries.Add(
+                new EditorTileArtPaletteEntry
+                {
+                    Asset = asset,
+                    DisplayName = Path.GetFileNameWithoutExtension(asset.AssetPath),
+                    ArtId = artId,
+                    ArtDetail = Index.FindArtDetail(asset.AssetPath),
+                }
+            );
+        }
+
+        return entries;
     }
 
     /// <summary>
@@ -1944,6 +2053,19 @@ public sealed class EditorWorkspace : IDisposable
     }
 
     /// <summary>
+    /// Builds a richer scene preview for one indexed map while limiting object previews to the supplied sectors.
+    /// </summary>
+    public EditorMapScenePreview CreateMapScenePreview(
+        string mapName,
+        EditorArtResolver artResolver,
+        IReadOnlySet<string>? objectSectorAssetPaths
+    )
+    {
+        ArgumentNullException.ThrowIfNull(artResolver);
+        return CreateMapScenePreview(mapName, artResolver.FindArt, objectSectorAssetPaths);
+    }
+
+    /// <summary>
     /// Builds a richer scene preview for one indexed map using one workspace-created ART resolver
     /// seeded with the supplied strategy.
     /// </summary>
@@ -1962,6 +2084,19 @@ public sealed class EditorWorkspace : IDisposable
     /// or when one projected sector no longer has a loaded sector payload.
     /// </exception>
     public EditorMapScenePreview CreateMapScenePreview(string mapName, Func<ArtId, ArtFile?>? artResolver)
+    {
+        return CreateMapScenePreview(mapName, artResolver, objectSectorAssetPaths: null);
+    }
+
+    /// <summary>
+    /// Builds a richer scene preview for one indexed map using the loaded sectors that back its asset paths.
+    /// Object previews are limited to <paramref name="objectSectorAssetPaths"/> when supplied.
+    /// </summary>
+    public EditorMapScenePreview CreateMapScenePreview(
+        string mapName,
+        Func<ArtId, ArtFile?>? artResolver,
+        IReadOnlySet<string>? objectSectorAssetPaths
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
 
@@ -2000,7 +2135,9 @@ public sealed class EditorWorkspace : IDisposable
             sectorsByAssetPath,
             artResolver,
             ResolveSceneObjectCurrentArtIdFallback,
-            GetMapSceneMobAssets(mapName)
+            GetMapSceneMobAssets(mapName),
+            FindMapJumpFile(mapName),
+            objectSectorAssetPaths
         );
     }
 
@@ -2651,23 +2788,63 @@ public sealed class EditorWorkspace : IDisposable
         }
 
         Dictionary<string, int> orderByName = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<TileNamePaletteInfo>> infosByName = new(StringComparer.OrdinalIgnoreCase);
         for (var entryIndex = 0; entryIndex < outdoorFlippableNames.Count; entryIndex++)
         {
-            orderByName.TryAdd(outdoorFlippableNames[entryIndex], entryIndex);
+            var tileName = outdoorFlippableNames[entryIndex];
+            orderByName.TryAdd(tileName, entryIndex);
+            AddTileNameInfo(infosByName, new(tileName, Type: 1, Flippable: 1, Number: entryIndex, Order: entryIndex));
         }
 
         for (var entryIndex = 0; entryIndex < outdoorNonFlippableNames.Count; entryIndex++)
         {
-            orderByName.TryAdd(outdoorNonFlippableNames[entryIndex], outdoorFlippableNames.Count + entryIndex);
+            var tileName = outdoorNonFlippableNames[entryIndex];
+            var order = outdoorFlippableNames.Count + entryIndex;
+            orderByName.TryAdd(tileName, order);
+            AddTileNameInfo(infosByName, new(tileName, Type: 1, Flippable: 0, Number: entryIndex, Order: order));
         }
+
+        for (var entryIndex = 0; entryIndex < indoorFlippableNames.Count; entryIndex++)
+        {
+            var tileName = indoorFlippableNames[entryIndex];
+            AddTileNameInfo(infosByName, new(tileName, Type: 0, Flippable: 1, Number: entryIndex, Order: int.MaxValue));
+        }
+
+        for (var entryIndex = 0; entryIndex < indoorNonFlippableNames.Count; entryIndex++)
+        {
+            var tileName = indoorNonFlippableNames[entryIndex];
+            AddTileNameInfo(infosByName, new(tileName, Type: 0, Flippable: 0, Number: entryIndex, Order: int.MaxValue));
+        }
+
+        var namesByDescendingLength = infosByName.Keys.OrderByDescending(static name => name.Length).ToArray();
 
         return new TileNameLookupData(
             outdoorFlippableNames.ToArray(),
             outdoorNonFlippableNames.ToArray(),
             indoorFlippableNames.ToArray(),
             indoorNonFlippableNames.ToArray(),
-            orderByName
+            orderByName,
+            infosByName.ToDictionary(
+                static pair => pair.Key,
+                static pair => (IReadOnlyList<TileNamePaletteInfo>)pair.Value,
+                StringComparer.OrdinalIgnoreCase
+            ),
+            namesByDescendingLength
         );
+    }
+
+    private static void AddTileNameInfo(
+        Dictionary<string, List<TileNamePaletteInfo>> infosByName,
+        TileNamePaletteInfo info
+    )
+    {
+        if (!infosByName.TryGetValue(info.Name, out var infos))
+        {
+            infos = [];
+            infosByName[info.Name] = infos;
+        }
+
+        infos.Add(info);
     }
 
     private IReadOnlyDictionary<int, string> BuildDirectMessageTableArtAssetPathMap(
@@ -3306,6 +3483,183 @@ public sealed class EditorWorkspace : IDisposable
             : NormalizeAssetPath($"art/tile/{name2}{name1}{s_tileEdgeCodes[15 - edge]}{frameCode}.art");
     }
 
+    private bool TryResolveTileArtPaletteEntryId(string assetPath, out ArtId artId)
+    {
+        artId = default;
+
+        var normalizedAssetPath = NormalizeAssetPath(assetPath);
+        if (
+            !normalizedAssetPath.StartsWith("art/tile/", StringComparison.OrdinalIgnoreCase)
+            || !normalizedAssetPath.EndsWith(".art", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(normalizedAssetPath);
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Length < 2)
+            return false;
+
+        var frame = char.ToLowerInvariant(fileName[^1]) - 'a';
+        if (frame is < 0 or > 7)
+            return false;
+
+        var encodedEdge = Array.IndexOf(s_tileEdgeCodes, char.ToLowerInvariant(fileName[^2]));
+        if (encodedEdge < 0)
+            return false;
+
+        var lookupData = GetOrCreateTileNameLookupData();
+        if (!lookupData.HasNames)
+            return false;
+
+        var body = fileName[..^2];
+        if (body.EndsWith("bse", StringComparison.OrdinalIgnoreCase))
+        {
+            var solidTileName = body[..^3];
+            return TryCreateTileArtPaletteEntryId(
+                lookupData,
+                solidTileName,
+                solidTileName,
+                encodedEdge,
+                frame,
+                out artId
+            );
+        }
+
+        for (var nameIndex = 0; nameIndex < lookupData.NamesByDescendingLength.Count; nameIndex++)
+        {
+            var firstName = lookupData.NamesByDescendingLength[nameIndex];
+            if (!body.StartsWith(firstName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var secondName = body[firstName.Length..];
+            if (string.IsNullOrWhiteSpace(secondName))
+                continue;
+
+            if (
+                !lookupData.InfosByName.TryGetValue(firstName, out var firstInfos)
+                || !lookupData.InfosByName.TryGetValue(secondName, out var secondInfos)
+            )
+            {
+                continue;
+            }
+
+            for (var firstInfoIndex = 0; firstInfoIndex < firstInfos.Count; firstInfoIndex++)
+            {
+                var firstInfo = firstInfos[firstInfoIndex];
+                for (var secondInfoIndex = 0; secondInfoIndex < secondInfos.Count; secondInfoIndex++)
+                {
+                    var secondInfo = secondInfos[secondInfoIndex];
+                    if (firstInfo.Type != secondInfo.Type)
+                        continue;
+
+                    var desiredEdge = firstInfo.Order < secondInfo.Order ? encodedEdge : 15 - encodedEdge;
+                    if (
+                        !TryCreateTileArtPaletteEntryId(
+                            lookupData,
+                            firstInfo,
+                            secondInfo,
+                            desiredEdge,
+                            frame,
+                            normalizedAssetPath,
+                            out artId
+                        )
+                    )
+                    {
+                        continue;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryCreateTileArtPaletteEntryId(
+        TileNameLookupData lookupData,
+        string firstName,
+        string secondName,
+        int edge,
+        int frame,
+        out ArtId artId
+    )
+    {
+        artId = default;
+        if (
+            !lookupData.InfosByName.TryGetValue(firstName, out var firstInfos)
+            || !lookupData.InfosByName.TryGetValue(secondName, out var secondInfos)
+        )
+        {
+            return false;
+        }
+
+        for (var firstInfoIndex = 0; firstInfoIndex < firstInfos.Count; firstInfoIndex++)
+        {
+            var firstInfo = firstInfos[firstInfoIndex];
+            for (var secondInfoIndex = 0; secondInfoIndex < secondInfos.Count; secondInfoIndex++)
+            {
+                var secondInfo = secondInfos[secondInfoIndex];
+                if (firstInfo.Type != secondInfo.Type)
+                    continue;
+
+                if (TryCreateTileArtPaletteEntryId(lookupData, firstInfo, secondInfo, edge, frame, null, out artId))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryCreateTileArtPaletteEntryId(
+        TileNameLookupData lookupData,
+        TileNamePaletteInfo firstInfo,
+        TileNamePaletteInfo secondInfo,
+        int edge,
+        int frame,
+        string? expectedAssetPath,
+        out ArtId artId
+    )
+    {
+        artId = default;
+        if (firstInfo.Type != secondInfo.Type || edge is < 0 or > 15 || frame is < 0 or > 7)
+            return false;
+
+        var artIdValue =
+            (((uint)firstInfo.Number & 0x3Fu) << 22)
+            | (((uint)secondInfo.Number & 0x3Fu) << 16)
+            | (((uint)edge & 0xFu) << 12)
+            | (((uint)frame & 0x7u) << 9)
+            | (((uint)firstInfo.Type & 0x1u) << 8)
+            | (((uint)firstInfo.Flippable & 0x1u) << 7)
+            | (((uint)secondInfo.Flippable & 0x1u) << 6);
+        artId = new ArtId(artIdValue);
+
+        if (expectedAssetPath is null)
+            return true;
+
+        return TryBuildTileArtAssetPath(artIdValue, out var candidateAssetPath)
+            && string.Equals(candidateAssetPath, expectedAssetPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? TryResolveTerrainPresetPreviewArtAssetPath(Sector sector)
+    {
+        ArgumentNullException.ThrowIfNull(sector);
+
+        for (var tileIndex = 0; tileIndex < sector.Tiles.Length; tileIndex++)
+        {
+            var tileArtId = sector.Tiles[tileIndex];
+            if (tileArtId == 0u)
+                continue;
+
+            if (TryResolveTileArtAssetPath(new ArtId(tileArtId), out var assetPath))
+                return assetPath;
+        }
+
+        return null;
+    }
+
     private bool TryResolveMessageTableArtAssetPath(
         string messageAssetPath,
         int messageIndex,
@@ -3504,11 +3858,37 @@ public sealed class EditorWorkspace : IDisposable
         }
 
         var damageChar = GetWallDamageVariantCharacter(piece, damage);
+        if (TryBuildWallArtAssetPath(baseName, piece, damageChar, variation, out assetPath))
+            return true;
+
+        // Some modules omit one damaged wall side while keeping its sibling/undamaged
+        // frame. Resolve the nearest compatible variant immediately so scene compose
+        // does not have to rebuild after discovering one missing wall sprite.
+        if (damageChar == 'L' && TryBuildWallArtAssetPath(baseName, piece, 'R', variation, out assetPath))
+            return true;
+
+        if (damageChar == 'R' && TryBuildWallArtAssetPath(baseName, piece, 'L', variation, out assetPath))
+            return true;
+
+        return damageChar != 'U' && TryBuildWallArtAssetPath(baseName, piece, 'U', variation, out assetPath);
+    }
+
+    private bool TryBuildWallArtAssetPath(
+        string baseName,
+        int piece,
+        char damageChar,
+        int variation,
+        out string assetPath
+    )
+    {
         var candidateAssetPath = NormalizeAssetPath(
             $"art/wall/{baseName}{s_wallPieceSuffixes[piece]}{damageChar}{variation.ToString(CultureInfo.InvariantCulture)}.art"
         );
         if (Assets.Find(candidateAssetPath) is not { Format: FileFormat.Art })
+        {
+            assetPath = string.Empty;
             return false;
+        }
 
         assetPath = candidateAssetPath;
         return true;
@@ -4191,15 +4571,28 @@ public sealed class EditorWorkspace : IDisposable
             defaultPaletteArtIdsByProtoNumber;
     }
 
+    private readonly record struct TileNamePaletteInfo(string Name, int Type, int Flippable, int Number, int Order);
+
     private sealed class TileNameLookupData(
         IReadOnlyList<string> outdoorFlippableNames,
         IReadOnlyList<string> outdoorNonFlippableNames,
         IReadOnlyList<string> indoorFlippableNames,
         IReadOnlyList<string> indoorNonFlippableNames,
-        IReadOnlyDictionary<string, int> orderByName
+        IReadOnlyDictionary<string, int> orderByName,
+        IReadOnlyDictionary<string, IReadOnlyList<TileNamePaletteInfo>> infosByName,
+        IReadOnlyList<string> namesByDescendingLength
     )
     {
-        public static TileNameLookupData Empty { get; } = new([], [], [], [], new Dictionary<string, int>());
+        public static TileNameLookupData Empty { get; } =
+            new(
+                [],
+                [],
+                [],
+                [],
+                new Dictionary<string, int>(),
+                new Dictionary<string, IReadOnlyList<TileNamePaletteInfo>>(),
+                []
+            );
 
         public IReadOnlyList<string> OutdoorFlippableNames { get; } = outdoorFlippableNames;
 
@@ -4210,6 +4603,10 @@ public sealed class EditorWorkspace : IDisposable
         public IReadOnlyList<string> IndoorNonFlippableNames { get; } = indoorNonFlippableNames;
 
         public IReadOnlyDictionary<string, int> OrderByName { get; } = orderByName;
+
+        public IReadOnlyDictionary<string, IReadOnlyList<TileNamePaletteInfo>> InfosByName { get; } = infosByName;
+
+        public IReadOnlyList<string> NamesByDescendingLength { get; } = namesByDescendingLength;
 
         public bool HasNames =>
             OutdoorFlippableNames.Count > 0

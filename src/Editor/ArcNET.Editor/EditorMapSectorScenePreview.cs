@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using ArcNET.Core.Primitives;
 
 namespace ArcNET.Editor;
 
@@ -11,6 +12,7 @@ public sealed class EditorMapSectorScenePreview
     private const int TileGridHeight = 64;
     private const int RoofGridWidth = 16;
     private const int RoofGridHeight = 16;
+    private static readonly ArtId[] EmptyArtIds = [];
 
     /// <summary>
     /// Defining sector asset path.
@@ -82,6 +84,11 @@ public sealed class EditorMapSectorScenePreview
     /// Preview-ready tile-script markers inside the sector.
     /// </summary>
     public required IReadOnlyList<EditorMapTileScriptPreview> TileScripts { get; init; }
+
+    /// <summary>
+    /// Preview-ready jump-point markers inside the sector.
+    /// </summary>
+    public IReadOnlyList<EditorMapJumpPointPreview> JumpPoints { get; init; } = [];
 
     /// <summary>
     /// Preview-ready placed-object markers inside the sector.
@@ -181,6 +188,26 @@ public sealed class EditorMapSectorScenePreview
     }
 
     /// <summary>
+    /// Precomputed fast-lookup set of tile indices that carry one or more jump points.
+    /// Computed once on first access, avoiding per-sector LINQ allocations during floor-render iteration.
+    /// </summary>
+    public HashSet<int> JumpPointTileIndices
+    {
+        get
+        {
+            if (_jumpPointTileIndices is not null)
+                return _jumpPointTileIndices;
+
+            var indices = new HashSet<int>(JumpPoints.Count);
+            for (var i = 0; i < JumpPoints.Count; i++)
+                indices.Add(JumpPoints[i].TileIndex);
+
+            _jumpPointTileIndices = indices;
+            return indices;
+        }
+    }
+
+    /// <summary>
     /// Precomputed roof-tile row bitmasks. Each <see cref="ulong"/> bit represents one column.
     /// A zero row can be skipped entirely during iteration. Returns <see langword="null"/> when the sector has no roofs.
     /// </summary>
@@ -213,10 +240,44 @@ public sealed class EditorMapSectorScenePreview
         }
     }
 
+    /// <summary>
+    /// Unique non-empty floor tile art ids referenced by this sector's terrain.
+    /// </summary>
+    public IReadOnlyList<ArtId> UniqueTerrainFloorArtIds =>
+        _uniqueTerrainFloorArtIds ??= CreateUniqueTerrainArtIds(
+            TileArtIds,
+            skipRoofSentinels: false,
+            skipRoofFill: false
+        );
+
+    /// <summary>
+    /// Unique drawable roof art ids referenced by this sector's terrain.
+    /// </summary>
+    public IReadOnlyList<ArtId> UniqueTerrainRoofArtIds =>
+        _uniqueTerrainRoofArtIds ??= RoofArtIds is null
+            ? EmptyArtIds
+            : CreateUniqueTerrainArtIds(RoofArtIds, skipRoofSentinels: true, skipRoofFill: true);
+
+    /// <summary>
+    /// Unique sector-light art ids referenced by this sector's terrain.
+    /// </summary>
+    public IReadOnlyList<ArtId> UniqueTerrainLightArtIds =>
+        _uniqueTerrainLightArtIds ??= CreateUniqueTerrainLightArtIds();
+
     private ulong[]? _tileRowMasks;
     private ulong[]? _roofRowMasks;
     private HashSet<int>? _lightTileIndices;
     private HashSet<int>? _scriptedTileIndices;
+    private HashSet<int>? _jumpPointTileIndices;
+    private ArtId[]? _uniqueTerrainFloorArtIds;
+    private ArtId[]? _uniqueTerrainRoofArtIds;
+    private ArtId[]? _uniqueTerrainLightArtIds;
+    private long? _terrainRevision;
+
+    /// <summary>
+    /// Stable terrain-only revision for chunk-local virtual terrain rendering.
+    /// </summary>
+    public long TerrainRevision => _terrainRevision ??= ComputeTerrainRevision();
 
     /// <summary>
     /// Returns one tile art identifier from the 64x64 tile grid.
@@ -288,5 +349,175 @@ public sealed class EditorMapSectorScenePreview
                 roofY,
                 $"Roof Y must be between 0 and {RoofGridHeight - 1}."
             );
+    }
+
+    private static ArtId[] CreateUniqueTerrainArtIds(uint[] artIds, bool skipRoofSentinels, bool skipRoofFill)
+    {
+        var uniqueValues = new HashSet<uint>();
+        for (var index = 0; index < artIds.Length; index++)
+        {
+            var artId = artIds[index];
+            if (artId == 0 || (skipRoofSentinels && artId == uint.MaxValue))
+                continue;
+
+            var typedArtId = new ArtId(artId);
+            if (skipRoofFill && typedArtId.IsRoofFill)
+                continue;
+
+            uniqueValues.Add(artId);
+        }
+
+        return CreateSortedArtIds(uniqueValues);
+    }
+
+    private ArtId[] CreateUniqueTerrainLightArtIds()
+    {
+        var uniqueValues = new HashSet<uint>();
+        for (var index = 0; index < Lights.Count; index++)
+        {
+            var artId = Lights[index].ArtId.Value;
+            if (artId != 0)
+                uniqueValues.Add(artId);
+        }
+
+        return CreateSortedArtIds(uniqueValues);
+    }
+
+    private static ArtId[] CreateSortedArtIds(HashSet<uint> uniqueValues)
+    {
+        if (uniqueValues.Count == 0)
+            return EmptyArtIds;
+
+        var artIds = new ArtId[uniqueValues.Count];
+        var index = 0;
+        foreach (var value in uniqueValues)
+            artIds[index++] = new ArtId(value);
+
+        Array.Sort(artIds, static (a, b) => a.Value.CompareTo(b.Value));
+        return artIds;
+    }
+
+    private long ComputeTerrainRevision()
+    {
+        var hash = new StableTerrainRevisionHash();
+        hash.Add(AssetPath);
+        hash.Add(SectorX);
+        hash.Add(SectorY);
+        hash.Add(LocalX);
+        hash.Add(LocalY);
+        hash.Add(LightSchemeIdx);
+
+        hash.Add(TileArtIds.Length);
+        for (var index = 0; index < TileArtIds.Length; index++)
+            hash.Add(TileArtIds[index]);
+
+        hash.Add(RoofArtIds?.Length ?? -1);
+        if (RoofArtIds is not null)
+        {
+            for (var index = 0; index < RoofArtIds.Length; index++)
+                hash.Add(RoofArtIds[index]);
+        }
+
+        hash.Add(BlockMask.Length);
+        for (var index = 0; index < BlockMask.Length; index++)
+            hash.Add(BlockMask[index]);
+
+        hash.Add(Lights.Count);
+        for (var index = 0; index < Lights.Count; index++)
+        {
+            var light = Lights[index];
+            hash.Add(light.TileX);
+            hash.Add(light.TileY);
+            hash.Add(light.OffsetX);
+            hash.Add(light.OffsetY);
+            hash.Add(light.ArtId.Value);
+            hash.Add((int)light.Flags);
+            hash.Add(light.Palette);
+            hash.Add(light.Red);
+            hash.Add(light.Green);
+            hash.Add(light.Blue);
+            hash.Add(light.TintColor);
+        }
+
+        hash.Add(TileScripts.Count);
+        for (var index = 0; index < TileScripts.Count; index++)
+        {
+            var script = TileScripts[index];
+            hash.Add(script.TileIndex);
+            hash.Add(script.TileX);
+            hash.Add(script.TileY);
+            hash.Add(script.ScriptId);
+            hash.Add(script.NodeFlags);
+            hash.Add(script.ScriptFlags);
+            hash.Add(script.ScriptCounters);
+        }
+
+        hash.Add(JumpPoints.Count);
+        for (var index = 0; index < JumpPoints.Count; index++)
+        {
+            var jumpPoint = JumpPoints[index];
+            hash.Add(jumpPoint.TileIndex);
+            hash.Add(jumpPoint.TileX);
+            hash.Add(jumpPoint.TileY);
+            hash.Add(jumpPoint.MapTileX);
+            hash.Add(jumpPoint.MapTileY);
+            hash.Add(jumpPoint.DestinationMapId);
+            hash.Add(jumpPoint.DestinationTileX);
+            hash.Add(jumpPoint.DestinationTileY);
+            hash.Add(jumpPoint.Flags);
+        }
+
+        return hash.ToInt64();
+    }
+
+    private struct StableTerrainRevisionHash
+    {
+        private const ulong OffsetBasis = 14695981039346656037UL;
+        private const ulong Prime = 1099511628211UL;
+        private ulong _value = OffsetBasis;
+
+        public StableTerrainRevisionHash() { }
+
+        public void Add(byte value) => Add((int)value);
+
+        public void Add(int value) => Add((long)value);
+
+        public void Add(uint value) => Add((long)value);
+
+        public void Add(long value)
+        {
+            unchecked
+            {
+                var unsigned = (ulong)value;
+                for (var index = 0; index < sizeof(ulong); index++)
+                {
+                    _value ^= (byte)(unsigned >> (index * 8));
+                    _value *= Prime;
+                }
+            }
+        }
+
+        public void Add(string? value)
+        {
+            if (value is null)
+            {
+                Add(-1);
+                return;
+            }
+
+            Add(value.Length);
+            unchecked
+            {
+                foreach (var character in value)
+                {
+                    _value ^= (byte)character;
+                    _value *= Prime;
+                    _value ^= (byte)(character >> 8);
+                    _value *= Prime;
+                }
+            }
+        }
+
+        public long ToInt64() => unchecked((long)_value);
     }
 }

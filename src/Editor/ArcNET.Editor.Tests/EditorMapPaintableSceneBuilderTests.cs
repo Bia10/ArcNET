@@ -216,6 +216,56 @@ public sealed class EditorMapPaintableSceneBuilderTests
     }
 
     [Test]
+    public async Task Build_SliceBackedCommittedScene_BuildsSpriteCoverageFromSlices()
+    {
+        var tileArtId = new ArtId(0x000001C0u);
+        var tile = new EditorMapFloorTileRenderItem
+        {
+            SectorAssetPath = "maps/map01/sector_a.sec",
+            MapTileX = 0,
+            MapTileY = 0,
+            Tile = new Location(0, 0),
+            ArtId = tileArtId,
+            IsBlocked = false,
+            HasLight = false,
+            HasScript = false,
+            DrawOrder = 0,
+            CenterX = 32d,
+            CenterY = 16d,
+        };
+        var slice = new EditorMapSectorRenderSlice
+        {
+            SectorAssetPath = "maps/map01/sector_a.sec",
+            Bounds = new EditorMapSectorRenderSliceBounds(0d, 0d, 64d, 32d, 0, 0, 0, 0),
+            Queue = [new EditorMapRenderIndexEntry(EditorMapRenderQueueItemKind.FloorTile, 0, -2_000_000_000d, 0)],
+            Tiles = [tile],
+        };
+        var sceneRender = new EditorMapFloorRenderPreview
+        {
+            MapName = "map01",
+            ViewMode = EditorMapSceneViewMode.Isometric,
+            TileWidthPixels = 64d,
+            TileHeightPixels = 32d,
+            WidthPixels = 64d,
+            HeightPixels = 32d,
+            Slices = [slice],
+        };
+
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(sceneRender);
+
+        await Assert.That(paintableScene.Items.Count).IsEqualTo(1);
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedArtIds).Contains(tileArtId);
+        await Assert.That(paintableScene.SpriteCoverage.UnresolvedArtIds).Contains(tileArtId);
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedSpriteReferences.Count).IsEqualTo(1);
+        await Assert.That(paintableScene.SpriteCoverage.UnresolvedSpriteReferences.Count).IsEqualTo(1);
+        await Assert.That(paintableScene.SpriteCoverage.ResolvedSpriteReferences).IsEmpty();
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedSpriteReferences[0].ArtId).IsEqualTo(tileArtId);
+        await Assert
+            .That(paintableScene.SpriteCoverage.ReferencedSpriteReferences[0].RenderItemKind)
+            .IsEqualTo(EditorMapRenderQueueItemKind.FloorTile);
+    }
+
+    [Test]
     public async Task Build_ScalesSpriteBackedItemsToCompressedIsometricGrid()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 77, Guid.NewGuid());
@@ -1969,6 +2019,201 @@ public sealed class EditorMapPaintableSceneBuilderTests
         await Assert.That(item.UseLightMaskTint).IsTrue();
         await Assert.That(item.SuggestedTintColor).IsEqualTo(0xFFFFAA33u);
     }
+
+    [Test]
+    public async Task Build_PartialTerrainEnumeratesVisibleUnmaterializedFloorTile()
+    {
+        var sceneRender = CreatePartialTerrainSceneRender();
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            spriteSource: new StubSpriteSource(0, 0)
+        );
+        var virtualTileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(sceneRender, 64, 0);
+        var viewport = CreateViewport(sceneRender, virtualTileCenter.X, virtualTileCenter.Y);
+
+        var visibleFloorItems = paintableScene
+            .EnumerateVisibleItems(viewport)
+            .Where(static item => item.Kind is EditorMapRenderQueueItemKind.FloorTile)
+            .ToArray();
+
+        await Assert.That(sceneRender.Tiles.Select(static tile => tile.ArtId)).DoesNotContain(new ArtId(202u));
+        await Assert
+            .That(visibleFloorItems.Select(static item => item.SpriteReference?.ArtId))
+            .Contains(new ArtId(202u));
+    }
+
+    [Test]
+    public async Task Build_PartialTerrainDoesNotDuplicateMaterializedSectorTiles()
+    {
+        var sceneRender = CreatePartialTerrainSceneRender();
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            spriteSource: new StubSpriteSource(0, 0)
+        );
+        var materializedTileCenter = EditorMapSceneRenderSpaceMath.ProjectMapTileCenter(sceneRender, 0, 0);
+        var viewport = CreateViewport(sceneRender, materializedTileCenter.X, materializedTileCenter.Y);
+
+        var materializedFloorItems = paintableScene
+            .EnumerateVisibleItems(viewport)
+            .Where(static item =>
+                item.Kind is EditorMapRenderQueueItemKind.FloorTile && item.SpriteReference?.ArtId == new ArtId(101u)
+            )
+            .ToArray();
+
+        await Assert.That(materializedFloorItems.Length).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Build_PartialTerrainSpriteCoverageIncludesVirtualTerrainArt()
+    {
+        var sceneRender = CreatePartialTerrainSceneRender(includeVirtualRoofAndLight: true);
+
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            spriteSource: new StubSpriteSource(0, 0)
+        );
+        var referencedArtIds = paintableScene.SpriteCoverage.ReferencedArtIds;
+
+        await Assert.That(referencedArtIds).Contains(new ArtId(101u));
+        await Assert.That(referencedArtIds).Contains(new ArtId(202u));
+        await Assert.That(referencedArtIds).Contains(new ArtId(0x90000000u));
+        await Assert.That(referencedArtIds).Contains(new ArtId(0xA0008000u));
+        await Assert.That(referencedArtIds).DoesNotContain(new ArtId(0xA0003000u));
+        await Assert.That(referencedArtIds.Count(static artId => artId == new ArtId(202u))).IsEqualTo(1);
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedSpriteReferenceCount).IsEqualTo(4);
+    }
+
+    private static EditorMapFloorRenderPreview CreatePartialTerrainSceneRender(bool includeVirtualRoofAndLight = false)
+    {
+        var scenePreview = new EditorMapScenePreview
+        {
+            MapName = "map01",
+            Width = 2,
+            Height = 1,
+            UnpositionedSectorCount = 0,
+            Sectors =
+            [
+                CreateTerrainSector("maps/map01/0_0.sec", 0, 101u),
+                CreateTerrainSector(
+                    "maps/map01/1_0.sec",
+                    1,
+                    202u,
+                    roofArtId: includeVirtualRoofAndLight ? 0xA0008000u : null,
+                    lightArtId: includeVirtualRoofAndLight ? 0x90000000u : null
+                ),
+            ],
+        };
+        var request = new EditorMapFloorRenderRequest
+        {
+            ViewMode = EditorMapSceneViewMode.TopDown,
+            TileWidthPixels = 32d,
+            TileHeightPixels = 32d,
+            IncludeEmptyTiles = false,
+            IncludeObjects = false,
+            IncludeRoofs = includeVirtualRoofAndLight,
+            IncludeBlockedTileOverlays = false,
+            IncludeLightOverlays = includeVirtualRoofAndLight,
+            IncludeScriptOverlays = false,
+            IncludeJumpPointOverlays = false,
+        };
+        var focusedRequest = request.WithMaterializedTerrainSectors(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "maps/map01/0_0.sec" },
+            EditorMapFloorRenderBuilder.TryCreateTerrainBounds(scenePreview, request)
+        );
+
+        return EditorMapFloorRenderBuilder.Build(scenePreview, focusedRequest);
+    }
+
+    private static EditorMapSectorScenePreview CreateTerrainSector(
+        string assetPath,
+        int localX,
+        uint tileArtId,
+        uint? roofArtId = null,
+        uint? lightArtId = null
+    )
+    {
+        var tileArtIds = new uint[64 * 64];
+        tileArtIds[0] = tileArtId;
+        if (roofArtId.HasValue || lightArtId.HasValue)
+            tileArtIds[1] = tileArtId;
+        uint[]? roofArtIds = null;
+        if (roofArtId is { } roof)
+        {
+            roofArtIds = new uint[16 * 16];
+            roofArtIds[0] = roof;
+            roofArtIds[1] = roof;
+            roofArtIds[2] = 0xA0003000u;
+            roofArtIds[3] = uint.MaxValue;
+        }
+
+        IReadOnlyList<EditorMapLightPreview> lights = lightArtId is { } light
+            ?
+            [
+                new EditorMapLightPreview
+                {
+                    TileX = 0,
+                    TileY = 0,
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    ArtId = new ArtId(light),
+                    Flags = SectorLightFlags.None,
+                    Palette = 0,
+                    Red = 255,
+                    Green = 255,
+                    Blue = 255,
+                    TintColor = 0xFFFFFFFFu,
+                },
+                new EditorMapLightPreview
+                {
+                    TileX = 1,
+                    TileY = 0,
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    ArtId = new ArtId(light),
+                    Flags = SectorLightFlags.None,
+                    Palette = 0,
+                    Red = 255,
+                    Green = 255,
+                    Blue = 255,
+                    TintColor = 0xFFFFFFFFu,
+                },
+            ]
+            : [];
+
+        return new EditorMapSectorScenePreview
+        {
+            AssetPath = assetPath,
+            SectorX = localX,
+            SectorY = 0,
+            LocalX = localX,
+            LocalY = 0,
+            PreviewFlags = EditorMapSectorPreviewFlags.Occupied,
+            ObjectDensityBand = EditorMapSectorDensityBand.None,
+            BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            TileArtIds = tileArtIds,
+            RoofArtIds = roofArtIds,
+            BlockMask = new uint[128],
+            Lights = lights,
+            TileScripts = [],
+            Objects = [],
+        };
+    }
+
+    private static EditorMapSceneViewportLayout CreateViewport(
+        EditorMapFloorRenderPreview sceneRender,
+        double centerX,
+        double centerY
+    ) =>
+        new()
+        {
+            ViewportWidth = 96d,
+            ViewportHeight = 96d,
+            SceneWidth = sceneRender.WidthPixels,
+            SceneHeight = sceneRender.HeightPixels,
+            CenterRenderX = centerX,
+            CenterRenderY = centerY,
+            Zoom = 1d,
+        };
 
     private sealed class StubSpriteSource(
         int rotationIndex,

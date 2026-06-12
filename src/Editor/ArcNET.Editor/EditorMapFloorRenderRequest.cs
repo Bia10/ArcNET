@@ -1,6 +1,25 @@
 ﻿namespace ArcNET.Editor;
 
 /// <summary>
+/// Optional pre-normalization render bounds used when one preview materializes only a focused terrain subset.
+/// </summary>
+public readonly record struct EditorMapFloorRenderBounds(
+    double MinLeft,
+    double MinTop,
+    double MaxRight,
+    double MaxBottom
+)
+{
+    public bool IsValid =>
+        double.IsFinite(MinLeft)
+        && double.IsFinite(MinTop)
+        && double.IsFinite(MaxRight)
+        && double.IsFinite(MaxBottom)
+        && MaxRight >= MinLeft
+        && MaxBottom >= MinTop;
+}
+
+/// <summary>
 /// Host-neutral request for projecting render-ready floor tiles from one scene preview.
 /// </summary>
 public sealed class EditorMapFloorRenderRequest
@@ -58,6 +77,11 @@ public sealed class EditorMapFloorRenderRequest
     public bool IncludeScriptOverlays { get; init; } = true;
 
     /// <summary>
+    /// Indicates whether jump-point overlays should be emitted.
+    /// </summary>
+    public bool IncludeJumpPointOverlays { get; init; } = true;
+
+    /// <summary>
     /// Indicates whether committed object renders should expose editor-state tint diagnostics.
     /// </summary>
     public bool IncludeEditorObjectStateTint { get; init; }
@@ -71,6 +95,17 @@ public sealed class EditorMapFloorRenderRequest
     /// Optional CE ambient-lighting context used when resolving day/night and light-scheme tinting.
     /// </summary>
     public EditorMapAmbientLightingState? AmbientLighting { get; init; }
+
+    /// <summary>
+    /// Optional sector asset paths whose terrain payload should be materialized.
+    /// Objects are still projected for every sector so editor object catalogs remain complete.
+    /// </summary>
+    public IReadOnlySet<string>? MaterializedTerrainSectorAssetPaths { get; init; }
+
+    /// <summary>
+    /// Optional full-scene bounds that keep focused terrain renders in the same normalized render space.
+    /// </summary>
+    public EditorMapFloorRenderBounds? SceneBoundsOverride { get; init; }
 
     /// <summary>
     /// Returns one cloned request with visibility flags composed from one persisted map-preview state.
@@ -91,9 +126,12 @@ public sealed class EditorMapFloorRenderRequest
             IncludeBlockedTileOverlays = IncludeBlockedTileOverlays && previewState.ShowBlockedTiles,
             IncludeLightOverlays = IncludeLightOverlays && previewState.ShowLights,
             IncludeScriptOverlays = IncludeScriptOverlays && previewState.ShowScripts,
+            IncludeJumpPointOverlays = IncludeJumpPointOverlays && previewState.ShowJumpPoints,
             IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
             IncludeFloorLightTint = IncludeFloorLightTint,
             AmbientLighting = AmbientLighting,
+            MaterializedTerrainSectorAssetPaths = MaterializedTerrainSectorAssetPaths,
+            SceneBoundsOverride = SceneBoundsOverride,
         };
     }
 
@@ -113,9 +151,12 @@ public sealed class EditorMapFloorRenderRequest
             IncludeBlockedTileOverlays = IncludeBlockedTileOverlays,
             IncludeLightOverlays = IncludeLightOverlays,
             IncludeScriptOverlays = IncludeScriptOverlays,
+            IncludeJumpPointOverlays = IncludeJumpPointOverlays,
             IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
             IncludeFloorLightTint = IncludeFloorLightTint,
             AmbientLighting = AmbientLighting,
+            MaterializedTerrainSectorAssetPaths = MaterializedTerrainSectorAssetPaths,
+            SceneBoundsOverride = SceneBoundsOverride,
         };
 
     /// <summary>
@@ -134,10 +175,55 @@ public sealed class EditorMapFloorRenderRequest
             IncludeBlockedTileOverlays = IncludeBlockedTileOverlays,
             IncludeLightOverlays = IncludeLightOverlays,
             IncludeScriptOverlays = IncludeScriptOverlays,
+            IncludeJumpPointOverlays = IncludeJumpPointOverlays,
             IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
             IncludeFloorLightTint = IncludeFloorLightTint,
             AmbientLighting = ambientLighting,
+            MaterializedTerrainSectorAssetPaths = MaterializedTerrainSectorAssetPaths,
+            SceneBoundsOverride = SceneBoundsOverride,
         };
+
+    /// <summary>
+    /// Returns one cloned request that materializes terrain for only the supplied sector paths.
+    /// </summary>
+    public EditorMapFloorRenderRequest WithMaterializedTerrainSectors(
+        IReadOnlySet<string>? sectorAssetPaths,
+        EditorMapFloorRenderBounds? sceneBoundsOverride
+    ) =>
+        new()
+        {
+            ArtResolver = ArtResolver,
+            ViewMode = ViewMode,
+            TileWidthPixels = TileWidthPixels,
+            TileHeightPixels = TileHeightPixels,
+            IncludeEmptyTiles = IncludeEmptyTiles,
+            IncludeObjects = IncludeObjects,
+            IncludeRoofs = IncludeRoofs,
+            IncludeBlockedTileOverlays = IncludeBlockedTileOverlays,
+            IncludeLightOverlays = IncludeLightOverlays,
+            IncludeScriptOverlays = IncludeScriptOverlays,
+            IncludeJumpPointOverlays = IncludeJumpPointOverlays,
+            IncludeEditorObjectStateTint = IncludeEditorObjectStateTint,
+            IncludeFloorLightTint = IncludeFloorLightTint,
+            AmbientLighting = AmbientLighting,
+            MaterializedTerrainSectorAssetPaths = NormalizeSectorAssetPaths(sectorAssetPaths),
+            SceneBoundsOverride = sceneBoundsOverride,
+        };
+
+    private static IReadOnlySet<string>? NormalizeSectorAssetPaths(IReadOnlySet<string>? sectorAssetPaths)
+    {
+        if (sectorAssetPaths is null)
+            return null;
+
+        var normalizedSectorAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sectorAssetPath in sectorAssetPaths)
+        {
+            if (!string.IsNullOrWhiteSpace(sectorAssetPath))
+                normalizedSectorAssetPaths.Add(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath));
+        }
+
+        return normalizedSectorAssetPaths.Count == 0 ? null : normalizedSectorAssetPaths;
+    }
 
     /// <summary>
     /// Creates one opinionated world-edit scene render request for the supplied view mode.

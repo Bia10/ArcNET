@@ -61,19 +61,32 @@ public static class EditorWorkspaceLoader
 
         var hasSave = HasSaveSelection(options);
         var progressTracker = CreateContentLoadProgressTracker(hasSave, progress, loadProgress);
-        var gameDataTask = GameDataLoader.LoadFromDirectoryAsync(
-            contentDirectory,
-            ct: cancellationToken,
-            loadProgress: progressTracker.CreateGameDataProgress(ContentDataSegment)
+        var stageRecorder = new WorkspaceLoadStageRecorder();
+        var gameDataTask = stageRecorder.MeasureAsync(
+            "Content.LoadGameData",
+            () =>
+                GameDataLoader.LoadFromDirectoryAsync(
+                    contentDirectory,
+                    ct: cancellationToken,
+                    loadProgress: progressTracker.CreateGameDataProgress(ContentDataSegment),
+                    stageProgress: stageRecorder.CreateGameDataProgress("Content")
+                )
         );
-        var audioAssetsTask = EditorAudioAssetLoader.LoadFromContentDirectoryAsync(
-            contentDirectory,
-            cancellationToken,
-            progressTracker.CreateAssetProgress(ContentAudioSegment)
+        var audioAssetsTask = stageRecorder.MeasureAsync(
+            "AudioLoad.Total",
+            () =>
+                EditorAudioAssetLoader.LoadFromContentDirectoryAsync(
+                    contentDirectory,
+                    cancellationToken,
+                    progressTracker.CreateAssetProgress(ContentAudioSegment)
+                )
         );
 
         var gameData = await gameDataTask.ConfigureAwait(false);
-        var assets = EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, gameData);
+        var assets = stageRecorder.Measure(
+            "Content.BuildAssetCatalog",
+            () => EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, gameData)
+        );
         var audioAssets = await audioAssetsTask.ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -100,7 +113,8 @@ public static class EditorWorkspaceLoader
             audioAssets,
             EditorWorkspaceLoadReport.Empty,
             save,
-            progressTracker
+            progressTracker,
+            stageRecorder
         );
     }
 
@@ -115,6 +129,7 @@ public static class EditorWorkspaceLoader
         var effectiveOptions = CreateContentOverlayOptions(options);
         var hasSave = HasSaveSelection(effectiveOptions);
         var progressTracker = CreateOverlayLoadProgressTracker(hasSave, progress, loadProgress);
+        var stageRecorder = new WorkspaceLoadStageRecorder();
         var installBackedContentDirectory = GetInstallBackedContentDirectory(effectiveOptions);
         var bypassDuplicateContentOverlay = PathsEqual(
             Path.GetFullPath(contentDirectory),
@@ -125,7 +140,8 @@ public static class EditorWorkspaceLoader
             cancellationToken,
             progressTracker.CreateAssetProgress(BaseDataSegment),
             progressTracker.CreateGameDataProgress(BaseDataSegment),
-            progressTracker.CreateAssetProgress(BaseAudioSegment)
+            progressTracker.CreateAssetProgress(BaseAudioSegment),
+            stageRecorder
         );
 
         if (bypassDuplicateContentOverlay)
@@ -161,25 +177,38 @@ public static class EditorWorkspaceLoader
                 baseLoadReport,
                 overlaySave,
                 progressTracker,
+                stageRecorder,
                 baseModuleContext
             );
         }
 
-        var contentGameDataTask = GameDataLoader.LoadFromDirectoryAsync(
-            contentDirectory,
-            ct: cancellationToken,
-            loadProgress: progressTracker.CreateGameDataProgress(ContentDataSegment)
+        var contentGameDataTask = stageRecorder.MeasureAsync(
+            "OverlayContent.LoadGameData",
+            () =>
+                GameDataLoader.LoadFromDirectoryAsync(
+                    contentDirectory,
+                    ct: cancellationToken,
+                    loadProgress: progressTracker.CreateGameDataProgress(ContentDataSegment),
+                    stageProgress: stageRecorder.CreateGameDataProgress("OverlayContent")
+                )
         );
-        var contentAudioAssetsTask = EditorAudioAssetLoader.LoadFromContentDirectoryAsync(
-            contentDirectory,
-            cancellationToken,
-            progressTracker.CreateAssetProgress(ContentAudioSegment)
+        var contentAudioAssetsTask = stageRecorder.MeasureAsync(
+            "OverlayAudioLoad.Total",
+            () =>
+                EditorAudioAssetLoader.LoadFromContentDirectoryAsync(
+                    contentDirectory,
+                    cancellationToken,
+                    progressTracker.CreateAssetProgress(ContentAudioSegment)
+                )
         );
 
         var (installGameData, installAssets, loadReport, installAudioAssets, moduleContext) =
             await installWorkspaceTask.ConfigureAwait(false);
         var contentGameData = await contentGameDataTask.ConfigureAwait(false);
-        var contentAssets = EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, contentGameData);
+        var contentAssets = stageRecorder.Measure(
+            "OverlayContent.BuildAssetCatalog",
+            () => EditorAssetCatalogBuilder.CreateForContentDirectory(contentDirectory, contentGameData)
+        );
         var contentAudioAssets = await contentAudioAssetsTask.ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -207,6 +236,7 @@ public static class EditorWorkspaceLoader
             loadReport,
             save,
             progressTracker,
+            stageRecorder,
             moduleContext
         );
     }
@@ -250,16 +280,27 @@ public static class EditorWorkspaceLoader
 
         var hasSave = HasSaveSelection(effectiveOptions);
         var progressTracker = CreateInstallLoadProgressTracker(hasSave, progress, loadProgress);
-        var installContentTask = GameInstallContentLoader.LoadAsync(
-            effectiveOptions.GameDirectory!,
-            cancellationToken: cancellationToken,
-            assetProgress: progressTracker.CreateAssetProgress(BaseDataSegment),
-            gameDataProgress: progressTracker.CreateGameDataProgress(BaseDataSegment)
+        var stageRecorder = new WorkspaceLoadStageRecorder();
+        var installContentTask = stageRecorder.MeasureAsync(
+            "InstallContent.Total",
+            () =>
+                GameInstallContentLoader.LoadAsync(
+                    effectiveOptions.GameDirectory!,
+                    cancellationToken: cancellationToken,
+                    assetProgress: progressTracker.CreateAssetProgress(BaseDataSegment),
+                    gameDataProgress: progressTracker.CreateGameDataProgress(BaseDataSegment),
+                    stageProgress: stageRecorder.CreateProgress(),
+                    gameDataLoadOptions: CreateGameDataLoadOptions(effectiveOptions)
+                )
         );
-        var audioAssetsTask = EditorAudioAssetLoader.LoadFromGameInstallAsync(
-            effectiveOptions.GameDirectory!,
-            cancellationToken,
-            progressTracker.CreateAssetProgress(BaseAudioSegment)
+        var audioAssetsTask = stageRecorder.MeasureAsync(
+            "AudioLoad.Total",
+            () =>
+                EditorAudioAssetLoader.LoadFromGameInstallAsync(
+                    effectiveOptions.GameDirectory!,
+                    cancellationToken,
+                    progressTracker.CreateAssetProgress(BaseAudioSegment)
+                )
         );
 
         var (gameData, assets, loadReport) = await installContentTask.ConfigureAwait(false);
@@ -289,7 +330,8 @@ public static class EditorWorkspaceLoader
             audioAssets,
             loadReport,
             save,
-            progressTracker
+            progressTracker,
+            stageRecorder
         );
     }
 
@@ -310,16 +352,27 @@ public static class EditorWorkspaceLoader
 
         var hasSave = HasSaveSelection(effectiveOptions);
         var progressTracker = CreateInstallLoadProgressTracker(hasSave, progress, loadProgress);
-        var moduleContentTask = ModuleInstallContentLoader.LoadAsync(
-            moduleDirectory,
-            cancellationToken: cancellationToken,
-            assetProgress: progressTracker.CreateAssetProgress(BaseDataSegment),
-            gameDataProgress: progressTracker.CreateGameDataProgress(BaseDataSegment)
+        var stageRecorder = new WorkspaceLoadStageRecorder();
+        var moduleContentTask = stageRecorder.MeasureAsync(
+            "ModuleContent.Total",
+            () =>
+                ModuleInstallContentLoader.LoadAsync(
+                    moduleDirectory,
+                    cancellationToken: cancellationToken,
+                    assetProgress: progressTracker.CreateAssetProgress(BaseDataSegment),
+                    gameDataProgress: progressTracker.CreateGameDataProgress(BaseDataSegment),
+                    stageProgress: stageRecorder.CreateProgress(),
+                    gameDataLoadOptions: CreateGameDataLoadOptions(effectiveOptions)
+                )
         );
-        var audioAssetsTask = EditorAudioAssetLoader.LoadFromModuleDirectoryAsync(
-            moduleDirectory,
-            cancellationToken,
-            progressTracker.CreateAssetProgress(BaseAudioSegment)
+        var audioAssetsTask = stageRecorder.MeasureAsync(
+            "AudioLoad.Total",
+            () =>
+                EditorAudioAssetLoader.LoadFromModuleDirectoryAsync(
+                    moduleDirectory,
+                    cancellationToken,
+                    progressTracker.CreateAssetProgress(BaseAudioSegment)
+                )
         );
 
         var (gameData, assets, loadReport, archivePaths) = await moduleContentTask.ConfigureAwait(false);
@@ -350,6 +403,7 @@ public static class EditorWorkspaceLoader
             loadReport,
             save,
             progressTracker,
+            stageRecorder,
             CreateModuleContext(moduleDirectory, archivePaths)
         );
     }
@@ -363,6 +417,7 @@ public static class EditorWorkspaceLoader
         EditorWorkspaceLoadReport loadReport,
         LoadedSave? save,
         WorkspaceLoadProgressTracker progressTracker,
+        WorkspaceLoadStageRecorder stageRecorder,
         EditorWorkspaceModuleContext? module = null
     )
     {
@@ -383,8 +438,11 @@ public static class EditorWorkspaceLoader
             audioAssets,
             loadReport,
             save,
-            module
+            module,
+            stageRecorder,
+            progressTracker.CreateIndexBuildProgress(IndexSegment)
         );
+        progressTracker.ReportStageTimings(stageRecorder.Capture());
         progressTracker.ReportManual(
             IndexSegment,
             "Indexing workspace assets",
@@ -405,31 +463,48 @@ public static class EditorWorkspaceLoader
         EditorAudioAssetLoader.EditorAudioAssetLoadResult audioAssets,
         EditorWorkspaceLoadReport loadReport,
         LoadedSave? save,
-        EditorWorkspaceModuleContext? module = null
+        EditorWorkspaceModuleContext? module = null,
+        WorkspaceLoadStageRecorder? stageRecorder = null,
+        IProgress<EditorAssetIndexBuildProgress>? indexProgress = null
     )
     {
-        ArcanumInstallationType? installationType = options.GameDirectory is null
-            ? null
-            : ArcanumInstallation.Detect(options.GameDirectory);
-        var effectiveGameData = EditorWorkspaceSaveComposition.OverlayWorldAssets(gameData, assets, save);
-        var (index, validation) = EditorAssetIndexBuilder.Create(effectiveGameData, assets, installationType);
+        ArcanumInstallationType? installationType = Measure<ArcanumInstallationType?>(
+            stageRecorder,
+            "BuildWorkspace.DetectInstallation",
+            () => options.GameDirectory is null ? null : ArcanumInstallation.Detect(options.GameDirectory)
+        );
+        var effectiveGameData = Measure(
+            stageRecorder,
+            "BuildWorkspace.ApplySaveOverlay",
+            () => EditorWorkspaceSaveComposition.OverlayWorldAssets(gameData, assets, save)
+        );
+        var (index, validation) = Measure(
+            stageRecorder,
+            "BuildWorkspace.BuildAssetIndex",
+            () => EditorAssetIndexBuilder.Create(effectiveGameData, assets, installationType, indexProgress)
+        );
 
-        return new()
-        {
-            ContentDirectory = contentDirectory,
-            GameDirectory = options.GameDirectory,
-            Module = module,
-            InstallationType = installationType,
-            GameData = effectiveGameData,
-            Assets = assets,
-            AudioAssets = audioAssets.Catalog,
-            Index = index,
-            LoadReport = loadReport,
-            Validation = validation,
-            Save = save,
-            SaveFolder = options.SaveFolder,
-            SaveSlotName = options.SaveSlotName,
-        };
+        return Measure(
+            stageRecorder,
+            "BuildWorkspace.CreateWorkspace",
+            () =>
+                new EditorWorkspace
+                {
+                    ContentDirectory = contentDirectory,
+                    GameDirectory = options.GameDirectory,
+                    Module = module,
+                    InstallationType = installationType,
+                    GameData = effectiveGameData,
+                    Assets = assets,
+                    AudioAssets = audioAssets.Catalog,
+                    Index = index,
+                    LoadReport = loadReport,
+                    Validation = validation,
+                    Save = save,
+                    SaveFolder = options.SaveFolder,
+                    SaveSlotName = options.SaveSlotName,
+                }
+        );
     }
 
     private static async Task<(
@@ -443,22 +518,34 @@ public static class EditorWorkspaceLoader
         CancellationToken cancellationToken,
         IProgress<EditorAssetLoadProgress>? assetProgress = null,
         IProgress<GameDataLoadProgress>? gameDataProgress = null,
-        IProgress<EditorAssetLoadProgress>? audioProgress = null
+        IProgress<EditorAssetLoadProgress>? audioProgress = null,
+        WorkspaceLoadStageRecorder? stageRecorder = null
     )
     {
+        stageRecorder ??= new WorkspaceLoadStageRecorder();
         if (!string.IsNullOrWhiteSpace(options.ModuleName))
         {
             var moduleDirectory = ResolveModuleDirectory(options.GameDirectory!, options.ModuleName!);
-            var moduleContentTask = ModuleInstallContentLoader.LoadAsync(
-                moduleDirectory,
-                cancellationToken: cancellationToken,
-                assetProgress: assetProgress,
-                gameDataProgress: gameDataProgress
+            var moduleContentTask = stageRecorder.MeasureAsync(
+                "ModuleContent.Total",
+                () =>
+                    ModuleInstallContentLoader.LoadAsync(
+                        moduleDirectory,
+                        cancellationToken: cancellationToken,
+                        assetProgress: assetProgress,
+                        gameDataProgress: gameDataProgress,
+                        stageProgress: stageRecorder.CreateProgress(),
+                        gameDataLoadOptions: CreateGameDataLoadOptions(options)
+                    )
             );
-            var audioAssetsTask = EditorAudioAssetLoader.LoadFromModuleDirectoryAsync(
-                moduleDirectory,
-                cancellationToken,
-                audioProgress
+            var audioAssetsTask = stageRecorder.MeasureAsync(
+                "AudioLoad.Total",
+                () =>
+                    EditorAudioAssetLoader.LoadFromModuleDirectoryAsync(
+                        moduleDirectory,
+                        cancellationToken,
+                        audioProgress
+                    )
             );
 
             var (gameData, assets, loadReport, archivePaths) = await moduleContentTask.ConfigureAwait(false);
@@ -467,16 +554,26 @@ public static class EditorWorkspaceLoader
             return (gameData, assets, loadReport, audioAssets, CreateModuleContext(moduleDirectory, archivePaths));
         }
 
-        var installContentTask = GameInstallContentLoader.LoadAsync(
-            options.GameDirectory!,
-            cancellationToken: cancellationToken,
-            assetProgress: assetProgress,
-            gameDataProgress: gameDataProgress
+        var installContentTask = stageRecorder.MeasureAsync(
+            "InstallContent.Total",
+            () =>
+                GameInstallContentLoader.LoadAsync(
+                    options.GameDirectory!,
+                    cancellationToken: cancellationToken,
+                    assetProgress: assetProgress,
+                    gameDataProgress: gameDataProgress,
+                    stageProgress: stageRecorder.CreateProgress(),
+                    gameDataLoadOptions: CreateGameDataLoadOptions(options)
+                )
         );
-        var installAudioAssetsTask = EditorAudioAssetLoader.LoadFromGameInstallAsync(
-            options.GameDirectory!,
-            cancellationToken,
-            audioProgress
+        var installAudioAssetsTask = stageRecorder.MeasureAsync(
+            "AudioLoad.Total",
+            () =>
+                EditorAudioAssetLoader.LoadFromGameInstallAsync(
+                    options.GameDirectory!,
+                    cancellationToken,
+                    audioProgress
+                )
         );
 
         var (installGameData, installAssets, installLoadReport) = await installContentTask.ConfigureAwait(false);
@@ -653,6 +750,7 @@ public static class EditorWorkspaceLoader
             ModuleName = options.ModuleName,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
+            LoadArtMetadata = options.LoadArtMetadata,
         };
     }
 
@@ -724,6 +822,7 @@ public static class EditorWorkspaceLoader
             ModuleName = moduleName,
             SaveFolder = options.SaveFolder,
             SaveSlotName = options.SaveSlotName,
+            LoadArtMetadata = options.LoadArtMetadata,
         };
     }
 
@@ -898,7 +997,115 @@ public static class EditorWorkspaceLoader
             StringComparison.OrdinalIgnoreCase
         );
 
+    private static T Measure<T>(WorkspaceLoadStageRecorder? recorder, string stageName, Func<T> action) =>
+        recorder is null ? action() : recorder.Measure(stageName, action);
+
+    private static GameDataLoadOptions CreateGameDataLoadOptions(EditorWorkspaceLoadOptions options) =>
+        new() { LoadArtMetadata = options.LoadArtMetadata };
+
     private readonly record struct LoadSegmentPlan(string Key, float Weight);
+
+    private sealed class WorkspaceLoadStageRecorder
+    {
+        private readonly object _gate = new();
+        private readonly List<EditorWorkspaceLoadStageTiming> _stageTimings = [];
+
+        public IProgress<EditorWorkspaceLoadStageTiming> CreateProgress() =>
+            new DelegateProgress<EditorWorkspaceLoadStageTiming>(Record);
+
+        public IProgress<GameDataLoadStageTiming> CreateGameDataProgress(string prefix) =>
+            new DelegateProgress<GameDataLoadStageTiming>(stage =>
+                Record(
+                    new EditorWorkspaceLoadStageTiming
+                    {
+                        StageName = $"{prefix}.{stage.StageName}",
+                        ElapsedMs = stage.ElapsedMs,
+                        ItemCount = stage.ItemCount,
+                        UnitLabel = stage.UnitLabel,
+                    }
+                )
+            );
+
+        public async Task<T> MeasureAsync<T>(string stageName, Func<Task<T>> action)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                return await action().ConfigureAwait(false);
+            }
+            finally
+            {
+                stopwatch.Stop();
+                Record(stageName, stopwatch.ElapsedMilliseconds);
+            }
+        }
+
+        public T Measure<T>(string stageName, Func<T> action)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                return action();
+            }
+            finally
+            {
+                stopwatch.Stop();
+                Record(stageName, stopwatch.ElapsedMilliseconds);
+            }
+        }
+
+        public IReadOnlyList<EditorWorkspaceLoadStageTiming> Capture()
+        {
+            lock (_gate)
+            {
+                if (_stageTimings.Count == 0)
+                    return [];
+
+                var dominantIndex = 0;
+                for (var index = 1; index < _stageTimings.Count; index++)
+                {
+                    if (_stageTimings[index].ElapsedMs > _stageTimings[dominantIndex].ElapsedMs)
+                        dominantIndex = index;
+                }
+
+                var snapshot = new EditorWorkspaceLoadStageTiming[_stageTimings.Count];
+                for (var index = 0; index < _stageTimings.Count; index++)
+                {
+                    var stage = _stageTimings[index];
+                    snapshot[index] = stage with { IsDominant = index == dominantIndex };
+                }
+
+                return snapshot;
+            }
+        }
+
+        private void Record(EditorWorkspaceLoadStageTiming stageTiming)
+        {
+            ArgumentNullException.ThrowIfNull(stageTiming);
+            Record(stageTiming.StageName, stageTiming.ElapsedMs, stageTiming.ItemCount, stageTiming.UnitLabel);
+        }
+
+        private void Record(string stageName, long elapsedMs, int? itemCount = null, string? unitLabel = null)
+        {
+            lock (_gate)
+            {
+                _stageTimings.Add(
+                    new EditorWorkspaceLoadStageTiming
+                    {
+                        StageName = stageName,
+                        ElapsedMs = Math.Max(elapsedMs, 0L),
+                        ItemCount = itemCount,
+                        UnitLabel = unitLabel,
+                    }
+                );
+            }
+        }
+
+        private sealed class DelegateProgress<T>(Action<T> report) : IProgress<T>
+        {
+            public void Report(T value) => report(value);
+        }
+    }
 
     private sealed class WorkspaceLoadProgressTracker(
         IProgress<float>? progress,
@@ -949,6 +1156,19 @@ public static class EditorWorkspaceLoader
                 ReportInternal(segmentKey, activity, value, null, null, unitLabel, force: value <= 0f || value >= 1f)
             );
 
+        public IProgress<EditorAssetIndexBuildProgress> CreateIndexBuildProgress(string segmentKey) =>
+            new DelegateProgress<EditorAssetIndexBuildProgress>(update =>
+                ReportInternal(
+                    segmentKey,
+                    $"Indexing workspace assets: {update.Activity}",
+                    update.Progress,
+                    update.CompletedPhases,
+                    update.TotalPhases,
+                    "phases",
+                    force: true
+                )
+            );
+
         public void ReportManual(
             string segmentKey,
             string activity,
@@ -958,6 +1178,32 @@ public static class EditorWorkspaceLoader
             string? unitLabel = null,
             bool force = false
         ) => ReportInternal(segmentKey, activity, segmentProgress, completedUnits, totalUnits, unitLabel, force);
+
+        public void ReportStageTimings(IReadOnlyList<EditorWorkspaceLoadStageTiming> stageTimings)
+        {
+            ArgumentNullException.ThrowIfNull(stageTimings);
+            if (stageTimings.Count == 0 || loadProgress is null)
+                return;
+
+            EditorWorkspaceLoadProgress snapshot;
+            lock (_gate)
+            {
+                var overallProgress = Math.Clamp(
+                    _segments.Values.Sum(static segment => segment.Weight * segment.Progress) * completionScale,
+                    0f,
+                    1f
+                );
+                snapshot = new EditorWorkspaceLoadProgress
+                {
+                    Activity = "Workspace load stage timings",
+                    OverallProgress = overallProgress,
+                    Elapsed = _stopwatch.Elapsed,
+                    StageTimings = stageTimings,
+                };
+            }
+
+            loadProgress.Report(snapshot);
+        }
 
         private void ReportInternal(
             string segmentKey,

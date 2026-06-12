@@ -3306,21 +3306,57 @@ public sealed class EditorWorkspaceSession
     private async Task<EditorMapWorldEditScene> CreateMapWorldEditSceneCoreAsync(
         EditorProjectMapViewState mapViewState,
         EditorMapWorldEditSceneRequest? request,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        Action<string, float>? reportProgress = null
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
         cancellationToken.ThrowIfCancellationRequested();
-        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState);
+
+        var focusedTerrainSectorAssetPaths = request?.FocusedTerrainSectorRadius
+            is int focusedTerrainSectorRadius
+                and >= 0
+            ? ResolveFocusedSectorAssetPaths(
+                normalizedMapViewState.MapName,
+                normalizedMapViewState.Camera,
+                focusedTerrainSectorRadius
+            )
+            : null;
+        var focusedObjectSectorAssetPaths = request?.FocusedObjectSectorRadius is int focusedObjectSectorRadius and >= 0
+            ? ResolveFocusedSectorAssetPaths(
+                normalizedMapViewState.MapName,
+                normalizedMapViewState.Camera,
+                focusedObjectSectorRadius
+            )
+            : null;
+
+        reportProgress?.Invoke("Creating effective map scene preview", 0.26f);
+        var scenePreview = CreateEffectiveMapScenePreview(normalizedMapViewState, focusedObjectSectorAssetPaths);
         cancellationToken.ThrowIfCancellationRequested();
 
+        reportProgress?.Invoke("Composing floor render request", 0.30f);
         var effectiveRequest = ComposeMapViewRenderRequest(normalizedMapViewState.Preview, request?.RenderRequest)
             .WithArtResolver(request?.RenderRequest?.ArtResolver ?? GetOrCreateRenderableArtResolver());
         effectiveRequest = effectiveRequest.AmbientLighting is null
             ? effectiveRequest.WithAmbientLighting(ResolveCurrentAmbientLighting())
             : effectiveRequest;
+        if (focusedTerrainSectorAssetPaths is not null)
+        {
+            reportProgress?.Invoke("Selecting focused terrain sectors", 0.32f);
+            if (
+                focusedTerrainSectorAssetPaths.Count > 0
+                && focusedTerrainSectorAssetPaths.Count < scenePreview.Sectors.Count
+            )
+            {
+                effectiveRequest = effectiveRequest.WithMaterializedTerrainSectors(
+                    focusedTerrainSectorAssetPaths,
+                    EditorMapFloorRenderBuilder.TryCreateTerrainBounds(scenePreview, effectiveRequest)
+                );
+            }
+        }
 
+        reportProgress?.Invoke("Projecting floor render preview", 0.34f);
         EditorMapFloorRenderPreview sceneRender;
         if (request?.ExistingPreview is not null && !string.IsNullOrWhiteSpace(request.ChangedSectorAssetPath))
         {
@@ -3337,6 +3373,7 @@ public sealed class EditorWorkspaceSession
             sceneRender = EditorMapFloorRenderBuilder.Build(scenePreview, effectiveRequest, cancellationToken);
         }
         cancellationToken.ThrowIfCancellationRequested();
+        reportProgress?.Invoke("Resolving placement preview", 0.43f);
         var placementPreview = request?.PlacementRequest is { } placementRequest
             ? PreviewSectorObjectPalettePlacement(
                 scenePreview,
@@ -3356,6 +3393,7 @@ public sealed class EditorWorkspaceSession
             viewportState
         );
         cancellationToken.ThrowIfCancellationRequested();
+        reportProgress?.Invoke("Resolving scene sprite source", 0.47f);
         var effectiveArtResolver =
             request?.ArtResolver ?? Workspace.CreateArtResolver(DefaultRenderableArtBindingStrategy, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
@@ -3364,6 +3402,8 @@ public sealed class EditorWorkspaceSession
 
         if (spriteSource is not null)
         {
+            reportProgress?.Invoke("Preloading scene sprites", 0.51f);
+            var preloadSceneSprites = request?.PreloadSceneSprites ?? true;
             var isDeltaBuild =
                 request?.ExistingPreview is not null && !string.IsNullOrWhiteSpace(request.ChangedSectorAssetPath);
             if (isDeltaBuild)
@@ -3377,14 +3417,17 @@ public sealed class EditorWorkspaceSession
             }
             else
             {
-                var prefetchItems = placementPreview is not null
-                    ? sceneRender.RenderQueue.Concat(placementPreview.RenderQueue)
-                    : sceneRender.RenderQueue;
-                await spriteSource.PreloadAsync(prefetchItems, cancellationToken).ConfigureAwait(false);
+                if (preloadSceneSprites)
+                    await spriteSource.PreloadAsync(sceneRender, cancellationToken).ConfigureAwait(false);
+                if (placementPreview is not null)
+                    await spriteSource
+                        .PreloadAsync(placementPreview.RenderQueue, cancellationToken)
+                        .ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
         }
 
+        reportProgress?.Invoke("Creating paintable scene", 0.56f);
         var paintableScene = EditorMapPaintableSceneBuilder.Build(
             sceneRender,
             placementPreview,
@@ -3392,6 +3435,7 @@ public sealed class EditorWorkspaceSession
             request?.ExistingSpriteCoverage,
             cancellationToken
         );
+        reportProgress?.Invoke("World-edit scene completed", 0.59f);
 
         return new EditorMapWorldEditScene
         {
@@ -3402,6 +3446,72 @@ public sealed class EditorWorkspaceSession
             PaintableScene = paintableScene,
             SpriteCoverage = paintableScene.SpriteCoverage,
         };
+    }
+
+    private IReadOnlySet<string> ResolveFocusedSectorAssetPaths(
+        string mapName,
+        EditorProjectMapCameraState camera,
+        int sectorRadius
+    )
+    {
+        var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
+        var projection =
+            effectiveWorkspace.Index.FindMapProjection(mapName)
+            ?? throw new InvalidOperationException($"No indexed map projection matched '{mapName}'.");
+        return ResolveFocusedSectorAssetPaths(projection, camera, sectorRadius);
+    }
+
+    private static IReadOnlySet<string> ResolveFocusedSectorAssetPaths(
+        EditorMapProjection projection,
+        EditorProjectMapCameraState camera,
+        int sectorRadius
+    )
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (projection.Sectors.Count == 0)
+            return result;
+
+        var centerSectorX = (int)Math.Floor(camera.CenterTileX / SectorTileAxisLength);
+        var centerSectorY = (int)Math.Floor(camera.CenterTileY / SectorTileAxisLength);
+
+        for (var sectorIndex = 0; sectorIndex < projection.Sectors.Count; sectorIndex++)
+        {
+            var sector = projection.Sectors[sectorIndex];
+            if (
+                Math.Abs(sector.LocalX - centerSectorX) <= sectorRadius
+                && Math.Abs(sector.LocalY - centerSectorY) <= sectorRadius
+            )
+            {
+                result.Add(VirtualPath.Normalize(sector.Asset.AssetPath));
+            }
+        }
+
+        if (result.Count > 0)
+            return result;
+
+        EditorMapSectorProjection? nearestSector = null;
+        var nearestDistanceSquared = double.PositiveInfinity;
+        for (var sectorIndex = 0; sectorIndex < projection.Sectors.Count; sectorIndex++)
+        {
+            var sector = projection.Sectors[sectorIndex];
+            var sectorCenterX = (sector.LocalX * SectorTileAxisLength) + (SectorTileAxisLength / 2d);
+            var sectorCenterY = (sector.LocalY * SectorTileAxisLength) + (SectorTileAxisLength / 2d);
+            var deltaX = sectorCenterX - camera.CenterTileX;
+            var deltaY = sectorCenterY - camera.CenterTileY;
+            var distanceSquared = (deltaX * deltaX) + (deltaY * deltaY);
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearestDistanceSquared = distanceSquared;
+            nearestSector = sector;
+        }
+
+        if (nearestSector is not null)
+            result.Add(VirtualPath.Normalize(nearestSector.Asset.AssetPath));
+
+        return result;
     }
 
     /// <summary>
@@ -3466,6 +3576,96 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Creates one transient tile-art preview overlay for the supplied grouped terrain brush hits.
+    /// </summary>
+    public EditorMapPaintableScene? PreviewSectorLayerBrush(
+        EditorMapFloorRenderPreview sceneRender,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        EditorMapLayerBrushRequest request,
+        IEditorMapRenderSpriteSource? spriteSource = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Mode is not EditorMapLayerBrushMode.SetTileArt || sectorHitGroups.Count == 0)
+            return null;
+
+        var overlayTiles = BuildTerrainBrushPreviewTiles(sceneRender, sectorHitGroups, new ArtId(request.ArtId));
+        if (overlayTiles.Length == 0)
+            return null;
+
+        var overlayPreview = CreateTerrainOverlayRenderPreview(sceneRender, overlayTiles, []);
+        var overlayScene = EditorMapPaintableSceneBuilder.Build(overlayPreview, spriteSource: spriteSource);
+        return CreateTerrainGhostPaintableScene(overlayScene);
+    }
+
+    /// <summary>
+    /// Creates one transient terrain-preset preview overlay that reprojects template tiles and scenery
+    /// into the supplied target sectors.
+    /// </summary>
+    public EditorMapPaintableScene? PreviewTerrainPreset(
+        EditorMapFloorRenderPreview sceneRender,
+        IReadOnlyList<string> sectorAssetPaths,
+        EditorTerrainPresetEntry entry,
+        IEditorMapRenderSpriteSource? spriteSource = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(sectorAssetPaths);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (sectorAssetPaths.Count == 0 || entry.TemplateSectorAssetPaths.Count == 0)
+            return null;
+
+        var artResolver = GetOrCreateRenderableArtResolver();
+        List<EditorMapFloorTileRenderItem> overlayTiles = [];
+        List<EditorMapObjectRenderItem> overlayObjects = [];
+        HashSet<string> stagedSectorAssetPaths = new(StringComparer.OrdinalIgnoreCase);
+
+        for (var sectorIndex = 0; sectorIndex < sectorAssetPaths.Count; sectorIndex++)
+        {
+            var sectorAssetPath = sectorAssetPaths[sectorIndex];
+            if (string.IsNullOrWhiteSpace(sectorAssetPath))
+                continue;
+
+            var normalizedSectorAssetPath = NormalizeAssetPath(sectorAssetPath);
+            if (!stagedSectorAssetPaths.Add(normalizedSectorAssetPath))
+                continue;
+
+            var targetSlice = sceneRender.Slices.FirstOrDefault(slice =>
+                string.Equals(slice.SectorAssetPath, normalizedSectorAssetPath, StringComparison.OrdinalIgnoreCase)
+            );
+            if (targetSlice is null || targetSlice.Tiles.Count == 0)
+                continue;
+
+            var templateSectorAssetPath = ResolveTerrainPresetTemplateSectorAssetPath(entry, normalizedSectorAssetPath);
+            var templateSector =
+                Workspace.FindSector(templateSectorAssetPath)
+                ?? throw new InvalidOperationException(
+                    $"Terrain preset sector '{templateSectorAssetPath}' was not loaded into the workspace."
+                );
+
+            AppendTerrainPresetPreviewTiles(overlayTiles, targetSlice, templateSector);
+            AppendTerrainPresetPreviewObjects(
+                overlayObjects,
+                sceneRender,
+                targetSlice,
+                templateSector,
+                artResolver.FindArt
+            );
+        }
+
+        if (overlayTiles.Count == 0 && overlayObjects.Count == 0)
+            return null;
+
+        var overlayPreview = CreateTerrainOverlayRenderPreview(sceneRender, overlayTiles, overlayObjects);
+        var overlayScene = EditorMapPaintableSceneBuilder.Build(overlayPreview, spriteSource: spriteSource);
+        return CreateTerrainGhostPaintableScene(overlayScene);
+    }
+
+    /// <summary>
     /// Creates one opinionated tracked world-edit shell for the supplied map view asynchronously.
     /// </summary>
     public Task<EditorMapWorldEditShell> CreateTrackedMapWorldEditShellAsync(
@@ -3495,6 +3695,7 @@ public sealed class EditorWorkspaceSession
                     IncludeBlockedTileOverlays = renderPreset.IncludeBlockedTileOverlays,
                     IncludeLightOverlays = renderPreset.IncludeLightOverlays,
                     IncludeScriptOverlays = renderPreset.IncludeScriptOverlays,
+                    IncludeJumpPointOverlays = renderPreset.IncludeJumpPointOverlays,
                     IncludeEditorObjectStateTint = effectiveRequest.IncludeEditorObjectStateTint,
                     IncludeFloorLightTint = effectiveRequest.IncludeFloorLightTint,
                     AmbientLighting = effectiveRequest.AmbientLighting ?? ResolveCurrentAmbientLighting(),
@@ -3513,7 +3714,7 @@ public sealed class EditorWorkspaceSession
                     effectiveRequest.SpriteSource ?? Workspace.CreateMapRenderSpriteSource(effectiveArtResolver);
 
                 // Phase 2 — Build world-edit scene + resolve placement summary concurrently.
-                progressReporter.Report("Building world-edit scene", 0.48f);
+                progressReporter.Report("Building world-edit scene", 0.24f);
                 cancellationToken.ThrowIfCancellationRequested();
                 var scene = await CreateMapWorldEditSceneCoreAsync(
                         mapViewState,
@@ -3524,8 +3725,12 @@ public sealed class EditorWorkspaceSession
                             ViewportHeight = effectiveRequest.ViewportHeight,
                             ArtResolver = effectiveArtResolver,
                             SpriteSource = effectiveSpriteSource,
+                            PreloadSceneSprites = effectiveRequest.PreloadSceneSprites,
+                            FocusedTerrainSectorRadius = effectiveRequest.FocusedTerrainSectorRadius,
+                            FocusedObjectSectorRadius = effectiveRequest.FocusedObjectSectorRadius,
                         },
-                        cancellationToken
+                        cancellationToken,
+                        progressReporter.Report
                     )
                     .ConfigureAwait(false);
 
@@ -3633,6 +3838,8 @@ public sealed class EditorWorkspaceSession
                     ActiveTool = mapViewState.WorldEdit.ActiveTool,
                     ViewMode = renderRequest.ViewMode,
                     RenderRequest = renderRequest,
+                    FocusedTerrainSectorRadius = effectiveRequest.FocusedTerrainSectorRadius,
+                    FocusedObjectSectorRadius = effectiveRequest.FocusedObjectSectorRadius,
                     Scene = scene,
                     TrackedPlacementPreview = trackedPlacementPreview,
                     TrackedPlacementPaintableScene = trackedPlacementPaintableScene,
@@ -3650,7 +3857,7 @@ public sealed class EditorWorkspaceSession
                     ObjectInspectorGenerator = objectInspectorGenerator,
                     ObjectInspectorBlending = objectInspectorBlending,
                     ObjectInspectorContainer = objectInspectorContainer,
-                    JumpPoints = Workspace.FindJumpFile($"maps/{mapViewState.MapName}/map.jmp"),
+                    JumpPoints = Workspace.FindMapJumpFile(mapViewState.MapName),
                 };
             },
             cancellationToken
@@ -5112,6 +5319,64 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Applies one terrain preset by stamping template-sector terrain data onto the supplied sector assets.
+    /// Existing non-scenery sector objects and sector-level metadata are preserved.
+    /// </summary>
+    public EditorMapLayerBrushResult ApplyTerrainPreset(
+        IReadOnlyList<string> sectorAssetPaths,
+        EditorTerrainPresetEntry entry
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorAssetPaths);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (sectorAssetPaths.Count == 0 || entry.TemplateSectorAssetPaths.Count == 0)
+            return new EditorMapLayerBrushResult();
+
+        return new EditorMapLayerBrushResult
+        {
+            Changes = TrackDirectAssetEdit(
+                () =>
+                {
+                    List<EditorSessionChange> changes = [];
+                    HashSet<string> stagedSectorPaths = new(StringComparer.OrdinalIgnoreCase);
+
+                    for (var sectorIndex = 0; sectorIndex < sectorAssetPaths.Count; sectorIndex++)
+                    {
+                        var sectorAssetPath = sectorAssetPaths[sectorIndex];
+                        if (string.IsNullOrWhiteSpace(sectorAssetPath))
+                            continue;
+
+                        var normalizedPath = NormalizeAssetPath(sectorAssetPath);
+                        if (!stagedSectorPaths.Add(normalizedPath))
+                            continue;
+
+                        var templateSectorAssetPath = ResolveTerrainPresetTemplateSectorAssetPath(
+                            entry,
+                            normalizedPath
+                        );
+                        var templateSector =
+                            Workspace.FindSector(templateSectorAssetPath)
+                            ?? throw new InvalidOperationException(
+                                $"Terrain preset sector '{templateSectorAssetPath}' was not loaded into the workspace."
+                            );
+                        var currentSector = GetCurrentSectorAsset(normalizedPath);
+                        var updatedSector = CreateTerrainPresetSector(currentSector, templateSector);
+                        if (TerrainPresetSectorMatches(currentSector, updatedSector))
+                            continue;
+
+                        _pendingSectorAssets[normalizedPath] = updatedSector;
+                        changes.Add(CreateDirectAssetChange(normalizedPath, FileFormat.Sector));
+                    }
+
+                    return changes;
+                },
+                static changes => changes.Count > 0
+            ),
+        };
+    }
+
+    /// <summary>
     /// Stages one sector light addition on a loaded sector asset.
     /// </summary>
     public EditorSessionChange AddSectorLight(string assetPath, SectorLight light)
@@ -5937,29 +6202,44 @@ public sealed class EditorWorkspaceSession
         return mapViewState;
     }
 
-    private EditorMapScenePreview CreateEffectiveMapScenePreview(string mapName)
+    private EditorMapScenePreview CreateEffectiveMapScenePreview(
+        string mapName,
+        IReadOnlySet<string>? objectSectorAssetPaths = null
+    )
     {
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
-        return effectiveWorkspace.CreateMapScenePreview(mapName, effectiveWorkspace.ResolveMapRenderArt);
+        return effectiveWorkspace.CreateMapScenePreview(
+            mapName,
+            effectiveWorkspace.ResolveMapRenderArt,
+            objectSectorAssetPaths
+        );
     }
 
-    private EditorMapScenePreview CreateEffectiveMapScenePreview(EditorProjectMapViewState mapViewState)
+    private EditorMapScenePreview CreateEffectiveMapScenePreview(
+        EditorProjectMapViewState mapViewState,
+        IReadOnlySet<string>? objectSectorAssetPaths = null
+    )
     {
         ArgumentNullException.ThrowIfNull(mapViewState);
 
         try
         {
-            return CreateEffectiveMapScenePreview(mapViewState.MapName);
+            return CreateEffectiveMapScenePreview(mapViewState.MapName, objectSectorAssetPaths);
         }
         catch (Exception) when (CanFallbackTrackedObjectSelectionSummary(mapViewState.Selection))
         {
-            return CreateEffectiveMapScenePreviewWithoutSelectedObject(mapViewState.MapName, mapViewState.Selection);
+            return CreateEffectiveMapScenePreviewWithoutSelectedObject(
+                mapViewState.MapName,
+                mapViewState.Selection,
+                objectSectorAssetPaths
+            );
         }
     }
 
     private EditorMapScenePreview CreateEffectiveMapScenePreviewWithoutSelectedObject(
         string mapName,
-        EditorProjectMapSelectionState selection
+        EditorProjectMapSelectionState selection,
+        IReadOnlySet<string>? objectSectorAssetPaths = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
@@ -5998,7 +6278,9 @@ public sealed class EditorWorkspaceSession
             sectorsByAssetPath,
             effectiveWorkspace.ResolveMapRenderArt,
             effectiveWorkspace.ResolveSceneObjectCurrentArtIdForScene,
-            mapMobsByAssetPath
+            mapMobsByAssetPath,
+            effectiveWorkspace.FindMapJumpFile(mapName),
+            objectSectorAssetPaths
         );
     }
 
@@ -9409,6 +9691,7 @@ public sealed class EditorWorkspaceSession
                 ShowLights = preview.ShowLights,
                 ShowBlockedTiles = preview.ShowBlockedTiles,
                 ShowScripts = preview.ShowScripts,
+                ShowJumpPoints = preview.ShowJumpPoints,
             },
             WorldEdit = worldEdit,
         };
@@ -14125,6 +14408,592 @@ public sealed class EditorWorkspaceSession
         Span<byte> bytes = stackalloc byte[16];
         BinaryPrimitives.WriteInt32LittleEndian(bytes, protoNumber);
         return new GameObjectGuid(GameObjectGuid.OidTypeA, 0, 0, new Guid(bytes));
+    }
+
+    private static string ResolveTerrainPresetTemplateSectorAssetPath(
+        EditorTerrainPresetEntry entry,
+        string targetSectorAssetPath
+    )
+    {
+        if (entry.TemplateSectorAssetPaths.Count == 1)
+            return entry.TemplateSectorAssetPaths[0];
+        unchecked
+        {
+            var hash = 17;
+            for (var index = 0; index < targetSectorAssetPath.Length; index++)
+                hash = (hash * 31) + char.ToUpperInvariant(targetSectorAssetPath[index]);
+
+            var variantIndex = (hash & int.MaxValue) % entry.TemplateSectorAssetPaths.Count;
+            return entry.TemplateSectorAssetPaths[variantIndex];
+        }
+    }
+
+    private static EditorMapFloorTileRenderItem[] BuildTerrainBrushPreviewTiles(
+        EditorMapFloorRenderPreview sceneRender,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        ArtId artId
+    )
+    {
+        HashSet<(string SectorAssetPath, Location Tile)> stagedTiles = new();
+        List<EditorMapFloorTileRenderItem> overlayTiles = [];
+
+        for (var groupIndex = 0; groupIndex < sectorHitGroups.Count; groupIndex++)
+        {
+            var group = sectorHitGroups[groupIndex];
+            if (group.Hits.Count == 0)
+                continue;
+
+            for (var hitIndex = 0; hitIndex < group.Hits.Count; hitIndex++)
+            {
+                var hit = group.Hits[hitIndex];
+                if (
+                    !stagedTiles.Add((NormalizeAssetPath(hit.SectorAssetPath), hit.Tile))
+                    || !sceneRender.TryGetTile(hit.SectorAssetPath, hit.Tile, out var renderTile)
+                    || renderTile is null
+                )
+                {
+                    continue;
+                }
+
+                overlayTiles.Add(
+                    new EditorMapFloorTileRenderItem
+                    {
+                        SectorAssetPath = renderTile.SectorAssetPath,
+                        MapTileX = renderTile.MapTileX,
+                        MapTileY = renderTile.MapTileY,
+                        Tile = renderTile.Tile,
+                        ArtId = artId,
+                        IsBlocked = renderTile.IsBlocked,
+                        HasLight = renderTile.HasLight,
+                        HasScript = renderTile.HasScript,
+                        DrawOrder = 0,
+                        CenterX = renderTile.CenterX,
+                        CenterY = renderTile.CenterY,
+                        SuggestedTintColor = renderTile.SuggestedTintColor,
+                        LightDiagnostics = renderTile.LightDiagnostics,
+                    }
+                );
+            }
+        }
+
+        return
+        [
+            .. overlayTiles
+                .OrderBy(static tile => tile.MapTileX + tile.MapTileY)
+                .ThenBy(static tile => tile.MapTileX)
+                .ThenBy(static tile => tile.MapTileY),
+        ];
+    }
+
+    private static void AppendTerrainPresetPreviewTiles(
+        ICollection<EditorMapFloorTileRenderItem> overlayTiles,
+        EditorMapSectorRenderSlice targetSlice,
+        Sector templateSector
+    )
+    {
+        ArgumentNullException.ThrowIfNull(overlayTiles);
+        ArgumentNullException.ThrowIfNull(targetSlice);
+        ArgumentNullException.ThrowIfNull(templateSector);
+
+        for (var tileIndex = 0; tileIndex < targetSlice.Tiles.Count; tileIndex++)
+        {
+            var targetTile = targetSlice.Tiles[tileIndex];
+            var templateTileIndex = (targetTile.Tile.Y * 64) + targetTile.Tile.X;
+            if ((uint)templateTileIndex >= templateSector.Tiles.Length)
+                continue;
+
+            var templateArtId = templateSector.Tiles[templateTileIndex];
+            var isBlocked =
+                templateTileIndex < templateSector.BlockMask.Length && templateSector.BlockMask[templateTileIndex] != 0;
+
+            overlayTiles.Add(
+                new EditorMapFloorTileRenderItem
+                {
+                    SectorAssetPath = targetTile.SectorAssetPath,
+                    MapTileX = targetTile.MapTileX,
+                    MapTileY = targetTile.MapTileY,
+                    Tile = targetTile.Tile,
+                    ArtId = new ArtId(templateArtId),
+                    IsBlocked = isBlocked,
+                    HasLight = targetTile.HasLight,
+                    HasScript = targetTile.HasScript,
+                    DrawOrder = 0,
+                    CenterX = targetTile.CenterX,
+                    CenterY = targetTile.CenterY,
+                    SuggestedTintColor = targetTile.SuggestedTintColor,
+                    LightDiagnostics = targetTile.LightDiagnostics,
+                }
+            );
+        }
+    }
+
+    private static void AppendTerrainPresetPreviewObjects(
+        ICollection<EditorMapObjectRenderItem> overlayObjects,
+        EditorMapFloorRenderPreview sceneRender,
+        EditorMapSectorRenderSlice targetSlice,
+        Sector templateSector,
+        Func<ArtId, ArtFile?> artResolver
+    )
+    {
+        ArgumentNullException.ThrowIfNull(overlayObjects);
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(targetSlice);
+        ArgumentNullException.ThrowIfNull(templateSector);
+        ArgumentNullException.ThrowIfNull(artResolver);
+
+        if (targetSlice.Tiles.Count == 0)
+            return;
+
+        var firstTargetTile = targetSlice.Tiles[0];
+        var sectorBaseMapTileX = firstTargetTile.MapTileX - firstTargetTile.Tile.X;
+        var sectorBaseMapTileY = firstTargetTile.MapTileY - firstTargetTile.Tile.Y;
+
+        foreach (var templateObject in templateSector.Objects)
+        {
+            if (templateObject.Header.GameObjectType != ObjectType.Scenery)
+                continue;
+
+            var previewObject = CreateTerrainPresetPreviewObject(templateObject, artResolver);
+            if (previewObject?.Location is not { } localTile)
+                continue;
+
+            var mapTileX = sectorBaseMapTileX + localTile.X;
+            var mapTileY = sectorBaseMapTileY + localTile.Y;
+            var baseTileDrawOrder = EditorMapFloorRenderBuilder.GetDrawOrder(
+                sceneRender.ViewMode,
+                0,
+                mapTileX,
+                mapTileY
+            );
+            var (tileCenterX, tileCenterY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+                sceneRender.ViewMode,
+                sceneRender.TileWidthPixels,
+                sceneRender.TileHeightPixels,
+                mapTileX,
+                mapTileY
+            );
+            var (anchorX, anchorY) = EditorMapFloorRenderBuilder.ProjectObjectAnchor(
+                sceneRender.ViewMode,
+                sceneRender.TileWidthPixels,
+                sceneRender.TileHeightPixels,
+                tileCenterX,
+                tileCenterY,
+                previewObject
+            );
+
+            overlayObjects.Add(
+                new EditorMapObjectRenderItem
+                {
+                    SectorAssetPath = targetSlice.SectorAssetPath,
+                    SourceObjectIndex = null,
+                    ObjectId = previewObject.ObjectId,
+                    ProtoId = previewObject.ProtoId,
+                    ObjectType = previewObject.ObjectType,
+                    CommittedRenderLayer = CreateTerrainPreviewCommittedLayer(
+                        previewObject.ObjectType,
+                        previewObject.Flags
+                    ),
+                    CurrentArtId = previewObject.CurrentArtId,
+                    Flags = previewObject.Flags,
+                    WallFlags = previewObject.WallFlags,
+                    SceneryFlags = previewObject.SceneryFlags,
+                    MapTileX = mapTileX,
+                    MapTileY = mapTileY,
+                    Tile = localTile,
+                    DrawOrder = 0,
+                    SameTileOrder = 0,
+                    IsDead = previewObject.IsDead,
+                    AnchorX = anchorX + sceneRender.OffsetX,
+                    AnchorY = anchorY + sceneRender.OffsetY,
+                    SpriteBounds = previewObject.SpriteBounds,
+                    IsTileGridSnapped = previewObject.IsTileGridSnapped,
+                    Rotation = previewObject.Rotation,
+                    RotationIndex = previewObject.RotationIndex,
+                    BlitScale = previewObject.BlitScale,
+                    BlitFlags = previewObject.BlitFlags,
+                    BlitColor = previewObject.BlitColor,
+                    BlitAlpha = previewObject.BlitAlpha,
+                    IsShrunk = previewObject.IsShrunk,
+                    RotationPitch = previewObject.RotationPitch,
+                    IsRoofCovered = false,
+                    IsIndoorTile = false,
+                    LightFlags = previewObject.LightFlags,
+                    LightAid = previewObject.LightAid,
+                    LightColor = previewObject.LightColor,
+                }
+            );
+        }
+    }
+
+    private static EditorMapObjectPreview? CreateTerrainPresetPreviewObject(
+        MobData templateObject,
+        Func<ArtId, ArtFile?> artResolver
+    )
+    {
+        ArgumentNullException.ThrowIfNull(templateObject);
+        ArgumentNullException.ThrowIfNull(artResolver);
+
+        var previewObject = EditorMapScenePreviewBuilder.BuildObjectPreview(templateObject, artResolver);
+        if (previewObject.Location is not { } location)
+            return null;
+
+        var normalizedLocation = new Location(checked((short)(location.X & 0x3F)), checked((short)(location.Y & 0x3F)));
+        return new EditorMapObjectPreview
+        {
+            ObjectId = previewObject.ObjectId,
+            ProtoId = previewObject.ProtoId,
+            ObjectType = previewObject.ObjectType,
+            CurrentArtId = previewObject.CurrentArtId,
+            Flags = previewObject.Flags,
+            SourceAssetPath = previewObject.SourceAssetPath,
+            SourceObjectIndex = previewObject.SourceObjectIndex,
+            Location = normalizedLocation,
+            OffsetX = previewObject.OffsetX,
+            OffsetY = previewObject.OffsetY,
+            OffsetZ = previewObject.OffsetZ,
+            CollisionHeight = previewObject.CollisionHeight,
+            SpriteBounds = previewObject.SpriteBounds,
+            Rotation = previewObject.Rotation,
+            RotationIndex = previewObject.RotationIndex,
+            BlitScale = previewObject.BlitScale,
+            RotationPitch = previewObject.RotationPitch,
+            BlitFlags = previewObject.BlitFlags,
+            BlitColor = previewObject.BlitColor,
+            BlitAlpha = previewObject.BlitAlpha,
+            SceneryFlags = previewObject.SceneryFlags,
+            WallFlags = previewObject.WallFlags,
+            UnderlayArtIds = previewObject.UnderlayArtIds,
+            OverlayBackArtIds = previewObject.OverlayBackArtIds,
+            OverlayForeArtIds = previewObject.OverlayForeArtIds,
+            IsDead = previewObject.IsDead,
+            LightFlags = previewObject.LightFlags,
+            LightAid = previewObject.LightAid,
+            LightColor = previewObject.LightColor,
+            OverlayLights = previewObject.OverlayLights,
+            ReactionColor = previewObject.ReactionColor,
+        };
+    }
+
+    private static EditorMapCommittedRenderLayer? CreateTerrainPreviewCommittedLayer(
+        ObjectType objectType,
+        ObjectFlags flags
+    ) =>
+        flags.HasFlag(ObjectFlags.Flat)
+            ? EditorMapCommittedRenderLayer.GroundDecal
+            : objectType switch
+            {
+                ObjectType.Wall or ObjectType.Portal => EditorMapCommittedRenderLayer.Wall,
+                ObjectType.Pc or ObjectType.Npc or ObjectType.Projectile => EditorMapCommittedRenderLayer.Mobile,
+                _ => EditorMapCommittedRenderLayer.Scenery,
+            };
+
+    private static EditorMapFloorRenderPreview CreateTerrainOverlayRenderPreview(
+        EditorMapFloorRenderPreview sceneRender,
+        IReadOnlyList<EditorMapFloorTileRenderItem> tiles,
+        IReadOnlyList<EditorMapObjectRenderItem> objects
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(tiles);
+        ArgumentNullException.ThrowIfNull(objects);
+
+        var tileEntries = tiles
+            .Select(tile => new TerrainOverlayQueueEntry(
+                EditorMapRenderQueueItemKind.FloorTile,
+                EditorMapFloorRenderBuilder.GetDrawOrder(sceneRender.ViewMode, 0, tile.MapTileX, tile.MapTileY) * 4096d,
+                tile,
+                null
+            ))
+            .ToArray();
+        var objectEntries = objects
+            .Select(obj => new TerrainOverlayQueueEntry(
+                EditorMapRenderQueueItemKind.Object,
+                (EditorMapFloorRenderBuilder.GetDrawOrder(sceneRender.ViewMode, 0, obj.MapTileX, obj.MapTileY) * 4096d)
+                    + 2048d,
+                null,
+                obj
+            ))
+            .ToArray();
+        var queueEntries = tileEntries
+            .Concat(objectEntries)
+            .OrderBy(static entry => entry.SortKey)
+            .ThenBy(static entry => entry.Kind)
+            .ToArray();
+
+        var orderedTiles = new List<EditorMapFloorTileRenderItem>(tiles.Count);
+        var orderedObjects = new List<EditorMapObjectRenderItem>(objects.Count);
+        var renderQueue = new EditorMapRenderQueueItem[queueEntries.Length];
+
+        for (var index = 0; index < queueEntries.Length; index++)
+        {
+            var entry = queueEntries[index];
+            switch (entry.Kind)
+            {
+                case EditorMapRenderQueueItemKind.FloorTile:
+                {
+                    var tile = entry.Tile!;
+                    var queuedTile = new EditorMapFloorTileRenderItem
+                    {
+                        SectorAssetPath = tile.SectorAssetPath,
+                        MapTileX = tile.MapTileX,
+                        MapTileY = tile.MapTileY,
+                        Tile = tile.Tile,
+                        ArtId = tile.ArtId,
+                        IsBlocked = tile.IsBlocked,
+                        HasLight = tile.HasLight,
+                        HasScript = tile.HasScript,
+                        DrawOrder = index,
+                        CenterX = tile.CenterX,
+                        CenterY = tile.CenterY,
+                        SuggestedTintColor = tile.SuggestedTintColor,
+                        LightDiagnostics = tile.LightDiagnostics,
+                    };
+                    orderedTiles.Add(queuedTile);
+                    renderQueue[index] = new EditorMapRenderQueueItem
+                    {
+                        Kind = EditorMapRenderQueueItemKind.FloorTile,
+                        DrawOrder = index,
+                        SortKey = entry.SortKey,
+                        Tile = queuedTile,
+                    };
+                    break;
+                }
+                case EditorMapRenderQueueItemKind.Object:
+                {
+                    var obj = entry.Object!;
+                    var queuedObject = new EditorMapObjectRenderItem
+                    {
+                        SectorAssetPath = obj.SectorAssetPath,
+                        SourceObjectIndex = obj.SourceObjectIndex,
+                        ObjectId = obj.ObjectId,
+                        ProtoId = obj.ProtoId,
+                        ObjectType = obj.ObjectType,
+                        CommittedRenderLayer = obj.CommittedRenderLayer,
+                        CurrentArtId = obj.CurrentArtId,
+                        Flags = obj.Flags,
+                        WallFlags = obj.WallFlags,
+                        SceneryFlags = obj.SceneryFlags,
+                        MapTileX = obj.MapTileX,
+                        MapTileY = obj.MapTileY,
+                        Tile = obj.Tile,
+                        DrawOrder = index,
+                        SameTileOrder = obj.SameTileOrder,
+                        IsDead = obj.IsDead,
+                        AnchorX = obj.AnchorX,
+                        AnchorY = obj.AnchorY,
+                        SpriteBounds = obj.SpriteBounds,
+                        IsTileGridSnapped = obj.IsTileGridSnapped,
+                        Rotation = obj.Rotation,
+                        RotationIndex = obj.RotationIndex,
+                        BlitScale = obj.BlitScale,
+                        BlitFlags = obj.BlitFlags,
+                        BlitColor = obj.BlitColor,
+                        BlitAlpha = obj.BlitAlpha,
+                        IsShrunk = obj.IsShrunk,
+                        RotationPitch = obj.RotationPitch,
+                        IsRoofCovered = obj.IsRoofCovered,
+                        IsIndoorTile = obj.IsIndoorTile,
+                        LightFlags = obj.LightFlags,
+                        LightAid = obj.LightAid,
+                        LightColor = obj.LightColor,
+                    };
+                    orderedObjects.Add(queuedObject);
+                    renderQueue[index] = new EditorMapRenderQueueItem
+                    {
+                        Kind = EditorMapRenderQueueItemKind.Object,
+                        DrawOrder = index,
+                        SortKey = entry.SortKey,
+                        Object = queuedObject,
+                        CommittedRenderLayer = queuedObject.CommittedRenderLayer,
+                    };
+                    break;
+                }
+            }
+        }
+
+        return new EditorMapFloorRenderPreview
+        {
+            MapName = sceneRender.MapName,
+            ViewMode = sceneRender.ViewMode,
+            TileWidthPixels = sceneRender.TileWidthPixels,
+            TileHeightPixels = sceneRender.TileHeightPixels,
+            WidthPixels = sceneRender.WidthPixels,
+            HeightPixels = sceneRender.HeightPixels,
+            Tiles = orderedTiles,
+            Objects = orderedObjects,
+            ObjectAuxiliaryItems = [],
+            Overlays = [],
+            Lights = [],
+            Roofs = [],
+            RenderQueue = renderQueue,
+            OffsetX = sceneRender.OffsetX,
+            OffsetY = sceneRender.OffsetY,
+            RawMinLeft = sceneRender.RawMinLeft,
+            RawMinTop = sceneRender.RawMinTop,
+            RawMaxRight = sceneRender.RawMaxRight,
+            RawMaxBottom = sceneRender.RawMaxBottom,
+        };
+    }
+
+    private static EditorMapPaintableScene CreateTerrainGhostPaintableScene(EditorMapPaintableScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
+        var items = new EditorMapPaintableSceneItem[scene.Items.Count];
+        for (var index = 0; index < scene.Items.Count; index++)
+        {
+            items[index] = CreateTerrainGhostItem(scene.Items[index]);
+        }
+
+        return new EditorMapPaintableScene
+        {
+            MapName = scene.MapName,
+            ViewMode = scene.ViewMode,
+            WidthPixels = scene.WidthPixels,
+            HeightPixels = scene.HeightPixels,
+            SpriteSource = scene.SpriteSource,
+            Items = items,
+            SpriteCoverage = scene.SpriteCoverage,
+        };
+    }
+
+    private static EditorMapPaintableSceneItem CreateTerrainGhostItem(EditorMapPaintableSceneItem item) =>
+        new()
+        {
+            Kind = item.Kind,
+            DrawOrder = item.DrawOrder,
+            SortKey = item.SortKey,
+            CommittedRenderLayer = item.CommittedRenderLayer,
+            Left = item.Left,
+            Top = item.Top,
+            Width = item.Width,
+            Height = item.Height,
+            AnchorX = item.AnchorX,
+            AnchorY = item.AnchorY,
+            SuggestedOpacity = item.Kind is EditorMapRenderQueueItemKind.FloorTile ? 0.74d : 0.70d,
+            SuggestedTintColor = item.SuggestedTintColor,
+            TintIgnoresLightVisibility = item.TintIgnoresLightVisibility,
+            UseGrayscalePaletteOverride = item.UseGrayscalePaletteOverride,
+            UseLightMaskTint = item.UseLightMaskTint,
+            SuppressFallback = item.SuppressFallback,
+            LightFlags = item.LightFlags,
+            TileLightDiagnostics = item.TileLightDiagnostics,
+            TileOverlayKind = item.TileOverlayKind,
+            SpriteSourceRect = item.SpriteSourceRect,
+            SpriteDestinationRect = item.SpriteDestinationRect,
+            IsRoofCovered = item.IsRoofCovered,
+            ObjectColorArray = item.ObjectColorArray,
+            ObjectAlphaLerp = item.ObjectAlphaLerp,
+            RoofAlphaLerp = item.RoofAlphaLerp,
+            BlendMode = item.BlendMode,
+            UseSubtractiveShadowBlend = item.UseSubtractiveShadowBlend,
+            Sprite = item.Sprite,
+            SpriteReference = item.SpriteReference,
+            GeometryPoints = item.GeometryPoints,
+            Geometry = item.Geometry,
+        };
+
+    private readonly record struct TerrainOverlayQueueEntry(
+        EditorMapRenderQueueItemKind Kind,
+        double SortKey,
+        EditorMapFloorTileRenderItem? Tile,
+        EditorMapObjectRenderItem? Object
+    );
+
+    private Sector CreateTerrainPresetSector(Sector currentSector, Sector templateSector)
+    {
+        var retainedObjects = currentSector
+            .Objects.Where(static obj => obj.Header.GameObjectType != ObjectType.Scenery)
+            .ToArray();
+        var currentScenery = currentSector
+            .Objects.Where(static obj => obj.Header.GameObjectType == ObjectType.Scenery)
+            .ToArray();
+        var templateScenery = templateSector
+            .Objects.Where(static obj => obj.Header.GameObjectType == ObjectType.Scenery)
+            .ToArray();
+        var stampedScenery = new MobData[templateScenery.Length];
+
+        for (var index = 0; index < templateScenery.Length; index++)
+        {
+            var templateObject = templateScenery[index];
+            var objectId =
+                index < currentScenery.Length
+                    ? currentScenery[index].Header.ObjectId
+                    : CreateObjectInstanceId(templateObject.Header.ProtoId.GetProtoNumber() ?? 0);
+            stampedScenery[index] = CloneTerrainPresetObject(templateObject, objectId);
+        }
+
+        var updatedObjects = new MobData[retainedObjects.Length + stampedScenery.Length];
+        Array.Copy(retainedObjects, updatedObjects, retainedObjects.Length);
+        Array.Copy(stampedScenery, 0, updatedObjects, retainedObjects.Length, stampedScenery.Length);
+
+        return new Sector
+        {
+            Lights = currentSector.Lights,
+            Tiles = [.. templateSector.Tiles],
+            HasRoofs = currentSector.HasRoofs,
+            Roofs = currentSector.Roofs,
+            SectorScript = currentSector.SectorScript,
+            TileScripts = currentSector.TileScripts,
+            TownmapInfo = currentSector.TownmapInfo,
+            AptitudeAdjustment = currentSector.AptitudeAdjustment,
+            LightSchemeIdx = currentSector.LightSchemeIdx,
+            SoundList = currentSector.SoundList,
+            BlockMask = [.. templateSector.BlockMask],
+            Objects = updatedObjects,
+        };
+    }
+
+    private static MobData CloneTerrainPresetObject(MobData templateObject, GameObjectGuid objectId) =>
+        new()
+        {
+            Header = new GameObjectHeader
+            {
+                Version = templateObject.Header.Version,
+                ProtoId = templateObject.Header.ProtoId,
+                ObjectId = objectId,
+                GameObjectType = templateObject.Header.GameObjectType,
+                PropCollectionItems = templateObject.Header.PropCollectionItems,
+                Bitmap = [.. templateObject.Header.Bitmap],
+            },
+            Properties = [.. templateObject.Properties],
+        };
+
+    private static bool TerrainPresetSectorMatches(Sector left, Sector right) =>
+        left.Tiles.AsSpan().SequenceEqual(right.Tiles)
+        && left.BlockMask.AsSpan().SequenceEqual(right.BlockMask)
+        && left.Objects.Count == right.Objects.Count
+        && left.Objects.Zip(right.Objects).All(static pair => MobDataMatches(pair.First, pair.Second));
+
+    private static bool MobDataMatches(MobData left, MobData right)
+    {
+        if (
+            left.Header.Version != right.Header.Version
+            || left.Header.ProtoId != right.Header.ProtoId
+            || left.Header.ObjectId != right.Header.ObjectId
+            || left.Header.GameObjectType != right.Header.GameObjectType
+            || left.Header.PropCollectionItems != right.Header.PropCollectionItems
+            || !left.Header.Bitmap.AsSpan().SequenceEqual(right.Header.Bitmap)
+            || left.Properties.Count != right.Properties.Count
+        )
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.Properties.Count; index++)
+        {
+            var leftProperty = left.Properties[index];
+            var rightProperty = right.Properties[index];
+            if (
+                leftProperty.Field != rightProperty.Field
+                || !leftProperty.RawBytes.AsSpan().SequenceEqual(rightProperty.RawBytes)
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static GameObjectGuid CreateNullProtoReferenceId() => new(GameObjectGuid.OidTypeNull, 0, 0, Guid.Empty);

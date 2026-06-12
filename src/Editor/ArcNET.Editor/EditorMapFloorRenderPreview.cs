@@ -19,6 +19,7 @@ public sealed class EditorMapFloorRenderPreview
     private IReadOnlyDictionary<GameObjectGuid, EditorMapObjectRenderItem>? _objectsById;
     private IReadOnlyDictionary<GameObjectGuid, int>? _objectDrawOrderById;
     private IReadOnlyList<EditorMapSectorRenderSliceBounds>? _sectorBounds;
+    private IReadOnlyDictionary<string, EditorMapSectorRenderSliceBounds>? _virtualTerrainBoundsByAssetPath;
     private EditorMapRenderSpatialIndex? _spatialIndex;
 
     /// <summary>
@@ -61,6 +62,18 @@ public sealed class EditorMapFloorRenderPreview
     /// Canonical slice-backed committed scene payloads grouped by sector.
     /// </summary>
     public IReadOnlyList<EditorMapSectorRenderSlice> Slices { get; init; } = [];
+
+    /// <summary>
+    /// Source-sector terrain retained for focused terrain previews.
+    /// Hosts can project visible terrain from these dense sector arrays without materializing every tile up front.
+    /// </summary>
+    public IReadOnlyList<EditorMapSectorScenePreview> VirtualTerrainSectors { get; init; } = [];
+
+    /// <summary>
+    /// Normalized sector asset paths whose terrain was already materialized into <see cref="Slices"/>.
+    /// </summary>
+    public IReadOnlySet<string> MaterializedTerrainSectorAssetPaths { get; init; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Render-ready floor tiles in stable draw order.
@@ -201,9 +214,55 @@ public sealed class EditorMapFloorRenderPreview
     public bool IncludeFloorLightTint { get; init; }
 
     /// <summary>
+    /// Indicates whether virtual terrain should emit zero-art floor tiles.
+    /// </summary>
+    public bool IncludeEmptyTerrainTiles { get; init; }
+
+    /// <summary>
+    /// Indicates whether virtual terrain should emit roof cells.
+    /// </summary>
+    public bool IncludeTerrainRoofs { get; init; }
+
+    /// <summary>
+    /// Indicates whether virtual terrain should emit blocked-tile overlays.
+    /// </summary>
+    public bool IncludeTerrainBlockedTileOverlays { get; init; }
+
+    /// <summary>
+    /// Indicates whether virtual terrain should emit light markers and light tile overlays.
+    /// </summary>
+    public bool IncludeTerrainLightOverlays { get; init; }
+
+    /// <summary>
+    /// Indicates whether virtual terrain should emit tile-script overlays.
+    /// </summary>
+    public bool IncludeTerrainScriptOverlays { get; init; }
+
+    /// <summary>
+    /// Indicates whether virtual terrain should emit jump-point overlays.
+    /// </summary>
+    public bool IncludeTerrainJumpPointOverlays { get; init; }
+
+    /// <summary>
     /// Ambient-lighting context that was applied while projecting the render.
     /// </summary>
     public EditorMapAmbientLightingState? AmbientLighting { get; init; }
+
+    /// <summary>
+    /// Indicates that terrain was intentionally materialized for only a subset of sectors.
+    /// Objects may still cover the full map.
+    /// </summary>
+    public bool IsTerrainMaterializationPartial { get; init; }
+
+    /// <summary>
+    /// Number of sectors whose terrain payload was materialized into this render preview.
+    /// </summary>
+    public int MaterializedTerrainSectorCount { get; init; }
+
+    /// <summary>
+    /// Number of sectors available in the source scene preview when this render preview was built.
+    /// </summary>
+    public int TotalTerrainSectorCount { get; init; }
 
     /// <summary>
     /// X offset applied to center/anchor coordinates when normalizing into the preview space.
@@ -267,8 +326,7 @@ public sealed class EditorMapFloorRenderPreview
             if (slicesByAssetPath.TryGetValue(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath), out var slice))
                 return slice.TryGetTile(tile, out item);
 
-            item = null;
-            return false;
+            return TryCreateVirtualTerrainTile(sectorAssetPath, tile, out item);
         }
 
         for (var index = 0; index < Tiles.Count; index++)
@@ -364,7 +422,23 @@ public sealed class EditorMapFloorRenderPreview
             return _sectorBounds;
 
         if (Slices.Count > 0)
-            return _sectorBounds = [.. Slices.Select(static slice => slice.Bounds)];
+        {
+            if (VirtualTerrainSectors.Count == 0)
+                return _sectorBounds = [.. Slices.Select(static slice => slice.Bounds)];
+
+            var bounds = new List<EditorMapSectorRenderSliceBounds>(Slices.Count + VirtualTerrainSectors.Count);
+            for (var sliceIndex = 0; sliceIndex < Slices.Count; sliceIndex++)
+                bounds.Add(Slices[sliceIndex].Bounds);
+
+            for (var sectorIndex = 0; sectorIndex < VirtualTerrainSectors.Count; sectorIndex++)
+            {
+                var sector = VirtualTerrainSectors[sectorIndex];
+                if (!IsTerrainSectorMaterialized(sector.AssetPath))
+                    bounds.Add(GetVirtualTerrainSectorBounds(sector));
+            }
+
+            return _sectorBounds = bounds;
+        }
 
         return _sectorBounds = [
             .. Tiles
@@ -387,6 +461,186 @@ public sealed class EditorMapFloorRenderPreview
                 )),
         ];
     }
+
+    public bool IsTerrainSectorMaterialized(string sectorAssetPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sectorAssetPath);
+        return MaterializedTerrainSectorAssetPaths.Contains(ArcNET.Core.VirtualPath.Normalize(sectorAssetPath));
+    }
+
+    public bool TryGetVirtualTerrainSector(string sectorAssetPath, out EditorMapSectorScenePreview? sector)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sectorAssetPath);
+        var normalizedSectorAssetPath = ArcNET.Core.VirtualPath.Normalize(sectorAssetPath);
+        for (var index = 0; index < VirtualTerrainSectors.Count; index++)
+        {
+            var candidate = VirtualTerrainSectors[index];
+            if (
+                string.Equals(
+                    ArcNET.Core.VirtualPath.Normalize(candidate.AssetPath),
+                    normalizedSectorAssetPath,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                sector = candidate;
+                return true;
+            }
+        }
+
+        sector = null;
+        return false;
+    }
+
+    public EditorMapSectorRenderSliceBounds GetVirtualTerrainSectorBounds(EditorMapSectorScenePreview sector)
+    {
+        ArgumentNullException.ThrowIfNull(sector);
+
+        var boundsByAssetPath = _virtualTerrainBoundsByAssetPath ??= BuildVirtualTerrainBoundsLookup();
+        return boundsByAssetPath.TryGetValue(ArcNET.Core.VirtualPath.Normalize(sector.AssetPath), out var bounds)
+            ? bounds
+            : CreateVirtualTerrainSectorBounds(sector);
+    }
+
+    private IReadOnlyDictionary<string, EditorMapSectorRenderSliceBounds> BuildVirtualTerrainBoundsLookup()
+    {
+        var boundsByAssetPath = new Dictionary<string, EditorMapSectorRenderSliceBounds>(
+            StringComparer.OrdinalIgnoreCase
+        );
+        for (var index = 0; index < VirtualTerrainSectors.Count; index++)
+        {
+            var sector = VirtualTerrainSectors[index];
+            boundsByAssetPath[ArcNET.Core.VirtualPath.Normalize(sector.AssetPath)] = CreateVirtualTerrainSectorBounds(
+                sector
+            );
+        }
+
+        return boundsByAssetPath;
+    }
+
+    private EditorMapSectorRenderSliceBounds CreateVirtualTerrainSectorBounds(EditorMapSectorScenePreview sector)
+    {
+        var minMapTileX = sector.LocalX * sector.TileWidth;
+        var minMapTileY = sector.LocalY * sector.TileHeight;
+        var maxMapTileX = minMapTileX + sector.TileWidth - 1;
+        var maxMapTileY = minMapTileY + sector.TileHeight - 1;
+        var minLeft = double.PositiveInfinity;
+        var minTop = double.PositiveInfinity;
+        var maxRight = double.NegativeInfinity;
+        var maxBottom = double.NegativeInfinity;
+
+        ExpandVirtualTerrainTileBounds(minMapTileX, minMapTileY, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+        ExpandVirtualTerrainTileBounds(minMapTileX, maxMapTileY, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+        ExpandVirtualTerrainTileBounds(maxMapTileX, minMapTileY, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+        ExpandVirtualTerrainTileBounds(maxMapTileX, maxMapTileY, ref minLeft, ref minTop, ref maxRight, ref maxBottom);
+
+        var paddingX = TileWidthPixels * (IncludeTerrainRoofs ? 4d : 1d);
+        var paddingY = TileHeightPixels * (IncludeTerrainRoofs ? 6d : 1d);
+        minLeft -= paddingX;
+        minTop -= paddingY;
+        maxRight += paddingX;
+        maxBottom += paddingY;
+
+        if (double.IsInfinity(minLeft))
+            return new EditorMapSectorRenderSliceBounds(0d, 0d, 0d, 0d, 0, 0, 0, 0);
+
+        return new EditorMapSectorRenderSliceBounds(
+            Left: minLeft,
+            Top: minTop,
+            Width: Math.Max(0d, maxRight - minLeft),
+            Height: Math.Max(0d, maxBottom - minTop),
+            MinMapTileX: minMapTileX,
+            MinMapTileY: minMapTileY,
+            MaxMapTileX: maxMapTileX,
+            MaxMapTileY: maxMapTileY
+        );
+    }
+
+    private void ExpandVirtualTerrainTileBounds(
+        int mapTileX,
+        int mapTileY,
+        ref double minLeft,
+        ref double minTop,
+        ref double maxRight,
+        ref double maxBottom
+    )
+    {
+        var (centerX, centerY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+            ViewMode,
+            TileWidthPixels,
+            TileHeightPixels,
+            mapTileX,
+            mapTileY
+        );
+        centerX += OffsetX;
+        centerY += OffsetY;
+
+        var halfTileWidth = TileWidthPixels / 2d;
+        var halfTileHeight = TileHeightPixels / 2d;
+        minLeft = Math.Min(minLeft, centerX - halfTileWidth);
+        minTop = Math.Min(minTop, centerY - halfTileHeight);
+        maxRight = Math.Max(maxRight, centerX + halfTileWidth);
+        maxBottom = Math.Max(maxBottom, centerY + halfTileHeight);
+    }
+
+    private bool TryCreateVirtualTerrainTile(
+        string sectorAssetPath,
+        Location tile,
+        out EditorMapFloorTileRenderItem? item
+    )
+    {
+        if (
+            IsTerrainSectorMaterialized(sectorAssetPath)
+            || !TryGetVirtualTerrainSector(sectorAssetPath, out var sector)
+            || sector is null
+            || tile.X < 0
+            || tile.Y < 0
+            || tile.X >= sector.TileWidth
+            || tile.Y >= sector.TileHeight
+        )
+        {
+            item = null;
+            return false;
+        }
+
+        var tileArtId = sector.GetTileArtId(tile.X, tile.Y);
+        if (!IncludeEmptyTerrainTiles && tileArtId == 0)
+        {
+            item = null;
+            return false;
+        }
+
+        var mapTileX = checked((sector.LocalX * sector.TileWidth) + tile.X);
+        var mapTileY = checked((sector.LocalY * sector.TileHeight) + tile.Y);
+        var tileIndex = checked((tile.Y * sector.TileWidth) + tile.X);
+        var (centerX, centerY) = EditorMapFloorRenderBuilder.ProjectTileCenter(
+            ViewMode,
+            TileWidthPixels,
+            TileHeightPixels,
+            mapTileX,
+            mapTileY
+        );
+        var tileDrawOrder = EditorMapFloorRenderBuilder.GetDrawOrder(ViewMode, 0, mapTileX, mapTileY);
+
+        item = new EditorMapFloorTileRenderItem
+        {
+            SectorAssetPath = sector.AssetPath,
+            MapTileX = mapTileX,
+            MapTileY = mapTileY,
+            Tile = tile,
+            ArtId = new ArtId(tileArtId),
+            IsBlocked = sector.IsTileBlocked(tile.X, tile.Y),
+            HasLight = sector.LightTileIndices.Contains(tileIndex),
+            HasScript = sector.ScriptedTileIndices.Contains(tileIndex),
+            DrawOrder = CreateVirtualTerrainDrawOrder(tileDrawOrder),
+            CenterX = centerX + OffsetX,
+            CenterY = centerY + OffsetY,
+        };
+        return true;
+    }
+
+    internal static int CreateVirtualTerrainDrawOrder(long tileDrawOrder) =>
+        (int)Math.Clamp(tileDrawOrder / 1_000_000L, 0L, int.MaxValue);
 
     public IEnumerable<EditorMapRenderQueueItem> EnumerateVisibleRenderItems(EditorMapSceneViewportLayout viewport)
     {

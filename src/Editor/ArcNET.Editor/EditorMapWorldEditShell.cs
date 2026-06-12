@@ -18,9 +18,27 @@ public sealed class EditorMapWorldEditShellRequest
     public IEditorMapRenderSpriteSource? SpriteSource { get; init; }
 
     /// <summary>
+    /// Indicates whether committed scene sprites should be preloaded before the shell is returned.
+    /// Hosts that render visible chunks on demand can disable this to reduce first-shell latency.
+    /// </summary>
+    public bool PreloadSceneSprites { get; init; } = true;
+
+    /// <summary>
     /// Scene/view preset used for the committed render and tracked placement preview.
     /// </summary>
     public EditorMapSceneViewMode ViewMode { get; init; } = EditorMapSceneViewMode.Isometric;
+
+    /// <summary>
+    /// Optional radius, in sectors around the current camera, whose terrain should be materialized for this shell.
+    /// Use <see langword="null"/> for the complete terrain payload.
+    /// </summary>
+    public int? FocusedTerrainSectorRadius { get; init; }
+
+    /// <summary>
+    /// Optional radius, in sectors around the current camera, whose objects should be projected for this shell.
+    /// Use <see langword="null"/> for the complete object payload.
+    /// </summary>
+    public int? FocusedObjectSectorRadius { get; init; }
 
     /// <summary>
     /// Optional explicit viewport width for the composed shell scene.
@@ -107,6 +125,16 @@ public sealed class EditorMapWorldEditShell
     /// Bundled committed world-edit scene for the tracked map view.
     /// </summary>
     public required EditorMapWorldEditScene Scene { get; init; }
+
+    /// <summary>
+    /// Optional radius, in sectors around the current camera, whose terrain was materialized for this shell.
+    /// </summary>
+    public int? FocusedTerrainSectorRadius { get; init; }
+
+    /// <summary>
+    /// Optional radius, in sectors around the current camera, whose objects were projected for this shell.
+    /// </summary>
+    public int? FocusedObjectSectorRadius { get; init; }
 
     /// <summary>
     /// Optional tracked object-placement preview overlay when the tracked tool can currently preview or apply.

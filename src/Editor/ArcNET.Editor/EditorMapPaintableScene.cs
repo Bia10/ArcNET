@@ -215,17 +215,20 @@ internal sealed class EditorMapPaintableSceneItemSource : IReadOnlyList<EditorMa
     private readonly EditorMapFloorRenderPreview _sceneRender;
     private readonly IEditorMapPaintableSceneItemSegmentSource[] _segments;
     private readonly EditorMapPaintableSceneSliceSource[]? _sliceSources;
+    private readonly EditorMapVirtualTerrainPaintableSceneSource? _virtualTerrainSource;
     private readonly int[] _segmentStartIndices;
 
     private EditorMapPaintableSceneItemSource(
         EditorMapFloorRenderPreview sceneRender,
         IEditorMapPaintableSceneItemSegmentSource[] segments,
-        EditorMapPaintableSceneSliceSource[]? sliceSources
+        EditorMapPaintableSceneSliceSource[]? sliceSources,
+        EditorMapVirtualTerrainPaintableSceneSource? virtualTerrainSource = null
     )
     {
         _sceneRender = sceneRender;
         _segments = segments;
         _sliceSources = sliceSources;
+        _virtualTerrainSource = virtualTerrainSource;
         _segmentStartIndices = new int[segments.Length];
 
         var nextStartIndex = 0;
@@ -255,7 +258,17 @@ internal sealed class EditorMapPaintableSceneItemSource : IReadOnlyList<EditorMa
             );
         }
 
-        return new EditorMapPaintableSceneItemSource(sceneRender, sliceSources, sliceSources);
+        var virtualTerrainSource = new EditorMapVirtualTerrainPaintableSceneSource(
+            sceneRender,
+            spriteSource,
+            spriteReferenceCache
+        );
+        return new EditorMapPaintableSceneItemSource(
+            sceneRender,
+            sliceSources,
+            sliceSources,
+            virtualTerrainSource.HasItems ? virtualTerrainSource : null
+        );
     }
 
     public static EditorMapPaintableSceneItemSource CreateFlat(
@@ -299,11 +312,19 @@ internal sealed class EditorMapPaintableSceneItemSource : IReadOnlyList<EditorMa
     {
         if (_sliceSources is not null)
         {
-            foreach (var (sliceIndex, queueIndex) in _sceneRender.EnumerateVisiblePackedQueueIndices(viewport))
+            var committedItems = EnumerateCommittedVisibleItems(viewport);
+            if (_virtualTerrainSource is null)
             {
-                foreach (var item in _sliceSources[sliceIndex].EnumerateVisibleItems(queueIndex, viewport))
+                foreach (var item in committedItems)
                     yield return item;
+
+                yield break;
             }
+
+            foreach (
+                var item in MergeVisibleItems(committedItems, _virtualTerrainSource.EnumerateVisibleItems(viewport))
+            )
+                yield return item;
 
             yield break;
         }
@@ -313,6 +334,72 @@ internal sealed class EditorMapPaintableSceneItemSource : IReadOnlyList<EditorMa
             foreach (var item in _segments[index].EnumerateVisibleItems(viewport))
                 yield return item;
         }
+    }
+
+    private IEnumerable<EditorMapPaintableSceneItem> EnumerateCommittedVisibleItems(
+        EditorMapSceneViewportLayout viewport
+    )
+    {
+        if (_sliceSources is null)
+            yield break;
+
+        foreach (var (sliceIndex, queueIndex) in _sceneRender.EnumerateVisiblePackedQueueIndices(viewport))
+        {
+            foreach (var item in _sliceSources[sliceIndex].EnumerateVisibleItems(queueIndex, viewport))
+                yield return item;
+        }
+    }
+
+    private static IEnumerable<EditorMapPaintableSceneItem> MergeVisibleItems(
+        IEnumerable<EditorMapPaintableSceneItem> committedItems,
+        IEnumerable<EditorMapPaintableSceneItem> virtualTerrainItems
+    )
+    {
+        using var committed = committedItems.GetEnumerator();
+        using var virtualTerrain = virtualTerrainItems.GetEnumerator();
+        var hasCommitted = committed.MoveNext();
+        var hasVirtualTerrain = virtualTerrain.MoveNext();
+
+        while (hasCommitted || hasVirtualTerrain)
+        {
+            if (!hasCommitted)
+            {
+                yield return virtualTerrain.Current;
+                hasVirtualTerrain = virtualTerrain.MoveNext();
+                continue;
+            }
+
+            if (!hasVirtualTerrain)
+            {
+                yield return committed.Current;
+                hasCommitted = committed.MoveNext();
+                continue;
+            }
+
+            if (ComparePaintableItems(committed.Current, virtualTerrain.Current) <= 0)
+            {
+                yield return committed.Current;
+                hasCommitted = committed.MoveNext();
+            }
+            else
+            {
+                yield return virtualTerrain.Current;
+                hasVirtualTerrain = virtualTerrain.MoveNext();
+            }
+        }
+    }
+
+    private static int ComparePaintableItems(EditorMapPaintableSceneItem left, EditorMapPaintableSceneItem right)
+    {
+        var cmp = left.SortKey.CompareTo(right.SortKey);
+        if (cmp != 0)
+            return cmp;
+
+        cmp = left.Kind.CompareTo(right.Kind);
+        if (cmp != 0)
+            return cmp;
+
+        return left.DrawOrder.CompareTo(right.DrawOrder);
     }
 
     public IEnumerator<EditorMapPaintableSceneItem> GetEnumerator()
@@ -662,7 +749,13 @@ public static class EditorMapPaintableSceneBuilder
         var queue = placementPreview?.RenderQueue ?? sceneRender.RenderQueue;
         var itemSource = CreateItemSource(sceneRender, queue, spriteSource, cancellationToken);
 
-        var spriteCoverage = existingSpriteCoverage ?? BuildSpriteCoverage(queue, spriteSource, cancellationToken);
+        var spriteCoverage =
+            existingSpriteCoverage
+            ?? (
+                placementPreview is null && sceneRender.Slices.Count > 0
+                    ? BuildSpriteCoverage(sceneRender, spriteSource, cancellationToken)
+                    : BuildSpriteCoverage(queue, spriteSource, cancellationToken)
+            );
         cancellationToken.ThrowIfCancellationRequested();
 
         return new EditorMapPaintableScene
@@ -847,6 +940,67 @@ public static class EditorMapPaintableSceneBuilder
             }
         }
 
+        return BuildSpriteCoverage(referencedSet, spriteSource, cancellationToken);
+    }
+
+    private static EditorMapRenderSpriteCoverage BuildSpriteCoverage(
+        EditorMapFloorRenderPreview sceneRender,
+        IEditorMapRenderSpriteSource? spriteSource,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var referencedSet = new HashSet<SpriteReference>();
+        for (var sliceIndex = 0; sliceIndex < sceneRender.Slices.Count; sliceIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var slice = sceneRender.Slices[sliceIndex];
+            for (var i = 0; i < slice.Tiles.Count; i++)
+                AddSpriteReference(referencedSet, slice.Tiles[i].ArtId, EditorMapRenderQueueItemKind.FloorTile);
+
+            for (var i = 0; i < slice.Objects.Count; i++)
+            {
+                var obj = slice.Objects[i];
+                AddSpriteReference(
+                    referencedSet,
+                    obj.CurrentArtId,
+                    EditorMapRenderQueueItemKind.Object,
+                    obj.RotationIndex,
+                    obj.BlitScale,
+                    obj.IsShrunk
+                );
+            }
+
+            for (var i = 0; i < slice.ObjectAuxiliaryItems.Count; i++)
+            {
+                var auxiliary = slice.ObjectAuxiliaryItems[i];
+                AddSpriteReference(
+                    referencedSet,
+                    auxiliary.ArtId,
+                    EditorMapRenderQueueItemKind.ObjectAuxiliary,
+                    auxiliary.RotationIndex,
+                    auxiliary.ScalePercent,
+                    auxiliary.IsShrunk
+                );
+            }
+
+            for (var i = 0; i < slice.Roofs.Count; i++)
+                AddSpriteReference(referencedSet, slice.Roofs[i].ArtId, EditorMapRenderQueueItemKind.Roof);
+
+            for (var i = 0; i < slice.Lights.Count; i++)
+                AddSpriteReference(referencedSet, slice.Lights[i].ArtId, EditorMapRenderQueueItemKind.Light);
+        }
+
+        AddVirtualTerrainSpriteReferences(referencedSet, sceneRender, cancellationToken);
+        return BuildSpriteCoverage(referencedSet, spriteSource, cancellationToken);
+    }
+
+    private static EditorMapRenderSpriteCoverage BuildSpriteCoverage(
+        HashSet<SpriteReference> referencedSet,
+        IEditorMapRenderSpriteSource? spriteSource,
+        CancellationToken cancellationToken
+    )
+    {
         var referencedSpriteReferences = new SpriteReference[referencedSet.Count];
         referencedSet.CopyTo(referencedSpriteReferences);
 
@@ -916,10 +1070,86 @@ public static class EditorMapPaintableSceneBuilder
             ReferencedSpriteReferenceCount = referencedSpriteReferences.Length,
             ResolvedSpriteReferenceCount = resolvedSpriteReferences.Length,
             UnresolvedSpriteReferenceCount = unresolvedSpriteReferences.Length,
+            ReferencedSpriteReferences = CreateCoverageReferences(referencedSpriteReferences),
+            ResolvedSpriteReferences = CreateCoverageReferences(resolvedSpriteReferences),
+            UnresolvedSpriteReferences = CreateCoverageReferences(unresolvedSpriteReferences),
             ReferencedArtIds = referencedArtIds,
             ResolvedArtIds = resolvedArtIds,
             UnresolvedArtIds = unresolvedArtIds,
         };
+    }
+
+    private static EditorMapRenderSpriteCoverageReference[] CreateCoverageReferences(SpriteReference[] references)
+    {
+        var coverageReferences = new EditorMapRenderSpriteCoverageReference[references.Length];
+        for (var index = 0; index < references.Length; index++)
+        {
+            var reference = references[index];
+            coverageReferences[index] = new EditorMapRenderSpriteCoverageReference
+            {
+                ArtId = reference.ArtId,
+                RenderItemKind = reference.RenderItemKind,
+                RotationIndex = reference.RotationIndex,
+                ScalePercent = reference.ScalePercent,
+                IsShrunk = reference.IsShrunk,
+            };
+        }
+
+        return coverageReferences;
+    }
+
+    private static void AddSpriteReference(
+        HashSet<SpriteReference> referencedSet,
+        ArtId artId,
+        EditorMapRenderQueueItemKind renderItemKind,
+        int rotationIndex = 0,
+        int scalePercent = 100,
+        bool isShrunk = false
+    )
+    {
+        if (artId.Value == 0)
+            return;
+
+        var request = AdjustEyeCandyRequest(
+            artId,
+            CreateSpriteRequest(renderItemKind, rotationIndex, scalePercent, isShrunk)
+        );
+        referencedSet.Add(
+            new SpriteReference(artId, renderItemKind, request.RotationIndex, request.ScalePercent, request.IsShrunk)
+        );
+    }
+
+    private static void AddVirtualTerrainSpriteReferences(
+        HashSet<SpriteReference> referencedSet,
+        EditorMapFloorRenderPreview sceneRender,
+        CancellationToken cancellationToken
+    )
+    {
+        for (var sectorIndex = 0; sectorIndex < sceneRender.VirtualTerrainSectors.Count; sectorIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sector = sceneRender.VirtualTerrainSectors[sectorIndex];
+            if (sceneRender.IsTerrainSectorMaterialized(sector.AssetPath))
+                continue;
+
+            var floorArtIds = sector.UniqueTerrainFloorArtIds;
+            for (var tileIndex = 0; tileIndex < floorArtIds.Count; tileIndex++)
+                AddSpriteReference(referencedSet, floorArtIds[tileIndex], EditorMapRenderQueueItemKind.FloorTile);
+
+            if (sceneRender.IncludeTerrainRoofs)
+            {
+                var roofArtIds = sector.UniqueTerrainRoofArtIds;
+                for (var roofIndex = 0; roofIndex < roofArtIds.Count; roofIndex++)
+                    AddSpriteReference(referencedSet, roofArtIds[roofIndex], EditorMapRenderQueueItemKind.Roof);
+            }
+
+            if (!sceneRender.IncludeTerrainLightOverlays)
+                continue;
+
+            var lightArtIds = sector.UniqueTerrainLightArtIds;
+            for (var lightIndex = 0; lightIndex < lightArtIds.Count; lightIndex++)
+                AddSpriteReference(referencedSet, lightArtIds[lightIndex], EditorMapRenderQueueItemKind.Light);
+        }
     }
 
     private static EditorMapRenderSpriteRequest CreateSpriteRequest(

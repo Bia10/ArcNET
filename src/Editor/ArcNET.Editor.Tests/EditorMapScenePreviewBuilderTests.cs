@@ -173,6 +173,269 @@ public sealed class EditorMapScenePreviewBuilderTests
     }
 
     [Test]
+    public async Task Build_ProjectsMapJumpPointsIntoOwningSectorTiles()
+    {
+        var sectorAAsset = new EditorAssetEntry
+        {
+            AssetPath = "maps/map01/000000000000.sec",
+            Format = FileFormat.Sector,
+            ItemCount = 1,
+            SourceKind = EditorAssetSourceKind.LooseFile,
+            SourcePath = "test/000000000000.sec",
+        };
+        var sectorBAsset = new EditorAssetEntry
+        {
+            AssetPath = "maps/map01/000000000001.sec",
+            Format = FileFormat.Sector,
+            ItemCount = 1,
+            SourceKind = EditorAssetSourceKind.LooseFile,
+            SourcePath = "test/000000000001.sec",
+        };
+        var sectorASummary = new EditorSectorSummary
+        {
+            Asset = sectorAAsset,
+            MapName = "map01",
+            ObjectCount = 0,
+            LightCount = 0,
+            TileScriptCount = 0,
+            SectorScriptId = null,
+            HasRoofs = false,
+            DistinctTileArtCount = 0,
+            BlockedTileCount = 0,
+            LightSchemeIndex = 0,
+            MusicSchemeIndex = -1,
+            AmbientSchemeIndex = -1,
+        };
+        var sectorBSummary = new EditorSectorSummary
+        {
+            Asset = sectorBAsset,
+            MapName = "map01",
+            ObjectCount = 0,
+            LightCount = 0,
+            TileScriptCount = 0,
+            SectorScriptId = null,
+            HasRoofs = false,
+            DistinctTileArtCount = 0,
+            BlockedTileCount = 0,
+            LightSchemeIndex = 0,
+            MusicSchemeIndex = -1,
+            AmbientSchemeIndex = -1,
+        };
+        var emptySector = new Sector
+        {
+            Lights = [],
+            Tiles = new uint[4096],
+            HasRoofs = false,
+            Roofs = null,
+            SectorScript = null,
+            TileScripts = [],
+            TownmapInfo = 0,
+            AptitudeAdjustment = 0,
+            LightSchemeIdx = 0,
+            SoundList = SectorSoundList.Default,
+            BlockMask = new uint[128],
+            Objects = [],
+        };
+
+        var projection = new EditorMapProjection
+        {
+            MapName = "map01",
+            MinSectorX = 0,
+            MinSectorY = 0,
+            MaxSectorX = 1,
+            MaxSectorY = 0,
+            Width = 2,
+            Height = 1,
+            UnpositionedSectorCount = 0,
+            Sectors =
+            [
+                new EditorMapSectorProjection
+                {
+                    Sector = sectorASummary,
+                    SectorX = 0,
+                    SectorY = 0,
+                    LocalX = 0,
+                    LocalY = 0,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                },
+                new EditorMapSectorProjection
+                {
+                    Sector = sectorBSummary,
+                    SectorX = 1,
+                    SectorY = 0,
+                    LocalX = 1,
+                    LocalY = 0,
+                    ObjectDensityBand = EditorMapSectorDensityBand.None,
+                    BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+                },
+            ],
+        };
+
+        var preview = EditorMapScenePreviewBuilder.Build(
+            projection,
+            new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase)
+            {
+                [sectorAAsset.AssetPath] = emptySector,
+                [sectorBAsset.AssetPath] = emptySector,
+            },
+            jumpPoints: new JmpFile
+            {
+                Jumps =
+                [
+                    new JumpEntry
+                    {
+                        Flags = 5u,
+                        SourceLoc = ((long)7 << 32) | 65u,
+                        DestinationMapId = 42,
+                        DestinationLoc = ((long)11 << 32) | 9u,
+                    },
+                ],
+            }
+        );
+
+        await Assert.That(preview.Sectors[0].JumpPoints).IsEmpty();
+        await Assert.That(preview.Sectors[1].JumpPoints).HasSingleItem();
+        await Assert.That(preview.Sectors[1].JumpPoints[0].TileX).IsEqualTo(1);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].TileY).IsEqualTo(7);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].MapTileX).IsEqualTo(65);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].MapTileY).IsEqualTo(7);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].DestinationMapId).IsEqualTo(42);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].DestinationTileX).IsEqualTo(9);
+        await Assert.That(preview.Sectors[1].JumpPoints[0].DestinationTileY).IsEqualTo(11);
+        await Assert.That(preview.Sectors[1].JumpPointTileIndices.Contains((7 * 64) + 1)).IsTrue();
+    }
+
+    [Test]
+    public async Task Build_WithFocusedObjectSectors_KeepsTerrainButLimitsObjects()
+    {
+        var sectorAAsset = new EditorAssetEntry
+        {
+            AssetPath = "maps/map01/000000000000.sec",
+            Format = FileFormat.Sector,
+            ItemCount = 1,
+            SourceKind = EditorAssetSourceKind.LooseFile,
+            SourcePath = "test/000000000000.sec",
+        };
+        var sectorBAsset = new EditorAssetEntry
+        {
+            AssetPath = "maps/map01/000000000001.sec",
+            Format = FileFormat.Sector,
+            ItemCount = 1,
+            SourceKind = EditorAssetSourceKind.LooseFile,
+            SourcePath = "test/000000000001.sec",
+        };
+        var sectorA = CreateSector(
+            new CharacterBuilder(
+                ObjectType.Scenery,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 1, Guid.NewGuid()),
+                MakeProtoId(1)
+            )
+                .WithLocation(2, 3)
+                .Build(),
+            tileArtId: 0x10000001u
+        );
+        var sectorB = CreateSector(
+            new CharacterBuilder(
+                ObjectType.Scenery,
+                new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2, Guid.NewGuid()),
+                MakeProtoId(2)
+            )
+                .WithLocation(4, 5)
+                .Build(),
+            tileArtId: 0x10000002u
+        );
+        var projection = new EditorMapProjection
+        {
+            MapName = "map01",
+            MinSectorX = 0,
+            MinSectorY = 0,
+            MaxSectorX = 1,
+            MaxSectorY = 0,
+            Width = 2,
+            Height = 1,
+            UnpositionedSectorCount = 0,
+            Sectors = [CreateProjection(sectorAAsset, localX: 0), CreateProjection(sectorBAsset, localX: 1)],
+        };
+        var sectorsByAssetPath = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase)
+        {
+            [sectorAAsset.AssetPath] = sectorA,
+            [sectorBAsset.AssetPath] = sectorB,
+        };
+
+        var fullPreview = EditorMapScenePreviewBuilder.Build(
+            projection,
+            sectorsByAssetPath,
+            artResolver: null,
+            currentArtIdFallbackResolver: null,
+            mapMobsByAssetPath: null
+        );
+        var focusedPreview = EditorMapScenePreviewBuilder.Build(
+            projection,
+            sectorsByAssetPath,
+            artResolver: null,
+            currentArtIdFallbackResolver: null,
+            mapMobsByAssetPath: null,
+            objectSectorAssetPaths: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { sectorBAsset.AssetPath }
+        );
+
+        await Assert.That(fullPreview.Sectors[0].Objects.Count).IsEqualTo(1);
+        await Assert.That(fullPreview.Sectors[1].Objects.Count).IsEqualTo(1);
+        await Assert.That(focusedPreview.Sectors[0].Objects).IsEmpty();
+        await Assert.That(focusedPreview.Sectors[1].Objects).HasSingleItem();
+        await Assert.That(focusedPreview.Sectors[0].GetTileArtId(0, 0)).IsEqualTo(0x10000001u);
+        await Assert.That(focusedPreview.Sectors[1].GetTileArtId(0, 0)).IsEqualTo(0x10000002u);
+        await Assert.That(focusedPreview.Sectors[1].Objects[0].SourceAssetPath).IsEqualTo(sectorBAsset.AssetPath);
+
+        static Sector CreateSector(MobData mob, uint tileArtId)
+        {
+            var tiles = new uint[4096];
+            tiles[0] = tileArtId;
+            return new Sector
+            {
+                Lights = [],
+                Tiles = tiles,
+                HasRoofs = false,
+                Roofs = null,
+                SectorScript = null,
+                TileScripts = [],
+                TownmapInfo = 0,
+                AptitudeAdjustment = 0,
+                LightSchemeIdx = 0,
+                SoundList = SectorSoundList.Default,
+                BlockMask = new uint[128],
+                Objects = [mob],
+            };
+        }
+
+        static EditorMapSectorProjection CreateProjection(EditorAssetEntry asset, int localX) =>
+            new()
+            {
+                Sector = new EditorSectorSummary
+                {
+                    Asset = asset,
+                    MapName = "map01",
+                    ObjectCount = 1,
+                    LightCount = 0,
+                    TileScriptCount = 0,
+                    SectorScriptId = null,
+                    HasRoofs = false,
+                    DistinctTileArtCount = 1,
+                    BlockedTileCount = 0,
+                    LightSchemeIndex = 0,
+                    MusicSchemeIndex = -1,
+                    AmbientSchemeIndex = -1,
+                },
+                SectorX = localX,
+                SectorY = 0,
+                LocalX = localX,
+                LocalY = 0,
+                ObjectDensityBand = EditorMapSectorDensityBand.Low,
+                BlockedTileDensityBand = EditorMapSectorDensityBand.None,
+            };
+    }
+
+    [Test]
     public async Task BuildSector_WithArtResolver_ProjectsConservativeSpriteBounds()
     {
         var objectId = new GameObjectGuid(GameObjectGuid.OidTypeGuid, 0, 2, Guid.NewGuid());
