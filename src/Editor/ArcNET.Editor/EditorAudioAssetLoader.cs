@@ -1,4 +1,5 @@
 using ArcNET.Archive;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Editor;
 
@@ -38,8 +39,9 @@ internal static class EditorAudioAssetLoader
             throw new DirectoryNotFoundException($"Game directory not found: {gameDir}");
 
         var aggregator = new ProgressAggregator(progress);
-        var sourceTasks = DiscoverArchivePaths(gameDir)
-            .Select(archivePath =>
+        var sourceTasks = WorkspaceArchiveDiscovery
+            .DiscoverGameInstallArchives(gameDir)
+            .ArchivePaths.Select(archivePath =>
                 LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
             )
             .ToList();
@@ -77,8 +79,9 @@ internal static class EditorAudioAssetLoader
         if (gameDirectory is not null)
         {
             sourceTasks.AddRange(
-                DiscoverArchivePaths(gameDirectory)
-                    .Select(archivePath =>
+                WorkspaceArchiveDiscovery
+                    .DiscoverGameInstallArchives(gameDirectory)
+                    .ArchivePaths.Select(archivePath =>
                         LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
                     )
             );
@@ -96,8 +99,9 @@ internal static class EditorAudioAssetLoader
         }
 
         sourceTasks.AddRange(
-            DiscoverModuleArchivePaths(moduleDirectory)
-                .Select(archivePath =>
+            WorkspaceArchiveDiscovery
+                .DiscoverModuleArchives(moduleDirectory)
+                .ArchivePaths.Select(archivePath =>
                     LoadArchiveAsync(archivePath, cancellationToken, aggregator.CreateSubProgress(archivePath))
                 )
         );
@@ -256,88 +260,13 @@ internal static class EditorAudioAssetLoader
         return new EditorAudioAssetLoadResult(EditorAudioAssetCatalog.Create(entriesByPath.Values));
     }
 
-    private static string? ResolveOwningGameDirectory(string moduleDirectory)
-    {
-        var modulesRoot = Directory.GetParent(moduleDirectory)?.FullName;
-        return modulesRoot is null ? null : Directory.GetParent(modulesRoot)?.FullName;
-    }
-
-    private static IReadOnlyList<string> DiscoverArchivePaths(string gameDir)
-    {
-        var paths = new List<string>();
-
-        paths.AddRange(EnumerateSortedFiles(gameDir, "*.dat", SearchOption.TopDirectoryOnly));
-
-        var modulesDir = Path.Combine(gameDir, "modules");
-        if (Directory.Exists(modulesDir))
-        {
-            paths.AddRange(EnumerateSortedFiles(modulesDir, "*.dat", SearchOption.AllDirectories));
-            paths.AddRange(EnumerateSortedFiles(modulesDir, "*.PATCH*", SearchOption.TopDirectoryOnly));
-        }
-
-        var archivePaths = new List<string>();
-        foreach (var path in paths)
-        {
-            if (TryAcceptArchiveCandidate(path))
-                archivePaths.Add(path);
-        }
-
-        return archivePaths;
-    }
-
-    private static IReadOnlyList<string> DiscoverModuleArchivePaths(string moduleDirectory)
-    {
-        var moduleName = Path.GetFileName(
-            moduleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-        );
-        var modulesRoot = Directory.GetParent(moduleDirectory)?.FullName;
-        if (modulesRoot is null || !Directory.Exists(modulesRoot))
-            return [];
-
-        var archivePaths = new List<string>();
-        foreach (
-            var path in Directory
-                .EnumerateFiles(modulesRoot, "*", SearchOption.TopDirectoryOnly)
-                .Where(path => IsModuleArchiveCandidate(path, moduleName))
-                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+    private static string? ResolveOwningGameDirectory(string moduleDirectory) =>
+        WorkspaceInstallPathResolver.TryResolveOwningGameDirectoryFromModuleDirectory(
+            moduleDirectory,
+            out var gameDirectory
         )
-        {
-            if (TryAcceptArchiveCandidate(path))
-                archivePaths.Add(path);
-        }
-
-        return archivePaths;
-    }
-
-    private static bool IsModuleArchiveCandidate(string path, string moduleName)
-    {
-        var fileName = Path.GetFileName(path);
-        return fileName.Equals($"{moduleName}.dat", StringComparison.OrdinalIgnoreCase)
-            || fileName.StartsWith($"{moduleName}.PATCH", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static IReadOnlyList<string> EnumerateSortedFiles(string dir, string pattern, SearchOption searchOption) =>
-        Directory
-            .EnumerateFiles(dir, pattern, searchOption)
-            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static bool TryAcceptArchiveCandidate(string archivePath)
-    {
-        try
-        {
-            using var archive = DatArchive.Open(archivePath);
-            return true;
-        }
-        catch (InvalidDataException ex) when (IsUnsupportedArchiveFormat(ex))
-        {
-            return false;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return false;
-        }
-    }
+            ? gameDirectory
+            : null;
 
     private static bool IsSupportedAudioAsset(string path) => path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
 
@@ -346,9 +275,6 @@ internal static class EditorAudioAssetLoader
             $"{Path.DirectorySeparatorChar}Save{Path.DirectorySeparatorChar}",
             StringComparison.OrdinalIgnoreCase
         );
-
-    private static bool IsUnsupportedArchiveFormat(InvalidDataException exception) =>
-        exception.Message.StartsWith("Unsupported DAT magic ", StringComparison.Ordinal);
 
     private static string NormalizeVirtualPath(string path) => ArcNET.Core.VirtualPath.Normalize(path);
 

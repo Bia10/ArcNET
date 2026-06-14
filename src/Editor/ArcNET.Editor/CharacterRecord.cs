@@ -5,8 +5,8 @@ namespace ArcNET.Editor;
 /// <summary>
 /// Immutable domain model holding a complete character's stat, skill, and spell state.
 /// Construct through <see cref="Builder"/> or by calling <see cref="ToBuilder"/> on an
-/// existing instance.  Binary encoding and decoding is handled internally by
-/// <see cref="SaveGameEditor"/>.
+/// existing instance. Binary encoding and decoding is handled through the
+/// <see cref="CharacterMdyRecord"/> bridge helpers on this type.
 /// </summary>
 public sealed partial class CharacterRecord
 {

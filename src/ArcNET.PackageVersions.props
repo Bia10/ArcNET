@@ -25,6 +25,14 @@
       <PackageId>ArcNET.GameData</PackageId>
       <Version>0.1.0-preview.1</Version>
     </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.GameData.SaveGames">
+      <PackageId>ArcNET.GameData.SaveGames</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
+    <ArcNETPackageVersion Include="ArcNET.GameData.Workspace">
+      <PackageId>ArcNET.GameData.Workspace</PackageId>
+      <Version>0.1.0-preview.1</Version>
+    </ArcNETPackageVersion>
     <ArcNETPackageVersion Include="ArcNET.GameObjects">
       <PackageId>ArcNET.GameObjects</PackageId>
       <Version>0.1.0-preview.1</Version>

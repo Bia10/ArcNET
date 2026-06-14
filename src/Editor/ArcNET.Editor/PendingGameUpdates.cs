@@ -1,4 +1,5 @@
 ﻿using ArcNET.Formats;
+using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
 
 namespace ArcNET.Editor;
 
@@ -56,13 +57,51 @@ internal sealed class PendingGameUpdates
 
     public PendingAssetUpdates<byte[]> RawFiles { get; }
 
-    public bool HasPending => SaveAssetRegistry.HasPendingUpdates(this);
+    public bool HasPending =>
+        MobileMdys.Count > 0
+        || Messages.Count > 0
+        || JumpFiles.Count > 0
+        || MapProperties.Count > 0
+        || TownMapFogs.Count > 0
+        || DataSavFiles.Count > 0
+        || Data2SavFiles.Count > 0
+        || RawFiles.Count > 0;
 
     public SaveGameUpdates? ToSaveGameUpdates(SaveInfo? updatedInfo)
     {
         if (updatedInfo is null && !HasPending)
             return null;
 
-        return SaveAssetRegistry.ToSaveGameUpdates(this, updatedInfo);
+        return new SaveGameUpdates
+        {
+            UpdatedInfo = updatedInfo,
+            UpdatedMobileMdys = MobileMdys.PendingOrNull,
+            UpdatedMessages = Messages.PendingOrNull,
+            UpdatedJumpFiles = JumpFiles.PendingOrNull,
+            UpdatedMapProperties = MapProperties.PendingOrNull,
+            UpdatedTownMapFogs = TownMapFogs.PendingOrNull,
+            UpdatedDataSavFiles = DataSavFiles.PendingOrNull,
+            UpdatedData2SavFiles = Data2SavFiles.PendingOrNull,
+            RawFileUpdates = RawFiles.PendingOrNull,
+        };
+    }
+
+    public SharedSaveGameUpdates? ToSharedSaveGameUpdates(SaveInfo? updatedInfo)
+    {
+        if (updatedInfo is null && !HasPending)
+            return null;
+
+        return new SharedSaveGameUpdates
+        {
+            UpdatedInfo = updatedInfo,
+            UpdatedMobileMdys = MobileMdys.PendingOrNull,
+            UpdatedMessages = Messages.PendingOrNull,
+            UpdatedJumpFiles = JumpFiles.PendingOrNull,
+            UpdatedMapProperties = MapProperties.PendingOrNull,
+            UpdatedTownMapFogs = TownMapFogs.PendingOrNull,
+            UpdatedDataSavFiles = DataSavFiles.PendingOrNull,
+            UpdatedData2SavFiles = Data2SavFiles.PendingOrNull,
+            RawFileUpdates = RawFiles.PendingOrNull,
+        };
     }
 }

@@ -1,5 +1,6 @@
-﻿using ArcNET.Formats;
+using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Editor.Tests;
 
@@ -12,7 +13,7 @@ public sealed class EditorCapabilitySummaryTests
         {
             ContentDirectory = Path.Combine("content"),
             GameDirectory = Path.Combine("game-root"),
-            Module = new EditorWorkspaceModuleContext
+            Module = new WorkspaceModuleContext
             {
                 ModuleName = "co8",
                 ModuleDirectory = Path.Combine("game-root", "modules", "co8"),

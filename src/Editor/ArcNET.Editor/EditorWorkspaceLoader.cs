@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using ArcNET.Core;
 using ArcNET.GameData;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Editor;
 
@@ -111,7 +112,7 @@ public static class EditorWorkspaceLoader
             gameData,
             assets,
             audioAssets,
-            EditorWorkspaceLoadReport.Empty,
+            WorkspaceLoadReport.Empty,
             save,
             progressTracker,
             stageRecorder
@@ -303,7 +304,12 @@ public static class EditorWorkspaceLoader
                 )
         );
 
-        var (gameData, assets, loadReport) = await installContentTask.ConfigureAwait(false);
+        var installContent = await installContentTask.ConfigureAwait(false);
+        var assets = stageRecorder.Measure(
+            "InstallContent.BuildAssetCatalog",
+            () => EditorAssetCatalogBuilder.CreateForInstall(installContent.GameData, installContent.AssetSources)
+        );
+        var loadReport = installContent.LoadReport;
         var audioAssets = await audioAssetsTask.ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -325,7 +331,7 @@ public static class EditorWorkspaceLoader
         return BuildWorkspaceWithProgress(
             GetLooseDataDirectory(effectiveOptions.GameDirectory!),
             effectiveOptions,
-            gameData,
+            installContent.GameData,
             assets,
             audioAssets,
             loadReport,
@@ -375,7 +381,12 @@ public static class EditorWorkspaceLoader
                 )
         );
 
-        var (gameData, assets, loadReport, archivePaths) = await moduleContentTask.ConfigureAwait(false);
+        var moduleContent = await moduleContentTask.ConfigureAwait(false);
+        var assets = stageRecorder.Measure(
+            "ModuleContent.BuildAssetCatalog",
+            () => EditorAssetCatalogBuilder.CreateForInstall(moduleContent.GameData, moduleContent.AssetSources)
+        );
+        var loadReport = moduleContent.LoadReport;
         var audioAssets = await audioAssetsTask.ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -397,14 +408,15 @@ public static class EditorWorkspaceLoader
         return BuildWorkspaceWithProgress(
             moduleDirectory,
             effectiveOptions,
-            gameData,
+            moduleContent.GameData,
             assets,
             audioAssets,
             loadReport,
             save,
             progressTracker,
             stageRecorder,
-            CreateModuleContext(moduleDirectory, archivePaths)
+            moduleContent.ModuleContext
+                ?? throw new InvalidOperationException("Module loads must return a shared module context.")
         );
     }
 
@@ -414,11 +426,11 @@ public static class EditorWorkspaceLoader
         GameDataStore gameData,
         EditorAssetCatalog assets,
         EditorAudioAssetLoader.EditorAudioAssetLoadResult audioAssets,
-        EditorWorkspaceLoadReport loadReport,
+        WorkspaceLoadReport loadReport,
         LoadedSave? save,
         WorkspaceLoadProgressTracker progressTracker,
         WorkspaceLoadStageRecorder stageRecorder,
-        EditorWorkspaceModuleContext? module = null
+        WorkspaceModuleContext? module = null
     )
     {
         progressTracker.ReportManual(
@@ -461,9 +473,9 @@ public static class EditorWorkspaceLoader
         GameDataStore gameData,
         EditorAssetCatalog assets,
         EditorAudioAssetLoader.EditorAudioAssetLoadResult audioAssets,
-        EditorWorkspaceLoadReport loadReport,
+        WorkspaceLoadReport loadReport,
         LoadedSave? save,
-        EditorWorkspaceModuleContext? module = null,
+        WorkspaceModuleContext? module = null,
         WorkspaceLoadStageRecorder? stageRecorder = null,
         IProgress<EditorAssetIndexBuildProgress>? indexProgress = null
     )
@@ -510,9 +522,9 @@ public static class EditorWorkspaceLoader
     private static async Task<(
         GameDataStore GameData,
         EditorAssetCatalog Assets,
-        EditorWorkspaceLoadReport LoadReport,
+        WorkspaceLoadReport LoadReport,
         EditorAudioAssetLoader.EditorAudioAssetLoadResult AudioAssets,
-        EditorWorkspaceModuleContext? ModuleContext
+        WorkspaceModuleContext? ModuleContext
     )> LoadInstallBackedWorkspaceComponentsAsync(
         EditorWorkspaceLoadOptions options,
         CancellationToken cancellationToken,
@@ -548,10 +560,22 @@ public static class EditorWorkspaceLoader
                     )
             );
 
-            var (gameData, assets, loadReport, archivePaths) = await moduleContentTask.ConfigureAwait(false);
+            var moduleContent = await moduleContentTask.ConfigureAwait(false);
+            var assets = stageRecorder.Measure(
+                "ModuleContent.BuildAssetCatalog",
+                () => EditorAssetCatalogBuilder.CreateForInstall(moduleContent.GameData, moduleContent.AssetSources)
+            );
+            var loadReport = moduleContent.LoadReport;
             var audioAssets = await audioAssetsTask.ConfigureAwait(false);
 
-            return (gameData, assets, loadReport, audioAssets, CreateModuleContext(moduleDirectory, archivePaths));
+            return (
+                moduleContent.GameData,
+                assets,
+                loadReport,
+                audioAssets,
+                moduleContent.ModuleContext
+                    ?? throw new InvalidOperationException("Module loads must return a shared module context.")
+            );
         }
 
         var installContentTask = stageRecorder.MeasureAsync(
@@ -576,10 +600,15 @@ public static class EditorWorkspaceLoader
                 )
         );
 
-        var (installGameData, installAssets, installLoadReport) = await installContentTask.ConfigureAwait(false);
+        var installContent = await installContentTask.ConfigureAwait(false);
+        var installAssets = stageRecorder.Measure(
+            "InstallContent.BuildAssetCatalog",
+            () => EditorAssetCatalogBuilder.CreateForInstall(installContent.GameData, installContent.AssetSources)
+        );
+        var installLoadReport = installContent.LoadReport;
         var installAudioAssets = await installAudioAssetsTask.ConfigureAwait(false);
 
-        return (installGameData, installAssets, installLoadReport, installAudioAssets, null);
+        return (installContent.GameData, installAssets, installLoadReport, installAudioAssets, null);
     }
 
     private static EditorWorkspaceLoadOptions CreateContentOverlayOptions(EditorWorkspaceLoadOptions options)
@@ -765,31 +794,9 @@ public static class EditorWorkspaceLoader
         var moduleName = Path.GetFileName(
             resolvedModuleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
         );
-        var modulesDirectory =
-            Directory.GetParent(resolvedModuleDirectory)?.FullName
-            ?? throw new ArgumentException(
-                "Module directory must have one parent modules directory.",
-                nameof(moduleDirectory)
-            );
-        var gameDirectory =
-            Directory.GetParent(modulesDirectory)?.FullName
-            ?? throw new ArgumentException(
-                "Module directory must live under one game install modules directory.",
-                nameof(moduleDirectory)
-            );
-        if (
-            !string.Equals(
-                Path.GetFileName(modulesDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
-                "modules",
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            throw new ArgumentException(
-                "Module directory must live directly under one game install modules directory.",
-                nameof(moduleDirectory)
-            );
-        }
+        var gameDirectory = WorkspaceInstallPathResolver.ResolveOwningGameDirectoryFromModuleDirectory(
+            resolvedModuleDirectory
+        );
 
         if (!ModuleInstallContentLoader.HasModuleContent(resolvedModuleDirectory))
             throw new DirectoryNotFoundException($"Module content not found: {resolvedModuleDirectory}");
@@ -826,43 +833,8 @@ public static class EditorWorkspaceLoader
         };
     }
 
-    private static string ResolveGameInstallDirectory(string gameDir)
-    {
-        var fullPath = Path.GetFullPath(gameDir);
-        if (!Directory.Exists(fullPath))
-            return fullPath;
-
-        if (TryResolveOwningGameDirectoryFromModuleDirectory(fullPath, out var gameDirectory))
-            return gameDirectory;
-
-        if (TryResolveOwningGameDirectoryFromModulesDirectory(fullPath, out gameDirectory))
-            return gameDirectory;
-
-        if (LooksLikeGameInstallDirectory(fullPath))
-            return fullPath;
-
-        var preferredNestedPath = Path.Combine(fullPath, "Arcanum");
-        if (LooksLikeGameInstallDirectory(preferredNestedPath))
-            return preferredNestedPath;
-
-        var matchingChildDirectories = Directory
-            .EnumerateDirectories(fullPath)
-            .Where(LooksLikeGameInstallDirectory)
-            .Take(2)
-            .ToArray();
-
-        return matchingChildDirectories.Length == 1 ? matchingChildDirectories[0] : fullPath;
-    }
-
-    private static bool LooksLikeGameInstallDirectory(string path)
-    {
-        if (!Directory.Exists(path))
-            return false;
-
-        return Directory.Exists(Path.Combine(path, LooseDataDirectoryName))
-            || Directory.Exists(Path.Combine(path, "modules"))
-            || Directory.EnumerateFiles(path, "*.dat", SearchOption.TopDirectoryOnly).Any();
-    }
+    private static string ResolveGameInstallDirectory(string gameDir) =>
+        WorkspaceInstallPathResolver.ResolveGameInstallDirectory(gameDir);
 
     private static void ValidateContentWorkspaceArguments(string contentDirectory, EditorWorkspaceLoadOptions options)
     {
@@ -887,7 +859,7 @@ public static class EditorWorkspaceLoader
 
         if (
             !string.IsNullOrWhiteSpace(options.ModuleName)
-            && !HasModuleContent(options.GameDirectory, options.ModuleName)
+            && !WorkspaceContentLoader.HasModuleContent(options.GameDirectory, options.ModuleName)
         )
         {
             throw new DirectoryNotFoundException(
@@ -919,76 +891,14 @@ public static class EditorWorkspaceLoader
 
     private static string GetLooseDataDirectory(string gameDir) => Path.Combine(gameDir, LooseDataDirectoryName);
 
-    private static string ResolveModuleDirectory(string gameDir, string moduleName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
-        return Path.Combine(gameDir, "modules", moduleName);
-    }
+    private static string ResolveModuleDirectory(string gameDir, string moduleName) =>
+        WorkspaceInstallPathResolver.ResolveModuleDirectory(gameDir, moduleName);
 
-    private static bool HasModuleContent(string gameDirectory, string moduleName) =>
-        ModuleInstallContentLoader.HasModuleContent(ResolveModuleDirectory(gameDirectory, moduleName));
+    private static bool TryResolveOwningGameDirectoryFromModulesDirectory(string path, out string gameDirectory) =>
+        WorkspaceInstallPathResolver.TryResolveOwningGameDirectoryFromModulesDirectory(path, out gameDirectory);
 
-    private static bool TryResolveOwningGameDirectoryFromModulesDirectory(string path, out string gameDirectory)
-    {
-        gameDirectory = string.Empty;
-        if (
-            !string.Equals(
-                Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
-                "modules",
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            return false;
-        }
-
-        var candidateGameDirectory = Directory.GetParent(path)?.FullName;
-        if (candidateGameDirectory is null || !LooksLikeGameInstallDirectory(candidateGameDirectory))
-            return false;
-
-        gameDirectory = candidateGameDirectory;
-        return true;
-    }
-
-    private static bool TryResolveOwningGameDirectoryFromModuleDirectory(string path, out string gameDirectory)
-    {
-        gameDirectory = string.Empty;
-        var modulesDirectory = Directory.GetParent(path)?.FullName;
-        if (
-            modulesDirectory is null
-            || !string.Equals(
-                Path.GetFileName(modulesDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
-                "modules",
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            return false;
-        }
-
-        var candidateGameDirectory = Directory.GetParent(modulesDirectory)?.FullName;
-        if (candidateGameDirectory is null || !LooksLikeGameInstallDirectory(candidateGameDirectory))
-            return false;
-
-        gameDirectory = candidateGameDirectory;
-        return true;
-    }
-
-    private static EditorWorkspaceModuleContext CreateModuleContext(
-        string moduleDirectory,
-        IReadOnlyList<string> archivePaths
-    ) =>
-        new()
-        {
-            ModuleName = Path.GetFileName(
-                moduleDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            ),
-            ModuleDirectory = moduleDirectory,
-            SaveDirectory = Directory.Exists(Path.Combine(moduleDirectory, "Save"))
-                ? Path.Combine(moduleDirectory, "Save")
-                : null,
-            ArchivePaths = archivePaths,
-        };
+    private static bool TryResolveOwningGameDirectoryFromModuleDirectory(string path, out string gameDirectory) =>
+        WorkspaceInstallPathResolver.TryResolveOwningGameDirectoryFromModuleDirectory(path, out gameDirectory);
 
     private static bool PathsEqual(string left, string right) =>
         string.Equals(

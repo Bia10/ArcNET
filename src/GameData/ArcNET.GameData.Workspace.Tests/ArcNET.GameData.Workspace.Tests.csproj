@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.GameData.Workspace.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
+    <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
+    <ProjectReference Include="..\ArcNET.GameData.Workspace\ArcNET.GameData.Workspace.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+</Project>

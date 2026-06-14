@@ -7,6 +7,9 @@ using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
+using SharedLoadedSave = ArcNET.GameData.SaveGames.LoadedSave;
+using SharedSaveGameSnapshotComposer = ArcNET.GameData.SaveGames.SaveGameSnapshotComposer;
+using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
 
 namespace ArcNET.Editor;
 
@@ -13095,12 +13098,10 @@ public sealed class EditorWorkspaceSession
         if ((saveBackedMobs?.Count ?? 0) == 0 && (saveBackedSectors?.Count ?? 0) == 0)
             return baseSave;
 
-        var saveFiles = SaveGamePayloadComposer.Compose(
-            baseSave,
-            new SaveGameUpdates { UpdatedMobiles = saveBackedMobs, UpdatedSectors = saveBackedSectors }
+        return SharedSaveGameSnapshotComposer.Compose(
+            SharedLoadedSave.FromLegacy(baseSave),
+            new SharedSaveGameUpdates { UpdatedMobiles = saveBackedMobs, UpdatedSectors = saveBackedSectors }
         );
-        var saveIndex = SaveGameIndexRebuilder.Rebuild(baseSave.Index, saveFiles);
-        return SaveGameLoader.LoadFromFiles(baseSave.Info, saveIndex, saveFiles);
     }
 
     private void CommitSaveChanges(IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null)

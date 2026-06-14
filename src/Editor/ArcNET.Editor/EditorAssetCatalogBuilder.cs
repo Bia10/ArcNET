@@ -1,5 +1,6 @@
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Editor;
 
@@ -12,17 +13,18 @@ internal static class EditorAssetCatalogBuilder
 
         return Create(
             gameData,
-            assetPath =>
-                (EditorAssetSourceKind.LooseFile, GetLooseAssetPath(contentDirectory, assetPath), (string?)null)
+            assetPath => new WorkspaceAssetSource
+            {
+                SourceKind = WorkspaceAssetSourceKind.LooseFile,
+                SourcePath = GetLooseAssetPath(contentDirectory, assetPath),
+                SourceEntryPath = null,
+            }
         );
     }
 
     public static EditorAssetCatalog CreateForInstall(
         GameDataStore gameData,
-        IReadOnlyDictionary<
-            string,
-            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
-        > assetSources
+        IReadOnlyDictionary<string, WorkspaceAssetSource> assetSources
     )
     {
         ArgumentNullException.ThrowIfNull(gameData);
@@ -43,11 +45,8 @@ internal static class EditorAssetCatalogBuilder
 
     private static EditorAssetCatalog Create(
         GameDataStore gameData,
-        Func<string, (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)> resolveSource,
-        IReadOnlyDictionary<
-            string,
-            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
-        >? discoveredAssetSources = null
+        Func<string, WorkspaceAssetSource> resolveSource,
+        IReadOnlyDictionary<string, WorkspaceAssetSource>? discoveredAssetSources = null
     )
     {
         var entries = new List<EditorAssetEntry>();
@@ -72,7 +71,7 @@ internal static class EditorAssetCatalogBuilder
         List<EditorAssetEntry> entries,
         IReadOnlyDictionary<string, IReadOnlyList<T>> assetsBySource,
         FileFormat format,
-        Func<string, (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)> resolveSource
+        Func<string, WorkspaceAssetSource> resolveSource
     )
     {
         foreach (var (assetPath, assets) in assetsBySource.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
@@ -84,7 +83,7 @@ internal static class EditorAssetCatalogBuilder
                     AssetPath = NormalizeAssetPath(assetPath),
                     Format = format,
                     ItemCount = assets.Count,
-                    SourceKind = source.SourceKind,
+                    SourceKind = EditorAssetSourceKindAdapter.FromWorkspaceSourceKind(source.SourceKind),
                     SourcePath = source.SourcePath,
                     SourceEntryPath = source.SourceEntryPath,
                 }
@@ -94,10 +93,7 @@ internal static class EditorAssetCatalogBuilder
 
     private static void AddDiscoveredEntries(
         List<EditorAssetEntry> entries,
-        IReadOnlyDictionary<
-            string,
-            (EditorAssetSourceKind SourceKind, string SourcePath, string? SourceEntryPath)
-        >? discoveredAssetSources
+        IReadOnlyDictionary<string, WorkspaceAssetSource>? discoveredAssetSources
     )
     {
         if (discoveredAssetSources is null || discoveredAssetSources.Count == 0)
@@ -125,7 +121,7 @@ internal static class EditorAssetCatalogBuilder
                     AssetPath = normalizedPath,
                     Format = format,
                     ItemCount = 1,
-                    SourceKind = source.SourceKind,
+                    SourceKind = EditorAssetSourceKindAdapter.FromWorkspaceSourceKind(source.SourceKind),
                     SourcePath = source.SourcePath,
                     SourceEntryPath = source.SourceEntryPath,
                 }

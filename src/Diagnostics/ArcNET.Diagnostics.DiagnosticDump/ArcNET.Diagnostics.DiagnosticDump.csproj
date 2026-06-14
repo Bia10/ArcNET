@@ -10,6 +10,5 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
     <ProjectReference Include="..\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
-    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
   </ItemGroup>
 </Project>

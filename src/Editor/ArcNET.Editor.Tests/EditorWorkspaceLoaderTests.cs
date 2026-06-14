@@ -4948,12 +4948,14 @@ public class EditorWorkspaceLoaderTests
                 return DatArchive.Open(path);
             }
 
-            var (gameData, assetCatalog, loadReport) = await GameInstallContentLoader.LoadAsync(
-                gameDir,
-                archiveOpener: CountingOpen
+            var installContent = await GameInstallContentLoader.LoadAsync(gameDir, archiveOpener: CountingOpen);
+            var assetCatalog = EditorAssetCatalogBuilder.CreateForInstall(
+                installContent.GameData,
+                installContent.AssetSources
             );
+            var loadReport = installContent.LoadReport;
 
-            await Assert.That(gameData.Messages.Count).IsEqualTo(3);
+            await Assert.That(installContent.GameData.Messages.Count).IsEqualTo(3);
             await Assert.That(assetCatalog.Find("mes/game.mes")).IsNotNull();
             await Assert.That(loadReport.SkippedArchiveCandidates.Count).IsEqualTo(0);
             await Assert.That(openCount).IsEqualTo(2);
@@ -5188,15 +5190,17 @@ public class EditorWorkspaceLoaderTests
                 return DatArchive.Open(path);
             }
 
-            var (gameData, assetCatalog, loadReport, archivePaths) = await ModuleInstallContentLoader.LoadAsync(
-                moduleDir,
-                archiveOpener: CountingOpen
+            var moduleContent = await ModuleInstallContentLoader.LoadAsync(moduleDir, archiveOpener: CountingOpen);
+            var assetCatalog = EditorAssetCatalogBuilder.CreateForInstall(
+                moduleContent.GameData,
+                moduleContent.AssetSources
             );
+            var loadReport = moduleContent.LoadReport;
 
-            await Assert.That(gameData.Messages.Count).IsEqualTo(3);
+            await Assert.That(moduleContent.GameData.Messages.Count).IsEqualTo(3);
             await Assert.That(assetCatalog.Find("mes/game.mes")).IsNotNull();
             await Assert.That(loadReport.SkippedArchiveCandidates.Count).IsEqualTo(0);
-            await Assert.That(archivePaths.Count).IsEqualTo(1);
+            await Assert.That(moduleContent.ArchivePaths.Count).IsEqualTo(1);
             await Assert.That(openCount).IsEqualTo(2);
         }
         finally

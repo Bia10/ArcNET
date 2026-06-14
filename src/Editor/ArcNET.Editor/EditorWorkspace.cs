@@ -6,6 +6,7 @@ using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.Workspace;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor;
@@ -234,7 +235,7 @@ public sealed class EditorWorkspace : IDisposable
     /// Optional module-backed context used when the workspace was loaded for one specific module instead of one
     /// whole-install aggregate.
     /// </summary>
-    public EditorWorkspaceModuleContext? Module { get; init; }
+    public WorkspaceModuleContext? Module { get; init; }
 
     /// <summary>
     /// Installation type detected from <see cref="GameDirectory"/>, or <see langword="null"/>
@@ -265,7 +266,7 @@ public sealed class EditorWorkspace : IDisposable
     /// <summary>
     /// Diagnostics captured while the workspace was loaded.
     /// </summary>
-    public EditorWorkspaceLoadReport LoadReport { get; init; } = EditorWorkspaceLoadReport.Empty;
+    public WorkspaceLoadReport LoadReport { get; init; } = WorkspaceLoadReport.Empty;
 
     /// <summary>
     /// Cross-file validation findings derived from the indexed workspace assets.
@@ -523,12 +524,7 @@ public sealed class EditorWorkspace : IDisposable
     /// </summary>
     public MesFile? FindMessageFile(string assetPath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
-
-        var normalizedPath = NormalizeAssetPath(assetPath);
-        return GameData.MessagesBySource.TryGetValue(normalizedPath, out var entries)
-            ? new MesFile { Entries = [.. entries] }
-            : null;
+        return WorkspaceMessageLookup.FindMessageFile(GameData, assetPath);
     }
 
     /// <summary>

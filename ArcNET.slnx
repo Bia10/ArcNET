@@ -14,6 +14,9 @@
   <Folder Name="/src/GameData/">
     <Project Path="src/GameData/ArcNET.GameData/ArcNET.GameData.csproj" />
     <Project Path="src/GameData/ArcNET.GameData.Tests/ArcNET.GameData.Tests.csproj" />
+    <Project Path="src/GameData/ArcNET.GameData.SaveGames/ArcNET.GameData.SaveGames.csproj" />
+    <Project Path="src/GameData/ArcNET.GameData.Workspace/ArcNET.GameData.Workspace.csproj" />
+    <Project Path="src/GameData/ArcNET.GameData.Workspace.Tests/ArcNET.GameData.Workspace.Tests.csproj" />
   </Folder>
   <Folder Name="/src/Archive/">
     <Project Path="src/Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
@@ -44,7 +47,6 @@
     <Project Path="src/Diagnostics/ArcNET.Diagnostics.FileTime/ArcNET.Diagnostics.FileTime.csproj" />
     <Project Path="src/Diagnostics/ArcNET.Diagnostics.MesDump/ArcNET.Diagnostics.MesDump.csproj" />
     <Project Path="src/Diagnostics/ArcNET.Diagnostics/ArcNET.Diagnostics.csproj" />
-    <Project Path="src/Diagnostics/ArcNET.Diagnostics.SectorDebug/ArcNET.Diagnostics.SectorDebug.csproj" />
     <Project Path="src/Diagnostics/ArcNET.Diagnostics.Windows/ArcNET.Diagnostics.Windows.csproj" />
     <Project Path="src/Diagnostics/ArcNET.Diagnostics.Tests/ArcNET.Diagnostics.Tests.csproj" />
   </Folder>
@@ -52,4 +54,6 @@
     <Project Path="src/Editor/ArcNET.Editor/ArcNET.Editor.csproj" />
     <Project Path="src/Editor/ArcNET.Editor.Tests/ArcNET.Editor.Tests.csproj" />
   </Folder>
+    <Project Path="src/Editor/ArcNET.Editor.RenderBufferDump/ArcNET.Editor.RenderBufferDump.csproj" />
+    <Project Path="src/Editor/ArcNET.Editor.SectorDebug/ArcNET.Editor.SectorDebug.csproj" />
 </Solution>

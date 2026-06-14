@@ -1,4 +1,7 @@
 ﻿using ArcNET.Formats;
+using SharedLoadedSave = ArcNET.GameData.SaveGames.LoadedSave;
+using SharedSaveGameSnapshotComposer = ArcNET.GameData.SaveGames.SaveGameSnapshotComposer;
+using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
 
 namespace ArcNET.Editor;
 
@@ -120,6 +123,12 @@ public sealed class SaveGameEditor
     {
         var updatedInfo = _saveInfoEditor.GetPendingSaveInfo();
         return _pendingUpdates.ToSaveGameUpdates(updatedInfo);
+    }
+
+    private SharedSaveGameUpdates? CreateSharedUpdateBundle()
+    {
+        var updatedInfo = _saveInfoEditor.GetPendingSaveInfo();
+        return _pendingUpdates.ToSharedSaveGameUpdates(updatedInfo);
     }
 
     // ── Character discovery ───────────────────────────────────────────────────
@@ -799,12 +808,8 @@ public sealed class SaveGameEditor
         CancellationToken cancellationToken = default
     ) => _saveGameWriter.SaveAsync(_save, gsiPath, tfaiPath, tfafPath, CreateUpdateBundle(), cancellationToken);
 
-    internal LoadedSave CreateCommittedSnapshot()
-    {
-        var files = SaveGamePayloadComposer.Compose(_save, CreateUpdateBundle());
-        var index = SaveGameIndexRebuilder.Rebuild(_save.Index, files);
-        return SaveGameLoader.LoadFromFiles(GetCurrentSaveInfo(), index, files);
-    }
+    internal LoadedSave CreateCommittedSnapshot() =>
+        SharedSaveGameSnapshotComposer.Compose(SharedLoadedSave.FromLegacy(_save), CreateSharedUpdateBundle());
 
     internal void ResetCommittedState(LoadedSave save)
     {

@@ -36,6 +36,8 @@
     <ProjectReference Include="../../GameObjects/ArcNET.GameObjects/ArcNET.GameObjects.csproj" />
     <ProjectReference Include="../../Formats/ArcNET.Formats/ArcNET.Formats.csproj" />
     <ProjectReference Include="../../GameData/ArcNET.GameData/ArcNET.GameData.csproj" />
+    <ProjectReference Include="../../GameData/ArcNET.GameData.SaveGames/ArcNET.GameData.SaveGames.csproj" />
+    <ProjectReference Include="../../GameData/ArcNET.GameData.Workspace/ArcNET.GameData.Workspace.csproj" />
     <ProjectReference Include="../../Archive/ArcNET.Archive/ArcNET.Archive.csproj" />
   </ItemGroup>
 
