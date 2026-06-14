@@ -4,9 +4,11 @@ using ArcNET.Archive;
 using ArcNET.BinaryPatch;
 using ArcNET.Core;
 using ArcNET.Diagnostics;
+using ArcNET.Diagnostics.Contracts;
 using ArcNET.Editor;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.Workspace;
 using ArcNET.GameObjects;
 using PublicApiGenerator;
 
@@ -32,6 +34,9 @@ public class PublicApiTest
             ("ArcNET.Formats", typeof(MessageFormat).Assembly.GeneratePublicApi()),
             ("ArcNET.GameObjects", typeof(GameObject).Assembly.GeneratePublicApi()),
             ("ArcNET.GameData", typeof(GameDataStore).Assembly.GeneratePublicApi()),
+            ("ArcNET.GameData.SaveGames", typeof(LoadedSave).Assembly.GeneratePublicApi()),
+            ("ArcNET.GameData.Workspace", typeof(WorkspaceInstallPathResolver).Assembly.GeneratePublicApi()),
+            ("ArcNET.Diagnostics.Contracts", typeof(RuntimeFingerprint).Assembly.GeneratePublicApi()),
             ("ArcNET.Diagnostics", typeof(EnvironmentRequest).Assembly.GeneratePublicApi()),
             ("ArcNET.Editor", typeof(EditorWorkspace).Assembly.GeneratePublicApi()),
             ("ArcNET.BinaryPatch", typeof(BinaryPatcher).Assembly.GeneratePublicApi()),

@@ -2363,6 +2363,38 @@ namespace ArcNET.GameObjects.Classes
         public Unique() { }
     }
 }
+namespace ArcNET.GameObjects.Runtime
+{
+    public enum CharacterSheetPropertyId
+    {
+        HpBonus = 27,
+        HpLoss = 29,
+        MpBonus = 224,
+        MpLoss = 226,
+        Name = 270,
+        Flags = 19,
+    }
+    public static class CharacterSheetRuntimeLayout
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.Runtime.RuntimeFieldDescriptor> BasicSkillsFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.Runtime.RuntimeFieldDescriptor> MainStatsFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.Runtime.RuntimeFieldDescriptor> SpellAndTechFields { get; }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.Runtime.RuntimeFieldDescriptor> TechSkillsFields { get; }
+    }
+    public enum CharacterSheetSubstructureId
+    {
+        MainStats = 220,
+        BasicSkills = 221,
+        TechSkills = 222,
+        SpellAndTech = 223,
+    }
+    public readonly struct RuntimeFieldDescriptor : System.IEquatable<ArcNET.GameObjects.Runtime.RuntimeFieldDescriptor>
+    {
+        public RuntimeFieldDescriptor(string Name, int Offset) { }
+        public string Name { get; init; }
+        public int Offset { get; init; }
+    }
+}
 namespace ArcNET.GameObjects.Types
 {
     public sealed class ObjectAmmo : ArcNET.GameObjects.Types.ObjectItem
@@ -2835,6 +2867,931 @@ namespace ArcNET.GameData
     }
 }```
 
+## ArcNET.GameData.SaveGames
+
+```csharp
+[assembly: System.CLSCompliant(false)]
+[assembly: System.Reflection.AssemblyMetadata("IsAotCompatible", "True")]
+[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
+[assembly: System.Resources.NeutralResourcesLanguage("en")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Editor.Tests")]
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace ArcNET.Editor
+{
+    public class LoadedSave
+    {
+        public LoadedSave() { }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile> Data2SavFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile> DataSavFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile> Dialogs { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> Files { get; init; }
+        public required ArcNET.Formats.SaveIndex Index { get; init; }
+        public required ArcNET.Formats.SaveInfo Info { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile> JumpFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties> MapPropertiesList { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile> Messages { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile> MobileMds { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile> MobileMdys { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData> Mobiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, string> ParseErrors { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> RawFiles { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile> Scripts { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> Sectors { get; init; }
+        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog> TownMapFogs { get; init; }
+    }
+    public static class SaveGameLoader
+    {
+        public static ArcNET.Editor.LoadedSave Load(string saveFolder, string slotName) { }
+        public static ArcNET.Editor.LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string saveFolder, string slotName, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string gsiPath, string tfaiPath, string tfafPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveGameUpdates : System.IEquatable<ArcNET.Editor.SaveGameUpdates>
+    {
+        public SaveGameUpdates() { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? RawFileUpdates { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile>? UpdatedData2SavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile>? UpdatedDataSavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile>? UpdatedDialogs { get; init; }
+        public ArcNET.Formats.SaveInfo? UpdatedInfo { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile>? UpdatedJumpFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties>? UpdatedMapProperties { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile>? UpdatedMessages { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile>? UpdatedMobileMds { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile>? UpdatedMobileMdys { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData>? UpdatedMobiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile>? UpdatedScripts { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector>? UpdatedSectors { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog>? UpdatedTownMapFogs { get; init; }
+    }
+    public static class SaveGameValidator
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> Validate(ArcNET.Editor.LoadedSave save) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMob(string virtualPath, ArcNET.Formats.MobData mob) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMd(string virtualPath, ArcNET.Formats.MobileMdFile md) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMdy(string virtualPath, ArcNET.Formats.MobileMdyFile mdy) { }
+    }
+    public static class SaveGameWriter
+    {
+        public static void Save(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null) { }
+        public static void Save(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveValidationIssue : System.IEquatable<ArcNET.Editor.SaveValidationIssue>
+    {
+        public SaveValidationIssue() { }
+        public string? FilePath { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.Editor.SaveValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public enum SaveValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+}
+namespace ArcNET.GameData.SaveGames
+{
+    public sealed class LoadedSave : ArcNET.Editor.LoadedSave
+    {
+        public static ArcNET.GameData.SaveGames.LoadedSave FromLegacy(ArcNET.Editor.LoadedSave save) { }
+    }
+    public static class SaveGameLoader
+    {
+        public static ArcNET.GameData.SaveGames.LoadedSave Load(string saveFolder, string slotName) { }
+        public static ArcNET.GameData.SaveGames.LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.SaveGames.LoadedSave> LoadAsync(string saveFolder, string slotName, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.SaveGames.LoadedSave> LoadAsync(string gsiPath, string tfaiPath, string tfafPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public static class SaveGameSnapshotComposer
+    {
+        public static ArcNET.GameData.SaveGames.LoadedSave Compose(ArcNET.GameData.SaveGames.LoadedSave original, ArcNET.GameData.SaveGames.SaveGameUpdates? updates = null, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveGameUpdates : System.IEquatable<ArcNET.GameData.SaveGames.SaveGameUpdates>
+    {
+        public SaveGameUpdates() { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? RawFileUpdates { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile>? UpdatedData2SavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile>? UpdatedDataSavFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile>? UpdatedDialogs { get; init; }
+        public ArcNET.Formats.SaveInfo? UpdatedInfo { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile>? UpdatedJumpFiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties>? UpdatedMapProperties { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile>? UpdatedMessages { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile>? UpdatedMobileMds { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile>? UpdatedMobileMdys { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData>? UpdatedMobiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile>? UpdatedScripts { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector>? UpdatedSectors { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog>? UpdatedTownMapFogs { get; init; }
+    }
+    public static class SaveGameValidator
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.SaveGames.SaveValidationIssue> Validate(ArcNET.GameData.SaveGames.LoadedSave save) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.SaveGames.SaveValidationIssue> ValidateMob(string virtualPath, ArcNET.Formats.MobData mob) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.SaveGames.SaveValidationIssue> ValidateMobileMd(string virtualPath, ArcNET.Formats.MobileMdFile md) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.SaveGames.SaveValidationIssue> ValidateMobileMdy(string virtualPath, ArcNET.Formats.MobileMdyFile mdy) { }
+    }
+    public static class SaveGameWriter
+    {
+        public static void Save(ArcNET.GameData.SaveGames.LoadedSave original, string saveFolder, string slotName, ArcNET.GameData.SaveGames.SaveGameUpdates? updates = null) { }
+        public static void Save(ArcNET.GameData.SaveGames.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.GameData.SaveGames.SaveGameUpdates? updates = null) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.GameData.SaveGames.LoadedSave original, string saveFolder, string slotName, ArcNET.GameData.SaveGames.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task SaveAsync(ArcNET.GameData.SaveGames.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.GameData.SaveGames.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SaveValidationIssue : System.IEquatable<ArcNET.GameData.SaveGames.SaveValidationIssue>
+    {
+        public SaveValidationIssue() { }
+        public string? FilePath { get; init; }
+        public required string Message { get; init; }
+        public required ArcNET.GameData.SaveGames.SaveValidationSeverity Severity { get; init; }
+        public override string ToString() { }
+    }
+    public enum SaveValidationSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+}```
+
+## ArcNET.GameData.Workspace
+
+```csharp
+[assembly: System.CLSCompliant(false)]
+[assembly: System.Reflection.AssemblyMetadata("IsAotCompatible", "True")]
+[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
+[assembly: System.Resources.NeutralResourcesLanguage("en")]
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace ArcNET.GameData.Workspace
+{
+    public sealed class PrototypePaletteEntry : System.IEquatable<ArcNET.GameData.Workspace.PrototypePaletteEntry>
+    {
+        public PrototypePaletteEntry(int ProtoNumber, string ObjectType, string AssetPath, string? DisplayName, string? Description, string? PaletteGroup, string? ArtAssetPath) { }
+        public string? ArtAssetPath { get; init; }
+        public string AssetPath { get; init; }
+        public string? Description { get; init; }
+        public string? DisplayName { get; init; }
+        public string ObjectType { get; init; }
+        public string? PaletteGroup { get; init; }
+        public int ProtoNumber { get; init; }
+    }
+    public sealed class StaticObjectCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.StaticObjectCatalogEntry>
+    {
+        public StaticObjectCatalogEntry(string SourceKindText, string DisplayName, string ObjectType, string ObjectIdText, string ObjectGuidText, int? ProtoNumber, string PrototypeText, string SourceAssetPath, string LocationText, string SummaryText) { }
+        public string DisplayName { get; init; }
+        public bool HasPrototype { get; }
+        public string LocationText { get; init; }
+        public string ObjectGuidText { get; init; }
+        public string ObjectIdText { get; init; }
+        public string ObjectType { get; init; }
+        public int? ProtoNumber { get; init; }
+        public string PrototypeText { get; init; }
+        public string SourceAssetPath { get; init; }
+        public string SourceKindText { get; init; }
+        public string SummaryText { get; init; }
+    }
+    public sealed class TileArtCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.TileArtCatalogEntry>
+    {
+        public TileArtCatalogEntry(uint ArtIdValue, string ArtIdText, string DisplayName, string ArtTypeText, int ArtNumber, int FrameIndex, int PaletteIndex, string AssetPath, string SummaryText) { }
+        public string ArtIdText { get; init; }
+        public uint ArtIdValue { get; init; }
+        public int ArtNumber { get; init; }
+        public string ArtTypeText { get; init; }
+        public string AssetPath { get; init; }
+        public string DisplayName { get; init; }
+        public int FrameIndex { get; init; }
+        public int PaletteIndex { get; init; }
+        public string SummaryText { get; init; }
+    }
+    public static class WorkspaceArchiveDiscovery
+    {
+        public static ArcNET.GameData.Workspace.WorkspaceArchiveDiscoveryResult DiscoverBaseInstallArchives(string? gameDirectory, System.Func<string, ArcNET.Archive.DatArchive>? archiveOpener = null) { }
+        public static ArcNET.GameData.Workspace.WorkspaceArchiveDiscoveryResult DiscoverGameInstallArchives(string gameDirectory, System.Func<string, ArcNET.Archive.DatArchive>? archiveOpener = null) { }
+        public static ArcNET.GameData.Workspace.WorkspaceArchiveDiscoveryResult DiscoverModuleArchives(string moduleDirectory, System.Func<string, ArcNET.Archive.DatArchive>? archiveOpener = null) { }
+    }
+    public sealed class WorkspaceArchiveDiscoveryResult
+    {
+        public WorkspaceArchiveDiscoveryResult(System.Collections.Generic.IReadOnlyList<string> archivePaths, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedArchiveCandidate> skippedArchiveCandidates) { }
+        public System.Collections.Generic.IReadOnlyList<string> ArchivePaths { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedArchiveCandidate> SkippedArchiveCandidates { get; }
+        public static ArcNET.GameData.Workspace.WorkspaceArchiveDiscoveryResult Empty { get; }
+    }
+    public sealed class WorkspaceAssetSource
+    {
+        public WorkspaceAssetSource() { }
+        public string? SourceEntryPath { get; init; }
+        public required ArcNET.GameData.Workspace.WorkspaceAssetSourceKind SourceKind { get; init; }
+        public required string SourcePath { get; init; }
+    }
+    public enum WorkspaceAssetSourceKind
+    {
+        LooseFile = 0,
+        DatArchive = 1,
+    }
+    public sealed class WorkspaceContentLoadProgress
+    {
+        public WorkspaceContentLoadProgress(string activity, float progress, int? completedUnits = default, int? totalUnits = default, string? unitLabel = null) { }
+        public string Activity { get; }
+        public int? CompletedUnits { get; }
+        public float Progress { get; }
+        public int? TotalUnits { get; }
+        public string? UnitLabel { get; }
+    }
+    public sealed class WorkspaceContentLoadResult
+    {
+        public WorkspaceContentLoadResult(ArcNET.GameData.GameDataStore gameData, System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.GameData.Workspace.WorkspaceAssetSource> assetSources, ArcNET.GameData.Workspace.WorkspaceLoadReport loadReport, ArcNET.GameData.Workspace.WorkspaceModuleContext? moduleContext = null, System.Collections.Generic.IReadOnlyList<string>? archivePaths = null) { }
+        public System.Collections.Generic.IReadOnlyList<string> ArchivePaths { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.GameData.Workspace.WorkspaceAssetSource> AssetSources { get; }
+        public ArcNET.GameData.GameDataStore GameData { get; }
+        public ArcNET.GameData.Workspace.WorkspaceLoadReport LoadReport { get; }
+        public ArcNET.GameData.Workspace.WorkspaceModuleContext? ModuleContext { get; }
+    }
+    public static class WorkspaceContentLoader
+    {
+        public static bool HasModuleContent(string moduleDirectory) { }
+        public static bool HasModuleContent(string gameDirectory, string moduleName) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceContentLoadResult> LoadGameInstallAsync(string gameDirectory, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.GameData.Workspace.WorkspaceContentLoadProgress>? assetProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? gameDataProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadStageTiming>? stageProgress = null, ArcNET.GameData.GameDataLoadOptions? gameDataLoadOptions = null, System.Func<string, ArcNET.Archive.DatArchive>? archiveOpener = null) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceContentLoadResult> LoadModuleAsync(string moduleDirectory, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default, System.IProgress<ArcNET.GameData.Workspace.WorkspaceContentLoadProgress>? assetProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadProgress>? gameDataProgress = null, System.IProgress<ArcNET.GameData.GameDataLoadStageTiming>? stageProgress = null, ArcNET.GameData.GameDataLoadOptions? gameDataLoadOptions = null, System.Func<string, ArcNET.Archive.DatArchive>? archiveOpener = null) { }
+    }
+    public sealed class WorkspaceGameDataCatalog : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceGameDataCatalog>
+    {
+        public WorkspaceGameDataCatalog(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> PrototypeEntries, ArcNET.GameData.Workspace.WorkspaceWorldAreaCatalog WorldAreaCatalog, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTileArtCatalogEntry> TileArtEntries, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry> StaticObjectEntries) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> PrototypeEntries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry> StaticObjectEntries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTileArtCatalogEntry> TileArtEntries { get; init; }
+        public ArcNET.GameData.Workspace.WorkspaceWorldAreaCatalog WorldAreaCatalog { get; init; }
+    }
+    public static class WorkspaceGameDataCatalogLoader
+    {
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceGameDataCatalog> LoadFromGameDirectoryAsync(string gameDirectory, bool forceReload = false) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceGameDataCatalog> LoadFromModulePathAsync(string modulePath, bool forceReload = false) { }
+    }
+    public static class WorkspaceGameDataCatalogProjector
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.PrototypePaletteEntry> ToPrototypePaletteEntries(ArcNET.GameData.Workspace.WorkspaceGameDataCatalog catalog) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.StaticObjectCatalogEntry> ToStaticObjectEntries(ArcNET.GameData.Workspace.WorkspaceGameDataCatalog catalog) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.TileArtCatalogEntry> ToTileArtEntries(ArcNET.GameData.Workspace.WorkspaceGameDataCatalog catalog) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorldMapCatalogEntry> ToWorldMapEntries(ArcNET.GameData.Workspace.WorkspaceGameDataCatalog catalog) { }
+    }
+    public static class WorkspaceInstallPathResolver
+    {
+        public static bool LooksLikeGameInstallDirectory(string path) { }
+        public static string ResolveGameInstallDirectory(string path) { }
+        public static string ResolveModuleDirectory(string gameDirectory, string moduleName) { }
+        public static string ResolveOwningGameDirectoryFromModuleDirectory(string path) { }
+        public static string ResolveWorkspaceDirectory(string path) { }
+        public static bool TryResolveOwningGameDirectoryFromModuleDirectory(string path, out string gameDirectory) { }
+        public static bool TryResolveOwningGameDirectoryFromModulesDirectory(string path, out string gameDirectory) { }
+        public static bool TryResolveSingleModuleDirectory(string gameDirectory, out string moduleDirectory) { }
+        public static bool TryResolveWorkspaceModuleDirectory(string path, out string moduleDirectory) { }
+    }
+    public sealed class WorkspaceLoadReport
+    {
+        public WorkspaceLoadReport(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedArchiveCandidate> skippedArchiveCandidates, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedAsset> skippedAssets) { }
+        public bool HasSkippedInputs { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedArchiveCandidate> SkippedArchiveCandidates { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedAsset> SkippedAssets { get; }
+        public static ArcNET.GameData.Workspace.WorkspaceLoadReport Empty { get; }
+    }
+    public static class WorkspaceMessageLookup
+    {
+        public static ArcNET.Formats.MesFile? FindMessageFile(ArcNET.GameData.GameDataStore gameData, string assetPath) { }
+        public static string NormalizeAssetPath(string assetPath) { }
+    }
+    public sealed class WorkspaceModuleContext
+    {
+        public WorkspaceModuleContext() { }
+        public required System.Collections.Generic.IReadOnlyList<string> ArchivePaths { get; init; }
+        public required string ModuleDirectory { get; init; }
+        public required string ModuleName { get; init; }
+        public string? SaveDirectory { get; init; }
+        public static ArcNET.GameData.Workspace.WorkspaceModuleContext Create(string moduleDirectory, System.Collections.Generic.IReadOnlyList<string>? archivePaths = null) { }
+    }
+    public static class WorkspacePrototypeCatalogBuilder
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData, ArcNET.Core.ArcanumInstallationType? installationType = default) { }
+    }
+    public sealed class WorkspacePrototypeCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry>
+    {
+        public WorkspacePrototypeCatalogEntry(int ProtoNumber, ArcNET.GameObjects.ObjectType ObjectType, string AssetPath, string? DisplayName, string? Description, string? PaletteGroup, ArcNET.Core.Primitives.ArtId? CurrentArtId, string? ArtAssetPath) { }
+        public string? ArtAssetPath { get; init; }
+        public string AssetPath { get; init; }
+        public ArcNET.Core.Primitives.ArtId? CurrentArtId { get; init; }
+        public string? Description { get; init; }
+        public string? DisplayName { get; init; }
+        public ArcNET.GameObjects.ObjectType ObjectType { get; init; }
+        public string? PaletteGroup { get; init; }
+        public int ProtoNumber { get; init; }
+    }
+    public sealed class WorkspaceSkippedArchiveCandidate
+    {
+        public WorkspaceSkippedArchiveCandidate() { }
+        public required string Path { get; init; }
+        public required string Reason { get; init; }
+    }
+    public sealed class WorkspaceSkippedAsset
+    {
+        public WorkspaceSkippedAsset() { }
+        public required string AssetPath { get; init; }
+        public required ArcNET.Formats.FileFormat Format { get; init; }
+        public required string Reason { get; init; }
+        public string? SourceEntryPath { get; init; }
+        public required ArcNET.GameData.Workspace.WorkspaceAssetSourceKind SourceKind { get; init; }
+        public required string SourcePath { get; init; }
+    }
+    public static class WorkspaceStaticObjectCatalogBuilder
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData, System.Collections.Generic.IReadOnlyDictionary<int, ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> prototypesByNumber) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> prototypeEntries) { }
+    }
+    public sealed class WorkspaceStaticObjectCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry>
+    {
+        public WorkspaceStaticObjectCatalogEntry(string SourceKindText, string DisplayName, ArcNET.GameObjects.ObjectType ObjectType, string ObjectIdText, string ObjectGuidText, int? ProtoNumber, string PrototypeText, string SourceAssetPath, string LocationText, string SummaryText) { }
+        public string DisplayName { get; init; }
+        public bool HasPrototype { get; }
+        public string LocationText { get; init; }
+        public string ObjectGuidText { get; init; }
+        public string ObjectIdText { get; init; }
+        public ArcNET.GameObjects.ObjectType ObjectType { get; init; }
+        public int? ProtoNumber { get; init; }
+        public string PrototypeText { get; init; }
+        public string SourceAssetPath { get; init; }
+        public string SourceKindText { get; init; }
+        public string SummaryText { get; init; }
+    }
+    public sealed class WorkspaceTextCatalog
+    {
+        public string? AvailabilityNote { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedBackground> EnumerateBackgrounds() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry> EnumerateBlessings() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry> EnumerateCurses() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry> EnumerateDescriptions() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry> EnumerateKeys() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedQuest> EnumerateQuests() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry> EnumerateReputations() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedRumor> EnumerateRumors() { }
+        public ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedBackground ResolveBackground(int textId) { }
+        public string ResolveBlessingName(int blessingId) { }
+        public string ResolveCurseName(int curseId) { }
+        public string ResolveDescription(int descriptionId) { }
+        public string ResolveKeyName(int keyId) { }
+        public ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedQuest ResolveQuest(int questId) { }
+        public string ResolveReputationName(int reputationId) { }
+        public string ResolveRumorText(int rumorId, bool dumb = false) { }
+        public static ArcNET.GameData.Workspace.WorkspaceTextCatalog Build(ArcNET.GameData.GameDataStore gameData) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceTextCatalog> LoadFromGameDirectoryAsync(string gameDirectory, bool forceReload = false) { }
+        public static System.Threading.Tasks.Task<ArcNET.GameData.Workspace.WorkspaceTextCatalog> LoadFromModulePathAsync(string modulePath, bool forceReload = false) { }
+        public readonly struct ResolvedBackground : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedBackground>
+        {
+            public ResolvedBackground(int BackgroundId, int TextId, string? Name, string? Body) { }
+            public int BackgroundId { get; init; }
+            public string? Body { get; init; }
+            public string? Name { get; init; }
+            public string SummaryLabel { get; }
+            public int TextId { get; init; }
+        }
+        public readonly struct ResolvedNamedEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedNamedEntry>
+        {
+            public ResolvedNamedEntry(int Id, string Name) { }
+            public int Id { get; init; }
+            public string Name { get; init; }
+        }
+        public readonly struct ResolvedQuest : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedQuest>
+        {
+            public ResolvedQuest(int QuestId, string? Label, string? Description, string? DumbDescription) { }
+            public string? Description { get; init; }
+            public string? DumbDescription { get; init; }
+            public string? Label { get; init; }
+            public int QuestId { get; init; }
+            public string SummaryLabel { get; }
+        }
+        public readonly struct ResolvedRumor : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceTextCatalog.ResolvedRumor>
+        {
+            public ResolvedRumor(int RumorId, string? NormalText, string? DumbText) { }
+            public string? DumbText { get; init; }
+            public string? NormalText { get; init; }
+            public int RumorId { get; init; }
+            public string SummaryText { get; }
+        }
+    }
+    public static class WorkspaceTileArtCatalogBuilder
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceTileArtCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData) { }
+    }
+    public sealed class WorkspaceTileArtCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceTileArtCatalogEntry>
+    {
+        public WorkspaceTileArtCatalogEntry(ArcNET.Core.Primitives.ArtId ArtId, string DisplayName, string AssetPath) { }
+        public ArcNET.Core.Primitives.ArtId ArtId { get; init; }
+        public string AssetPath { get; init; }
+        public string DisplayName { get; init; }
+    }
+    public sealed class WorkspaceWorldAreaCatalog
+    {
+        public WorkspaceWorldAreaCatalog() { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceWorldAreaEntry> Areas { get; init; }
+        public string? WorldSceneMapName { get; init; }
+        public ArcNET.GameData.Workspace.WorkspaceWorldAreaEntry? FindArea(int areaId) { }
+        public ArcNET.GameData.Workspace.WorkspaceWorldAreaEntry? FindAreaForMap(string mapName) { }
+    }
+    public static class WorkspaceWorldAreaCatalogBuilder
+    {
+        public static ArcNET.GameData.Workspace.WorkspaceWorldAreaCatalog Build(ArcNET.GameData.GameDataStore gameData) { }
+    }
+    public sealed class WorkspaceWorldAreaEntry
+    {
+        public WorkspaceWorldAreaEntry() { }
+        public required int AreaId { get; init; }
+        public string? Description { get; init; }
+        public required string DisplayName { get; init; }
+        public bool HasWorldCoordinates { get; }
+        public bool IsWorldMapVisible { get; init; }
+        public int LabelOffsetX { get; init; }
+        public int LabelOffsetY { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceWorldAreaMapEntry> MapEntries { get; init; }
+        public int? Radius { get; init; }
+        public required int WorldX { get; init; }
+        public required int WorldY { get; init; }
+    }
+    public sealed class WorkspaceWorldAreaMapEntry
+    {
+        public WorkspaceWorldAreaMapEntry() { }
+        public int EntryTileX { get; init; }
+        public int EntryTileY { get; init; }
+        public required string MapName { get; init; }
+        public string? Type { get; init; }
+        public int? WorldMapId { get; init; }
+    }
+    public sealed class WorldMapCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorldMapCatalogEntry>
+    {
+        public WorldMapCatalogEntry(int AreaId, string DisplayName, int WorldX, int WorldY, bool IsWorldMapVisible, string? Description, string CoordinateText, string MapSummaryText, System.Collections.Generic.IReadOnlyList<string> MapNames) { }
+        public int AreaId { get; init; }
+        public string CoordinateText { get; init; }
+        public string? Description { get; init; }
+        public string DisplayName { get; init; }
+        public bool HasWorldCoordinates { get; }
+        public bool IsWorldMapVisible { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> MapNames { get; init; }
+        public string MapSummaryText { get; init; }
+        public int WorldX { get; init; }
+        public int WorldY { get; init; }
+    }
+}```
+
+## ArcNET.Diagnostics.Contracts
+
+```csharp
+[assembly: System.CLSCompliant(false)]
+[assembly: System.Reflection.AssemblyMetadata("IsAotCompatible", "True")]
+[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+[assembly: System.Resources.NeutralResourcesLanguage("en")]
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace ArcNET.Diagnostics.Contracts
+{
+    [System.Flags]
+    public enum DiagnosticsCapability : ushort
+    {
+        None = 0,
+        ReadMemory = 1,
+        CaptureDump = 2,
+        LoadModuleSymbols = 4,
+        ResolveRuntimeProfile = 8,
+        ReadStructuredState = 16,
+        WatchHooks = 32,
+        DecodeObjectLayout = 64,
+        InvokeFunctions = 128,
+        InterceptFunctions = 256,
+        MutateRuntime = 512,
+    }
+    public readonly struct LiveObjectDetail : System.IEquatable<ArcNET.Diagnostics.Contracts.LiveObjectDetail>
+    {
+        public LiveObjectDetail(string Key, string Label, string Value, string ResolutionSource) { }
+        public string Key { get; init; }
+        public string Label { get; init; }
+        public string ResolutionSource { get; init; }
+        public string Value { get; init; }
+    }
+    public readonly struct LiveObjectHeader : System.IEquatable<ArcNET.Diagnostics.Contracts.LiveObjectHeader>
+    {
+        public LiveObjectHeader(int ObjectTypeRaw, string? ObjectTypeName, ArcNET.Diagnostics.Contracts.LiveOid ObjectId, ArcNET.Diagnostics.Contracts.LiveOid PrototypeId, string PrototypeHandle) { }
+        public ArcNET.Diagnostics.Contracts.LiveOid ObjectId { get; init; }
+        public string? ObjectTypeName { get; init; }
+        public int ObjectTypeRaw { get; init; }
+        public string PrototypeHandle { get; init; }
+        public ArcNET.Diagnostics.Contracts.LiveOid PrototypeId { get; init; }
+    }
+    public readonly struct LiveObjectIdentity : System.IEquatable<ArcNET.Diagnostics.Contracts.LiveObjectIdentity>
+    {
+        public LiveObjectIdentity(string HandleHex, bool LooksLikeHandle, string ResolutionSource, int? PoolIndex, int? BucketIndex, int? SlotIndex, string? EntryAddress, string? ObjectAddress, byte? Status, uint? Sequence, uint? ExpectedSequence, ArcNET.Diagnostics.Contracts.LiveObjectHeader? Header) { }
+        public int? BucketIndex { get; init; }
+        public string? EntryAddress { get; init; }
+        public uint? ExpectedSequence { get; init; }
+        public string HandleHex { get; init; }
+        public bool HasHeader { get; }
+        public ArcNET.Diagnostics.Contracts.LiveObjectHeader? Header { get; init; }
+        public bool LooksLikeHandle { get; init; }
+        public string? ObjectAddress { get; init; }
+        public int? PoolIndex { get; init; }
+        public string ResolutionSource { get; init; }
+        public uint? Sequence { get; init; }
+        public int? SlotIndex { get; init; }
+        public byte? Status { get; init; }
+    }
+    public readonly struct LiveObjectInspection : System.IEquatable<ArcNET.Diagnostics.Contracts.LiveObjectInspection>
+    {
+        public LiveObjectInspection(ArcNET.Diagnostics.Contracts.LiveObjectIdentity Identity, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LiveObjectDetail> Details) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LiveObjectDetail> Details { get; init; }
+        public bool HasDetails { get; }
+        public ArcNET.Diagnostics.Contracts.LiveObjectIdentity Identity { get; init; }
+    }
+    public readonly struct LiveOid : System.IEquatable<ArcNET.Diagnostics.Contracts.LiveOid>
+    {
+        public LiveOid(short OidType, int? ProtoNumber, string Guid, string Label, string Text) { }
+        public string Guid { get; init; }
+        public string Label { get; init; }
+        public short OidType { get; init; }
+        public int? ProtoNumber { get; init; }
+        public string Text { get; init; }
+    }
+    public readonly struct LivePlayerCandidate : System.IEquatable<ArcNET.Diagnostics.Contracts.LivePlayerCandidate>
+    {
+        public LivePlayerCandidate(ulong Handle, string HandleHex, string CandidateKind, string DisplayValue, string ResolutionSource, string? ObjectTypeName, string? ObjectIdLabel, string? PrototypeIdLabel, int? ProtoNumber, string? PrototypeHandle) { }
+        public string CandidateKind { get; init; }
+        public string DisplayValue { get; init; }
+        public ulong Handle { get; init; }
+        public string HandleHex { get; init; }
+        public string? ObjectIdLabel { get; init; }
+        public string? ObjectTypeName { get; init; }
+        public int? ProtoNumber { get; init; }
+        public string? PrototypeHandle { get; init; }
+        public string? PrototypeIdLabel { get; init; }
+        public string ResolutionSource { get; init; }
+    }
+    public readonly struct LivePlayerLocatorResult : System.IEquatable<ArcNET.Diagnostics.Contracts.LivePlayerLocatorResult>
+    {
+        public LivePlayerLocatorResult(ulong? AutoResolvedHandle, string ResolutionSource, string Summary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LivePlayerCandidate> LivePlayerCandidates, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LivePlayerCandidate> PrototypeTemplates, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public ulong? AutoResolvedHandle { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LivePlayerCandidate> LivePlayerCandidates { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LivePlayerCandidate> PrototypeTemplates { get; init; }
+        public string ResolutionSource { get; init; }
+        public string Summary { get; init; }
+    }
+    public sealed class ProbeProfile : System.IEquatable<ArcNET.Diagnostics.Contracts.ProbeProfile>
+    {
+        public ProbeProfile(string Key, string DisplayName, string Description, System.Collections.Generic.IReadOnlyList<string> Selectors) { }
+        public string Description { get; init; }
+        public string DisplayName { get; init; }
+        public string Key { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Selectors { get; init; }
+    }
+    public sealed class RuntimeCapabilityReport : System.IEquatable<ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport>
+    {
+        public RuntimeCapabilityReport(ArcNET.Diagnostics.Contracts.RuntimeSupportLevel SupportLevel, ArcNET.Diagnostics.Contracts.DiagnosticsCapability Capabilities, System.Collections.Generic.IReadOnlyList<string> Warnings) { }
+        public ArcNET.Diagnostics.Contracts.DiagnosticsCapability Capabilities { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeSupportLevel SupportLevel { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Warnings { get; init; }
+    }
+    public static class RuntimeExecutableCatalog
+    {
+        public const string ClassicModuleFileName = "Arcanum.exe";
+        public const string ClassicProcessName = "Arcanum";
+        public const string CommunityEditionModuleFileName = "arcanum-ce.exe";
+        public const string CommunityEditionPosixModuleFileName = "arcanum-ce";
+        public const string CommunityEditionProcessName = "arcanum-ce";
+        public static System.Collections.Generic.IReadOnlyList<string> DefaultModuleFileNames { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> DefaultProcessNames { get; }
+        public static bool IsClassicModuleFileName(string fileName) { }
+        public static bool IsCommunityEditionModuleFileName(string fileName) { }
+    }
+    public sealed class RuntimeFingerprint : System.IEquatable<ArcNET.Diagnostics.Contracts.RuntimeFingerprint>
+    {
+        public RuntimeFingerprint(string ProcessName, int ProcessId, ArcNET.Diagnostics.Contracts.RuntimeKind RuntimeKind, string ModuleFileName, string ModulePath, string ModuleBase, int ModuleSize, long ModuleFileSize, System.DateTime ModuleLastWriteTimeUtc) { }
+        public string ModuleBase { get; init; }
+        public string ModuleFileName { get; init; }
+        public long ModuleFileSize { get; init; }
+        public System.DateTime ModuleLastWriteTimeUtc { get; init; }
+        public string ModulePath { get; init; }
+        public int ModuleSize { get; init; }
+        public int ProcessId { get; init; }
+        public string ProcessName { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeKind RuntimeKind { get; init; }
+    }
+    public enum RuntimeKind : byte
+    {
+        Unknown = 0,
+        Classic = 1,
+        CommunityEdition = 2,
+    }
+    public sealed class RuntimeProfileSnapshot : System.IEquatable<ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot>
+    {
+        public RuntimeProfileSnapshot(string? Id, string DisplayName, ArcNET.Diagnostics.Contracts.RuntimeKind RuntimeKind, ArcNET.Diagnostics.Contracts.RuntimeSupportLevel SupportLevel, bool SupportsCatalogRvas, string Notes, string? ModuleSha256, string? HashError) { }
+        public string DisplayName { get; init; }
+        public string? HashError { get; init; }
+        public string? Id { get; init; }
+        public string? ModuleSha256 { get; init; }
+        public string Notes { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeKind RuntimeKind { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeSupportLevel SupportLevel { get; init; }
+        public bool SupportsCatalogRvas { get; init; }
+    }
+    public enum RuntimeSupportLevel : byte
+    {
+        Unsupported = 0,
+        Exploratory = 1,
+        SymbolAssisted = 2,
+        Validated = 3,
+    }
+}
+namespace ArcNET.Diagnostics
+{
+    public interface IWatchBackend
+    {
+        ArcNET.Diagnostics.IWatchSession StartWatch(int processId, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks);
+    }
+    public interface IWatchSession : System.IDisposable
+    {
+        ArcNET.Diagnostics.RuntimeWatchReadResult ReadSince(uint lastSequence);
+    }
+    public readonly struct InterceptMemoryReadResult : System.IEquatable<ArcNET.Diagnostics.InterceptMemoryReadResult>
+    {
+        public InterceptMemoryReadResult(bool Success, int RequestedByteCount, int ReadByteCount, byte[] Bytes, string? Error) { }
+        public byte[] Bytes { get; init; }
+        public string? Error { get; init; }
+        public int ReadByteCount { get; init; }
+        public int RequestedByteCount { get; init; }
+        public bool Success { get; init; }
+    }
+    public readonly struct RuntimeInterceptionCapturedEvent : System.IEquatable<ArcNET.Diagnostics.RuntimeInterceptionCapturedEvent>
+    {
+        public RuntimeInterceptionCapturedEvent(ArcNET.Diagnostics.RuntimeInterceptionDefinition Definition, uint Sequence, uint ReturnAddress, uint CallerRva, uint Eflags, ArcNET.Diagnostics.RuntimeInterceptionRegisters Registers, uint[] StackDwords) { }
+        public uint CallerRva { get; init; }
+        public ArcNET.Diagnostics.RuntimeInterceptionDefinition Definition { get; init; }
+        public uint Eflags { get; init; }
+        public ArcNET.Diagnostics.RuntimeInterceptionRegisters Registers { get; init; }
+        public uint ReturnAddress { get; init; }
+        public uint Sequence { get; init; }
+        public uint[] StackDwords { get; init; }
+    }
+    public readonly struct RuntimeInterceptionDefinition : System.IEquatable<ArcNET.Diagnostics.RuntimeInterceptionDefinition>
+    {
+        public RuntimeInterceptionDefinition(string Key, uint Address, uint? Rva, string Site, int StackCaptureDwordCount, ArcNET.Diagnostics.RuntimeInterceptionMutation Mutation) { }
+        public uint Address { get; init; }
+        public string Key { get; init; }
+        public ArcNET.Diagnostics.RuntimeInterceptionMutation Mutation { get; init; }
+        public uint? Rva { get; init; }
+        public string Site { get; init; }
+        public int StackCaptureDwordCount { get; init; }
+    }
+    public enum RuntimeInterceptionExecutionMode : uint
+    {
+        ContinueOriginal = 0u,
+        SkipOriginal = 1u,
+    }
+    public static class RuntimeInterceptionLimits
+    {
+        public const int MaximumStackCaptureDwordCount = 16;
+    }
+    public readonly struct RuntimeInterceptionMutation : System.IEquatable<ArcNET.Diagnostics.RuntimeInterceptionMutation>
+    {
+        public RuntimeInterceptionMutation(ArcNET.Diagnostics.RuntimeInterceptionExecutionMode ExecutionMode, int CleanupBytes, uint ReturnEax, uint ReturnEdx, ArcNET.Diagnostics.RuntimeInterceptionRegisters RegisterOverrides, uint RegisterOverrideMask, uint[] ArgumentOverrides, uint ArgumentOverrideMask) { }
+        public uint ArgumentOverrideMask { get; init; }
+        public uint[] ArgumentOverrides { get; init; }
+        public int CleanupBytes { get; init; }
+        public ArcNET.Diagnostics.RuntimeInterceptionExecutionMode ExecutionMode { get; init; }
+        public uint RegisterOverrideMask { get; init; }
+        public ArcNET.Diagnostics.RuntimeInterceptionRegisters RegisterOverrides { get; init; }
+        public uint ReturnEax { get; init; }
+        public uint ReturnEdx { get; init; }
+    }
+    public readonly struct RuntimeInterceptionReadResult : System.IEquatable<ArcNET.Diagnostics.RuntimeInterceptionReadResult>
+    {
+        public RuntimeInterceptionReadResult(uint WriteSequence, int DroppedEvents, int InconsistentRecords, int ContentionDrops, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeInterceptionCapturedEvent> Events) { }
+        public int ContentionDrops { get; init; }
+        public int DroppedEvents { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeInterceptionCapturedEvent> Events { get; init; }
+        public int InconsistentRecords { get; init; }
+        public uint WriteSequence { get; init; }
+    }
+    public enum RuntimeInterceptionRegister
+    {
+        Edi = 0,
+        Esi = 1,
+        Ebp = 2,
+        Ebx = 3,
+        Edx = 4,
+        Ecx = 5,
+        Eax = 6,
+    }
+    public readonly struct RuntimeInterceptionRegisters : System.IEquatable<ArcNET.Diagnostics.RuntimeInterceptionRegisters>
+    {
+        public RuntimeInterceptionRegisters(uint Edi, uint Esi, uint Ebp, uint OriginalEsp, uint Ebx, uint Edx, uint Ecx, uint Eax) { }
+        public uint Eax { get; init; }
+        public uint Ebp { get; init; }
+        public uint Ebx { get; init; }
+        public uint Ecx { get; init; }
+        public uint Edi { get; init; }
+        public uint Edx { get; init; }
+        public uint Esi { get; init; }
+        public uint OriginalEsp { get; init; }
+    }
+    public readonly struct RuntimeWatchCapturedEvent : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchCapturedEvent>
+    {
+        public RuntimeWatchCapturedEvent(ArcNET.Diagnostics.RuntimeWatchHookDefinition Definition, uint Sequence, uint ReturnAddress, uint CallerRva, ArcNET.Diagnostics.RuntimeWatchStackCapture StackDwords) { }
+        public uint CallerRva { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchHookDefinition Definition { get; init; }
+        public uint ReturnAddress { get; init; }
+        public uint Sequence { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchStackCapture StackDwords { get; init; }
+    }
+    public readonly struct RuntimeWatchHookDefinition : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchHookDefinition>
+    {
+        public RuntimeWatchHookDefinition(ArcNET.Diagnostics.RuntimeWatchHookId Id, string Key, string EventName, int Rva, string Site, string Area, string Description) { }
+        public string Area { get; init; }
+        public string Description { get; init; }
+        public string EventName { get; init; }
+        public ArcNET.Diagnostics.RuntimeWatchHookId Id { get; init; }
+        public string Key { get; init; }
+        public int Rva { get; init; }
+        public string Site { get; init; }
+    }
+    public enum RuntimeWatchHookId
+    {
+        LevelRecalc = 1,
+        UpdateFollowerLevel = 2,
+        StatBaseSet = 3,
+        BackgroundEducateFollowers = 4,
+        UiShowInvenLoot = 5,
+        ItemInsert = 6,
+        ItemEquipped = 7,
+        ItemForceRemove = 8,
+        ItemUnequipped = 9,
+        ObjectDestroy = 10,
+        ObjectScriptExecute = 11,
+        UiStartDialog = 12,
+        ReactionAdj = 13,
+        CritterKill = 14,
+        ScriptGlobalVarSet = 15,
+        ScriptGlobalFlagSet = 16,
+        ScriptPcVarSet = 17,
+        ScriptPcFlagSet = 18,
+        ScriptLocalFlagSet = 19,
+        ScriptLocalCounterSet = 20,
+        ScriptStoryStateSet = 21,
+        QuestStateSet = 22,
+        QuestGlobalStateSet = 23,
+        TimeEventAddDelay = 24,
+        TimeEventNotifyPcTeleported = 25,
+        MapOpenInGame = 26,
+        CombatTurnBasedWhosTurnSet = 27,
+        ObjectCreate = 28,
+        ObjFieldInt32Set = 29,
+        ObjFieldInt64Set = 30,
+        ObjFieldHandleSet = 31,
+        UiSpellAdd = 32,
+        UiSpellMaintainAdd = 33,
+        UiSpellMaintainEnd = 34,
+        TeleportDo = 35,
+        ObjArrayFieldInt32Set = 36,
+        ObjArrayFieldUInt32Set = 37,
+        ObjArrayFieldInt64Set = 38,
+        ObjArrayFieldObjSet = 39,
+        ObjArrayFieldLengthSet = 40,
+        EffectAdd = 41,
+        EffectRemoveOneTyped = 42,
+        EffectRemoveAllTyped = 43,
+        EffectRemoveOneCausedBy = 44,
+        EffectRemoveAllCausedBy = 45,
+        SpellAdd = 46,
+        SpellRemove = 47,
+        ObjArrayFieldScriptSet = 48,
+        ObjArrayFieldPcQuestSet = 49,
+        SpellCollegeLevelSet = 50,
+        EffectRemoveInternal = 51,
+        GamelibInvalidateRect = 52,
+        GamelibDraw = 53,
+        GamelibDrawGame = 54,
+        LightDraw = 55,
+        TileDraw = 56,
+        ObjectHoverDraw = 57,
+        ObjectDraw = 58,
+        RoofDraw = 59,
+        TextBubbleDraw = 60,
+        TextFloaterDraw = 61,
+        TextConversationDraw = 62,
+        TigWindowDisplay = 63,
+        TigWindowComposeDirtyRect = 64,
+        TigWindowBlitArt = 65,
+        TigWindowCopyFromVBuffer = 66,
+        TigWindowInvalidateRect = 67,
+        TigVideoFlip = 68,
+        CritterGiveXp = 69,
+        BackgroundSet = 70,
+        BackgroundClear = 71,
+        ReputationAdd = 72,
+        ReputationRemove = 73,
+        RumorQstateSet = 74,
+        RumorKnownSet = 75,
+        TechLearnSchematic = 76,
+        LogbookAddKill = 77,
+        LogbookAddInjury = 78,
+        AreaSetKnown = 79,
+        AreaResetLastKnownArea = 80,
+        BlessAdd = 81,
+        BlessRemove = 82,
+        CurseAdd = 83,
+        CurseRemove = 84,
+        WmapRndEncounterCheck = 85,
+        WmapUiEncounterStart = 86,
+        WmapLoadWorldmapInfo = 87,
+    }
+    public readonly struct RuntimeWatchProfileDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor>
+    {
+        public RuntimeWatchProfileDescriptor(string Key, string Description, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks) { }
+        public string Description { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks { get; init; }
+        public string Key { get; init; }
+    }
+    public readonly struct RuntimeWatchReadResult : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchReadResult>
+    {
+        public RuntimeWatchReadResult(uint WriteSequence, int DroppedEvents, int InconsistentRecords, int ContentionDrops, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchCapturedEvent> Events) { }
+        public int ContentionDrops { get; init; }
+        public int DroppedEvents { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchCapturedEvent> Events { get; init; }
+        public int InconsistentRecords { get; init; }
+        public uint WriteSequence { get; init; }
+    }
+    public struct RuntimeWatchStackCapture
+    {
+        public uint D0;
+        public uint D1;
+        public uint D2;
+        public uint D3;
+        public uint D4;
+        public uint D5;
+        public uint D6;
+        public uint D7;
+        public uint Get(int index) { }
+        public void Set(int index, uint value) { }
+    }
+    public sealed class TimelinePresetDescriptor : System.IEquatable<ArcNET.Diagnostics.TimelinePresetDescriptor>
+    {
+        public TimelinePresetDescriptor(string Key, string DisplayName, string Description, System.Collections.Generic.IReadOnlyList<string> Selectors, System.Collections.Generic.IReadOnlyList<string> HookKeys, System.Collections.Generic.IReadOnlyList<string> Areas, bool UsesHighVolumeHooks) { }
+        public System.Collections.Generic.IReadOnlyList<string> Areas { get; init; }
+        public string Description { get; init; }
+        public string DisplayName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> HookKeys { get; init; }
+        public string Key { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Selectors { get; init; }
+        public bool UsesHighVolumeHooks { get; init; }
+    }
+    public sealed class TimelineSnapshot : System.IEquatable<ArcNET.Diagnostics.TimelineSnapshot>
+    {
+        public TimelineSnapshot(ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> RecommendedPresets, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> AvailableProbePresets, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> AdvancedProfiles, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> AdvancedProfiles { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> AvailableProbePresets { get; init; }
+        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> RecommendedPresets { get; init; }
+    }
+    public sealed class WatchEventSnapshot : System.IEquatable<ArcNET.Diagnostics.WatchEventSnapshot>
+    {
+        public WatchEventSnapshot(uint Sequence, string HookKey, string EventName, string SemanticEvent, string Area, string Site, string CallerAddress, string CallerRva, string Signature, string Summary, string? SuggestedHandleHex, System.Collections.Generic.IReadOnlyList<string> CandidateHandles, string StackPreview) { }
+        public string Area { get; init; }
+        public string CallerAddress { get; init; }
+        public string CallerRva { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> CandidateHandles { get; init; }
+        public string EventName { get; init; }
+        public string HookKey { get; init; }
+        public string SemanticEvent { get; init; }
+        public uint Sequence { get; init; }
+        public string Signature { get; init; }
+        public string Site { get; init; }
+        public string StackPreview { get; init; }
+        public string? SuggestedHandleHex { get; init; }
+        public string Summary { get; init; }
+    }
+    public sealed class WatchSnapshot : System.IEquatable<ArcNET.Diagnostics.WatchSnapshot>
+    {
+        public WatchSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsRunning, string Status, string Summary, string PresetDisplayName, int TotalEvents, int TotalDroppedEvents, int TotalContentionDrops, int TotalWarnings, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WatchEventSnapshot> Events) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WatchEventSnapshot> Events { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsRunning { get; init; }
+        public string PresetDisplayName { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+        public int TotalContentionDrops { get; init; }
+        public int TotalDroppedEvents { get; init; }
+        public int TotalEvents { get; init; }
+        public int TotalWarnings { get; init; }
+    }
+}```
+
 ## ArcNET.Diagnostics
 
 ```csharp
@@ -2858,7 +3815,7 @@ namespace ArcNET.Diagnostics
     }
     public sealed class AttachedSessionSnapshot : System.IEquatable<ArcNET.Diagnostics.AttachedSessionSnapshot>
     {
-        public AttachedSessionSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.SessionOrigin Origin, string DisplayName, string Summary, string Detail, string ProcessName, int ProcessId, bool HasExited, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public AttachedSessionSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.SessionOrigin Origin, string DisplayName, string Summary, string Detail, string ProcessName, int ProcessId, bool HasExited, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview, System.Collections.Generic.IReadOnlyList<string> Notes, string? WorkspacePathHint = null, string? RuntimeWorkspacePathHint = null) { }
         public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
         public string Detail { get; init; }
         public string DisplayName { get; init; }
@@ -2866,12 +3823,15 @@ namespace ArcNET.Diagnostics
         public System.DateTimeOffset GeneratedAtUtc { get; init; }
         public bool HasExited { get; init; }
         public ArcNET.Diagnostics.LaunchPreviewSnapshot? LaunchPreview { get; init; }
+        public string LocalWorkspacePath { get; }
         public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
         public ArcNET.Diagnostics.SessionOrigin Origin { get; init; }
         public int ProcessId { get; init; }
         public string ProcessName { get; init; }
         public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+        public string? RuntimeWorkspacePathHint { get; init; }
         public string Summary { get; init; }
+        public string? WorkspacePathHint { get; init; }
     }
     public sealed class AuditRequest : System.IEquatable<ArcNET.Diagnostics.AuditRequest>
     {
@@ -2886,6 +3846,11 @@ namespace ArcNET.Diagnostics
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
         public int StackCaptureDwordCount { get; init; }
         public bool StopOnFailure { get; init; }
+    }
+    public sealed class AuditService
+    {
+        public AuditService(ArcNET.Diagnostics.IAuditBackend backend) { }
+        public ArcNET.Diagnostics.AuditSnapshot Run(ArcNET.Diagnostics.AuditRequest request) { }
     }
     public sealed class AuditSnapshot : System.IEquatable<ArcNET.Diagnostics.AuditSnapshot>
     {
@@ -3014,6 +3979,41 @@ namespace ArcNET.Diagnostics
         public System.Collections.Generic.IReadOnlyList<string> SampleSites { get; init; }
         public bool UniqueSymbolMatch { get; init; }
     }
+    public sealed class CrashDumpAnalysisParsedOutput : System.IEquatable<ArcNET.Diagnostics.CrashDumpAnalysisParsedOutput>
+    {
+        public CrashDumpAnalysisParsedOutput(string? ProcessName, string? ExceptionCode, string? FaultingInstruction, System.Collections.Generic.IReadOnlyList<string> StackPreview, System.Collections.Generic.IReadOnlyList<string> Highlights) { }
+        public string? ExceptionCode { get; init; }
+        public string? FaultingInstruction { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Highlights { get; init; }
+        public string? ProcessName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> StackPreview { get; init; }
+    }
+    public static class CrashDumpAnalysisParser
+    {
+        public static ArcNET.Diagnostics.CrashDumpAnalysisParsedOutput Parse(string output) { }
+    }
+    public sealed class CrashDumpAnalysisService
+    {
+        public CrashDumpAnalysisService(ArcNET.Diagnostics.IRuntimePlatformService platformService) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpAnalysisSnapshot> AnalyzeDumpAsync(string dumpPath, string? modulePath = null, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class CrashDumpAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.CrashDumpAnalysisSnapshot>
+    {
+        public CrashDumpAnalysisSnapshot(System.DateTimeOffset GeneratedAtUtc, string DumpPath, bool AnalyzerFound, bool AnalysisWritten, string AnalyzerPath, string OutputPath, int? ExitCode, string Status, System.Collections.Generic.IReadOnlyList<string> Highlights, string? ProcessName, string? ExceptionCode, string? FaultingInstruction, System.Collections.Generic.IReadOnlyList<string> StackPreview) { }
+        public bool AnalysisWritten { get; init; }
+        public bool AnalyzerFound { get; init; }
+        public string AnalyzerPath { get; init; }
+        public string DumpPath { get; init; }
+        public string? ExceptionCode { get; init; }
+        public int? ExitCode { get; init; }
+        public string? FaultingInstruction { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Highlights { get; init; }
+        public string OutputPath { get; init; }
+        public string? ProcessName { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> StackPreview { get; init; }
+        public string Status { get; init; }
+    }
     public sealed class CrashDumpAutoConfigurationSnapshot : System.IEquatable<ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot>
     {
         public CrashDumpAutoConfigurationSnapshot(bool IsEnabled, string ProcessExecutableName, string Scope, string RegistryPath, string? DumpFolder, ArcNET.Diagnostics.CrashDumpKind? DumpKind, int? DumpCount) { }
@@ -3025,10 +4025,36 @@ namespace ArcNET.Diagnostics
         public string RegistryPath { get; init; }
         public string Scope { get; init; }
     }
+    public sealed class CrashDumpAutoInspectionSnapshot : System.IEquatable<ArcNET.Diagnostics.CrashDumpAutoInspectionSnapshot>
+    {
+        public CrashDumpAutoInspectionSnapshot(System.DateTimeOffset GeneratedAtUtc, ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot Configuration, string Status, System.Collections.Generic.IReadOnlyList<string> Notes, string? LatestDumpPath, System.DateTimeOffset? LatestDumpWrittenAtUtc, long? LatestDumpSizeBytes, ArcNET.Diagnostics.CrashDumpAnalysisSnapshot? Analysis) { }
+        public ArcNET.Diagnostics.CrashDumpAnalysisSnapshot? Analysis { get; init; }
+        public ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot Configuration { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public string? LatestDumpPath { get; init; }
+        public long? LatestDumpSizeBytes { get; init; }
+        public System.DateTimeOffset? LatestDumpWrittenAtUtc { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string Status { get; init; }
+    }
+    public sealed class CrashDumpCaptureSnapshot : System.IEquatable<ArcNET.Diagnostics.CrashDumpCaptureSnapshot>
+    {
+        public CrashDumpCaptureSnapshot(ArcNET.Diagnostics.CrashDumpWriteSnapshot Dump, ArcNET.Diagnostics.CrashDumpAnalysisSnapshot Analysis) { }
+        public ArcNET.Diagnostics.CrashDumpAnalysisSnapshot Analysis { get; init; }
+        public ArcNET.Diagnostics.CrashDumpWriteSnapshot Dump { get; init; }
+    }
     public enum CrashDumpKind
     {
         Mini = 0,
         Full = 1,
+    }
+    public sealed class CrashDumpService
+    {
+        public CrashDumpService(ArcNET.Diagnostics.IRuntimePlatformService platformService) { }
+        public ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot DisableAutomaticDumps(string processExecutableName = "Arcanum.exe") { }
+        public ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot EnableAutomaticDumps(string dumpDirectory, ArcNET.Diagnostics.CrashDumpKind dumpKind = 0, int dumpCount = 5, string processExecutableName = "Arcanum.exe") { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpAutoInspectionSnapshot> InspectAutomaticDumpsAsync(string processExecutableName = "Arcanum.exe", string? modulePath = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpCaptureSnapshot> WriteDumpAsync(int processId, string outputPath, ArcNET.Diagnostics.CrashDumpKind dumpKind = 0, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class CrashDumpWriteSnapshot : System.IEquatable<ArcNET.Diagnostics.CrashDumpWriteSnapshot>
     {
@@ -3087,6 +4113,11 @@ namespace ArcNET.Diagnostics
         public ArcNET.Patch.ArcanumExecutableKind LaunchExecutableKind { get; init; }
         public bool LaunchWindowed { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> RequestedProcessNames { get; init; }
+    }
+    public sealed class EnvironmentService
+    {
+        public EnvironmentService(ArcNET.Diagnostics.IEnvironmentBackend backend) { }
+        public ArcNET.Diagnostics.EnvironmentSnapshot Create(ArcNET.Diagnostics.EnvironmentRequest request) { }
     }
     public sealed class EnvironmentSnapshot : System.IEquatable<ArcNET.Diagnostics.EnvironmentSnapshot>
     {
@@ -3165,6 +4196,11 @@ namespace ArcNET.Diagnostics
         public string TimeoutMillisecondsText { get; init; }
         public bool UseSuggestedCleanup { get; init; }
     }
+    public sealed class FunctionCallService
+    {
+        public FunctionCallService(ArcNET.Diagnostics.IFunctionCallBackend backend) { }
+        public ArcNET.Diagnostics.FunctionCallSnapshot Invoke(ArcNET.Diagnostics.FunctionCallRequest request) { }
+    }
     public sealed class FunctionCallSnapshot : System.IEquatable<ArcNET.Diagnostics.FunctionCallSnapshot>
     {
         public FunctionCallSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string TargetKey, string TargetSite, string CleanupModeText, string DispatcherText, string TargetAddressText, string ResultEaxText, string ResultEdxText, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.FunctionCallArgumentSnapshot> Arguments) { }
@@ -3200,6 +4236,31 @@ namespace ArcNET.Diagnostics
         public ArcNET.Diagnostics.StackCleanupMode SuggestedCleanup { get; init; }
         public string Summary { get; init; }
     }
+    public sealed class GameDataCatalogRequest : System.IEquatable<ArcNET.Diagnostics.GameDataCatalogRequest>
+    {
+        public GameDataCatalogRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string? WorkspacePathOverride = null) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class GameDataCatalogService
+    {
+        public GameDataCatalogService(ArcNET.Diagnostics.IGameDataCatalogBackend backend) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.GameDataCatalogSnapshot> LoadAsync(ArcNET.Diagnostics.GameDataCatalogRequest request) { }
+    }
+    public sealed class GameDataCatalogSnapshot : System.IEquatable<ArcNET.Diagnostics.GameDataCatalogSnapshot>
+    {
+        public GameDataCatalogSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.PrototypePaletteEntry> PrototypeEntries, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorldMapCatalogEntry> WorldMapEntries, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.TileArtCatalogEntry> TileArtEntries, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.StaticObjectCatalogEntry> StaticObjectEntries, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.PrototypePaletteEntry> PrototypeEntries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.StaticObjectCatalogEntry> StaticObjectEntries { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.TileArtCatalogEntry> TileArtEntries { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorldMapCatalogEntry> WorldMapEntries { get; init; }
+    }
     public readonly struct GameDateTimeSnapshot : System.IEquatable<ArcNET.Diagnostics.GameDateTimeSnapshot>
     {
         public GameDateTimeSnapshot(uint Days, uint Milliseconds) { }
@@ -3223,7 +4284,7 @@ namespace ArcNET.Diagnostics
     }
     public sealed class GuidedActionRequest : System.IEquatable<ArcNET.Diagnostics.GuidedActionRequest>
     {
-        public GuidedActionRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string ActionKey, string TravelerToken, string TileXText, string TileYText, string MapIdText, string FlagsText, string TimeoutMillisecondsText) { }
+        public GuidedActionRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string ActionKey, string TravelerToken, string TileXText, string TileYText, string MapIdText, string FlagsText, string TimeoutMillisecondsText, string? WorkspacePathOverride = null) { }
         public string ActionKey { get; init; }
         public string FlagsText { get; init; }
         public string MapIdText { get; init; }
@@ -3232,6 +4293,13 @@ namespace ArcNET.Diagnostics
         public string TileYText { get; init; }
         public string TimeoutMillisecondsText { get; init; }
         public string TravelerToken { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class GuidedActionService
+    {
+        public GuidedActionService(ArcNET.Diagnostics.IGuidedActionBackend backend, System.Func<string, System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WorldMapLocationDescriptor>>>? worldMapLocationLoader = null) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.GuidedActionSnapshot> ExecuteAsync(ArcNET.Diagnostics.GuidedActionRequest request) { }
     }
     public sealed class GuidedActionSnapshot : System.IEquatable<ArcNET.Diagnostics.GuidedActionSnapshot>
     {
@@ -3318,6 +4386,190 @@ namespace ArcNET.Diagnostics
         public bool ObservedEvents { get; init; }
         public bool Success { get; init; }
     }
+    public interface IAuditBackend
+    {
+        ArcNET.Diagnostics.DispatcherAuditSnapshot AuditDispatcher(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile);
+        ArcNET.Diagnostics.FunctionAuditSnapshot AuditFunctions(int processId);
+        ArcNET.Diagnostics.HookAuditSnapshot AuditHooks(int processId, System.Collections.Generic.IReadOnlyList<string> selectors, System.TimeSpan duration, bool includeWatch, bool includeIntercept, int stackCaptureDwordCount, bool stopOnFailure);
+    }
+    public interface IDiagnosticsServices
+    {
+        ArcNET.Diagnostics.AuditService AuditService { get; }
+        ArcNET.Diagnostics.CrashDumpAnalysisService CrashDumpAnalysisService { get; }
+        ArcNET.Diagnostics.CrashDumpService CrashDumpService { get; }
+        ArcNET.Diagnostics.EnvironmentService EnvironmentService { get; }
+        ArcNET.Diagnostics.FunctionCallService FunctionCallService { get; }
+        ArcNET.Diagnostics.GameDataCatalogService GameDataCatalogService { get; }
+        ArcNET.Diagnostics.GuidedActionService GuidedActionService { get; }
+        ArcNET.Diagnostics.InterceptService InterceptService { get; }
+        ArcNET.Diagnostics.InterceptTargetResolver InterceptTargetResolver { get; }
+        ArcNET.Diagnostics.InventoryEditorService InventoryEditorService { get; }
+        ArcNET.Diagnostics.LogbookEditorService LogbookEditorService { get; }
+        ArcNET.Diagnostics.LogbookService LogbookService { get; }
+        ArcNET.Diagnostics.MobileEntityService MobileEntityService { get; }
+        ArcNET.Diagnostics.ModuleSymbolQueryService ModuleSymbolQueryService { get; }
+        ArcNET.Diagnostics.ObjectProbeService ObjectProbeService { get; }
+        ArcNET.Diagnostics.PrototypeResolutionService PrototypeResolutionService { get; }
+        ArcNET.Diagnostics.ReadService ReadService { get; }
+        ArcNET.Diagnostics.RuntimeStatusService RuntimeStatusService { get; }
+        ArcNET.Diagnostics.ScriptAttachmentService ScriptAttachmentService { get; }
+        ArcNET.Diagnostics.SessionService SessionService { get; }
+        ArcNET.Diagnostics.SheetEditorService SheetEditorService { get; }
+        ArcNET.Diagnostics.SheetService SheetService { get; }
+        ArcNET.Diagnostics.SpellTechEditorService SpellTechEditorService { get; }
+        ArcNET.Diagnostics.WatchService WatchService { get; }
+    }
+    public interface IEnvironmentBackend
+    {
+        ArcNET.Patch.ArcanumLaunchPlan CreateLaunchPlan(string gamePath, ArcNET.Patch.ArcanumLaunchOptions options);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RunningProcessInfo> GetRunningProcesses(System.Collections.Generic.IReadOnlyList<string> processNames);
+        bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error);
+    }
+    public interface IFunctionCallBackend
+    {
+        ArcNET.Diagnostics.FunctionCallExecutionResult InvokeCall(int processId, int targetRva, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ArcNET.Diagnostics.StackCleanupMode cleanupMode, uint ecxValue, uint edxValue, System.Collections.Generic.IReadOnlyList<uint> stackArguments, System.TimeSpan timeout);
+        ArcNET.Diagnostics.Contracts.LivePlayerLocatorResult LocatePlayers(int processId);
+    }
+    public interface IGameDataCatalogBackend
+    {
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.PrototypePaletteEntry>> LoadPrototypePaletteAsync(string workspacePath);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.StaticObjectCatalogEntry>> LoadStaticObjectCatalogAsync(string workspacePath);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.TileArtCatalogEntry>> LoadTileArtCatalogAsync(string workspacePath);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorldMapCatalogEntry>> LoadWorldMapCatalogAsync(string workspacePath);
+    }
+    public interface IGuidedActionBackend
+    {
+        ArcNET.Diagnostics.WorldMapDiscoveryExecutionResult DiscoverAllWorldMapLocations(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong travelerHandle, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WorldMapLocationDescriptor> locations, System.TimeSpan timeout);
+        ArcNET.Diagnostics.FunctionCallExecutionResult ExecuteTeleport(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong travelerHandle, int tileX, int tileY, int mapId, uint flags, System.TimeSpan timeout);
+        ArcNET.Diagnostics.Contracts.LivePlayerLocatorResult LocatePlayers(int processId);
+    }
+    public interface IHandleBackend
+    {
+        ArcNET.Diagnostics.Contracts.LiveObjectIdentity InspectHandle(int processId, ulong handle);
+        ArcNET.Diagnostics.Contracts.LivePlayerLocatorResult LocatePlayers(int processId);
+    }
+    public interface IInterceptBackend
+    {
+        ArcNET.Diagnostics.IInterceptSession StartIntercept(int processId, ArcNET.Diagnostics.RuntimeInterceptionDefinition definition);
+    }
+    public interface IInterceptSession : System.IDisposable
+    {
+        bool HasExited { get; }
+        string ModuleFileName { get; }
+        ArcNET.Diagnostics.InterceptMemoryReadResult ReadMemory(uint address, int requestedByteCount);
+        ArcNET.Diagnostics.RuntimeInterceptionReadResult ReadSince(uint lastSequence);
+    }
+    public interface IInventoryEditorBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.InventoryCreateExecutionResult CreateItem(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong ownerHandle, ulong prototypeHandle, int inventoryLocation, System.TimeSpan timeout);
+        ArcNET.Diagnostics.InventoryDestroyExecutionResult DestroyItem(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong itemHandle, System.TimeSpan timeout);
+    }
+    public interface ILogbookBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        System.Threading.Tasks.Task<ArcNET.Diagnostics.LogbookReadResult> ReadLogbookAsync(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, ArcNET.Diagnostics.LogbookPage page, string workspacePath);
+    }
+    public interface ILogbookEditorBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddBlessing(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int blessingId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddCurse(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int curseId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddInjury(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int descriptionId, int injuryType, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddKey(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int keyId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddKill(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, ulong victimHandle, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult AddReputation(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int reputationId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult ClearBackground(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, System.TimeSpan timeout);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.LogbookCatalogEntrySnapshot>> LoadCatalogAsync(string workspacePath);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult QuellRumor(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, int rumorId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult RemoveBlessing(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int blessingId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult RemoveCurse(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int curseId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult RemoveInjury(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int descriptionId, int injuryType, int slotIndex, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult RemoveKey(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int keyId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult RemoveReputation(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int reputationId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult SetBackground(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int backgroundId, int backgroundTextId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult SetKillSummary(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, ArcNET.Diagnostics.LogbookMutationKind kind, int descriptionId, int value, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult SetQuestGlobalState(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, int questId, int state, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult SetQuestState(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int questId, int state, System.TimeSpan timeout);
+        ArcNET.Diagnostics.LogbookMutationExecutionResult SetRumorKnown(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int rumorId, System.TimeSpan timeout);
+    }
+    public interface IMobileEntityBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.MobileMutationExecutionResult DespawnMobile(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, System.TimeSpan timeout);
+        ArcNET.Diagnostics.MobileMutationExecutionResult KillMobile(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, System.TimeSpan timeout);
+        System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LiveObjectIdentity> ListLiveMobiles(int processId, int maxEntries);
+        ArcNET.Diagnostics.MobileMutationExecutionResult SetMobileStat(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int statId, int value, System.TimeSpan timeout);
+        ArcNET.Diagnostics.MobileMutationExecutionResult SpawnMobile(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong prototypeHandle, ulong anchorHandle, System.TimeSpan timeout);
+    }
+    public interface IObjectProbeBackend
+    {
+        System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.Contracts.LiveObjectInspection> InspectHandles(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, bool includeExtendedDetails, System.Collections.Generic.IReadOnlyList<ulong> handles);
+        ArcNET.Diagnostics.Contracts.LivePlayerLocatorResult LocatePlayers(int processId);
+    }
+    public interface IPrototypeResolutionBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.PrototypePaletteEntry>> LoadPaletteAsync(string workspacePath);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.StaticObjectCatalogEntry>> LoadStaticObjectCatalogAsync(string workspacePath);
+        ArcNET.Diagnostics.PrototypeHandleResolutionResult ResolvePrototypeHandle(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, int protoNumber);
+    }
+    public interface IReadBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.NativeReadSnapshot InvokeInt32(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, string functionKey, System.Collections.Generic.IReadOnlyList<uint> stackArguments, System.TimeSpan timeout);
+    }
+    public interface IRuntimePlatformService
+    {
+        System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpAnalysisSnapshot> AnalyzeCrashDumpAsync(string dumpPath, string? modulePath = null, System.Threading.CancellationToken cancellationToken = default);
+        ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot DisableAutomaticDumps(string processExecutableName = "Arcanum.exe");
+        ArcNET.Diagnostics.CrashDumpAutoConfigurationSnapshot EnableAutomaticDumps(string dumpDirectory, ArcNET.Diagnostics.CrashDumpKind dumpKind = 0, int dumpCount = 5, string processExecutableName = "Arcanum.exe");
+        System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpAutoInspectionSnapshot> InspectAutomaticCrashDumpsAsync(string processExecutableName = "Arcanum.exe", string? modulePath = null, System.Threading.CancellationToken cancellationToken = default);
+        ArcNET.Diagnostics.RuntimeStatusSnapshot InspectRuntimeStatus(int processId);
+        ArcNET.Diagnostics.ModuleSymbolQuerySnapshot QueryFileModuleSymbols(string modulePath, ArcNET.Diagnostics.ModuleSymbolQueryRequest request);
+        ArcNET.Diagnostics.ModuleSymbolQuerySnapshot QueryRuntimeModuleSymbols(int processId, ArcNET.Diagnostics.ModuleSymbolQueryRequest request);
+        ArcNET.Diagnostics.InterceptTarget ResolveInterceptTarget(int processId, string targetText);
+        ArcNET.Diagnostics.RuntimeActionPointsWriteSnapshot WriteRuntimeActionPoints(int processId, int value);
+        System.Threading.Tasks.Task<ArcNET.Diagnostics.CrashDumpCaptureSnapshot> WriteRuntimeCrashDumpAsync(int processId, string outputPath, ArcNET.Diagnostics.CrashDumpKind dumpKind = 0, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IScriptAttachmentBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.ScriptAttachmentPayload ReadAttachment(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int attachmentPoint);
+    }
+    public interface ISessionBackend
+    {
+        ArcNET.Diagnostics.ISessionConnection Attach(int processId);
+        ArcNET.Patch.ArcanumLaunchPlan CreateLaunchPlan(string gamePath, ArcNET.Patch.ArcanumLaunchOptions options);
+        ArcNET.Diagnostics.ISessionConnection LaunchAndAttach(ArcNET.Patch.ArcanumLaunchPlan plan, System.TimeSpan attachTimeout);
+        bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error);
+        string? TryResolveWorkspacePathHint(ArcNET.Diagnostics.ISessionConnection connection, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile);
+    }
+    public interface ISessionConnection : System.IDisposable
+    {
+        bool HasExited { get; }
+        System.IntPtr ModuleBase { get; }
+        string ModulePath { get; }
+        int ModuleSize { get; }
+        int ProcessId { get; }
+        string ProcessName { get; }
+    }
+    public interface ISheetBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.SheetDataSnapshot ReadSheetData(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle);
+    }
+    public interface ISheetEditorBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetBasicSkill(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int skillId, int points, int? training, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetResistance(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int resistanceId, int value, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetSpellCollegeLevel(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int collegeId, int level, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetSpellMastery(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int masteryCollegeId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetStat(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int statId, int value, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetTechDisciplineLevel(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int disciplineId, int level, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SheetMutationExecutionResult SetTechSkill(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int skillId, int points, int? training, System.TimeSpan timeout);
+    }
+    public interface ISpellTechEditorBackend : ArcNET.Diagnostics.IHandleBackend
+    {
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult AddSpell(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int spellId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult GrantSchematic(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int schematicId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult RemoveSchematic(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int schematicId, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult SetSpellCollegeLevel(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int collegeId, int level, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult SetTechDisciplineLevel(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int disciplineId, int level, System.TimeSpan timeout);
+        ArcNET.Diagnostics.SpellTechMutationExecutionResult SetTechSkillPoints(int processId, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile, ulong handle, int skillId, int points, System.TimeSpan timeout);
+    }
     public readonly struct InjuryLogbookEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.InjuryLogbookEntrySnapshot>
     {
         public InjuryLogbookEntrySnapshot(int SlotIndex, int DescriptionId, string SourceName, int InjuryType, string InjuryTypeName, bool Active, string StateText, string SummaryText) { }
@@ -3382,6 +4634,11 @@ namespace ArcNET.Diagnostics
         public System.Collections.Generic.IReadOnlyList<string> StackDwords { get; init; }
         public System.DateTimeOffset TimestampUtc { get; init; }
     }
+    public sealed class InterceptHandle : System.IDisposable
+    {
+        public ArcNET.Diagnostics.InterceptSnapshot Snapshot { get; }
+        public void Dispose() { }
+    }
     public sealed class InterceptMutationRequest : System.IEquatable<ArcNET.Diagnostics.InterceptMutationRequest>
     {
         public InterceptMutationRequest(bool SkipOriginal, int CleanupBytes, uint? ReturnEax, uint? ReturnEdx, ArcNET.Diagnostics.InterceptRegisterOverrideRequest Registers, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.InterceptArgumentOverrideRequest> ArgumentOverrides) { }
@@ -3421,6 +4678,12 @@ namespace ArcNET.Diagnostics
         public string Esi { get; init; }
         public string OriginalEsp { get; init; }
     }
+    public sealed class InterceptService
+    {
+        public InterceptService(ArcNET.Diagnostics.IInterceptBackend backend) { }
+        public ArcNET.Diagnostics.InterceptSnapshot Poll(ArcNET.Diagnostics.InterceptHandle handle) { }
+        public ArcNET.Diagnostics.InterceptHandle Start(ArcNET.Diagnostics.InterceptStartRequest request) { }
+    }
     public sealed class InterceptSnapshot : System.IEquatable<ArcNET.Diagnostics.InterceptSnapshot>
     {
         public InterceptSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsRunning, string Status, string Summary, string TargetKey, string TargetSite, string TargetSummary, string TargetResolution, string ExecutionModeText, int StackCaptureDwordCount, int TotalEvents, int TotalDroppedEvents, int TotalContentionDrops, int TotalWarnings, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.InterceptEventSnapshot> Events) { }
@@ -3459,6 +4722,68 @@ namespace ArcNET.Diagnostics
         public string Site { get; init; }
         public string Summary { get; init; }
     }
+    public sealed class InterceptTargetResolver
+    {
+        public InterceptTargetResolver(ArcNET.Diagnostics.IRuntimePlatformService platformService) { }
+        public ArcNET.Diagnostics.InterceptTarget Resolve(int processId, string targetText) { }
+    }
+    public sealed class InventoryCreateExecutionResult : System.IEquatable<ArcNET.Diagnostics.InventoryCreateExecutionResult>
+    {
+        public InventoryCreateExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, ulong ItemHandle) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public ulong ItemHandle { get; init; }
+        public string ResultText { get; init; }
+    }
+    public sealed class InventoryCreateRequest : System.IEquatable<ArcNET.Diagnostics.InventoryCreateRequest>
+    {
+        public InventoryCreateRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string OwnerToken, ulong PrototypeHandle, string InventoryLocationText, string TimeoutMillisecondsText) { }
+        public string InventoryLocationText { get; init; }
+        public string OwnerToken { get; init; }
+        public ulong PrototypeHandle { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class InventoryDestroyExecutionResult : System.IEquatable<ArcNET.Diagnostics.InventoryDestroyExecutionResult>
+    {
+        public InventoryDestroyExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, ulong ParentHandle) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public ulong ParentHandle { get; init; }
+        public string ResultText { get; init; }
+    }
+    public sealed class InventoryDestroyRequest : System.IEquatable<ArcNET.Diagnostics.InventoryDestroyRequest>
+    {
+        public InventoryDestroyRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string ItemHandleToken, string TimeoutMillisecondsText) { }
+        public string ItemHandleToken { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class InventoryEditorService
+    {
+        public InventoryEditorService(ArcNET.Diagnostics.IInventoryEditorBackend backend) { }
+        public ArcNET.Diagnostics.InventoryEditorSnapshot CreateItem(ArcNET.Diagnostics.InventoryCreateRequest request) { }
+        public ArcNET.Diagnostics.InventoryEditorSnapshot DestroyItem(ArcNET.Diagnostics.InventoryDestroyRequest request) { }
+    }
+    public sealed class InventoryEditorSnapshot : System.IEquatable<ArcNET.Diagnostics.InventoryEditorSnapshot>
+    {
+        public InventoryEditorSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string OwnerHandleText, string OwnerTargetText, string ItemHandleText, string PrototypeHandleText, string InventoryLocationText, string DispatcherText, string ExecutionDetailText, string ResultText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public string DispatcherText { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public string InventoryLocationText { get; init; }
+        public bool IsAvailable { get; init; }
+        public string ItemHandleText { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string OwnerHandleText { get; init; }
+        public string OwnerTargetText { get; init; }
+        public string PrototypeHandleText { get; init; }
+        public string ResultText { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+    }
     public readonly struct KeyringLogbookEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.KeyringLogbookEntrySnapshot>
     {
         public KeyringLogbookEntrySnapshot(int Index, int KeyId, string Name) { }
@@ -3470,6 +4795,26 @@ namespace ArcNET.Diagnostics
     {
         public KeyringLogbookPageSnapshot(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.KeyringLogbookEntrySnapshot> Entries) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.KeyringLogbookEntrySnapshot> Entries { get; init; }
+    }
+    public static class KillLogbookSummaryCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.KillLogbookSummaryDefinition> Definitions { get; }
+        public static bool TryGetDefinition(ArcNET.Diagnostics.LogbookMutationKind kind, out ArcNET.Diagnostics.KillLogbookSummaryDefinition definition) { }
+        public static bool TryGetDefinition(string key, out ArcNET.Diagnostics.KillLogbookSummaryDefinition definition) { }
+    }
+    public sealed class KillLogbookSummaryDefinition : System.IEquatable<ArcNET.Diagnostics.KillLogbookSummaryDefinition>
+    {
+        public KillLogbookSummaryDefinition(ArcNET.Diagnostics.LogbookMutationKind MutationKind, string Key, string SummaryLabel, string OperationLabel, string CatalogCategoryToken, string ValueLabel, string ValuePlaceholderText, int? DescriptionIndex, int ValueIndex) { }
+        public string CatalogCategoryToken { get; init; }
+        public int? DescriptionIndex { get; init; }
+        public string Key { get; init; }
+        public ArcNET.Diagnostics.LogbookMutationKind MutationKind { get; init; }
+        public string OperationLabel { get; init; }
+        public bool RequiresDescription { get; }
+        public string SummaryLabel { get; init; }
+        public int ValueIndex { get; init; }
+        public string ValueLabel { get; init; }
+        public string ValuePlaceholderText { get; init; }
     }
     public readonly struct KillLogbookSummaryEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.KillLogbookSummaryEntrySnapshot>
     {
@@ -3501,23 +4846,126 @@ namespace ArcNET.Diagnostics
     }
     public sealed class LaunchSessionRequest : System.IEquatable<ArcNET.Diagnostics.LaunchSessionRequest>
     {
-        public LaunchSessionRequest(string InstallPath, ArcNET.Patch.ArcanumExecutableKind ExecutableKind, bool LaunchWindowed, System.TimeSpan? AttachTimeout = default) { }
+        public LaunchSessionRequest(string InstallPath, ArcNET.Patch.ArcanumExecutableKind ExecutableKind, bool LaunchWindowed, System.TimeSpan? AttachTimeout = default, string? WorkspacePathHint = null) { }
         public System.TimeSpan? AttachTimeout { get; init; }
         public ArcNET.Patch.ArcanumExecutableKind ExecutableKind { get; init; }
         public string InstallPath { get; init; }
         public bool LaunchWindowed { get; init; }
+        public string? WorkspacePathHint { get; init; }
     }
     public sealed class LiveRuntimeSnapshot : System.IEquatable<ArcNET.Diagnostics.LiveRuntimeSnapshot>
     {
-        public LiveRuntimeSnapshot(string ScenarioKey, string DisplayName, string Summary, string ProcessName, int ProcessId, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities) { }
+        public LiveRuntimeSnapshot(string ScenarioKey, string DisplayName, string Summary, string ProcessName, int ProcessId, ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint, ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile, ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, string? RuntimeWorkspacePathHint = null) { }
         public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
         public string DisplayName { get; init; }
         public ArcNET.Diagnostics.Contracts.RuntimeFingerprint Fingerprint { get; init; }
+        public string LocalWorkspacePath { get; }
         public int ProcessId { get; init; }
         public string ProcessName { get; init; }
         public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
+        public string? RuntimeWorkspacePathHint { get; init; }
         public string ScenarioKey { get; init; }
         public string Summary { get; init; }
+    }
+    public sealed class LogbookCatalogEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.LogbookCatalogEntrySnapshot>
+    {
+        public LogbookCatalogEntrySnapshot(string CategoryToken, int EntryId, int AuxiliaryId, string DisplayName, string DetailText) { }
+        public int AuxiliaryId { get; init; }
+        public string CategoryToken { get; init; }
+        public string DetailText { get; init; }
+        public string DisplayName { get; init; }
+        public int EntryId { get; init; }
+    }
+    public sealed class LogbookEditorCatalogRequest : System.IEquatable<ArcNET.Diagnostics.LogbookEditorCatalogRequest>
+    {
+        public LogbookEditorCatalogRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string? WorkspacePathOverride = null) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class LogbookEditorCatalogSnapshot : System.IEquatable<ArcNET.Diagnostics.LogbookEditorCatalogSnapshot>
+    {
+        public LogbookEditorCatalogSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.LogbookCatalogEntrySnapshot> Entries, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.LogbookCatalogEntrySnapshot> Entries { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+    }
+    public sealed class LogbookEditorService
+    {
+        public LogbookEditorService(ArcNET.Diagnostics.ILogbookEditorBackend backend) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.LogbookEditorCatalogSnapshot> LoadCatalogAsync(ArcNET.Diagnostics.LogbookEditorCatalogRequest request) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.LogbookMutationSnapshot> WriteAsync(ArcNET.Diagnostics.LogbookMutationRequest request) { }
+    }
+    public sealed class LogbookMutationExecutionResult : System.IEquatable<ArcNET.Diagnostics.LogbookMutationExecutionResult>
+    {
+        public LogbookMutationExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, bool NoMutation = false) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public bool NoMutation { get; init; }
+        public string ResultText { get; init; }
+    }
+    public enum LogbookMutationKind
+    {
+        SetQuestState = 0,
+        SetQuestGlobalState = 1,
+        SetRumorKnown = 2,
+        QuellRumor = 3,
+        AddReputation = 4,
+        RemoveReputation = 5,
+        AddBlessing = 6,
+        RemoveBlessing = 7,
+        AddCurse = 8,
+        RemoveCurse = 9,
+        AddKey = 10,
+        RemoveKey = 11,
+        AddInjury = 12,
+        RemoveInjury = 13,
+        AddKill = 14,
+        SetTotalKills = 15,
+        SetMostPowerfulKill = 16,
+        SetLeastPowerfulKill = 17,
+        SetMostGoodKill = 18,
+        SetMostEvilKill = 19,
+        SetMostMagicalKill = 20,
+        SetMostTechKill = 21,
+        SetBackground = 22,
+        ClearBackground = 23,
+    }
+    public sealed class LogbookMutationRequest : System.IEquatable<ArcNET.Diagnostics.LogbookMutationRequest>
+    {
+        public LogbookMutationRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, ArcNET.Diagnostics.LogbookMutationKind Kind, string EntryTokenText, string ValueTokenText, string AuxiliaryTokenText, string TimeoutMillisecondsText, string? WorkspacePathOverride = null) { }
+        public string AuxiliaryTokenText { get; init; }
+        public string EntryTokenText { get; init; }
+        public ArcNET.Diagnostics.LogbookMutationKind Kind { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+        public string ValueTokenText { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class LogbookMutationSnapshot : System.IEquatable<ArcNET.Diagnostics.LogbookMutationSnapshot>
+    {
+        public LogbookMutationSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, ArcNET.Diagnostics.LogbookMutationKind Kind, string OperationText, string TargetHandleText, string TargetText, string SubjectText, string ValueText, string AuxiliaryText, string DispatcherText, string ExecutionDetailText, string ResultText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public string AuxiliaryText { get; init; }
+        public string DispatcherText { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public ArcNET.Diagnostics.LogbookMutationKind Kind { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string OperationText { get; init; }
+        public string ResultText { get; init; }
+        public string Status { get; init; }
+        public string SubjectText { get; init; }
+        public string Summary { get; init; }
+        public string TargetHandleText { get; init; }
+        public string TargetText { get; init; }
+        public string ValueText { get; init; }
     }
     public enum LogbookPage
     {
@@ -3549,10 +4997,17 @@ namespace ArcNET.Diagnostics
     }
     public sealed class LogbookRequest : System.IEquatable<ArcNET.Diagnostics.LogbookRequest>
     {
-        public LogbookRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string HandleToken, string PageToken = "all") { }
+        public LogbookRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string HandleToken, string PageToken = "all", string? WorkspacePathOverride = null) { }
         public string HandleToken { get; init; }
         public string PageToken { get; init; }
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class LogbookService
+    {
+        public LogbookService(ArcNET.Diagnostics.ILogbookBackend backend) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.LogbookSnapshot> ReadAsync(ArcNET.Diagnostics.LogbookRequest request) { }
     }
     public sealed class LogbookSnapshot : System.IEquatable<ArcNET.Diagnostics.LogbookSnapshot>
     {
@@ -3567,6 +5022,94 @@ namespace ArcNET.Diagnostics
         public string Summary { get; init; }
         public string TargetHandleText { get; init; }
         public string TargetText { get; init; }
+    }
+    public sealed class MobileActionRequest : System.IEquatable<ArcNET.Diagnostics.MobileActionRequest>
+    {
+        public MobileActionRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string TimeoutMillisecondsText) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class MobileEntityService
+    {
+        public MobileEntityService(ArcNET.Diagnostics.IMobileEntityBackend backend) { }
+        public ArcNET.Diagnostics.MobileMutationSnapshot Despawn(ArcNET.Diagnostics.MobileActionRequest request) { }
+        public ArcNET.Diagnostics.MobileMutationSnapshot Kill(ArcNET.Diagnostics.MobileActionRequest request) { }
+        public ArcNET.Diagnostics.MobileRosterSnapshot ListMobiles(ArcNET.Diagnostics.MobileRosterRequest request) { }
+        public ArcNET.Diagnostics.MobileMutationSnapshot SetStat(ArcNET.Diagnostics.MobileStatWriteRequest request) { }
+        public ArcNET.Diagnostics.MobileMutationSnapshot Spawn(ArcNET.Diagnostics.MobileSpawnRequest request) { }
+    }
+    public sealed class MobileMutationExecutionResult : System.IEquatable<ArcNET.Diagnostics.MobileMutationExecutionResult>
+    {
+        public MobileMutationExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, ulong RelatedHandle) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public ulong RelatedHandle { get; init; }
+        public string ResultText { get; init; }
+    }
+    public sealed class MobileMutationSnapshot : System.IEquatable<ArcNET.Diagnostics.MobileMutationSnapshot>
+    {
+        public MobileMutationSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string TargetHandleText, string TargetText, string PrototypeHandleText, string StatNameText, string StatValueText, string DispatcherText, string ExecutionDetailText, string ResultText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public string DispatcherText { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string PrototypeHandleText { get; init; }
+        public string ResultText { get; init; }
+        public string StatNameText { get; init; }
+        public string StatValueText { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+        public string TargetHandleText { get; init; }
+        public string TargetText { get; init; }
+    }
+    public sealed class MobileRosterEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.MobileRosterEntrySnapshot>
+    {
+        public MobileRosterEntrySnapshot(string HandleHex, string DisplayText, string ObjectTypeText, string ObjectIdText, string PrototypeText, string PrototypeHandleText, string StatusText, int? ProtoNumber, string ResolutionSource) { }
+        public string DisplayText { get; init; }
+        public string HandleHex { get; init; }
+        public string ObjectIdText { get; init; }
+        public string ObjectTypeText { get; init; }
+        public int? ProtoNumber { get; init; }
+        public string PrototypeHandleText { get; init; }
+        public string PrototypeText { get; init; }
+        public string ResolutionSource { get; init; }
+        public string StatusText { get; init; }
+    }
+    public sealed class MobileRosterRequest : System.IEquatable<ArcNET.Diagnostics.MobileRosterRequest>
+    {
+        public MobileRosterRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, int MaxEntries) { }
+        public int MaxEntries { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+    }
+    public sealed class MobileRosterSnapshot : System.IEquatable<ArcNET.Diagnostics.MobileRosterSnapshot>
+    {
+        public MobileRosterSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileRosterEntrySnapshot> Mobiles, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.MobileRosterEntrySnapshot> Mobiles { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+    }
+    public sealed class MobileSpawnRequest : System.IEquatable<ArcNET.Diagnostics.MobileSpawnRequest>
+    {
+        public MobileSpawnRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string AnchorHandleToken, ulong PrototypeHandle, string TimeoutMillisecondsText) { }
+        public string AnchorHandleToken { get; init; }
+        public ulong PrototypeHandle { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class MobileStatWriteRequest : System.IEquatable<ArcNET.Diagnostics.MobileStatWriteRequest>
+    {
+        public MobileStatWriteRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string StatToken, string ValueText, string TimeoutMillisecondsText) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string StatToken { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+        public string ValueText { get; init; }
     }
     public sealed class ModuleSymbolEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolEntrySnapshot>
     {
@@ -3586,6 +5129,12 @@ namespace ArcNET.Diagnostics
         public bool DuplicatesOnly { get; init; }
         public string? Filter { get; init; }
         public int Limit { get; init; }
+    }
+    public sealed class ModuleSymbolQueryService
+    {
+        public ModuleSymbolQueryService(ArcNET.Diagnostics.IRuntimePlatformService platformService) { }
+        public ArcNET.Diagnostics.ModuleSymbolQuerySnapshot QueryFile(string modulePath, ArcNET.Diagnostics.ModuleSymbolQueryRequest request) { }
+        public ArcNET.Diagnostics.ModuleSymbolQuerySnapshot QueryLive(int processId, ArcNET.Diagnostics.ModuleSymbolQueryRequest request) { }
     }
     public sealed class ModuleSymbolQuerySnapshot : System.IEquatable<ArcNET.Diagnostics.ModuleSymbolQuerySnapshot>
     {
@@ -3704,6 +5253,11 @@ namespace ArcNET.Diagnostics
         public string SourceText { get; init; }
         public string Title { get; init; }
     }
+    public sealed class ObjectProbeService
+    {
+        public ObjectProbeService(ArcNET.Diagnostics.IObjectProbeBackend backend) { }
+        public ArcNET.Diagnostics.ObjectProbeSnapshot Inspect(ArcNET.Diagnostics.ObjectProbeRequest request) { }
+    }
     public sealed class ObjectProbeSnapshot : System.IEquatable<ArcNET.Diagnostics.ObjectProbeSnapshot>
     {
         public ObjectProbeSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string SourceLabel, System.Collections.Generic.IReadOnlyList<string> RequestedHandles, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectProbeObjectSnapshot> Objects) { }
@@ -3744,22 +5298,25 @@ namespace ArcNET.Diagnostics
         public int RunningInstanceCount { get; init; }
         public string StatusText { get; init; }
     }
-    public sealed class PrototypePaletteEntry : System.IEquatable<ArcNET.Diagnostics.PrototypePaletteEntry>
+    public readonly struct PrototypeHandleResolutionResult : System.IEquatable<ArcNET.Diagnostics.PrototypeHandleResolutionResult>
     {
-        public PrototypePaletteEntry(int ProtoNumber, string ObjectType, string AssetPath, string? DisplayName, string? Description, string? PaletteGroup, string? ArtAssetPath) { }
-        public string? ArtAssetPath { get; init; }
-        public string AssetPath { get; init; }
-        public string? Description { get; init; }
-        public string? DisplayName { get; init; }
-        public string ObjectType { get; init; }
-        public string? PaletteGroup { get; init; }
-        public int ProtoNumber { get; init; }
+        public PrototypeHandleResolutionResult(bool Success, ulong Handle, string ResolutionSource) { }
+        public ulong Handle { get; init; }
+        public string ResolutionSource { get; init; }
+        public bool Success { get; init; }
     }
     public sealed class PrototypeResolutionRequest : System.IEquatable<ArcNET.Diagnostics.PrototypeResolutionRequest>
     {
-        public PrototypeResolutionRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string PrototypeText) { }
+        public PrototypeResolutionRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string PrototypeText, string? WorkspacePathOverride = null) { }
         public string PrototypeText { get; init; }
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string WorkspacePath { get; }
+        public string? WorkspacePathOverride { get; init; }
+    }
+    public sealed class PrototypeResolutionService
+    {
+        public PrototypeResolutionService(ArcNET.Diagnostics.IPrototypeResolutionBackend backend) { }
+        public System.Threading.Tasks.Task<ArcNET.Diagnostics.PrototypeResolutionSnapshot> ResolveAsync(ArcNET.Diagnostics.PrototypeResolutionRequest request) { }
     }
     public sealed class PrototypeResolutionSnapshot : System.IEquatable<ArcNET.Diagnostics.PrototypeResolutionSnapshot>
     {
@@ -3804,6 +5361,11 @@ namespace ArcNET.Diagnostics
         public string AdapterKey { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> Arguments { get; init; }
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+    }
+    public sealed class ReadService
+    {
+        public ReadService(ArcNET.Diagnostics.IReadBackend backend) { }
+        public ArcNET.Diagnostics.ReadSnapshot Read(ArcNET.Diagnostics.ReadRequest request) { }
     }
     public sealed class ReadSnapshot : System.IEquatable<ArcNET.Diagnostics.ReadSnapshot>
     {
@@ -3851,6 +5413,14 @@ namespace ArcNET.Diagnostics
         public string ResolutionSource { get; init; }
         public ArcNET.Diagnostics.Contracts.LiveObjectIdentity RuntimeIdentity { get; init; }
     }
+    public readonly struct ResolvedTarget : System.IEquatable<ArcNET.Diagnostics.ResolvedTarget>
+    {
+        public ResolvedTarget(ulong Handle, string HandleText, string TargetText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public ulong Handle { get; init; }
+        public string HandleText { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string TargetText { get; init; }
+    }
     public readonly struct RumorLogbookEntrySnapshot : System.IEquatable<ArcNET.Diagnostics.RumorLogbookEntrySnapshot>
     {
         public RumorLogbookEntrySnapshot(int RumorId, ArcNET.Diagnostics.GameDateTimeSnapshot DateTime, bool Quelled, string? Text, string? NormalText, string? DumbText) { }
@@ -3869,11 +5439,38 @@ namespace ArcNET.Diagnostics
         public ArcNET.Diagnostics.NativeReadSnapshot NativeRead { get; init; }
         public bool UsesDumbText { get; init; }
     }
+    public sealed class RunningProcessInfo : System.IEquatable<ArcNET.Diagnostics.RunningProcessInfo>
+    {
+        public RunningProcessInfo(string ProcessName, int ProcessId, string ModuleFileName, string ModulePath, nint ModuleBase, int ModuleSize, string? RuntimeWorkspacePathHint = null) { }
+        public System.IntPtr ModuleBase { get; init; }
+        public string ModuleFileName { get; init; }
+        public string ModulePath { get; init; }
+        public int ModuleSize { get; init; }
+        public int ProcessId { get; init; }
+        public string ProcessName { get; init; }
+        public string? RuntimeWorkspacePathHint { get; init; }
+    }
+    public sealed class RuntimeActionPointsWriteSnapshot : System.IEquatable<ArcNET.Diagnostics.RuntimeActionPointsWriteSnapshot>
+    {
+        public RuntimeActionPointsWriteSnapshot(ArcNET.Diagnostics.ActionPointsMutationSnapshot Mutation, ArcNET.Diagnostics.RuntimeStatusSnapshot Status) { }
+        public ArcNET.Diagnostics.ActionPointsMutationSnapshot Mutation { get; init; }
+        public ArcNET.Diagnostics.RuntimeStatusSnapshot Status { get; init; }
+    }
+    public static class RuntimeFingerprintReader
+    {
+        public static ArcNET.Diagnostics.Contracts.RuntimeFingerprint Create(string processName, int processId, string modulePath, nint moduleBase, int moduleSize) { }
+    }
     public static class RuntimeProfileMatcher
     {
         public static ArcNET.Diagnostics.Contracts.RuntimeKind ClassifyRuntimeKind(string moduleFileName, string processName) { }
         public static ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot Match(ArcNET.Diagnostics.Contracts.RuntimeFingerprint fingerprint, string? moduleSha256, string? hashError = null) { }
         public static bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error) { }
+    }
+    public static class RuntimeProfileService
+    {
+        public static ArcNET.Diagnostics.Contracts.RuntimeFingerprint ReadFingerprint(string processName, int processId, string modulePath, nint moduleBase, int moduleSize) { }
+        public static ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RequireCatalogSupport(string processName, int processId, string modulePath, nint moduleBase, int moduleSize, string operation) { }
+        public static ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot Resolve(string processName, int processId, string modulePath, nint moduleBase, int moduleSize) { }
     }
     public static class RuntimeSemanticCatalog
     {
@@ -3883,6 +5480,12 @@ namespace ArcNET.Diagnostics
         public static string InventoryLocationName(int inventoryLocation) { }
         public static bool LooksLikeObjectHandle(ulong handle) { }
         public static string StatName(int stat) { }
+    }
+    public sealed class RuntimeStatusService
+    {
+        public RuntimeStatusService(ArcNET.Diagnostics.IRuntimePlatformService platformService) { }
+        public ArcNET.Diagnostics.RuntimeStatusSnapshot Inspect(int processId) { }
+        public ArcNET.Diagnostics.RuntimeActionPointsWriteSnapshot WriteActionPoints(int processId, int value) { }
     }
     public sealed class RuntimeStatusSnapshot : System.IEquatable<ArcNET.Diagnostics.RuntimeStatusSnapshot>
     {
@@ -3907,114 +5510,6 @@ namespace ArcNET.Diagnostics
         public static bool NeedsNameCatalog(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
         public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> ResolveSelectors(System.Collections.Generic.IEnumerable<string> selectors) { }
         public static bool UsesHighVolumeHooks(System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> hooks) { }
-    }
-    public readonly struct RuntimeWatchHookDefinition : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchHookDefinition>
-    {
-        public RuntimeWatchHookDefinition(ArcNET.Diagnostics.RuntimeWatchHookId Id, string Key, string EventName, int Rva, string Site, string Area, string Description) { }
-        public string Area { get; init; }
-        public string Description { get; init; }
-        public string EventName { get; init; }
-        public ArcNET.Diagnostics.RuntimeWatchHookId Id { get; init; }
-        public string Key { get; init; }
-        public int Rva { get; init; }
-        public string Site { get; init; }
-    }
-    public enum RuntimeWatchHookId
-    {
-        LevelRecalc = 1,
-        UpdateFollowerLevel = 2,
-        StatBaseSet = 3,
-        BackgroundEducateFollowers = 4,
-        UiShowInvenLoot = 5,
-        ItemInsert = 6,
-        ItemEquipped = 7,
-        ItemForceRemove = 8,
-        ItemUnequipped = 9,
-        ObjectDestroy = 10,
-        ObjectScriptExecute = 11,
-        UiStartDialog = 12,
-        ReactionAdj = 13,
-        CritterKill = 14,
-        ScriptGlobalVarSet = 15,
-        ScriptGlobalFlagSet = 16,
-        ScriptPcVarSet = 17,
-        ScriptPcFlagSet = 18,
-        ScriptLocalFlagSet = 19,
-        ScriptLocalCounterSet = 20,
-        ScriptStoryStateSet = 21,
-        QuestStateSet = 22,
-        QuestGlobalStateSet = 23,
-        TimeEventAddDelay = 24,
-        TimeEventNotifyPcTeleported = 25,
-        MapOpenInGame = 26,
-        CombatTurnBasedWhosTurnSet = 27,
-        ObjectCreate = 28,
-        ObjFieldInt32Set = 29,
-        ObjFieldInt64Set = 30,
-        ObjFieldHandleSet = 31,
-        UiSpellAdd = 32,
-        UiSpellMaintainAdd = 33,
-        UiSpellMaintainEnd = 34,
-        TeleportDo = 35,
-        ObjArrayFieldInt32Set = 36,
-        ObjArrayFieldUInt32Set = 37,
-        ObjArrayFieldInt64Set = 38,
-        ObjArrayFieldObjSet = 39,
-        ObjArrayFieldLengthSet = 40,
-        EffectAdd = 41,
-        EffectRemoveOneTyped = 42,
-        EffectRemoveAllTyped = 43,
-        EffectRemoveOneCausedBy = 44,
-        EffectRemoveAllCausedBy = 45,
-        SpellAdd = 46,
-        SpellRemove = 47,
-        ObjArrayFieldScriptSet = 48,
-        ObjArrayFieldPcQuestSet = 49,
-        SpellCollegeLevelSet = 50,
-        EffectRemoveInternal = 51,
-        GamelibInvalidateRect = 52,
-        GamelibDraw = 53,
-        GamelibDrawGame = 54,
-        LightDraw = 55,
-        TileDraw = 56,
-        ObjectHoverDraw = 57,
-        ObjectDraw = 58,
-        RoofDraw = 59,
-        TextBubbleDraw = 60,
-        TextFloaterDraw = 61,
-        TextConversationDraw = 62,
-        TigWindowDisplay = 63,
-        TigWindowComposeDirtyRect = 64,
-        TigWindowBlitArt = 65,
-        TigWindowCopyFromVBuffer = 66,
-        TigWindowInvalidateRect = 67,
-        TigVideoFlip = 68,
-        CritterGiveXp = 69,
-        BackgroundSet = 70,
-        BackgroundClear = 71,
-        ReputationAdd = 72,
-        ReputationRemove = 73,
-        RumorQstateSet = 74,
-        RumorKnownSet = 75,
-        TechLearnSchematic = 76,
-        LogbookAddKill = 77,
-        LogbookAddInjury = 78,
-        AreaSetKnown = 79,
-        AreaResetLastKnownArea = 80,
-        BlessAdd = 81,
-        BlessRemove = 82,
-        CurseAdd = 83,
-        CurseRemove = 84,
-        WmapRndEncounterCheck = 85,
-        WmapUiEncounterStart = 86,
-        WmapLoadWorldmapInfo = 87,
-    }
-    public readonly struct RuntimeWatchProfileDescriptor : System.IEquatable<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor>
-    {
-        public RuntimeWatchProfileDescriptor(string Key, string Description, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks) { }
-        public string Description { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchHookDefinition> Hooks { get; init; }
-        public string Key { get; init; }
     }
     public enum RuntimeWatchTimeEventParamKind
     {
@@ -4061,6 +5556,22 @@ namespace ArcNET.Diagnostics
         public static string ViewTypeName(int viewType) { }
         public static string WindowFlagsText(uint flags) { }
     }
+    public sealed class SchematicGrantRequest : System.IEquatable<ArcNET.Diagnostics.SchematicGrantRequest>
+    {
+        public SchematicGrantRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string SchematicIdText, string TimeoutMillisecondsText) { }
+        public string SchematicIdText { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class SchematicRemoveRequest : System.IEquatable<ArcNET.Diagnostics.SchematicRemoveRequest>
+    {
+        public SchematicRemoveRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string SchematicIdText, string TimeoutMillisecondsText) { }
+        public string SchematicIdText { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
     public sealed class ScriptAttachmentPayload : System.IEquatable<ArcNET.Diagnostics.ScriptAttachmentPayload>
     {
         public ScriptAttachmentPayload(ArcNET.Diagnostics.ScriptAttachmentRecordSnapshot Script, ArcNET.Diagnostics.NativeReadSnapshot NativeRead) { }
@@ -4085,6 +5596,11 @@ namespace ArcNET.Diagnostics
         public string HandleToken { get; init; }
         public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
     }
+    public sealed class ScriptAttachmentService
+    {
+        public ScriptAttachmentService(ArcNET.Diagnostics.IScriptAttachmentBackend backend) { }
+        public ArcNET.Diagnostics.ScriptAttachmentSnapshot Read(ArcNET.Diagnostics.ScriptAttachmentRequest request) { }
+    }
     public sealed class ScriptAttachmentSnapshot : System.IEquatable<ArcNET.Diagnostics.ScriptAttachmentSnapshot>
     {
         public ScriptAttachmentSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string RequestedAttachmentPointText, int? AttachmentPoint, string AttachmentPointName, string TargetHandleText, string TargetText, ArcNET.Diagnostics.ScriptAttachmentRecordSnapshot? Script, ArcNET.Diagnostics.NativeReadSnapshot? NativeRead, System.Collections.Generic.IReadOnlyList<string> Notes) { }
@@ -4101,10 +5617,23 @@ namespace ArcNET.Diagnostics
         public string TargetHandleText { get; init; }
         public string TargetText { get; init; }
     }
+    public sealed class SessionHandle : System.IDisposable
+    {
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Snapshot { get; }
+        public void Dispose() { }
+    }
     public enum SessionOrigin : byte
     {
         Attach = 0,
         Launch = 1,
+    }
+    public sealed class SessionService
+    {
+        public SessionService(ArcNET.Diagnostics.ISessionBackend backend) { }
+        public ArcNET.Diagnostics.SessionHandle Attach(ArcNET.Diagnostics.LiveRuntimeSnapshot runtime, string? workspacePathHint = null) { }
+        public ArcNET.Diagnostics.SessionHandle LaunchAndAttach(ArcNET.Diagnostics.LaunchSessionRequest request) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Refresh(ArcNET.Diagnostics.SessionHandle session) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot SetWorkspacePathHint(ArcNET.Diagnostics.SessionHandle session, string? workspacePathHint) { }
     }
     public static class SheetCatalog
     {
@@ -4155,6 +5684,39 @@ namespace ArcNET.Diagnostics
         public string TargetHandleText { get; init; }
         public string TargetText { get; init; }
     }
+    public sealed class SheetEditorService
+    {
+        public SheetEditorService(ArcNET.Diagnostics.ISheetEditorBackend backend) { }
+        public ArcNET.Diagnostics.SheetMutationSnapshot Write(ArcNET.Diagnostics.SheetWriteRequest request) { }
+    }
+    public sealed class SheetMutationExecutionResult : System.IEquatable<ArcNET.Diagnostics.SheetMutationExecutionResult>
+    {
+        public SheetMutationExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, bool NoMutation = false) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public bool NoMutation { get; init; }
+        public string ResultText { get; init; }
+    }
+    public sealed class SheetMutationSnapshot : System.IEquatable<ArcNET.Diagnostics.SheetMutationSnapshot>
+    {
+        public SheetMutationSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string TargetHandleText, string TargetText, string FieldToken, string FieldDisplayName, ArcNET.Diagnostics.SheetRoute Route, string ValueText, string TrainingText, string DispatcherText, string ExecutionDetailText, string ResultText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public string DispatcherText { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public string FieldDisplayName { get; init; }
+        public string FieldToken { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string ResultText { get; init; }
+        public ArcNET.Diagnostics.SheetRoute Route { get; init; }
+        public string Status { get; init; }
+        public string Summary { get; init; }
+        public string TargetHandleText { get; init; }
+        public string TargetText { get; init; }
+        public string TrainingText { get; init; }
+        public string ValueText { get; init; }
+    }
     public readonly struct SheetReference : System.IEquatable<ArcNET.Diagnostics.SheetReference>
     {
         public SheetReference(ArcNET.Diagnostics.SheetRoute Route, int Id, string DisplayName) { }
@@ -4178,6 +5740,7 @@ namespace ArcNET.Diagnostics
         SpellCollege = 4,
         TechDiscipline = 5,
         Resistance = 6,
+        SpellMastery = 7,
     }
     public readonly struct SheetScalarSnapshot : System.IEquatable<ArcNET.Diagnostics.SheetScalarSnapshot>
     {
@@ -4204,6 +5767,13 @@ namespace ArcNET.Diagnostics
         public string TargetHandleText { get; init; }
         public string TargetText { get; init; }
     }
+    public sealed class SheetService
+    {
+        public SheetService(ArcNET.Diagnostics.ISheetBackend backend) { }
+        public ArcNET.Diagnostics.SheetDiffSnapshot Diff(ArcNET.Diagnostics.SheetDiffRequest request) { }
+        public ArcNET.Diagnostics.SheetSnapshot Read(ArcNET.Diagnostics.SheetRequest request) { }
+        public ArcNET.Diagnostics.SheetScanSnapshot Scan(ArcNET.Diagnostics.SheetScanRequest request) { }
+    }
     public readonly struct SheetSkillSnapshot : System.IEquatable<ArcNET.Diagnostics.SheetSkillSnapshot>
     {
         public SheetSkillSnapshot(int Id, string Name, int Value, int Training, string TrainingName, int Encoded) { }
@@ -4228,21 +5798,146 @@ namespace ArcNET.Diagnostics
         public string TargetText { get; init; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ReadValueSnapshot> Values { get; init; }
     }
+    public static class SheetValueCatalog
+    {
+        public static string CreateInputHint(ArcNET.Diagnostics.SheetReference reference) { }
+        public static string FormatDisplayValue(ArcNET.Diagnostics.SheetReference reference, int value) { }
+        public static string FormatEditorValue(ArcNET.Diagnostics.SheetReference reference, int value) { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SheetValueOption> GetValueOptions(ArcNET.Diagnostics.SheetReference reference) { }
+        public static int ParseValue(ArcNET.Diagnostics.SheetReference reference, string? valueText) { }
+    }
+    public sealed class SheetValueOption : System.IEquatable<ArcNET.Diagnostics.SheetValueOption>
+    {
+        public SheetValueOption(string Token, string Label, string Description) { }
+        public string Description { get; init; }
+        public string Label { get; init; }
+        public string Token { get; init; }
+    }
+    public sealed class SheetWriteRequest : System.IEquatable<ArcNET.Diagnostics.SheetWriteRequest>
+    {
+        public SheetWriteRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string FieldToken, string ValueText, string TrainingText, string TimeoutMillisecondsText) { }
+        public string FieldToken { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+        public string TrainingText { get; init; }
+        public string ValueText { get; init; }
+    }
+    public sealed class SpellAddRequest : System.IEquatable<ArcNET.Diagnostics.SpellAddRequest>
+    {
+        public SpellAddRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string SpellToken, string TimeoutMillisecondsText) { }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string SpellToken { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class SpellCollegeWriteRequest : System.IEquatable<ArcNET.Diagnostics.SpellCollegeWriteRequest>
+    {
+        public SpellCollegeWriteRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string CollegeToken, string LevelText, string TimeoutMillisecondsText) { }
+        public string CollegeToken { get; init; }
+        public string LevelText { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public readonly struct SpellDescriptor : System.IEquatable<ArcNET.Diagnostics.SpellDescriptor>
+    {
+        public SpellDescriptor(int Id, string Name, int CollegeId, string CollegeName, int Level) { }
+        public int CollegeId { get; init; }
+        public string CollegeName { get; init; }
+        public int Id { get; init; }
+        public int Level { get; init; }
+        public string Name { get; init; }
+    }
+    public static class SpellTechCatalog
+    {
+        public const int SpellCollegeCount = 16;
+        public const int SpellMaxLevel = 5;
+        public const int TechDisciplineBaseIndex = 17;
+        public const int TechSkillPointMask = 63;
+        public static System.Collections.Generic.IReadOnlyList<string> EnumerateSpellCollegeNames() { }
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.SpellDescriptor> EnumerateSpells() { }
+        public static System.Collections.Generic.IReadOnlyList<string> EnumerateTechDisciplineNames() { }
+        public static System.Collections.Generic.IReadOnlyList<string> EnumerateTechSkillNames() { }
+        public static string Normalize(string value) { }
+        public static int ParseLevel(string? token, string label, int minimum, int maximumInclusive) { }
+        public static int ParseSchematicId(string? token) { }
+        public static ArcNET.Diagnostics.SpellDescriptor ParseSpell(string? token) { }
+        public static int ParseSpellCollegeId(string? token) { }
+        public static int ParseTechDisciplineId(string? token) { }
+        public static int ParseTechSkillId(string? token) { }
+        public static int ParseTechSkillPoints(string? token) { }
+        public static string SpellCollegeName(int collegeId) { }
+        public static string TechDisciplineName(int disciplineId) { }
+        public static string TechSkillName(int skillId) { }
+    }
+    public sealed class SpellTechEditorService
+    {
+        public SpellTechEditorService(ArcNET.Diagnostics.ISpellTechEditorBackend backend) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot AddSpell(ArcNET.Diagnostics.SpellAddRequest request) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot GrantSchematic(ArcNET.Diagnostics.SchematicGrantRequest request) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot RemoveSchematic(ArcNET.Diagnostics.SchematicRemoveRequest request) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot SetSpellCollegeLevel(ArcNET.Diagnostics.SpellCollegeWriteRequest request) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot SetTechDisciplineLevel(ArcNET.Diagnostics.TechDisciplineWriteRequest request) { }
+        public ArcNET.Diagnostics.SpellTechMutationSnapshot SetTechSkillPoints(ArcNET.Diagnostics.TechSkillWriteRequest request) { }
+    }
+    public sealed class SpellTechMutationExecutionResult : System.IEquatable<ArcNET.Diagnostics.SpellTechMutationExecutionResult>
+    {
+        public SpellTechMutationExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, bool NoMutation = false, int RelatedIndex = -1) { }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public bool NoMutation { get; init; }
+        public int RelatedIndex { get; init; }
+        public string ResultText { get; init; }
+    }
+    public sealed class SpellTechMutationSnapshot : System.IEquatable<ArcNET.Diagnostics.SpellTechMutationSnapshot>
+    {
+        public SpellTechMutationSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsAvailable, string Status, string Summary, string OperationText, string TargetHandleText, string TargetText, string SubjectText, string ValueText, string DispatcherText, string ExecutionDetailText, string ResultText, System.Collections.Generic.IReadOnlyList<string> Notes) { }
+        public string DispatcherText { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public System.DateTimeOffset GeneratedAtUtc { get; init; }
+        public bool IsAvailable { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
+        public string OperationText { get; init; }
+        public string ResultText { get; init; }
+        public string Status { get; init; }
+        public string SubjectText { get; init; }
+        public string Summary { get; init; }
+        public string TargetHandleText { get; init; }
+        public string TargetText { get; init; }
+        public string ValueText { get; init; }
+    }
     public enum StackCleanupMode
     {
         Cdecl = 0,
         StdCall = 1,
     }
-    public sealed class TimelinePresetDescriptor : System.IEquatable<ArcNET.Diagnostics.TimelinePresetDescriptor>
+    public static class TargetResolver
     {
-        public TimelinePresetDescriptor(string Key, string DisplayName, string Description, System.Collections.Generic.IReadOnlyList<string> Selectors, System.Collections.Generic.IReadOnlyList<string> HookKeys, System.Collections.Generic.IReadOnlyList<string> Areas, bool UsesHighVolumeHooks) { }
-        public System.Collections.Generic.IReadOnlyList<string> Areas { get; init; }
-        public string Description { get; init; }
-        public string DisplayName { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> HookKeys { get; init; }
-        public string Key { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> Selectors { get; init; }
-        public bool UsesHighVolumeHooks { get; init; }
+        public static bool IsPlayerToken(string? token) { }
+        public static ulong ParseUInt64(string token) { }
+        public static ArcNET.Diagnostics.ResolvedTarget Resolve(ArcNET.Diagnostics.IHandleBackend backend, ArcNET.Diagnostics.AttachedSessionSnapshot session, string token, string subject) { }
+        public static uint ToHigh32(ulong value) { }
+        public static uint ToLow32(ulong value) { }
+    }
+    public sealed class TechDisciplineWriteRequest : System.IEquatable<ArcNET.Diagnostics.TechDisciplineWriteRequest>
+    {
+        public TechDisciplineWriteRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string DisciplineToken, string DegreeText, string TimeoutMillisecondsText) { }
+        public string DegreeText { get; init; }
+        public string DisciplineToken { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
+    }
+    public sealed class TechSkillWriteRequest : System.IEquatable<ArcNET.Diagnostics.TechSkillWriteRequest>
+    {
+        public TechSkillWriteRequest(ArcNET.Diagnostics.AttachedSessionSnapshot Session, string TargetHandleToken, string SkillToken, string PointsText, string TimeoutMillisecondsText) { }
+        public string PointsText { get; init; }
+        public ArcNET.Diagnostics.AttachedSessionSnapshot Session { get; init; }
+        public string SkillToken { get; init; }
+        public string TargetHandleToken { get; init; }
+        public string TimeoutMillisecondsText { get; init; }
     }
     public sealed class TimelineRequest : System.IEquatable<ArcNET.Diagnostics.TimelineRequest>
     {
@@ -4254,45 +5949,16 @@ namespace ArcNET.Diagnostics
     {
         public static ArcNET.Diagnostics.TimelineSnapshot Create(ArcNET.Diagnostics.TimelineRequest request) { }
     }
-    public sealed class TimelineSnapshot : System.IEquatable<ArcNET.Diagnostics.TimelineSnapshot>
+    public sealed class WatchHandle : System.IDisposable
     {
-        public TimelineSnapshot(ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> RecommendedPresets, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> AvailableProbePresets, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> AdvancedProfiles, System.Collections.Generic.IReadOnlyList<string> Notes) { }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.RuntimeWatchProfileDescriptor> AdvancedProfiles { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> AvailableProbePresets { get; init; }
-        public ArcNET.Diagnostics.Contracts.RuntimeCapabilityReport Capabilities { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> Notes { get; init; }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.TimelinePresetDescriptor> RecommendedPresets { get; init; }
+        public ArcNET.Diagnostics.WatchSnapshot Snapshot { get; }
+        public void Dispose() { }
     }
-    public sealed class WatchEventSnapshot : System.IEquatable<ArcNET.Diagnostics.WatchEventSnapshot>
+    public sealed class WatchService
     {
-        public WatchEventSnapshot(uint Sequence, string HookKey, string EventName, string SemanticEvent, string Area, string Site, string CallerAddress, string CallerRva, string Signature, string Summary, string? SuggestedHandleHex, System.Collections.Generic.IReadOnlyList<string> CandidateHandles, string StackPreview) { }
-        public string Area { get; init; }
-        public string CallerAddress { get; init; }
-        public string CallerRva { get; init; }
-        public System.Collections.Generic.IReadOnlyList<string> CandidateHandles { get; init; }
-        public string EventName { get; init; }
-        public string HookKey { get; init; }
-        public string SemanticEvent { get; init; }
-        public uint Sequence { get; init; }
-        public string Signature { get; init; }
-        public string Site { get; init; }
-        public string StackPreview { get; init; }
-        public string? SuggestedHandleHex { get; init; }
-        public string Summary { get; init; }
-    }
-    public sealed class WatchSnapshot : System.IEquatable<ArcNET.Diagnostics.WatchSnapshot>
-    {
-        public WatchSnapshot(System.DateTimeOffset GeneratedAtUtc, bool IsRunning, string Status, string Summary, string PresetDisplayName, int TotalEvents, int TotalDroppedEvents, int TotalContentionDrops, int TotalWarnings, System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WatchEventSnapshot> Events) { }
-        public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WatchEventSnapshot> Events { get; init; }
-        public System.DateTimeOffset GeneratedAtUtc { get; init; }
-        public bool IsRunning { get; init; }
-        public string PresetDisplayName { get; init; }
-        public string Status { get; init; }
-        public string Summary { get; init; }
-        public int TotalContentionDrops { get; init; }
-        public int TotalDroppedEvents { get; init; }
-        public int TotalEvents { get; init; }
-        public int TotalWarnings { get; init; }
+        public WatchService(ArcNET.Diagnostics.IWatchBackend backend) { }
+        public ArcNET.Diagnostics.WatchSnapshot Poll(ArcNET.Diagnostics.WatchHandle handle) { }
+        public ArcNET.Diagnostics.WatchHandle Start(ArcNET.Diagnostics.WatchStartRequest request) { }
     }
     public sealed class WatchStartRequest : System.IEquatable<ArcNET.Diagnostics.WatchStartRequest>
     {
@@ -4335,6 +6001,28 @@ namespace ArcNET.Diagnostics
         public System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.WorkspacePanelWorkflowSnapshot> PanelWorkflows { get; init; }
         public ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot RuntimeProfile { get; init; }
         public ArcNET.Diagnostics.TimelineSnapshot Timeline { get; init; }
+    }
+    public sealed class WorldMapDiscoveryExecutionResult : System.IEquatable<ArcNET.Diagnostics.WorldMapDiscoveryExecutionResult>
+    {
+        public WorldMapDiscoveryExecutionResult(string DispatcherMode, string DispatcherSite, string ExecutionDetailText, string ResultText, int ProcessedLocationCount, int VisitedLocationCount, bool IsTravelerOnWorldMap, int CurrentMapId, int StartMapId, int TownMapId) { }
+        public int CurrentMapId { get; init; }
+        public string DispatcherMode { get; init; }
+        public string DispatcherSite { get; init; }
+        public string ExecutionDetailText { get; init; }
+        public bool IsTravelerOnWorldMap { get; init; }
+        public int ProcessedLocationCount { get; init; }
+        public string ResultText { get; init; }
+        public int StartMapId { get; init; }
+        public int TownMapId { get; init; }
+        public int VisitedLocationCount { get; init; }
+    }
+    public sealed class WorldMapLocationDescriptor : System.IEquatable<ArcNET.Diagnostics.WorldMapLocationDescriptor>
+    {
+        public WorldMapLocationDescriptor(int AreaId, string DisplayName, int WorldX, int WorldY) { }
+        public int AreaId { get; init; }
+        public string DisplayName { get; init; }
+        public int WorldX { get; init; }
+        public int WorldY { get; init; }
     }
 }
 namespace ArcNET.Patch
@@ -7138,22 +8826,6 @@ namespace ArcNET.Editor
         RenumberDuplicateDialogEntryNumber = 6,
         ClearUnknownScriptAttachmentSlots = 7,
     }
-    public sealed class EditorSkippedArchiveCandidate
-    {
-        public EditorSkippedArchiveCandidate() { }
-        public required string Path { get; init; }
-        public required string Reason { get; init; }
-    }
-    public sealed class EditorSkippedAsset
-    {
-        public EditorSkippedAsset() { }
-        public required string AssetPath { get; init; }
-        public required ArcNET.Formats.FileFormat Format { get; init; }
-        public required string Reason { get; init; }
-        public string? SourceEntryPath { get; init; }
-        public required ArcNET.Editor.EditorAssetSourceKind SourceKind { get; init; }
-        public required string SourcePath { get; init; }
-    }
     public sealed class EditorTerrainDefinition
     {
         public EditorTerrainDefinition() { }
@@ -7224,10 +8896,10 @@ namespace ArcNET.Editor
         public bool HasSaveLoaded { get; }
         public ArcNET.Editor.EditorAssetIndex Index { get; init; }
         public ArcNET.Core.ArcanumInstallationType? InstallationType { get; init; }
-        public ArcNET.Editor.EditorWorkspaceLoadReport LoadReport { get; init; }
+        public ArcNET.GameData.Workspace.WorkspaceLoadReport LoadReport { get; init; }
         public int LoadedArtCacheEntryCount { get; }
         public long LoadedArtCacheRetainedBytes { get; }
-        public ArcNET.Editor.EditorWorkspaceModuleContext? Module { get; init; }
+        public ArcNET.GameData.Workspace.WorkspaceModuleContext? Module { get; init; }
         public ArcNET.Editor.LoadedSave? Save { get; init; }
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
@@ -7365,14 +9037,6 @@ namespace ArcNET.Editor
         public int? TotalUnits { get; init; }
         public string? UnitLabel { get; init; }
     }
-    public sealed class EditorWorkspaceLoadReport
-    {
-        public EditorWorkspaceLoadReport() { }
-        public bool HasSkippedInputs { get; }
-        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedArchiveCandidate> SkippedArchiveCandidates { get; init; }
-        public required System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSkippedAsset> SkippedAssets { get; init; }
-        public static ArcNET.Editor.EditorWorkspaceLoadReport Empty { get; }
-    }
     public sealed class EditorWorkspaceLoadStageTiming : System.IEquatable<ArcNET.Editor.EditorWorkspaceLoadStageTiming>
     {
         public EditorWorkspaceLoadStageTiming() { }
@@ -7398,14 +9062,6 @@ namespace ArcNET.Editor
         public System.Threading.Tasks.Task PreloadAsync(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task PreloadAsync(System.Collections.Generic.IEnumerable<ArcNET.Editor.EditorMapRenderQueueItem> items, System.Threading.CancellationToken cancellationToken = default) { }
         public ArcNET.Editor.EditorMapRenderSprite? Resolve(ArcNET.Core.Primitives.ArtId artId, ArcNET.Editor.EditorMapRenderSpriteRequest? request = null) { }
-    }
-    public sealed class EditorWorkspaceModuleContext
-    {
-        public EditorWorkspaceModuleContext() { }
-        public required System.Collections.Generic.IReadOnlyList<string> ArchivePaths { get; init; }
-        public required string ModuleDirectory { get; init; }
-        public required string ModuleName { get; init; }
-        public string? SaveDirectory { get; init; }
     }
     public sealed class EditorWorkspaceSession
     {
@@ -7796,27 +9452,6 @@ namespace ArcNET.Editor
         ArcNET.Editor.EditorTerrainDefinition? FindTerrainDetail(string assetPath);
         System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainDefinition> SearchTerrainDetails(string text);
     }
-    public sealed class LoadedSave
-    {
-        public LoadedSave() { }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile> Data2SavFiles { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile> DataSavFiles { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile> Dialogs { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> Files { get; init; }
-        public required ArcNET.Formats.SaveIndex Index { get; init; }
-        public required ArcNET.Formats.SaveInfo Info { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile> JumpFiles { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties> MapPropertiesList { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile> Messages { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile> MobileMds { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile> MobileMdys { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData> Mobiles { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, string> ParseErrors { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, byte[]> RawFiles { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile> Scripts { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> Sectors { get; init; }
-        public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog> TownMapFogs { get; init; }
-    }
     public sealed class MobDataBuilder
     {
         public MobDataBuilder(ArcNET.Formats.MobData existing) { }
@@ -7885,59 +9520,6 @@ namespace ArcNET.Editor
         public ArcNET.Editor.SaveGameEditor WithSaveInfo(System.Func<ArcNET.Formats.SaveInfo, ArcNET.Formats.SaveInfo> update) { }
         public ArcNET.Editor.SaveGameEditor WithTownMapFog(string path, ArcNET.Formats.TownMapFog updated) { }
         public ArcNET.Editor.SaveGameEditor WithTownMapFog(string path, System.Func<ArcNET.Formats.TownMapFog, ArcNET.Formats.TownMapFog> update) { }
-    }
-    public static class SaveGameLoader
-    {
-        public static ArcNET.Editor.LoadedSave Load(string saveFolder, string slotName) { }
-        public static ArcNET.Editor.LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string saveFolder, string slotName, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string gsiPath, string tfaiPath, string tfafPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class SaveGameUpdates : System.IEquatable<ArcNET.Editor.SaveGameUpdates>
-    {
-        public SaveGameUpdates() { }
-        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? RawFileUpdates { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile>? UpdatedData2SavFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile>? UpdatedDataSavFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile>? UpdatedDialogs { get; init; }
-        public ArcNET.Formats.SaveInfo? UpdatedInfo { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile>? UpdatedJumpFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties>? UpdatedMapProperties { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile>? UpdatedMessages { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile>? UpdatedMobileMds { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile>? UpdatedMobileMdys { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData>? UpdatedMobiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile>? UpdatedScripts { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector>? UpdatedSectors { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog>? UpdatedTownMapFogs { get; init; }
-    }
-    public static class SaveGameValidator
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> Validate(ArcNET.Editor.LoadedSave save) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMob(string virtualPath, ArcNET.Formats.MobData mob) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMd(string virtualPath, ArcNET.Formats.MobileMdFile md) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMdy(string virtualPath, ArcNET.Formats.MobileMdyFile mdy) { }
-    }
-    public static class SaveGameWriter
-    {
-        public static void Save(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null) { }
-        public static void Save(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null) { }
-        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class SaveValidationIssue : System.IEquatable<ArcNET.Editor.SaveValidationIssue>
-    {
-        public SaveValidationIssue() { }
-        public string? FilePath { get; init; }
-        public required string Message { get; init; }
-        public required ArcNET.Editor.SaveValidationSeverity Severity { get; init; }
-        public override string ToString() { }
-    }
-    public enum SaveValidationSeverity
-    {
-        Info = 0,
-        Warning = 1,
-        Error = 2,
     }
     public sealed class ScriptBuilder
     {
@@ -8046,38 +9628,6 @@ namespace ArcNET.Editor
         public ArcNET.Editor.SectorBuilder WithSectorScript(ArcNET.GameObjects.GameObjectScript? script) { }
         public ArcNET.Editor.SectorBuilder WithSoundList(ArcNET.Formats.SectorSoundList soundList) { }
         public ArcNET.Editor.SectorBuilder WithTownmapInfo(int value) { }
-    }
-}
-namespace ArcNET.Editor.Runtime
-{
-    public enum CharacterSheetPropertyId
-    {
-        HpBonus = 27,
-        HpLoss = 29,
-        MpBonus = 224,
-        MpLoss = 226,
-        Name = 270,
-        Flags = 19,
-    }
-    public static class CharacterSheetRuntimeLayout
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> BasicSkillsFields { get; }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> MainStatsFields { get; }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> SpellAndTechFields { get; }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.Runtime.RuntimeFieldDescriptor> TechSkillsFields { get; }
-    }
-    public enum CharacterSheetSubstructureId
-    {
-        MainStats = 220,
-        BasicSkills = 221,
-        TechSkills = 222,
-        SpellAndTech = 223,
-    }
-    public readonly struct RuntimeFieldDescriptor : System.IEquatable<ArcNET.Editor.Runtime.RuntimeFieldDescriptor>
-    {
-        public RuntimeFieldDescriptor(string Name, int Offset) { }
-        public string Name { get; init; }
-        public int Offset { get; init; }
     }
 }```
 
@@ -9225,7 +10775,9 @@ namespace ArcNET.Diagnostics
     public static class RuntimeOffsets
     {
         public const int ActionPointsRva = 2081332;
+        public const int AreaCountRva = 831104;
         public const int AreaGetLastKnownAreaRva = 831744;
+        public const int AreaGetLocationRva = 831184;
         public const int AreaIsKnownRva = 831312;
         public const int AreaResetLastKnownAreaRva = 831840;
         public const int AreaSetKnownRva = 831440;
@@ -9271,20 +10823,27 @@ namespace ArcNET.Diagnostics
         public const int LogbookAddKillRva = 1004336;
         public const int LogbookGetKillsRva = 1004944;
         public const int MagicTechRunInfoPointerRva = 2651872;
+        public const int MapByTypeRva = 65360;
+        public const int MapCurrentMapRva = 65344;
         public const int MapOpenInGameRva = 64624;
         public const string ModuleName = "Arcanum.exe";
+        public const int ObjArrayFieldHandleGetRva = 30224;
         public const int ObjArrayFieldInt32GetRva = 29392;
         public const int ObjArrayFieldInt32SetRva = 29504;
         public const int ObjArrayFieldInt64SetRva = 30128;
+        public const int ObjArrayFieldLengthGetRva = 31168;
         public const int ObjArrayFieldLengthSetRva = 31264;
         public const int ObjArrayFieldObjSetRva = 30640;
+        public const int ObjArrayFieldPcQuestGetRva = 30976;
         public const int ObjArrayFieldPcQuestSetRva = 31072;
         public const int ObjArrayFieldScriptGetRva = 30784;
         public const int ObjArrayFieldScriptSetRva = 30880;
         public const int ObjArrayFieldUInt32SetRva = 29920;
+        public const int ObjFieldHandleGetRva = 28288;
         public const int ObjFieldHandleSetRva = 28448;
         public const int ObjFieldInt32GetRva = 27808;
         public const int ObjFieldInt32SetRva = 27968;
+        public const int ObjFieldInt64GetRva = 28064;
         public const int ObjFieldInt64SetRva = 28176;
         public const int ObjHandleIndexShift = 29;
         public const ulong ObjHandleMarkerMask = 7ul;
@@ -9355,6 +10914,7 @@ namespace ArcNET.Diagnostics
         public const int TileDrawRva = 878928;
         public const int TimeEventAddDelayRva = 374784;
         public const int TimeEventNotifyPcTeleportedRva = 378656;
+        public const int TownmapGetRva = 779136;
         public const int UiShowInvenLootRva = 393936;
         public const int UiSpellAddRva = 394368;
         public const int UiSpellMaintainAddRva = 394400;
@@ -9456,7 +11016,7 @@ namespace ArcNET.Diagnostics
     }
     public static class SaveCharacterCatalogService
     {
-        public static ArcNET.Diagnostics.SaveCharacterCatalogSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveCharacterCatalogSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public sealed class SaveCharacterCatalogSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterCatalogSnapshot>
     {
@@ -9468,7 +11028,7 @@ namespace ArcNET.Diagnostics
     }
     public static class SaveCharacterSarDumpService
     {
-        public static ArcNET.Diagnostics.SaveCharacterSarDumpSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveCharacterSarDumpSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public sealed class SaveCharacterSarDumpSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveCharacterSarDumpSnapshot>
     {
@@ -9638,11 +11198,11 @@ namespace ArcNET.Diagnostics
     }
     public sealed class SaveFileAuditRequest : System.IEquatable<ArcNET.Diagnostics.SaveFileAuditRequest>
     {
-        public SaveFileAuditRequest(ArcNET.Editor.LoadedSave Save) { }
+        public SaveFileAuditRequest(ArcNET.GameData.SaveGames.LoadedSave Save) { }
         public int CharacterSarLimit { get; init; }
         public int FieldLimit { get; init; }
         public int MobileMdyLimit { get; init; }
-        public ArcNET.Editor.LoadedSave Save { get; init; }
+        public ArcNET.GameData.SaveGames.LoadedSave Save { get; init; }
         public int ValidationIssueLimit { get; init; }
     }
     public static class SaveFileAuditService
@@ -9693,7 +11253,7 @@ namespace ArcNET.Diagnostics
     {
         public static System.Collections.Generic.IReadOnlyList<string> KnownFileNames { get; }
         public static ArcNET.Diagnostics.SaveGlobalFileSnapshot Analyze(string fileName, byte[] bytes, ArcNET.Formats.DataSavFile? dataSav, ArcNET.Formats.Data2SavFile? data2Sav) { }
-        public static ArcNET.Diagnostics.SaveGlobalSlotSnapshot CreateSlotSnapshot(int slot, string slotStem, ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveGlobalSlotSnapshot CreateSlotSnapshot(int slot, string slotStem, ArcNET.GameData.SaveGames.LoadedSave save) { }
         public static int GetData2PrefixIntCount(in ArcNET.Diagnostics.SaveIdPairTableSnapshot saveIdPairs) { }
         public static int GetData2SuffixIntCount(int totalInts, in ArcNET.Diagnostics.SaveIdPairTableSnapshot saveIdPairs) { }
     }
@@ -10013,7 +11573,7 @@ namespace ArcNET.Diagnostics
     }
     public static class SaveGoldItemInspectionService
     {
-        public static ArcNET.Diagnostics.SaveGoldItemInspectionSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveGoldItemInspectionSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public sealed class SaveGoldItemInspectionSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveGoldItemInspectionSnapshot>
     {
@@ -10118,11 +11678,11 @@ namespace ArcNET.Diagnostics
     }
     public static class SavePlayerCharacterResolver
     {
-        public static ArcNET.Diagnostics.SavePlayerCharacterResolution? Resolve(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SavePlayerCharacterResolution? Resolve(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public static class SavePlayerCharacterSummaryService
     {
-        public static ArcNET.Diagnostics.SavePlayerCharacterSummarySnapshot? Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SavePlayerCharacterSummarySnapshot? Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public sealed class SavePlayerCharacterSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SavePlayerCharacterSummarySnapshot>
     {
@@ -10173,7 +11733,7 @@ namespace ArcNET.Diagnostics
     }
     public static class SavePlayerQuestBookService
     {
-        public static ArcNET.Diagnostics.PlayerQuestBookSnapshot Create(ArcNET.Editor.LoadedSave save, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? questCatalog = null) { }
+        public static ArcNET.Diagnostics.PlayerQuestBookSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save, ArcNET.Diagnostics.QuestLabelCatalogSnapshot? questCatalog = null) { }
     }
     public sealed class SaveQuestLogSummarySnapshot : System.IEquatable<ArcNET.Diagnostics.SaveQuestLogSummarySnapshot>
     {
@@ -10192,18 +11752,18 @@ namespace ArcNET.Diagnostics
     {
         public static ArcNET.Diagnostics.SaveSlotLoadSnapshot Load(string saveDir, int slot) { }
         public static ArcNET.Diagnostics.SaveSlotLoadSnapshot Load(string saveDir, string slotText) { }
-        public static ArcNET.Editor.LoadedSave LoadFiles(string gsiPath, string tfaiPath, string tfafPath) { }
+        public static ArcNET.GameData.SaveGames.LoadedSave LoadFiles(string gsiPath, string tfaiPath, string tfafPath) { }
     }
     public sealed class SaveSlotLoadSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveSlotLoadSnapshot>
     {
-        public SaveSlotLoadSnapshot(int Slot, string SlotStem, ArcNET.Editor.LoadedSave Save) { }
-        public ArcNET.Editor.LoadedSave Save { get; init; }
+        public SaveSlotLoadSnapshot(int Slot, string SlotStem, ArcNET.GameData.SaveGames.LoadedSave Save) { }
+        public ArcNET.GameData.SaveGames.LoadedSave Save { get; init; }
         public int Slot { get; init; }
         public string SlotStem { get; init; }
     }
     public static class SaveStructureAnalysisService
     {
-        public static ArcNET.Diagnostics.SaveStructureAnalysisSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveStructureAnalysisSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
         public static ArcNET.Diagnostics.SaveStructureAnalysisSnapshot Create(string gsiPath, string tfaiPath, string tfafPath) { }
     }
     public sealed class SaveStructureAnalysisSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveStructureAnalysisSnapshot>
@@ -10322,7 +11882,7 @@ namespace ArcNET.Diagnostics
     }
     public static class SaveTypedContextService
     {
-        public static ArcNET.Diagnostics.SaveTypedContextSnapshot Create(ArcNET.Editor.LoadedSave save) { }
+        public static ArcNET.Diagnostics.SaveTypedContextSnapshot Create(ArcNET.GameData.SaveGames.LoadedSave save) { }
     }
     public sealed class SaveTypedContextSnapshot : System.IEquatable<ArcNET.Diagnostics.SaveTypedContextSnapshot>
     {

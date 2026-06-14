@@ -1135,19 +1135,6 @@ EditorWorkspace looseWorkspace = await EditorWorkspaceLoader.LoadAsync(
     new EditorWorkspaceLoadOptions { GameDirectory = @"C:\Games\Arcanum" });
 ```
 
-The same workspace report is available from the repo CLI:
-
-```shell
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor validate "C:\Games\Arcanum" --severity warning --top 20
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor sector "C:\Games\Arcanum" "maps/arcanum1/arcanum1_0000.sec"
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor scheme "C:\Games\Arcanum" light 3 --top 20
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed"
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode objects
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode combined
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode roofs
-dotnet run --project src/App/ArcNET.App/ArcNET.App.csproj -c Release -- editor outline "C:\Games\Arcanum" "Arcanum1-024-fixed" --mode scripts
-```
-
 ### Load a save slot
 
 ```csharp

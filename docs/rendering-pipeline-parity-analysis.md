@@ -1006,7 +1006,7 @@ CE-style 3×3 light sample grid from `light.c::sub_4DA360`.
 
 ## 13. Diagnostic Tooling
 
-**File:** `tools/DiagnosticDump/RenderBufferDumpCommand.cs`
+**File:** `src/Editor/ArcNET.Editor.RenderBufferDump/RenderBufferDumpCommand.cs`
 
 Full TSV dump of both queue items and paintable items with columns:
 

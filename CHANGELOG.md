@@ -16,7 +16,7 @@ This project uses [MinVer](https://github.com/adamralph/minver) for semantic ver
 - **ArcNET.Patch** — `HighResConfig` INI parser/writer; `GitHubReleaseClient` (replaces `LibGit2Sharp`); `PatchInstaller` / `PatchUninstaller`.
 - **ArcNET.Dumpers** — human-readable text dumpers for all parsed formats: `ArtDumper`, `DialogDumper`, `FacWalkDumper`, `ItemDumper`, `JmpDumper`, `MapPropertiesDumper`, `MessageDumper`, `MobDumper`, `ProtoDumper`, `SaveIndexDumper`, `SaveInfoDumper`, `ScriptDumper`, `SectorDumper`, `TerrainDumper`.
 - **ArcNET.BinaryPatch** — JSON-driven binary patch system: `ProtoFieldPatch`, `MobFieldPatch`, `RawBinaryPatch`; `BinaryPatcher` (apply / revert / verify with `.bak` backups); `PatchDiscovery` (scan directory for JSON descriptors); `JsonPatchLoader`; `PatchStateStore` (`.arcnet-patches.json` state file). Bangellian Chest inventory-corruption fix shipped as built-in JSON patch.
-- **ArcNET.App** — Console entry point with `Spectre.Console` FigletText banner, interactive menu, `ParseExtractedData`, `InstallHighResPatch`, `UninstallHighResPatch` handlers, and `arcnet editor` live-inspection commands for workspace summaries, skipped-input triage, and asset/reference queries.
+- **ArcNET.App** — Console entry point with `Spectre.Console` FigletText banner, interactive menu, `ParseExtractedData`, `InstallHighResPatch`, and `UninstallHighResPatch` handlers.
 - **ArcNET.Benchmarks** — `SpanReaderBench`, `MessageFormatBench`, `SectorFormatBench`.
 - TUnit tests across 7 test projects (Core, GameObjects, Formats, GameData, Archive, Patch, BinaryPatch).
 - GitHub Actions CI (build + test + format-check jobs).
@@ -36,4 +36,5 @@ This project uses [MinVer](https://github.com/adamralph/minver) for semantic ver
 
 - `ArcNET.DataTypes` and `ArcNET.Terminal` legacy projects.
 - `ArcNET.Utilities` legacy project (split into `ArcNET.Patch` + `ArcNET.Archive`).
+- `ArcNET.Editor.App` dedicated `arcnet-editor` CLI.
 - `LibGit2Sharp`, `Newtonsoft.Json`, `Bia10.Utils` dependencies.
