@@ -82,30 +82,43 @@ public sealed class EnvironmentServiceTests
     [Test]
     public async Task Create_WhenRunningProcessProvidesRuntimeWorkspacePathHint_PrefersHintOverInstallRootFallback()
     {
-        var backend = new FakeEnvironmentBackend
+        var sandbox = Directory.CreateTempSubdirectory();
+        try
         {
-            RunningProcesses =
-            [
-                new RunningProcessInfo(
-                    "Arcanum",
-                    4242,
-                    "Arcanum.exe",
-                    @"C:\Games\Arcanum\Arcanum.exe",
-                    (nint)0x00400000,
-                    3538944,
-                    @"C:\Games\Arcanum\modules\Vendigroth"
-                ),
-            ],
-        };
-        var service = new EnvironmentService(backend);
+            var gameDirectory = Path.Combine(sandbox.FullName, "Arcanum");
+            var modulePath = Path.Combine(gameDirectory, "Arcanum.exe");
+            var workspacePathHint = Path.Combine(gameDirectory, "modules", "Vendigroth");
 
-        var snapshot = service.Create(
-            new EnvironmentRequest(["Arcanum"], InstallPath: null, ArcanumExecutableKind.Auto, false)
-        );
+            Directory.CreateDirectory(workspacePathHint);
+            await File.WriteAllTextAsync(modulePath, "classic-runtime");
 
-        await Assert
-            .That(snapshot.LiveRuntimes[0].LocalWorkspacePath)
-            .IsEqualTo(@"C:\Games\Arcanum\modules\Vendigroth");
+            var backend = new FakeEnvironmentBackend
+            {
+                RunningProcesses =
+                [
+                    new RunningProcessInfo(
+                        "Arcanum",
+                        4242,
+                        "Arcanum.exe",
+                        modulePath,
+                        (nint)0x00400000,
+                        3538944,
+                        workspacePathHint
+                    ),
+                ],
+            };
+            var service = new EnvironmentService(backend);
+
+            var snapshot = service.Create(
+                new EnvironmentRequest(["Arcanum"], InstallPath: null, ArcanumExecutableKind.Auto, false)
+            );
+
+            await Assert.That(snapshot.LiveRuntimes[0].LocalWorkspacePath).IsEqualTo(workspacePathHint);
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]

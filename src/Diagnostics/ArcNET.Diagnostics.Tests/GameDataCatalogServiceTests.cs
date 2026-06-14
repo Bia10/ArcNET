@@ -85,27 +85,53 @@ public sealed class GameDataCatalogServiceTests
     [Test]
     public async Task Load_WhenSessionExposesProcessModulePath_UsesResolvedLocalWorkspacePath()
     {
-        var backend = new FakeGameDataCatalogBackend();
-        var service = new GameDataCatalogService(backend);
+        var sandbox = Directory.CreateTempSubdirectory();
+        try
+        {
+            var gameDirectory = Path.Combine(sandbox.FullName, "Arcanum");
+            var modulePath = Path.Combine(gameDirectory, "Arcanum.exe");
 
-        var snapshot = await service.LoadAsync(CreateRequest());
+            Directory.CreateDirectory(gameDirectory);
+            await File.WriteAllTextAsync(modulePath, "runtime");
 
-        await Assert.That(snapshot.IsAvailable).IsTrue();
-        await Assert.That(backend.LastWorkspacePath).IsEqualTo(@"C:\Games\Arcanum");
+            var backend = new FakeGameDataCatalogBackend();
+            var service = new GameDataCatalogService(backend);
+
+            var snapshot = await service.LoadAsync(new GameDataCatalogRequest(CreateAttachedSession(modulePath)));
+
+            await Assert.That(snapshot.IsAvailable).IsTrue();
+            await Assert.That(backend.LastWorkspacePath).IsEqualTo(gameDirectory);
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]
     public async Task Load_WhenSessionExposesModuleScopedProcessPath_UsesResolvedModuleWorkspacePath()
     {
-        var backend = new FakeGameDataCatalogBackend();
-        var service = new GameDataCatalogService(backend);
+        var sandbox = Directory.CreateTempSubdirectory();
+        try
+        {
+            var expectedWorkspacePath = Path.Combine(sandbox.FullName, "Arcanum", "modules", "co8");
+            var modulePath = Path.Combine(expectedWorkspacePath, "Arcanum.exe");
 
-        var snapshot = await service.LoadAsync(
-            new GameDataCatalogRequest(CreateAttachedSession(@"C:\Games\Arcanum\modules\co8\Arcanum.exe"))
-        );
+            Directory.CreateDirectory(expectedWorkspacePath);
+            await File.WriteAllTextAsync(modulePath, "runtime");
 
-        await Assert.That(snapshot.IsAvailable).IsTrue();
-        await Assert.That(backend.LastWorkspacePath).IsEqualTo(@"C:\Games\Arcanum\modules\co8");
+            var backend = new FakeGameDataCatalogBackend();
+            var service = new GameDataCatalogService(backend);
+
+            var snapshot = await service.LoadAsync(new GameDataCatalogRequest(CreateAttachedSession(modulePath)));
+
+            await Assert.That(snapshot.IsAvailable).IsTrue();
+            await Assert.That(backend.LastWorkspacePath).IsEqualTo(expectedWorkspacePath);
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]
@@ -137,16 +163,30 @@ public sealed class GameDataCatalogServiceTests
     [Test]
     public async Task Load_WhenSessionCarriesWorkspacePathHint_UsesHintBeforeProcessPathFallback()
     {
-        var backend = new FakeGameDataCatalogBackend();
-        var service = new GameDataCatalogService(backend);
-        var workspacePathHint = @"C:\Games\Arcanum\modules\Vendigroth";
+        var sandbox = Directory.CreateTempSubdirectory();
+        try
+        {
+            var gameDirectory = Path.Combine(sandbox.FullName, "Arcanum");
+            var modulePath = Path.Combine(gameDirectory, "Arcanum.exe");
+            var workspacePathHint = Path.Combine(gameDirectory, "modules", "Vendigroth");
 
-        var snapshot = await service.LoadAsync(
-            new GameDataCatalogRequest(CreateAttachedSession(WorkspacePathHint: workspacePathHint))
-        );
+            Directory.CreateDirectory(workspacePathHint);
+            await File.WriteAllTextAsync(modulePath, "runtime");
 
-        await Assert.That(snapshot.IsAvailable).IsTrue();
-        await Assert.That(backend.LastWorkspacePath).IsEqualTo(workspacePathHint);
+            var backend = new FakeGameDataCatalogBackend();
+            var service = new GameDataCatalogService(backend);
+
+            var snapshot = await service.LoadAsync(
+                new GameDataCatalogRequest(CreateAttachedSession(modulePath, workspacePathHint))
+            );
+
+            await Assert.That(snapshot.IsAvailable).IsTrue();
+            await Assert.That(backend.LastWorkspacePath).IsEqualTo(workspacePathHint);
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]
