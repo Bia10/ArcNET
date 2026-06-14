@@ -14,64 +14,99 @@ public sealed class MainWindowViewModelWorkspaceOverrideTests
     [Test]
     public async Task WorkspaceOverridePath_UpdatesSourceTextAndInvalidatesLoadedGameDataCatalog()
     {
-        var baseWorkspacePath = @"C:\Games\Arcanum\Arcanum.exe";
-        var expectedBaseWorkspacePath = @"C:\Games\Arcanum";
-        var overrideWorkspacePath = @"C:\Games\Arcanum\modules\Vendigroth";
-        var gameDataBackend = new FakeGameDataCatalogBackend(overrideWorkspacePath);
-        using var viewModel = new MainWindowViewModel(new FakeDiagnosticsServices(gameDataBackend));
-        viewModel.ActiveSession = CreateSession(baseWorkspacePath);
+        var sandbox = Directory.CreateTempSubdirectory("arcnet-game-data-override-");
+        try
+        {
+            var gameDirectory = Path.Combine(sandbox.FullName, "Arcanum");
+            var baseWorkspacePath = Path.Combine(gameDirectory, "Arcanum.exe");
+            var expectedBaseWorkspacePath = gameDirectory;
+            var overrideWorkspacePath = Path.Combine(gameDirectory, "modules", "Vendigroth");
 
-        await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
+            Directory.CreateDirectory(overrideWorkspacePath);
+            await File.WriteAllTextAsync(baseWorkspacePath, "test-runtime");
+            await File.WriteAllTextAsync(Path.Combine(gameDirectory, "modules", "Arcanum.dat"), "base-module");
+            await File.WriteAllTextAsync(Path.Combine(gameDirectory, "modules", "co8.dat"), "secondary-module");
 
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(1);
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1]).IsEqualTo(expectedBaseWorkspacePath);
-        await Assert.That(viewModel.GameDataCatalogStatusText).IsEqualTo("Game-data catalog loaded");
-        await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Arcanum");
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries.Count).IsEqualTo(1);
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries[0].DisplayName).IsEqualTo("Base Wolf");
+            var gameDataBackend = new FakeGameDataCatalogBackend(overrideWorkspacePath);
+            using var viewModel = new MainWindowViewModel(new FakeDiagnosticsServices(gameDataBackend));
+            viewModel.ActiveSession = CreateSession(baseWorkspacePath);
 
-        viewModel.WorkspaceOverridePathText = $"  {overrideWorkspacePath}  ";
+            await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
 
-        await Assert.That(viewModel.WorkspaceSourceText).IsEqualTo("Local workspace override: Vendigroth");
-        await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace override: Vendigroth");
-        await Assert
-            .That(viewModel.GameDataCatalogStatusText)
-            .IsEqualTo("Local workspace data ready to load for Vendigroth.");
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries).IsEmpty();
+            await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(1);
+            await Assert
+                .That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1])
+                .IsEqualTo(expectedBaseWorkspacePath);
+            await Assert.That(viewModel.GameDataCatalogStatusText).IsEqualTo("Game-data catalog loaded");
+            await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Arcanum");
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries.Count).IsEqualTo(1);
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries[0].DisplayName).IsEqualTo("Base Wolf");
 
-        await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
+            viewModel.WorkspaceOverridePathText = $"  {overrideWorkspacePath}  ";
 
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(2);
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1]).IsEqualTo(overrideWorkspacePath);
-        await Assert.That(viewModel.GameDataCatalogStatusText).IsEqualTo("Game-data catalog loaded");
-        await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace override: Vendigroth");
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries.Count).IsEqualTo(1);
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries[0].DisplayName).IsEqualTo("Override Wolf");
+            await Assert.That(viewModel.WorkspaceSourceText).IsEqualTo("Local workspace override: Vendigroth");
+            await Assert
+                .That(viewModel.GameDataCatalogPresetSourceText)
+                .IsEqualTo("Local workspace override: Vendigroth");
+            await Assert
+                .That(viewModel.GameDataCatalogStatusText)
+                .IsEqualTo("Local workspace data ready to load for Vendigroth.");
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries).IsEmpty();
 
-        viewModel.ClearWorkspaceOverridePathCommand.Execute(null);
+            await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
 
-        await Assert.That(viewModel.WorkspaceSourceText).IsEqualTo("Local workspace: Arcanum");
-        await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Arcanum");
-        await Assert
-            .That(viewModel.GameDataCatalogStatusText)
-            .IsEqualTo("Local workspace data ready to load for Arcanum.");
-        await Assert.That(viewModel.GameDataCatalogPrototypeEntries).IsEmpty();
+            await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(2);
+            await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1]).IsEqualTo(overrideWorkspacePath);
+            await Assert.That(viewModel.GameDataCatalogStatusText).IsEqualTo("Game-data catalog loaded");
+            await Assert
+                .That(viewModel.GameDataCatalogPresetSourceText)
+                .IsEqualTo("Local workspace override: Vendigroth");
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries.Count).IsEqualTo(1);
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries[0].DisplayName).IsEqualTo("Override Wolf");
+
+            viewModel.ClearWorkspaceOverridePathCommand.Execute(null);
+
+            await Assert.That(viewModel.WorkspaceSourceText).IsEqualTo("Local workspace: Arcanum");
+            await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Arcanum");
+            await Assert
+                .That(viewModel.GameDataCatalogStatusText)
+                .IsEqualTo("Local workspace data ready to load for Arcanum.");
+            await Assert.That(viewModel.GameDataCatalogPrototypeEntries).IsEmpty();
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]
     public async Task WorkspaceOverridePath_WhenSessionModulePathIsModuleScoped_UsesModuleWorkspaceByDefault()
     {
-        var baseWorkspacePath = @"C:\Games\Arcanum\modules\Vendigroth\Arcanum.exe";
-        var expectedBaseWorkspacePath = @"C:\Games\Arcanum\modules\Vendigroth";
-        var gameDataBackend = new FakeGameDataCatalogBackend(expectedBaseWorkspacePath);
-        using var viewModel = new MainWindowViewModel(new FakeDiagnosticsServices(gameDataBackend));
-        viewModel.ActiveSession = CreateSession(baseWorkspacePath);
+        var sandbox = Directory.CreateTempSubdirectory("arcnet-module-workspace-");
+        try
+        {
+            var expectedBaseWorkspacePath = Path.Combine(sandbox.FullName, "Arcanum", "modules", "Vendigroth");
+            var baseWorkspacePath = Path.Combine(expectedBaseWorkspacePath, "Arcanum.exe");
 
-        await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
+            Directory.CreateDirectory(expectedBaseWorkspacePath);
+            await File.WriteAllTextAsync(baseWorkspacePath, "test-runtime");
 
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(1);
-        await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1]).IsEqualTo(expectedBaseWorkspacePath);
-        await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Vendigroth");
+            var gameDataBackend = new FakeGameDataCatalogBackend(expectedBaseWorkspacePath);
+            using var viewModel = new MainWindowViewModel(new FakeDiagnosticsServices(gameDataBackend));
+            viewModel.ActiveSession = CreateSession(baseWorkspacePath);
+
+            await viewModel.BrowseLookupPrototypeCatalogCommand.ExecuteAsync(null);
+
+            await Assert.That(gameDataBackend.RequestedPrototypeWorkspacePaths.Count).IsEqualTo(1);
+            await Assert
+                .That(gameDataBackend.RequestedPrototypeWorkspacePaths[^1])
+                .IsEqualTo(expectedBaseWorkspacePath);
+            await Assert.That(viewModel.GameDataCatalogPresetSourceText).IsEqualTo("Local workspace: Vendigroth");
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
     }
 
     [Test]
