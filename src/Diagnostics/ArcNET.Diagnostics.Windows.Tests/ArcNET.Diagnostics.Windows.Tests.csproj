@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArcNET.Diagnostics.Windows.Tests</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
+    <ProjectReference Include="..\ArcNET.Diagnostics.Windows\ArcNET.Diagnostics.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile
+      Include="..\ArcNET.Diagnostics.Tests\LiveMobileRosterScannerTests.cs"
+      Link="LiveMobileRosterScannerTests.cs"
+    />
+    <Compile Include="..\ArcNET.Diagnostics.Tests\LiveObjectInspectorTests.cs" Link="LiveObjectInspectorTests.cs" />
+    <Compile Include="..\ArcNET.Diagnostics.Tests\LivePlayerLocatorTests.cs" Link="LivePlayerLocatorTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+</Project>

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Diagnostics.Windows;
 
@@ -30,11 +31,12 @@ public sealed class LogbookBackend : ILogbookBackend
         return LiveObjectInspector.Inspect(memory, handle);
     }
 
-    public LogbookReadResult ReadLogbook(
+    public Task<LogbookReadResult> ReadLogbookAsync(
         int processId,
         RuntimeProfileSnapshot runtimeProfile,
         ulong handle,
-        LogbookPage page
+        LogbookPage page,
+        string workspacePath
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processId);
@@ -43,101 +45,106 @@ public sealed class LogbookBackend : ILogbookBackend
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Live logbook diagnostics currently require Windows.");
 
-        using var memory = ProcessMemory.Attach(processId);
-        using var dispatcher = RuntimeCallDispatcher.Install(memory, runtimeProfile);
-        var catalog = GameTextCatalog.Load(memory.ModulePath);
-        List<string> notes = [];
-        if (!string.IsNullOrWhiteSpace(catalog.AvailabilityNote))
-            notes.Add(catalog.AvailabilityNote);
-
-        var intelligence = page is LogbookPage.All or LogbookPage.RumorsAndNotes or LogbookPage.Quests
-            ? ReadStatValue(dispatcher, memory, handle, IntelligenceStatId)
-            : 0;
-
-        var data = page switch
+        return Task.Run(async () =>
         {
-            LogbookPage.All => new LogbookPayload(
-                ReadRumorsAndNotes(dispatcher, memory, catalog, handle, intelligence),
-                ReadQuests(dispatcher, memory, catalog, handle, intelligence),
-                ReadReputations(dispatcher, memory, catalog, handle),
-                ReadBlessingsAndCurses(dispatcher, memory, catalog, handle),
-                ReadKillsAndInjuries(dispatcher, memory, catalog, handle),
-                ReadBackground(dispatcher, memory, catalog, handle),
-                ReadKeyring(dispatcher, memory, catalog, handle)
-            ),
-            LogbookPage.RumorsAndNotes => new LogbookPayload(
-                ReadRumorsAndNotes(dispatcher, memory, catalog, handle, intelligence),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            ),
-            LogbookPage.Quests => new LogbookPayload(
-                null,
-                ReadQuests(dispatcher, memory, catalog, handle, intelligence),
-                null,
-                null,
-                null,
-                null,
-                null
-            ),
-            LogbookPage.Reputations => new LogbookPayload(
-                null,
-                null,
-                ReadReputations(dispatcher, memory, catalog, handle),
-                null,
-                null,
-                null,
-                null
-            ),
-            LogbookPage.BlessingsAndCurses => new LogbookPayload(
-                null,
-                null,
-                null,
-                ReadBlessingsAndCurses(dispatcher, memory, catalog, handle),
-                null,
-                null,
-                null
-            ),
-            LogbookPage.KillsAndInjuries => new LogbookPayload(
-                null,
-                null,
-                null,
-                null,
-                ReadKillsAndInjuries(dispatcher, memory, catalog, handle),
-                null,
-                null
-            ),
-            LogbookPage.Background => new LogbookPayload(
-                null,
-                null,
-                null,
-                null,
-                null,
-                ReadBackground(dispatcher, memory, catalog, handle),
-                null
-            ),
-            LogbookPage.KeyringContents => new LogbookPayload(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                ReadKeyring(dispatcher, memory, catalog, handle)
-            ),
-            _ => throw new InvalidOperationException($"Unsupported logbook page '{page}'."),
-        };
+            using var memory = ProcessMemory.Attach(processId);
+            var catalog = await WorkspaceTextCatalog
+                .LoadFromModulePathAsync(string.IsNullOrWhiteSpace(workspacePath) ? memory.ModulePath : workspacePath)
+                .ConfigureAwait(false);
+            using var dispatcher = RuntimeCallDispatcher.Install(memory, runtimeProfile);
+            List<string> notes = [];
+            if (!string.IsNullOrWhiteSpace(catalog.AvailabilityNote))
+                notes.Add(catalog.AvailabilityNote);
 
-        return new LogbookReadResult(data, notes);
+            var intelligence = page is LogbookPage.All or LogbookPage.RumorsAndNotes or LogbookPage.Quests
+                ? ReadStatValue(dispatcher, memory, handle, IntelligenceStatId)
+                : 0;
+
+            var data = page switch
+            {
+                LogbookPage.All => new LogbookPayload(
+                    ReadRumorsAndNotes(dispatcher, memory, catalog, handle, intelligence),
+                    ReadQuests(dispatcher, memory, catalog, handle, intelligence),
+                    ReadReputations(dispatcher, memory, catalog, handle),
+                    ReadBlessingsAndCurses(dispatcher, memory, catalog, handle),
+                    ReadKillsAndInjuries(dispatcher, memory, catalog, handle),
+                    ReadBackground(dispatcher, memory, catalog, handle),
+                    ReadKeyring(dispatcher, memory, catalog, handle)
+                ),
+                LogbookPage.RumorsAndNotes => new LogbookPayload(
+                    ReadRumorsAndNotes(dispatcher, memory, catalog, handle, intelligence),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                LogbookPage.Quests => new LogbookPayload(
+                    null,
+                    ReadQuests(dispatcher, memory, catalog, handle, intelligence),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                LogbookPage.Reputations => new LogbookPayload(
+                    null,
+                    null,
+                    ReadReputations(dispatcher, memory, catalog, handle),
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                LogbookPage.BlessingsAndCurses => new LogbookPayload(
+                    null,
+                    null,
+                    null,
+                    ReadBlessingsAndCurses(dispatcher, memory, catalog, handle),
+                    null,
+                    null,
+                    null
+                ),
+                LogbookPage.KillsAndInjuries => new LogbookPayload(
+                    null,
+                    null,
+                    null,
+                    null,
+                    ReadKillsAndInjuries(dispatcher, memory, catalog, handle),
+                    null,
+                    null
+                ),
+                LogbookPage.Background => new LogbookPayload(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ReadBackground(dispatcher, memory, catalog, handle),
+                    null
+                ),
+                LogbookPage.KeyringContents => new LogbookPayload(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ReadKeyring(dispatcher, memory, catalog, handle)
+                ),
+                _ => throw new InvalidOperationException($"Unsupported logbook page '{page}'."),
+            };
+
+            return new LogbookReadResult(data, notes);
+        });
     }
 
     private static RumorLogbookPageSnapshot ReadRumorsAndNotes(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle,
         int intelligence
     )
@@ -181,7 +188,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static QuestLogbookPageSnapshot ReadQuests(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle,
         int intelligence
     )
@@ -212,7 +219,7 @@ public sealed class LogbookBackend : ILogbookBackend
                     questId,
                     ReadDateTime(span, QuestDateTimeOffset),
                     state,
-                    RuntimeWatchValueCatalog.QuestStateName(state),
+                    RuntimeWatchValueCatalog.QuestPcStateName(state),
                     quest.SummaryLabel,
                     useDumbText && !string.IsNullOrWhiteSpace(quest.DumbDescription)
                         ? quest.DumbDescription
@@ -229,7 +236,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static ReputationLogbookPageSnapshot ReadReputations(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle
     )
     {
@@ -267,7 +274,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static BlessingCurseLogbookPageSnapshot ReadBlessingsAndCurses(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle
     )
     {
@@ -296,7 +303,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static KillsAndInjuriesLogbookPageSnapshot ReadKillsAndInjuries(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle
     )
     {
@@ -410,7 +417,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static BackgroundLogbookPageSnapshot ReadBackground(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle
     )
     {
@@ -463,7 +470,7 @@ public sealed class LogbookBackend : ILogbookBackend
     private static KeyringLogbookPageSnapshot ReadKeyring(
         RuntimeCallDispatcher dispatcher,
         ProcessMemory memory,
-        GameTextCatalog catalog,
+        WorkspaceTextCatalog catalog,
         ulong handle
     )
     {
@@ -601,7 +608,7 @@ public sealed class LogbookBackend : ILogbookBackend
             BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(offset + sizeof(uint), sizeof(uint)))
         );
 
-    private static string ResolveDescriptionBestEffort(GameTextCatalog catalog, int descriptionId)
+    private static string ResolveDescriptionBestEffort(WorkspaceTextCatalog catalog, int descriptionId)
     {
         var description = catalog.ResolveDescription(descriptionId);
         return string.IsNullOrWhiteSpace(description) ? $"Description {descriptionId}" : description;

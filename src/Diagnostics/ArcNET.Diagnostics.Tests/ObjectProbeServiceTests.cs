@@ -1,6 +1,5 @@
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -230,6 +229,66 @@ public sealed class ObjectProbeServiceTests
         await Assert.That(backend.InspectedHandles).IsEquivalentTo([0x1234ul]);
         await Assert.That(snapshot.RequestedHandles).IsEquivalentTo(["0x0000000000001234"]);
         await Assert.That(snapshot.Summary.Contains("likely live player", StringComparison.Ordinal)).IsTrue();
+    }
+
+    [Test]
+    public async Task Inspect_WhenInventoryHandleDetailsExist_GroupsThemIntoInventoryLinks()
+    {
+        var backend = new FakeObjectProbeBackend
+        {
+            Results =
+            [
+                new LiveObjectInspection(
+                    new LiveObjectIdentity(
+                        "0x0000000000002222",
+                        LooksLikeHandle: true,
+                        "PoolEntry",
+                        PoolIndex: 2,
+                        BucketIndex: 0,
+                        SlotIndex: 2,
+                        EntryAddress: "0x00002000",
+                        ObjectAddress: "0x00002004",
+                        Status: (byte)'H',
+                        Sequence: 1,
+                        ExpectedSequence: 1,
+                        new LiveObjectHeader(
+                            ObjectTypeRaw: 15,
+                            ObjectTypeName: "Pc",
+                            new LiveOid(2, null, "hero", "hero", "hero"),
+                            new LiveOid(1, 1000, "proto#1000", "proto#1000", "proto#1000"),
+                            "0x0000000000004321"
+                        )
+                    ),
+                    [
+                        new LiveObjectDetail(
+                            "obj_f_critter_inventory_list_idx_0",
+                            "Inventory Slot 0",
+                            "0x0000000200000002",
+                            "obj_array_field_handle_get"
+                        ),
+                        new LiveObjectDetail(
+                            "obj_f_critter_inventory_list_idx_1",
+                            "Inventory Slot 1",
+                            "0x000000020000000A",
+                            "obj_array_field_handle_get"
+                        ),
+                    ]
+                ),
+            ],
+        };
+        var service = new ObjectProbeService(backend);
+
+        var snapshot = service.Inspect(
+            new ObjectProbeRequest(CreateStructuredSession(), ["0x0000000000002222"], "manual probe")
+        );
+
+        await Assert.That(snapshot.Objects).HasSingleItem();
+        await Assert.That(snapshot.Objects[0].Sections).HasSingleItem();
+        await Assert.That(snapshot.Objects[0].Sections[0].Title).IsEqualTo("Inventory Links");
+        await Assert.That(snapshot.Objects[0].Sections[0].SourceText).IsEqualTo("Getter-backed handle-array read");
+        await Assert
+            .That(snapshot.Objects[0].Sections[0].Details.Select(static detail => detail.Label))
+            .IsEquivalentTo(["Inventory Slot 0", "Inventory Slot 1"]);
     }
 
     private static AttachedSessionSnapshot CreateStructuredSession() =>

@@ -1,6 +1,5 @@
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -11,7 +10,7 @@ public sealed class LogbookServiceTests
     {
         var service = new LogbookService(new FakeLogbookBackend());
 
-        var snapshot = service.Read(
+        var snapshot = await service.ReadAsync(
             new LogbookRequest(
                 CreateSession() with
                 {
@@ -37,7 +36,7 @@ public sealed class LogbookServiceTests
         var backend = CreateBackendWithPlayer();
         var service = new LogbookService(backend);
 
-        var snapshot = service.Read(new LogbookRequest(CreateSession(), "player", "all"));
+        var snapshot = await service.ReadAsync(new LogbookRequest(CreateSession(), "player", "all"));
 
         await Assert.That(snapshot.IsAvailable).IsTrue();
         await Assert.That(snapshot.Page).IsEqualTo(LogbookPage.All);
@@ -60,11 +59,45 @@ public sealed class LogbookServiceTests
         var backend = CreateBackendWithPlayer();
         var service = new LogbookService(backend);
 
-        var snapshot = service.Read(new LogbookRequest(CreateSession(), "player", "keys"));
+        var snapshot = await service.ReadAsync(new LogbookRequest(CreateSession(), "player", "keys"));
 
         await Assert.That(snapshot.IsAvailable).IsTrue();
         await Assert.That(snapshot.Page).IsEqualTo(LogbookPage.KeyringContents);
         await Assert.That(backend.ReadCalls.Last().Page).IsEqualTo(LogbookPage.KeyringContents);
+    }
+
+    [Test]
+    public async Task Read_WhenWorkspacePathOverrideIsProvided_PassesOverrideToBackend()
+    {
+        var backend = CreateBackendWithPlayer();
+        var service = new LogbookService(backend);
+        var workspacePath = @"C:\Games\Arcanum\modules\test-module";
+
+        var snapshot = await service.ReadAsync(
+            new LogbookRequest(
+                CreateSession() with
+                {
+                    Fingerprint = new RuntimeFingerprint(
+                        "Arcanum",
+                        4242,
+                        RuntimeKind.Classic,
+                        "Arcanum.exe",
+                        "",
+                        "0x00400000",
+                        3_538_944,
+                        2_048_000,
+                        DateTime.UtcNow
+                    ),
+                },
+                "player",
+                "all",
+                workspacePath
+            )
+        );
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(backend.ReadCalls).HasSingleItem();
+        await Assert.That(backend.ReadCalls[0].WorkspacePath).IsEqualTo(workspacePath);
     }
 
     private static AttachedSessionSnapshot CreateSession() =>
@@ -249,17 +282,18 @@ public sealed class LogbookServiceTests
 
         public LiveObjectIdentity InspectHandle(int processId, ulong handle) => _inspections[handle];
 
-        public LogbookReadResult ReadLogbook(
+        public Task<LogbookReadResult> ReadLogbookAsync(
             int processId,
             RuntimeProfileSnapshot runtimeProfile,
             ulong handle,
-            LogbookPage page
+            LogbookPage page,
+            string workspacePath
         )
         {
-            ReadCalls.Add(new ReadCall(handle, page));
-            return Result;
+            ReadCalls.Add(new ReadCall(handle, page, workspacePath));
+            return Task.FromResult(Result);
         }
     }
 
-    private readonly record struct ReadCall(ulong Handle, LogbookPage Page);
+    private readonly record struct ReadCall(ulong Handle, LogbookPage Page, string WorkspacePath);
 }

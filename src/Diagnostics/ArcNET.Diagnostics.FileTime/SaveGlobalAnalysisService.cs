@@ -1,5 +1,5 @@
-using ArcNET.Editor;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using static ArcNET.Diagnostics.SaveGlobalInt32Reader;
 
 namespace ArcNET.Diagnostics;

@@ -97,4 +97,29 @@ public sealed class FunctionCallBackend : IFunctionCallBackend, IGuidedActionBac
             result.State
         );
     }
+
+    public WorldMapDiscoveryExecutionResult DiscoverAllWorldMapLocations(
+        int processId,
+        RuntimeProfileSnapshot runtimeProfile,
+        ulong travelerHandle,
+        IReadOnlyList<WorldMapLocationDescriptor> locations,
+        TimeSpan timeout
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processId);
+        ArgumentNullException.ThrowIfNull(runtimeProfile);
+        ArgumentNullException.ThrowIfNull(locations);
+
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Guided runtime actions currently require Windows.");
+
+        using var memory = ProcessMemory.Attach(processId);
+        return RuntimeActionInvoker.DiscoverAllWorldMapLocations(
+            memory,
+            runtimeProfile,
+            travelerHandle,
+            locations,
+            timeout
+        );
+    }
 }

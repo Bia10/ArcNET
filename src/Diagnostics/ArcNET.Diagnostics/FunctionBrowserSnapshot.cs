@@ -1,4 +1,3 @@
-using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
 
 namespace ArcNET.Diagnostics;

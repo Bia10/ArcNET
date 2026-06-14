@@ -154,6 +154,108 @@ public static class CrashDumpService
         );
     }
 
+    public static async Task<CrashDumpAutoInspectionSnapshot> InspectAutomaticDumpsAsync(
+        string processExecutableName = "Arcanum.exe",
+        string? modulePath = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var configuration = GetAutomaticDumpStatus(processExecutableName);
+        if (!configuration.IsEnabled)
+        {
+            return new CrashDumpAutoInspectionSnapshot(
+                DateTimeOffset.UtcNow,
+                configuration,
+                "Automatic dumps are disabled",
+                ["Enable LocalDumps before expecting crash dumps or stack traces."],
+                LatestDumpPath: null,
+                LatestDumpWrittenAtUtc: null,
+                LatestDumpSizeBytes: null,
+                Analysis: null
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(configuration.DumpFolder))
+        {
+            return new CrashDumpAutoInspectionSnapshot(
+                DateTimeOffset.UtcNow,
+                configuration,
+                "Automatic dump folder unavailable",
+                ["The LocalDumps registry entry is enabled, but no dump folder is configured."],
+                LatestDumpPath: null,
+                LatestDumpWrittenAtUtc: null,
+                LatestDumpSizeBytes: null,
+                Analysis: null
+            );
+        }
+
+        var dumpDirectory = Path.GetFullPath(configuration.DumpFolder);
+        if (!Directory.Exists(dumpDirectory))
+        {
+            return new CrashDumpAutoInspectionSnapshot(
+                DateTimeOffset.UtcNow,
+                configuration with
+                {
+                    DumpFolder = dumpDirectory,
+                },
+                "Automatic dump folder missing",
+                [$"Configured dump folder '{dumpDirectory}' does not exist yet."],
+                LatestDumpPath: null,
+                LatestDumpWrittenAtUtc: null,
+                LatestDumpSizeBytes: null,
+                Analysis: null
+            );
+        }
+
+        var latestDump = FindLatestDump(dumpDirectory, processExecutableName, out var usedFallbackSearch);
+        if (latestDump is null)
+        {
+            return new CrashDumpAutoInspectionSnapshot(
+                DateTimeOffset.UtcNow,
+                configuration with
+                {
+                    DumpFolder = dumpDirectory,
+                },
+                "Automatic dumps are enabled",
+                ["No crash dumps were found in the configured LocalDumps folder yet."],
+                LatestDumpPath: null,
+                LatestDumpWrittenAtUtc: null,
+                LatestDumpSizeBytes: null,
+                Analysis: null
+            );
+        }
+
+        List<string> notes = [];
+        if (usedFallbackSearch)
+        {
+            notes.Add(
+                $"No dump file matched '{processExecutableName}' by name, so ArcNET inspected the newest dump in '{dumpDirectory}'."
+            );
+        }
+
+        var analysis = await CrashDumpAnalysisService.AnalyzeDumpAsync(
+            latestDump.FullName,
+            modulePath,
+            cancellationToken
+        );
+        if (!string.IsNullOrWhiteSpace(analysis.OutputPath))
+            notes.Add($"Analysis output: {analysis.OutputPath}");
+
+        return new CrashDumpAutoInspectionSnapshot(
+            DateTimeOffset.UtcNow,
+            configuration with
+            {
+                DumpFolder = dumpDirectory,
+            },
+            analysis.AnalyzerFound ? "Latest automatic dump analyzed" : "Latest automatic dump found",
+            notes,
+            latestDump.FullName,
+            latestDump.LastWriteTimeUtc,
+            latestDump.Length,
+            analysis
+        );
+    }
+
     private static MiniDumpType ToMiniDumpType(CrashDumpKind dumpKind) =>
         dumpKind == CrashDumpKind.Full ? DefaultFullDumpType : DefaultMiniDumpType;
 
@@ -161,6 +263,40 @@ public static class CrashDumpService
 
     private static CrashDumpKind FromWerDumpTypeValue(int dumpType) =>
         dumpType == 2 ? CrashDumpKind.Full : CrashDumpKind.Mini;
+
+    private static FileInfo? FindLatestDump(
+        string dumpDirectory,
+        string processExecutableName,
+        out bool usedFallbackSearch
+    )
+    {
+        var dumpFiles = Directory
+            .EnumerateFiles(dumpDirectory, "*.dmp", SearchOption.TopDirectoryOnly)
+            .Select(static path => new FileInfo(path))
+            .OrderByDescending(static file => file.LastWriteTimeUtc)
+            .ToArray();
+        if (dumpFiles.Length == 0)
+        {
+            usedFallbackSearch = false;
+            return null;
+        }
+
+        var nameTokens = new[] { processExecutableName, Path.GetFileNameWithoutExtension(processExecutableName) }
+            .Where(static token => !string.IsNullOrWhiteSpace(token))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var exactMatch = dumpFiles.FirstOrDefault(file =>
+            nameTokens.Any(token => file.Name.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+        );
+        if (exactMatch is not null)
+        {
+            usedFallbackSearch = false;
+            return exactMatch;
+        }
+
+        usedFallbackSearch = true;
+        return dumpFiles[0];
+    }
 
     private static void ValidateDumpCount(int dumpCount)
     {

@@ -1,8 +1,9 @@
 using ArcNET.Diagnostics;
-using ArcNET.Editor;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 using Probe;
+using SharedSaveGameWriter = ArcNET.GameData.SaveGames.SaveGameWriter;
 
 namespace Probe.Commands;
 
@@ -24,7 +25,7 @@ internal sealed class GoldCommand : IProbeCommand
                 )
                 : null;
 
-        ArcNET.Editor.SaveGameWriter.Save(
+        SharedSaveGameWriter.Save(
             ctx.Save,
             gsiOut,
             tfaiOut,

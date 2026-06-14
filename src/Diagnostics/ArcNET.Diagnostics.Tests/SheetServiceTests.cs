@@ -1,6 +1,5 @@
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -59,7 +58,13 @@ public sealed class SheetServiceTests
 
         await Assert.That(snapshot.IsAvailable).IsTrue();
         await Assert.That(snapshot.Data.PrimaryStats).Count().IsEqualTo(8);
-        await Assert.That(snapshot.Data.Progression).Count().IsEqualTo(7);
+        await Assert.That(snapshot.Data.Progression).Count().IsEqualTo(11);
+        await Assert
+            .That(snapshot.Data.Progression.Single(static entry => entry.Name == "PoisonLevel").Value)
+            .IsEqualTo(0);
+        await Assert.That(snapshot.Data.Progression.Single(static entry => entry.Name == "Age").Value).IsEqualTo(27);
+        await Assert.That(snapshot.Data.Progression.Single(static entry => entry.Name == "Gender").Value).IsEqualTo(0);
+        await Assert.That(snapshot.Data.Progression.Single(static entry => entry.Name == "Race").Value).IsEqualTo(9);
         await Assert
             .That(snapshot.Data.BasicSkills.Single(static entry => entry.Name == "Haggle").TrainingName)
             .IsEqualTo("Master");
@@ -67,6 +72,21 @@ public sealed class SheetServiceTests
         await Assert
             .That(snapshot.Data.TechDisciplines.Single(static entry => entry.Name == "Mechanical").Value)
             .IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task Read_WhenGenderIsRequested_IncludesReadableMeaning()
+    {
+        var backend = CreateBackendWithPlayer();
+        var service = new SheetService(backend);
+
+        var snapshot = service.Read(new SheetRequest(CreateSession(), "player", "gender"));
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(snapshot.Values.Single(static value => value.Key == "value").ValueText).IsEqualTo("0");
+        await Assert
+            .That(snapshot.Values.Single(static value => value.Key == "value_name").ValueText)
+            .IsEqualTo("Male");
     }
 
     [Test]
@@ -191,6 +211,10 @@ public sealed class SheetServiceTests
                 new(21, "UnspentPoints", 1),
                 new(22, "MagickPoints", 8),
                 new(23, "TechPoints", 4),
+                new(24, "PoisonLevel", 0),
+                new(25, "Age", 27),
+                new(26, "Gender", 0),
+                new(27, "Race", 9),
             ],
             DerivedStats:
             [

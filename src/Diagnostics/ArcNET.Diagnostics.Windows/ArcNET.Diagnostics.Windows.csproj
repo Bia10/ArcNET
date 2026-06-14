@@ -8,11 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ArcNET.Diagnostics.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
     <PackageReference Include="Iced" />
     <ProjectReference Include="..\ArcNET.Diagnostics.Contracts\ArcNET.Diagnostics.Contracts.csproj" />
     <ProjectReference Include="..\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
     <ProjectReference Include="..\..\Core\ArcNET.Core\ArcNET.Core.csproj" />
-    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
+    <ProjectReference Include="..\..\GameData\ArcNET.GameData.Workspace\ArcNET.GameData.Workspace.csproj" />
     <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
   </ItemGroup>
 </Project>

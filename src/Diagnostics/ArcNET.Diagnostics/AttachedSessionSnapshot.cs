@@ -15,5 +15,16 @@ public sealed record class AttachedSessionSnapshot(
     RuntimeProfileSnapshot RuntimeProfile,
     RuntimeCapabilityReport Capabilities,
     LaunchPreviewSnapshot? LaunchPreview,
-    IReadOnlyList<string> Notes
-);
+    IReadOnlyList<string> Notes,
+    string? WorkspacePathHint = null,
+    string? RuntimeWorkspacePathHint = null
+)
+{
+    public string LocalWorkspacePath =>
+        DiagnosticsWorkspacePathResolver.ResolveLocalWorkspacePath(
+            WorkspacePathHint,
+            RuntimeWorkspacePathHint,
+            LaunchPreview?.WorkingDirectory,
+            Fingerprint.ModulePath
+        );
+}

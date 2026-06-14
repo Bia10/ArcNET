@@ -125,11 +125,25 @@ public static class FunctionCatalog
         ["prototype_handle_by_proto_number"] =
             "Resolves one basic prototype number into the engine's canonical prototype handle.",
         ["prototype_handle_by_object_type"] = "Resolves the default prototype handle for one object type.",
+        ["obj_field_int64_get"] = "Reads one 64-bit runtime object field such as packed locations.",
+        ["obj_field_handle_get"] = "Reads one handle-backed runtime object field such as item parent ownership.",
+        ["obj_array_field_handle_get"] =
+            "Reads one handle-backed runtime object array slot such as critter or container inventory entries.",
+        ["obj_array_field_pc_quest_get"] =
+            "Reads one structured per-PC quest entry containing the raw quest state plus quest timestamp.",
         ["obj_array_field_int32_set"] =
             "Writes one signed element in a runtime object array field such as skills or reputations.",
+        ["obj_array_field_pc_quest_set"] =
+            "Writes one structured per-PC quest entry containing the raw quest state plus quest timestamp.",
         ["obj_array_field_uint32_set"] =
             "Writes one unsigned element in a runtime object array field such as discovered schematics.",
+        ["obj_array_field_length_get"] = "Reads the logical length of one runtime object array field.",
+        ["map_current_map"] = "Reads the numeric id of the currently loaded local or world-scene map.",
+        ["map_by_type"] = "Resolves a logical map slot such as START_MAP into the active runtime map id.",
         ["quest_state_get"] = "Reads one per-PC quest state entry through the engine's native quest resolver.",
+        ["logbook_add_kill"] =
+            "Records one kill in the target character logbook using one live victim handle without killing that runtime object.",
+        ["logbook_get_kills"] = "Reads the logbook kill-summary block used by the kills-and-injuries page.",
         ["script_story_state_set"] = "Writes the global story-state marker used by scripts and progression gates.",
         ["script_story_state_get"] =
             "Reads the current global story-state marker used by scripts and progression gates.",
@@ -143,6 +157,7 @@ public static class FunctionCatalog
         ["wmap_ui_encounter_start"] =
             "Flags the current world-map session as an encounter and schedules encounter cleanup.",
         ["wmap_load_worldmap_info"] = "Rebuilds the current world-map UI info cache for the active module.",
+        ["townmap_get"] = "Resolves one packed sector id into the matching town-map id, when present.",
         ["teleport_do"] =
             "Low-level teleport entrypoint that expects one prepared destination payload. Prefer the guided teleport action when you have X/Y/map inputs.",
         ["combat_turn_based_whos_turn_set"] = "Transfers turn-based ownership to a specific combatant.",
@@ -159,9 +174,19 @@ public static class FunctionCatalog
         ["spell_college_level_set"] = "Function call: spell-college-set player fire 1",
         ["tech_learn_schematic"] = "Function call: learn-schematic-object player 0x00000002089ABCDE",
         ["prototype_handle_by_proto_number"] = "Function call: create-object 14001 480 512",
+        ["obj_field_int64_get"] = "Function call: obj-field player OBJ_F_LOCATION",
+        ["obj_field_handle_get"] = "Function call: obj-field 0x00000002089ABCDE OBJ_F_ITEM_PARENT",
+        ["obj_array_field_handle_get"] = "Function call: field player OBJ_F_CRITTER_INVENTORY_LIST_IDX 0",
+        ["obj_array_field_pc_quest_get"] = "Function call: quest player 42",
         ["obj_array_field_int32_set"] = "Function call: skill-set player haggle 1",
+        ["obj_array_field_pc_quest_set"] = "Function call: quest-set player 42 accepted",
         ["obj_array_field_uint32_set"] = "Function call: schematic-set player 0 10079",
+        ["obj_array_field_length_get"] = "Function call: field-length player OBJ_F_PC_SCHEMATICS_FOUND_IDX",
+        ["map_current_map"] = "Function call: map-current-map",
+        ["map_by_type"] = "Function call: map-by-type 1",
         ["quest_state_get"] = "Function call: quest player 42",
+        ["logbook_add_kill"] = "Function call: logbook-add-kill player 0x00000002089ABCDE",
+        ["logbook_get_kills"] = "Function call: logbook-get-kills player",
         ["script_story_state_set"] = "Function call: story-state-set 12",
         ["script_story_state_get"] = "Function call: story-state",
         ["quest_state_set"] = "Function call: quest-set player 42 accepted",
@@ -174,6 +199,7 @@ public static class FunctionCatalog
         ["wmap_rnd_encounter_check"] = "Function call: random-encounter-check",
         ["wmap_ui_encounter_start"] = "Function call: worldmap-encounter-start",
         ["wmap_load_worldmap_info"] = "Function call: worldmap-load-info",
+        ["townmap_get"] = "Function call: townmap-get 0x0000000000012345",
     };
 
     private static readonly HashSet<string> s_stdCallKeys = [];

@@ -1,8 +1,9 @@
-﻿using System.Buffers.Binary;
-using ArcNET.Editor;
+using System.Buffers.Binary;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 using Probe;
+using SharedSaveGameWriter = ArcNET.GameData.SaveGames.SaveGameWriter;
 
 namespace Probe.Commands;
 
@@ -59,7 +60,7 @@ internal sealed class RawGoldCollCommand : IProbeCommand
 
         Console.WriteLine($"  Patched {patchedCount} PC records");
         var (gsiOut, tfaiOut, tfafOut) = SharedProbeContext.GetLegacyOutputPaths(saveDir);
-        ArcNET.Editor.SaveGameWriter.Save(
+        SharedSaveGameWriter.Save(
             ctx.Save,
             gsiOut,
             tfaiOut,

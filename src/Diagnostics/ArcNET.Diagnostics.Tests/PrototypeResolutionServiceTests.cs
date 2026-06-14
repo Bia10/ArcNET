@@ -1,7 +1,7 @@
 using ArcNET.Core.Primitives;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
+using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -17,7 +17,7 @@ public sealed class PrototypeResolutionServiceTests
         };
         var service = new PrototypeResolutionService(backend);
 
-        var snapshot = service.Resolve(
+        var snapshot = await service.ResolveAsync(
             new PrototypeResolutionRequest(
                 CreateSession() with
                 {
@@ -62,7 +62,7 @@ public sealed class PrototypeResolutionServiceTests
         };
         var service = new PrototypeResolutionService(backend);
 
-        var snapshot = service.Resolve(new PrototypeResolutionRequest(CreateSession(), "wolf"));
+        var snapshot = await service.ResolveAsync(new PrototypeResolutionRequest(CreateSession(), "wolf"));
 
         await Assert.That(snapshot.IsAvailable).IsTrue();
         await Assert.That(snapshot.ProtoNumber).IsEqualTo(14001);
@@ -80,7 +80,7 @@ public sealed class PrototypeResolutionServiceTests
     {
         var service = new PrototypeResolutionService(new FakePrototypeResolutionBackend());
 
-        var snapshot = service.Resolve(
+        var snapshot = await service.ResolveAsync(
             new PrototypeResolutionRequest(
                 CreateSession() with
                 {
@@ -98,6 +98,137 @@ public sealed class PrototypeResolutionServiceTests
         await Assert.That(snapshot.IsAvailable).IsFalse();
         await Assert.That(snapshot.Status).IsEqualTo("Prototype resolution unavailable");
         await Assert.That(snapshot.Summary).Contains("catalog-backed runtime offsets");
+    }
+
+    [Test]
+    public async Task Resolve_WhenWorkspacePathOverrideIsProvided_UsesOverrideForPaletteLookup()
+    {
+        var handle = 0x0000000201234562UL;
+        var backend = new FakePrototypeResolutionBackend
+        {
+            PaletteEntries =
+            [
+                new PrototypePaletteEntry(
+                    14001,
+                    "Critter",
+                    "proto/critters/wolf.pro",
+                    "Wolf",
+                    "A hungry wolf.",
+                    "Critters",
+                    "art/critters/wolf.art"
+                ),
+            ],
+            Resolution = new PrototypeHandleResolutionResult(true, handle, "PrototypeLookupFunction"),
+            Inspection = CreateIdentity(handle, "Prototype Wolf", "Critter", 14001),
+        };
+        var service = new PrototypeResolutionService(backend);
+        var workspacePath = @"C:\Games\Arcanum\modules\test-module";
+
+        var snapshot = await service.ResolveAsync(
+            new PrototypeResolutionRequest(
+                CreateSession() with
+                {
+                    Fingerprint = new RuntimeFingerprint(
+                        "Arcanum",
+                        4242,
+                        RuntimeKind.Classic,
+                        "Arcanum.exe",
+                        "",
+                        "0x00400000",
+                        3_538_944,
+                        2_048_000,
+                        DateTime.UtcNow
+                    ),
+                },
+                "wolf",
+                workspacePath
+            )
+        );
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(backend.LastPaletteWorkspacePath).IsEqualTo(workspacePath);
+    }
+
+    [Test]
+    public async Task Resolve_WhenPlacedObjectGuidMatches_ResolvesPlacedPrototypeAndHandle()
+    {
+        var handle = 0x0000000201234562UL;
+        var backend = new FakePrototypeResolutionBackend
+        {
+            StaticObjectEntries =
+            [
+                new StaticObjectCatalogEntry(
+                    "Sector object",
+                    "Tarant Barrel",
+                    "Container",
+                    "barrel-oid",
+                    "2d5ee3db-f6d0-4c79-8dcb-1d4324a5e859",
+                    13007,
+                    "Barrel [13007]",
+                    "maps/tarant/barrel.mob",
+                    "Tile (441, 288)",
+                    "Sector object - maps/tarant/barrel.mob"
+                ),
+            ],
+            Resolution = new PrototypeHandleResolutionResult(true, handle, "PrototypeLookupFunction"),
+            Inspection = CreateIdentity(handle, "Prototype Barrel", "Container", 13007),
+        };
+        var service = new PrototypeResolutionService(backend);
+
+        var snapshot = await service.ResolveAsync(
+            new PrototypeResolutionRequest(CreateSession(), "2d5ee3db-f6d0-4c79-8dcb-1d4324a5e859")
+        );
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(snapshot.ProtoNumber).IsEqualTo(13007);
+        await Assert.That(snapshot.DisplayName).IsEqualTo("Tarant Barrel");
+        await Assert.That(snapshot.AssetPath).IsEqualTo("maps/tarant/barrel.mob");
+        await Assert.That(snapshot.ResolutionSource).IsEqualTo("StaticObjectExactMatch->PrototypeLookupFunction");
+        await Assert.That(snapshot.Handle).IsEqualTo(handle);
+        await Assert.That(backend.ResolvePrototypeHandleCallCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Resolve_WhenPlacedObjectSearchIsAmbiguous_ReturnsUnavailableSnapshot()
+    {
+        var service = new PrototypeResolutionService(
+            new FakePrototypeResolutionBackend
+            {
+                StaticObjectEntries =
+                [
+                    new StaticObjectCatalogEntry(
+                        "Sector object",
+                        "Bridge Door",
+                        "Portal",
+                        "door-1",
+                        string.Empty,
+                        1101,
+                        "Bridge Door [1101]",
+                        "maps/bridge/door1.mob",
+                        "Tile (10, 10)",
+                        "Sector object - maps/bridge/door1.mob"
+                    ),
+                    new StaticObjectCatalogEntry(
+                        "Sector object",
+                        "Bridge Door",
+                        "Portal",
+                        "door-2",
+                        string.Empty,
+                        1102,
+                        "Bridge Door [1102]",
+                        "maps/bridge/door2.mob",
+                        "Tile (12, 10)",
+                        "Sector object - maps/bridge/door2.mob"
+                    ),
+                ],
+            }
+        );
+
+        var snapshot = await service.ResolveAsync(new PrototypeResolutionRequest(CreateSession(), "bridge door"));
+
+        await Assert.That(snapshot.IsAvailable).IsFalse();
+        await Assert.That(snapshot.Status).IsEqualTo("Ambiguous prototype reference");
+        await Assert.That(snapshot.Summary).Contains("Placed-object lookup");
     }
 
     private static AttachedSessionSnapshot CreateSession() =>
@@ -176,12 +307,25 @@ public sealed class PrototypeResolutionServiceTests
     private sealed class FakePrototypeResolutionBackend : IPrototypeResolutionBackend
     {
         public IReadOnlyList<PrototypePaletteEntry> PaletteEntries { get; init; } = [];
+        public IReadOnlyList<StaticObjectCatalogEntry> StaticObjectEntries { get; init; } = [];
         public PrototypeHandleResolutionResult Resolution { get; init; } = new(false, 0, "PoolLookupMiss");
         public LiveObjectIdentity Inspection { get; init; }
 
         public int ResolvePrototypeHandleCallCount { get; private set; }
+        public string? LastPaletteWorkspacePath { get; private set; }
+        public string? LastStaticObjectWorkspacePath { get; private set; }
 
-        public IReadOnlyList<PrototypePaletteEntry> LoadPalette(string modulePath) => PaletteEntries;
+        public Task<IReadOnlyList<PrototypePaletteEntry>> LoadPaletteAsync(string workspacePath)
+        {
+            LastPaletteWorkspacePath = workspacePath;
+            return Task.FromResult(PaletteEntries);
+        }
+
+        public Task<IReadOnlyList<StaticObjectCatalogEntry>> LoadStaticObjectCatalogAsync(string workspacePath)
+        {
+            LastStaticObjectWorkspacePath = workspacePath;
+            return Task.FromResult(StaticObjectEntries);
+        }
 
         public LiveObjectIdentity InspectHandle(int processId, ulong handle) => Inspection;
 

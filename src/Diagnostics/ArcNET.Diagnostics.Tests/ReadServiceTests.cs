@@ -1,6 +1,5 @@
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -90,6 +89,46 @@ public sealed class ReadServiceTests
     }
 
     [Test]
+    public async Task Read_Quest_WithBotchedVariant_ProjectsQuestPcStateName()
+    {
+        var backend = new FakeReadBackend();
+        backend.SetInspection(0x0000000201234567, CreateIdentity(0x0000000201234567));
+        backend.SetResult(
+            "quest_state_get",
+            [0x01234567, 0x00000002, 42],
+            CreateNativeRead("quest_state_get", RuntimeWatchValueCatalog.QuestBotchedModifier | 2)
+        );
+        var service = new ReadService(backend);
+
+        var snapshot = service.Read(new ReadRequest(CreateSession(), "quest", ["0x0000000201234567", "42"]));
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert
+            .That(snapshot.Values.Single(static value => value.Key == "quest_state").ValueText)
+            .IsEqualTo("Accepted [Botched]");
+        await Assert.That(snapshot.Values.Single(static value => value.Key == "raw_state").ValueText).IsEqualTo("258");
+    }
+
+    [Test]
+    public async Task Read_QuestGlobal_UsesNativeGetterAndProjectsState()
+    {
+        var backend = new FakeReadBackend();
+        backend.SetResult("quest_global_state_get", [42], CreateNativeRead("quest_global_state_get", 4));
+        var service = new ReadService(backend);
+
+        var snapshot = service.Read(new ReadRequest(CreateSession(), "questglobal", ["42"]));
+
+        await Assert.That(backend.InvocationCalls).HasSingleItem();
+        await Assert.That(backend.InvocationCalls[0].FunctionKey).IsEqualTo("quest_global_state_get");
+        await Assert.That(backend.InvocationCalls[0].StackArguments).IsEquivalentTo([42u]);
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(snapshot.TargetHandleText).IsNull();
+        await Assert
+            .That(snapshot.Values.Single(static value => value.Key == "quest_state").ValueText)
+            .IsEqualTo("Completed");
+    }
+
+    [Test]
     public async Task Read_Field_UsesUnsignedArrayFormattingForSchematicSlots()
     {
         _ = ObjectFieldCatalog.TryGetFieldId("OBJ_F_PC_SCHEMATICS_FOUND_IDX", out var schematicFieldId)
@@ -119,6 +158,34 @@ public sealed class ReadServiceTests
         await Assert
             .That(snapshot.Values.Single(static value => value.Key == "storage").ValueText)
             .IsEqualTo("array-uint32");
+    }
+
+    [Test]
+    public async Task Read_FieldLength_UsesArrayLengthGetterAndProjectsLength()
+    {
+        _ = ObjectFieldCatalog.TryGetFieldId("OBJ_F_PC_SCHEMATICS_FOUND_IDX", out var schematicFieldId)
+            ? true
+            : throw new InvalidOperationException("Expected schematic field id to exist.");
+        var backend = new FakeReadBackend();
+        backend.SetInspection(0x0000000201234567, CreateIdentity(0x0000000201234567));
+        backend.SetResult(
+            "obj_array_field_length_get",
+            [0x01234567, 0x00000002, unchecked((uint)schematicFieldId)],
+            CreateNativeRead("obj_array_field_length_get", 4)
+        );
+        var service = new ReadService(backend);
+
+        var snapshot = service.Read(
+            new ReadRequest(CreateSession(), "field-length", ["0x0000000201234567", "OBJ_F_PC_SCHEMATICS_FOUND_IDX"])
+        );
+
+        await Assert.That(snapshot.IsAvailable).IsTrue();
+        await Assert.That(backend.InvocationCalls).HasSingleItem();
+        await Assert.That(backend.InvocationCalls[0].FunctionKey).IsEqualTo("obj_array_field_length_get");
+        await Assert.That(snapshot.Values.Single(static value => value.Key == "length").ValueText).IsEqualTo("4");
+        await Assert
+            .That(snapshot.Values.Single(static value => value.Key == "field_name").ValueText)
+            .Contains("Schematics Found");
     }
 
     [Test]

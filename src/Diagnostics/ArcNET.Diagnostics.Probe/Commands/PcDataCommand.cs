@@ -1,7 +1,6 @@
 using System.Globalization;
 using ArcNET.Core;
 using ArcNET.Diagnostics;
-using ArcNET.Editor;
 using Bia.ValueBuffers;
 using Probe;
 using static ArcNET.Diagnostics.SaveGlobalInt32Reader;

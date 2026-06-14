@@ -251,7 +251,7 @@ public sealed class AuditBackend : IAuditBackend
             0,
             default,
             0,
-            new uint[RuntimeInterceptionSession.MaximumStackCaptureDwordCount],
+            new uint[RuntimeInterceptionLimits.MaximumStackCaptureDwordCount],
             0
         );
 

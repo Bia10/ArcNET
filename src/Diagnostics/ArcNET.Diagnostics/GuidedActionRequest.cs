@@ -8,5 +8,10 @@ public sealed record class GuidedActionRequest(
     string TileYText,
     string MapIdText,
     string FlagsText,
-    string TimeoutMillisecondsText
-);
+    string TimeoutMillisecondsText,
+    string? WorkspacePathOverride = null
+)
+{
+    public string WorkspacePath =>
+        string.IsNullOrWhiteSpace(WorkspacePathOverride) ? Session.LocalWorkspacePath : WorkspacePathOverride.Trim();
+}

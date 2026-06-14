@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
 
 namespace ArcNET.Diagnostics.Windows;
 
+[SupportedOSPlatform("windows")]
 public static class ProcessCatalog
 {
     public static IReadOnlyList<string> DefaultProcessNames => s_defaultProcessNames;
@@ -57,7 +59,8 @@ public static class ProcessCatalog
                             module.ModuleName,
                             module.FileName,
                             module.BaseAddress,
-                            module.ModuleMemorySize
+                            module.ModuleMemorySize,
+                            RuntimeWorkspacePathHintResolver.TryResolveForRunningProcess(process.Id)
                         )
                     );
                 }

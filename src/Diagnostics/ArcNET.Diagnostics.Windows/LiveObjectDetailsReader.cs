@@ -2,8 +2,8 @@ using System.Globalization;
 using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Editor.Runtime;
 using ArcNET.GameObjects;
+using ArcNET.GameObjects.Runtime;
 
 namespace ArcNET.Diagnostics.Windows;
 
@@ -146,7 +146,9 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
             );
         }
 
-        AppendFieldDetail(details, dispatcher, handle, s_critterInventoryCountFieldId);
+        var inventoryCount = AppendFieldDetail(details, dispatcher, handle, s_critterInventoryCountFieldId);
+        if (inventoryCount is > 0)
+            AppendInventoryHandles(details, dispatcher, handle, s_critterInventoryListFieldId, inventoryCount.Value);
     }
 
     private void AppendPcDetails(List<LiveObjectDetail> details, RuntimeCallDispatcher dispatcher, ulong handle)
@@ -165,7 +167,9 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
 
     private void AppendContainerDetails(List<LiveObjectDetail> details, RuntimeCallDispatcher dispatcher, ulong handle)
     {
-        AppendFieldDetail(details, dispatcher, handle, s_containerInventoryCountFieldId);
+        var inventoryCount = AppendFieldDetail(details, dispatcher, handle, s_containerInventoryCountFieldId);
+        if (inventoryCount is > 0)
+            AppendInventoryHandles(details, dispatcher, handle, s_containerInventoryListFieldId, inventoryCount.Value);
         AppendFieldDetail(details, dispatcher, handle, s_containerLockDifficultyFieldId);
         AppendFieldDetail(details, dispatcher, handle, s_containerKeyIdFieldId);
     }
@@ -187,6 +191,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
         AppendFieldDetail(details, dispatcher, handle, s_itemWeightFieldId);
         AppendFieldDetail(details, dispatcher, handle, s_itemWorthFieldId);
         AppendFieldDetail(details, dispatcher, handle, s_itemManaStoreFieldId);
+        AppendHandleFieldDetail(details, dispatcher, handle, s_itemParentFieldId);
         AppendFieldDetail(details, dispatcher, handle, s_itemInventoryLocationFieldId);
         AppendFieldDetail(details, dispatcher, handle, s_itemMagicTechComplexityFieldId);
 
@@ -284,6 +289,50 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
                 "stat_base_get"
             )
         );
+    }
+
+    private void AppendHandleFieldDetail(
+        List<LiveObjectDetail> details,
+        RuntimeCallDispatcher dispatcher,
+        ulong handle,
+        int fieldId
+    )
+    {
+        if (!TryReadObjectHandle(dispatcher, handle, fieldId, out var value))
+            return;
+
+        details.Add(
+            new LiveObjectDetail(
+                ObjectFieldCatalog.RawName(fieldId).ToLowerInvariant(),
+                ObjectFieldCatalog.DisplayName(fieldId),
+                RuntimeSemanticCatalog.FormatHandle(value),
+                "obj_field_handle_get"
+            )
+        );
+    }
+
+    private void AppendInventoryHandles(
+        List<LiveObjectDetail> details,
+        RuntimeCallDispatcher dispatcher,
+        ulong handle,
+        int fieldId,
+        int count
+    )
+    {
+        for (var index = 0; index < count; index++)
+        {
+            if (!TryReadArrayHandle(dispatcher, handle, fieldId, index, out var value))
+                continue;
+
+            details.Add(
+                new LiveObjectDetail(
+                    $"{ObjectFieldCatalog.RawName(fieldId).ToLowerInvariant()}_{index.ToString(CultureInfo.InvariantCulture)}",
+                    ObjectFieldCatalog.ArrayElementName(fieldId, index),
+                    RuntimeSemanticCatalog.FormatHandle(value),
+                    "obj_array_field_handle_get"
+                )
+            );
+        }
     }
 
     private static void AppendDirectMainStats(
@@ -542,6 +591,56 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
         }
     }
 
+    private bool TryReadObjectHandle(RuntimeCallDispatcher dispatcher, ulong handle, int fieldId, out ulong value)
+    {
+        try
+        {
+            var result = dispatcher.Invoke(
+                _memory.ToUInt32Address(_memory.ResolveRva(s_objectHandleFieldGetter.Rva)),
+                s_objectHandleFieldGetter.SuggestedCleanup,
+                0,
+                0,
+                [ToLow32(handle), ToHigh32(handle), unchecked((uint)fieldId)],
+                s_readTimeout
+            );
+            value = result.ResultEax | ((ulong)result.ResultEdx << 32);
+            return true;
+        }
+        catch
+        {
+            value = 0;
+            return false;
+        }
+    }
+
+    private bool TryReadArrayHandle(
+        RuntimeCallDispatcher dispatcher,
+        ulong handle,
+        int fieldId,
+        int index,
+        out ulong value
+    )
+    {
+        try
+        {
+            var result = dispatcher.Invoke(
+                _memory.ToUInt32Address(_memory.ResolveRva(s_objectArrayHandleFieldGetter.Rva)),
+                s_objectArrayHandleFieldGetter.SuggestedCleanup,
+                0,
+                0,
+                [ToLow32(handle), ToHigh32(handle), unchecked((uint)fieldId), unchecked((uint)index)],
+                s_readTimeout
+            );
+            value = result.ResultEax | ((ulong)result.ResultEdx << 32);
+            return true;
+        }
+        catch
+        {
+            value = 0;
+            return false;
+        }
+    }
+
     private bool TryGetDispatcher(out RuntimeCallDispatcher dispatcher)
     {
         if (_dispatcher is not null)
@@ -738,8 +837,14 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
     private static readonly FunctionDefinition s_objectFieldGetter = FunctionCatalog.GetDefinition(
         "obj_field_int32_get"
     );
+    private static readonly FunctionDefinition s_objectHandleFieldGetter = FunctionCatalog.GetDefinition(
+        "obj_field_handle_get"
+    );
     private static readonly FunctionDefinition s_objectArrayFieldGetter = FunctionCatalog.GetDefinition(
         "obj_array_field_int32_get"
+    );
+    private static readonly FunctionDefinition s_objectArrayHandleFieldGetter = FunctionCatalog.GetDefinition(
+        "obj_array_field_handle_get"
     );
     private static readonly FunctionDefinition s_objectResistanceGetter = FunctionCatalog.GetDefinition(
         "object_get_resistance"
@@ -755,6 +860,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
     private static readonly int s_techSkillFieldId = ResolveFieldId("OBJ_F_CRITTER_TECH_SKILL_IDX");
     private static readonly int s_spellTechFieldId = ResolveFieldId("OBJ_F_CRITTER_SPELL_TECH_IDX");
     private static readonly int s_critterInventoryCountFieldId = ResolveFieldId("OBJ_F_CRITTER_INVENTORY_NUM");
+    private static readonly int s_critterInventoryListFieldId = ResolveFieldId("OBJ_F_CRITTER_INVENTORY_LIST_IDX");
     private static readonly int s_pcBankMoneyFieldId = ResolveFieldId("OBJ_F_PC_BANK_MONEY");
     private static readonly int s_pcPartyIdFieldId = ResolveFieldId("OBJ_F_PC_PARTY_ID");
     private static readonly int s_npcExperienceWorthFieldId = ResolveFieldId("OBJ_F_NPC_EXPERIENCE_WORTH");
@@ -762,6 +868,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
     private static readonly int s_npcReactionBaseFieldId = ResolveFieldId("OBJ_F_NPC_REACTION_BASE");
     private static readonly int s_npcFactionFieldId = ResolveFieldId("OBJ_F_NPC_FACTION");
     private static readonly int s_containerInventoryCountFieldId = ResolveFieldId("OBJ_F_CONTAINER_INVENTORY_NUM");
+    private static readonly int s_containerInventoryListFieldId = ResolveFieldId("OBJ_F_CONTAINER_INVENTORY_LIST_IDX");
     private static readonly int s_containerLockDifficultyFieldId = ResolveFieldId("OBJ_F_CONTAINER_LOCK_DIFFICULTY");
     private static readonly int s_containerKeyIdFieldId = ResolveFieldId("OBJ_F_CONTAINER_KEY_ID");
     private static readonly int s_portalLockDifficultyFieldId = ResolveFieldId("OBJ_F_PORTAL_LOCK_DIFFICULTY");
@@ -772,6 +879,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
     private static readonly int s_itemWeightFieldId = ResolveFieldId("OBJ_F_ITEM_WEIGHT");
     private static readonly int s_itemWorthFieldId = ResolveFieldId("OBJ_F_ITEM_WORTH");
     private static readonly int s_itemManaStoreFieldId = ResolveFieldId("OBJ_F_ITEM_MANA_STORE");
+    private static readonly int s_itemParentFieldId = ResolveFieldId("OBJ_F_ITEM_PARENT");
     private static readonly int s_itemInventoryLocationFieldId = ResolveFieldId("OBJ_F_ITEM_INV_LOCATION");
     private static readonly int s_itemMagicTechComplexityFieldId = ResolveFieldId("OBJ_F_ITEM_MAGIC_TECH_COMPLEXITY");
     private static readonly int s_weaponBonusToHitFieldId = ResolveFieldId("OBJ_F_WEAPON_BONUS_TO_HIT");

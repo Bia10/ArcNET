@@ -31,6 +31,9 @@ public static class SheetCatalog
                 return new(SheetRoute.SpellCollege, index, collegeName);
         }
 
+        if (SpellMasteryAliases.TryGetValue(normalized, out _))
+            return new(SheetRoute.SpellMastery, SpellCollegeCount, "Spell Mastery");
+
         if (TechDisciplineAliases.TryGetValue(normalized, out var disciplineId))
             return new(SheetRoute.TechDiscipline, disciplineId, TechDisciplineLabels[disciplineId]);
 
@@ -62,7 +65,7 @@ public static class SheetCatalog
         }
 
         throw new InvalidOperationException(
-            $"Unknown sheet label '{token}'. Examples: strength, level, alignment, haggle, repair, herbology, speed, max-followers."
+            $"Unknown sheet label '{token}'. Examples: strength, level, alignment, haggle, repair, herbology, speed, spell-mastery, max-followers."
         );
     }
 
@@ -227,5 +230,13 @@ public static class SheetCatalog
         ["smithy"] = 6,
         ["therapeutics"] = 7,
         ["therapeutic"] = 7,
+    };
+
+    private static readonly Dictionary<string, int> SpellMasteryAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["spellmastery"] = SpellCollegeCount,
+        ["mastery"] = SpellCollegeCount,
+        ["spellfocus"] = SpellCollegeCount,
+        ["spellcollegemastery"] = SpellCollegeCount,
     };
 }

@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
-using ArcNET.Editor;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Diagnostics;
@@ -27,7 +27,7 @@ public static class SaveFileAuditService
         [
             .. validationIssues
                 .Take(request.ValidationIssueLimit)
-                .Select(static issue => new SaveValidationIssueSnapshot(
+                .Select(issue => new SaveValidationIssueSnapshot(
                     MapSeverity(issue.Severity),
                     issue.FilePath,
                     issue.Message

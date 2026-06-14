@@ -194,7 +194,7 @@ public sealed class SheetBackend : ISheetBackend
     private const int PrimaryStatCount = 8;
     private const int DerivedStatBaseIndex = 8;
     private const int SpellCollegeCount = 16;
-    private static readonly int[] ProgressionStatIds = [17, 18, 19, 20, 21, 22, 23];
+    private static readonly int[] ProgressionStatIds = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
     private static readonly FunctionDefinition s_objectArrayFieldGetter = FunctionCatalog.GetDefinition(
         "obj_array_field_int32_get"
     );

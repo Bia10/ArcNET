@@ -1,9 +1,11 @@
+using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Windows;
 using ArcNET.Patch;
 
 namespace ArcNET.Diagnostics.Windows;
 
+[SupportedOSPlatform("windows")]
 public sealed class EnvironmentBackend : IEnvironmentBackend
 {
     public IReadOnlyList<RunningProcessInfo> GetRunningProcesses(IReadOnlyList<string> processNames) =>

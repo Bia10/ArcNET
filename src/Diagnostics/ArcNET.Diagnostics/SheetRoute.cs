@@ -9,4 +9,5 @@ public enum SheetRoute
     SpellCollege = 4,
     TechDiscipline = 5,
     Resistance = 6,
+    SpellMastery = 7,
 }

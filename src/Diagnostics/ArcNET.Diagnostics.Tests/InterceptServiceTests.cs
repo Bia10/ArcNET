@@ -1,7 +1,6 @@
 using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcNET.Diagnostics.Tests;
 
@@ -176,7 +175,7 @@ public sealed class InterceptServiceTests
                     0,
                     default,
                     0,
-                    new uint[RuntimeInterceptionSession.MaximumStackCaptureDwordCount],
+                    new uint[RuntimeInterceptionLimits.MaximumStackCaptureDwordCount],
                     0
                 )
             ),

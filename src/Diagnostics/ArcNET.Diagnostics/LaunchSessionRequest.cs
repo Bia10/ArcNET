@@ -6,5 +6,6 @@ public sealed record class LaunchSessionRequest(
     string InstallPath,
     ArcanumExecutableKind ExecutableKind,
     bool LaunchWindowed,
-    TimeSpan? AttachTimeout = null
+    TimeSpan? AttachTimeout = null,
+    string? WorkspacePathHint = null
 );

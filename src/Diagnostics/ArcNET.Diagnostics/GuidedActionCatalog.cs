@@ -23,6 +23,12 @@ public static class GuidedActionCatalog
             "Moves one traveler to a tile X/Y target with optional map-id and flags, without asking the user to build the engine teleport payload by hand.",
             "teleport_do"
         ),
+        new(
+            "discover_world_map_locations",
+            "Discover World Map Locations",
+            "Loads ArcNET's world-area catalog, marks every known area through area_set_known, and if the traveler is already standing on the world map, walks each anchor with teleport_do before refreshing world-map info.",
+            "area_set_known"
+        ),
     ];
 
     private static readonly Dictionary<string, GuidedActionDescriptor> s_actionsByKey = s_actions.ToDictionary(

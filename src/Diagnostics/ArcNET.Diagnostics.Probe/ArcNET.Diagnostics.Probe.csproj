@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Bia.ValueBuffers" />
     <ProjectReference Include="..\..\Archive\ArcNET.Archive\ArcNET.Archive.csproj" />
-    <ProjectReference Include="..\..\Editor\ArcNET.Editor\ArcNET.Editor.csproj" />
+    <ProjectReference Include="..\..\GameData\ArcNET.GameData.SaveGames\ArcNET.GameData.SaveGames.csproj" />
     <ProjectReference Include="..\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
   </ItemGroup>
 </Project>

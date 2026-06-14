@@ -8,7 +8,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
-    <ProjectReference Include="..\ArcNET.Diagnostics.Windows\ArcNET.Diagnostics.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="LiveMobileRosterScannerTests.cs" />
+    <Compile Remove="LiveObjectInspectorTests.cs" />
+    <Compile Remove="LivePlayerLocatorTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

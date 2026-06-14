@@ -1,16 +1,32 @@
 using System.ComponentModel;
+using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
+using ArcNET.Diagnostics.Contracts;
 using ArcNET.Diagnostics.Windows;
 using ArcNET.Patch;
 
 namespace ArcNET.Diagnostics.Windows;
 
+[SupportedOSPlatform("windows")]
 public sealed class SessionBackend : ISessionBackend
 {
     public ISessionConnection Attach(int processId)
     {
         EnsureWindows();
         return new SessionConnection(ProcessMemory.Attach(processId));
+    }
+
+    public string? TryResolveWorkspacePathHint(ISessionConnection connection, RuntimeProfileSnapshot runtimeProfile)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(runtimeProfile);
+
+        EnsureWindows();
+        return RuntimeWorkspacePathHintResolver.TryResolveForAttachedProcess(
+            connection.ProcessId,
+            connection.ModulePath,
+            runtimeProfile
+        );
     }
 
     public bool TryComputeModuleSha256(string modulePath, out string? moduleSha256, out string? error) =>

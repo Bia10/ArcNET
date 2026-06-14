@@ -4,7 +4,7 @@ using System.Runtime.Versioning;
 using ArcNET.Core.Primitives;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Editor;
+using ArcNET.GameData.Workspace;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Diagnostics.Windows;
@@ -23,28 +23,20 @@ public sealed class PrototypeResolutionBackend : IPrototypeResolutionBackend
         return LivePlayerLocator.Locate(memory);
     }
 
-    public IReadOnlyList<PrototypePaletteEntry> LoadPalette(string modulePath)
+    public async Task<IReadOnlyList<PrototypePaletteEntry>> LoadPaletteAsync(string workspacePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspacePath);
+        return WorkspaceGameDataCatalogProjector.ToPrototypePaletteEntries(
+            await WorkspaceGameDataCatalogLoader.LoadFromModulePathAsync(workspacePath).ConfigureAwait(false)
+        );
+    }
 
-        var gameDirectory =
-            Path.GetDirectoryName(modulePath)
-            ?? throw new InvalidOperationException("Unable to derive the Arcanum installation directory.");
-        using var workspace = EditorWorkspaceLoader.LoadFromGameInstallAsync(gameDirectory).GetAwaiter().GetResult();
-        return
-        [
-            .. workspace
-                .GetObjectPalette()
-                .Select(static entry => new PrototypePaletteEntry(
-                    entry.ProtoNumber,
-                    entry.ObjectType.ToString(),
-                    entry.Asset.AssetPath,
-                    entry.DisplayName,
-                    entry.Description,
-                    entry.PaletteGroup,
-                    entry.ArtAssetPath
-                )),
-        ];
+    public async Task<IReadOnlyList<StaticObjectCatalogEntry>> LoadStaticObjectCatalogAsync(string workspacePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspacePath);
+        return WorkspaceGameDataCatalogProjector.ToStaticObjectEntries(
+            await WorkspaceGameDataCatalogLoader.LoadFromModulePathAsync(workspacePath).ConfigureAwait(false)
+        );
     }
 
     public LiveObjectIdentity InspectHandle(int processId, ulong handle)

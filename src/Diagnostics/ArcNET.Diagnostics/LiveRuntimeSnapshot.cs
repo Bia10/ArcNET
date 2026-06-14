@@ -10,5 +10,10 @@ public sealed record class LiveRuntimeSnapshot(
     int ProcessId,
     RuntimeFingerprint Fingerprint,
     RuntimeProfileSnapshot RuntimeProfile,
-    RuntimeCapabilityReport Capabilities
-);
+    RuntimeCapabilityReport Capabilities,
+    string? RuntimeWorkspacePathHint = null
+)
+{
+    public string LocalWorkspacePath =>
+        DiagnosticsWorkspacePathResolver.ResolveLocalWorkspacePath(RuntimeWorkspacePathHint, Fingerprint.ModulePath);
+}

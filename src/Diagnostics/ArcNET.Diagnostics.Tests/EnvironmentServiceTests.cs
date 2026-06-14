@@ -1,5 +1,4 @@
 using ArcNET.Diagnostics;
-using ArcNET.Diagnostics.Windows;
 using ArcNET.Patch;
 
 namespace ArcNET.Diagnostics.Tests;
@@ -9,10 +8,12 @@ public sealed class EnvironmentServiceTests
     [Test]
     public async Task Create_WhenSingleRuntimeIsRunning_ReportsAttachReadyAndLiveRuntime()
     {
-        var moduleDirectory = Directory.CreateTempSubdirectory();
+        var sandbox = Directory.CreateTempSubdirectory();
         try
         {
-            var modulePath = Path.Combine(moduleDirectory.FullName, "Arcanum.exe");
+            var moduleDirectory = Path.Combine(sandbox.FullName, "Arcanum", "modules", "co8");
+            Directory.CreateDirectory(moduleDirectory);
+            var modulePath = Path.Combine(moduleDirectory, "Arcanum.exe");
             await File.WriteAllTextAsync(modulePath, "classic-runtime");
 
             var backend = new FakeEnvironmentBackend
@@ -31,6 +32,7 @@ public sealed class EnvironmentServiceTests
             await Assert.That(snapshot.CanAttachSingleRuntime).IsTrue();
             await Assert.That(snapshot.LiveRuntimes.Count).IsEqualTo(1);
             await Assert.That(snapshot.LiveRuntimes[0].ProcessId).IsEqualTo(4242);
+            await Assert.That(snapshot.LiveRuntimes[0].LocalWorkspacePath).IsEqualTo(moduleDirectory);
             await Assert.That(snapshot.ProcessCandidates[0].IsRunning).IsTrue();
             await Assert
                 .That(snapshot.AttachSummary.Contains("Ready to attach", StringComparison.OrdinalIgnoreCase))
@@ -38,8 +40,72 @@ public sealed class EnvironmentServiceTests
         }
         finally
         {
-            moduleDirectory.Delete(recursive: true);
+            sandbox.Delete(recursive: true);
         }
+    }
+
+    [Test]
+    public async Task Create_WhenInstallRootRuntimeHasOneModule_PromotesLocalWorkspacePathToModuleDirectory()
+    {
+        var sandbox = Directory.CreateTempSubdirectory();
+        try
+        {
+            var gameDirectory = Path.Combine(sandbox.FullName, "Arcanum");
+            Directory.CreateDirectory(Path.Combine(gameDirectory, "modules"));
+            var modulePath = Path.Combine(gameDirectory, "Arcanum.exe");
+            await File.WriteAllTextAsync(modulePath, "classic-runtime");
+            await File.WriteAllTextAsync(Path.Combine(gameDirectory, "modules", "Arcanum.dat"), "module-archive");
+
+            var backend = new FakeEnvironmentBackend
+            {
+                RunningProcesses =
+                [
+                    new RunningProcessInfo("Arcanum", 4242, "Arcanum.exe", modulePath, (nint)0x00400000, 3538944),
+                ],
+            };
+            var service = new EnvironmentService(backend);
+
+            var snapshot = service.Create(
+                new EnvironmentRequest(["Arcanum"], InstallPath: null, ArcanumExecutableKind.Auto, false)
+            );
+
+            await Assert
+                .That(snapshot.LiveRuntimes[0].LocalWorkspacePath)
+                .IsEqualTo(Path.Combine(gameDirectory, "modules", "Arcanum"));
+        }
+        finally
+        {
+            sandbox.Delete(recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Create_WhenRunningProcessProvidesRuntimeWorkspacePathHint_PrefersHintOverInstallRootFallback()
+    {
+        var backend = new FakeEnvironmentBackend
+        {
+            RunningProcesses =
+            [
+                new RunningProcessInfo(
+                    "Arcanum",
+                    4242,
+                    "Arcanum.exe",
+                    @"C:\Games\Arcanum\Arcanum.exe",
+                    (nint)0x00400000,
+                    3538944,
+                    @"C:\Games\Arcanum\modules\Vendigroth"
+                ),
+            ],
+        };
+        var service = new EnvironmentService(backend);
+
+        var snapshot = service.Create(
+            new EnvironmentRequest(["Arcanum"], InstallPath: null, ArcanumExecutableKind.Auto, false)
+        );
+
+        await Assert
+            .That(snapshot.LiveRuntimes[0].LocalWorkspacePath)
+            .IsEqualTo(@"C:\Games\Arcanum\modules\Vendigroth");
     }
 
     [Test]

@@ -9,6 +9,7 @@
     <ProjectReference Include="..\ArcNET.Diagnostics.Contracts\ArcNET.Diagnostics.Contracts.csproj" />
     <ProjectReference Include="..\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
     <ProjectReference Include="..\..\Formats\ArcNET.Formats\ArcNET.Formats.csproj" />
+    <ProjectReference Include="..\..\GameData\ArcNET.GameData.Workspace\ArcNET.GameData.Workspace.csproj" />
     <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
   </ItemGroup>
 </Project>

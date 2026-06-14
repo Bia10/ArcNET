@@ -73,6 +73,7 @@ public static class CatalogSignatureCatalog
         new("obj_array_field_int64_set", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 5D"),
         new("obj_array_field_length_set", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 ED"),
         new("obj_array_field_obj_set", "83 EC 18 53 8B 5C 24 20 55 56 57 8B 7C 24 30 57 53 E8 5A"),
+        new("obj_array_field_pc_quest_get", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 3D 0F"),
         new("obj_array_field_pc_quest_set", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 AD"),
         new("obj_array_field_script_get", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 CD 0E"),
         new("obj_array_field_script_set", "53 8B 5C 24 08 55 56 57 8B 7C 24 18 57 53 E8 6D 0E"),

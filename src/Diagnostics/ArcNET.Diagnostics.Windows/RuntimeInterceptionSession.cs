@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.Versioning;
+using ArcNET.Diagnostics;
 using Iced.Intel;
 
 namespace ArcNET.Diagnostics.Windows;
@@ -8,7 +9,7 @@ namespace ArcNET.Diagnostics.Windows;
 [SupportedOSPlatform("windows")]
 public sealed class RuntimeInterceptionSession : IDisposable
 {
-    public const int MaximumStackCaptureDwordCount = 16;
+    public const int MaximumStackCaptureDwordCount = RuntimeInterceptionLimits.MaximumStackCaptureDwordCount;
 
     private readonly RemoteEventBuffer _buffer;
     private readonly EntryDetourHook _hook;

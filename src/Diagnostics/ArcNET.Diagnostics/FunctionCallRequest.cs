@@ -1,5 +1,3 @@
-using ArcNET.Diagnostics;
-
 namespace ArcNET.Diagnostics;
 
 public sealed record class FunctionCallRequest(
