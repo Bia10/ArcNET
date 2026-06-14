@@ -3,10 +3,13 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:composition="using:ArcanumDebugger.App.Composition"
+  xmlns:controls="using:ArcanumDebugger.App.Controls"
   xmlns:contracts="using:ArcNET.Diagnostics.Contracts"
+  xmlns:workspace="using:ArcNET.GameData.Workspace"
   xmlns:core="using:ArcNET.Diagnostics"
   xmlns:diag="using:ArcNET.Diagnostics"
   xmlns:viewmodels="using:ArcanumDebugger.App.ViewModels"
+  x:Name="RootWindow"
   x:DataType="viewmodels:MainWindowViewModel"
   Width="1480"
   Height="960"
@@ -233,7 +236,11 @@
       </Border>
 
       <Border Grid.Row="1" Grid.Column="1" Classes="panel" Padding="0">
-        <TabControl Margin="12" TabStripPlacement="Top">
+        <TabControl
+          Margin="12"
+          SelectedIndex="{CompiledBinding SelectedRootTabIndex, Mode=TwoWay}"
+          TabStripPlacement="Top"
+        >
           <TabItem Header="Connect">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <Grid Margin="2,12,2,2" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
@@ -376,6 +383,35 @@
 
                     <TextBlock Classes="h1" Text="{CompiledBinding SessionHeadlineText}" />
                     <TextBlock Classes="code" Text="{CompiledBinding SessionDetailText}" TextWrapping="Wrap" />
+
+                    <Border
+                      Background="#151A20"
+                      BorderBrush="{DynamicResource SoftLineBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="8,6"
+                    >
+                      <StackPanel Spacing="6">
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Left" Classes="h3" Text="Local Workspace Override" />
+                          <Button
+                            DockPanel.Dock="Right"
+                            Classes="secondary"
+                            Command="{CompiledBinding ClearWorkspaceOverridePathCommand}"
+                            Content="Clear"
+                          />
+                        </DockPanel>
+                        <TextBox
+                          PlaceholderText="Optional module or workspace path"
+                          Text="{CompiledBinding WorkspaceOverridePathText, Mode=TwoWay}"
+                        />
+                        <TextBlock
+                          Classes="meta"
+                          Text="When set, local catalog, prototype, guided-world, and journal tools use this path instead of the attached executable path."
+                          TextWrapping="Wrap"
+                        />
+                      </StackPanel>
+                    </Border>
                   </StackPanel>
                 </Border>
 
@@ -446,7 +482,7 @@
           <TabItem Header="Read">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <StackPanel Margin="2,12,2,2" Spacing="16">
-                <TabControl>
+                <TabControl SelectedIndex="{CompiledBinding SelectedReadTabIndex, Mode=TwoWay}">
                   <TabItem Header="Player">
                     <StackPanel Margin="0,12,0,0" Spacing="16">
                       <TabControl>
@@ -455,10 +491,19 @@
                             <Border Classes="metric">
                               <StackPanel Spacing="8">
                                 <TextBlock Classes="h2" Text="Character Sheet" />
-                                <TextBox
-                                  PlaceholderText="Handle token (player)"
-                                  Text="{CompiledBinding SheetHandleTokenText, Mode=TwoWay}"
-                                />
+                                <Grid ColumnDefinitions="1*,Auto" ColumnSpacing="8">
+                                  <TextBox
+                                    PlaceholderText="Handle token (player)"
+                                    Text="{CompiledBinding SheetHandleTokenText, Mode=TwoWay}"
+                                  />
+                                  <Button
+                                    Grid.Column="1"
+                                    Classes="secondary"
+                                    Command="{CompiledBinding UseSelectedMobileForSheetTargetCommand}"
+                                    Content="Use Roster"
+                                    IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
+                                  />
+                                </Grid>
                                 <Grid ColumnDefinitions="1.1*,0.7*" ColumnSpacing="8">
                                   <TextBox
                                     PlaceholderText="Field (level, strength, haggle)"
@@ -487,6 +532,11 @@
                                     Content="Diff"
                                   />
                                 </StackPanel>
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="Scan also refreshes the editable-field browser on the right. Use Roster copies the selected mobile so companions can be targeted without retyping one live handle."
+                                  TextWrapping="Wrap"
+                                />
                               </StackPanel>
                             </Border>
 
@@ -504,6 +554,211 @@
                                   </ItemsControl>
                                 </StackPanel>
                               </Border>
+                              <Border Classes="metric">
+                                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+                                  <DockPanel LastChildFill="False">
+                                    <TextBlock Classes="h2" DockPanel.Dock="Left" Text="Editable Fields" />
+                                    <Button
+                                      Classes="action"
+                                      Command="{CompiledBinding LoadSheetEditableFieldsCommand}"
+                                      Content="Load Fields"
+                                      DockPanel.Dock="Right"
+                                      IsEnabled="{CompiledBinding CanLoadSheetEditableFields}"
+                                    />
+                                  </DockPanel>
+                                  <TextBlock
+                                    Grid.Row="1"
+                                    Classes="meta"
+                                    Text="{CompiledBinding SheetEditableFieldSummaryText}"
+                                    TextWrapping="Wrap"
+                                  />
+                                  <TextBox
+                                    Grid.Row="2"
+                                    PlaceholderText="Filter by name, category, token, or current value"
+                                    Text="{CompiledBinding SheetEditableFieldFilterText, Mode=TwoWay}"
+                                  />
+                                  <ListBox
+                                    Grid.Row="3"
+                                    Classes="sidebar"
+                                    ItemsSource="{CompiledBinding SheetEditableFields}"
+                                    MaxHeight="340"
+                                    MinHeight="220"
+                                    SelectedItem="{CompiledBinding SelectedSheetEditableField, Mode=TwoWay}"
+                                  >
+                                    <ListBox.ItemTemplate>
+                                      <DataTemplate x:DataType="viewmodels:DebuggerSheetEditableField">
+                                        <Border
+                                          Margin="0,0,0,6"
+                                          Background="#151A20"
+                                          BorderBrush="{DynamicResource SoftLineBrush}"
+                                          BorderThickness="1"
+                                          CornerRadius="6"
+                                          Padding="8,6"
+                                        >
+                                          <StackPanel Spacing="3">
+                                            <DockPanel LastChildFill="False">
+                                              <TextBlock
+                                                Classes="h3"
+                                                DockPanel.Dock="Left"
+                                                Text="{CompiledBinding DisplayName}"
+                                              />
+                                              <Border
+                                                Background="#21262D"
+                                                CornerRadius="999"
+                                                DockPanel.Dock="Right"
+                                                Padding="8,3"
+                                              >
+                                                <TextBlock Classes="meta" Text="{CompiledBinding Category}" />
+                                              </Border>
+                                            </DockPanel>
+                                            <TextBlock Classes="code" Text="{CompiledBinding CurrentValueText}" />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding DetailText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                          </StackPanel>
+                                        </Border>
+                                      </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                  </ListBox>
+                                </Grid>
+                              </Border>
+
+                              <Border Classes="metric">
+                                <StackPanel Spacing="8">
+                                  <TextBlock Classes="h2" Text="Edit Field" />
+                                  <TextBlock Classes="meta" Text="{CompiledBinding SheetMutationStatusText}" />
+                                  <TextBox
+                                    PlaceholderText="Field token or selected field"
+                                    Text="{CompiledBinding SheetLabelText, Mode=TwoWay}"
+                                  />
+                                  <Grid ColumnDefinitions="1*,1*" ColumnSpacing="8">
+                                    <ComboBox
+                                      IsVisible="{CompiledBinding SheetMutationShowValueSelector}"
+                                      ItemsSource="{CompiledBinding SheetMutationValueOptions}"
+                                      SelectedItem="{CompiledBinding SelectedSheetMutationValueOption, Mode=TwoWay}"
+                                    >
+                                      <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                          <TextBlock Text="{CompiledBinding Label}" />
+                                        </DataTemplate>
+                                      </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBox
+                                      IsVisible="{CompiledBinding SheetMutationShowValueInput}"
+                                      PlaceholderText="{CompiledBinding SheetMutationValuePlaceholderText}"
+                                      Text="{CompiledBinding SheetMutationValueText, Mode=TwoWay}"
+                                    />
+                                    <ComboBox
+                                      Grid.Column="1"
+                                      IsVisible="{CompiledBinding SheetMutationShowTrainingSelector}"
+                                      ItemsSource="{CompiledBinding SheetMutationTrainingOptions}"
+                                      SelectedItem="{CompiledBinding SelectedSheetMutationTrainingOption, Mode=TwoWay}"
+                                    >
+                                      <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                          <TextBlock Text="{CompiledBinding Label}" />
+                                        </DataTemplate>
+                                      </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBox
+                                      Grid.Column="1"
+                                      IsVisible="{CompiledBinding SheetMutationShowTrainingInput}"
+                                      PlaceholderText="{CompiledBinding SheetMutationTrainingPlaceholderText}"
+                                      Text="{CompiledBinding SheetMutationTrainingText, Mode=TwoWay}"
+                                    />
+                                  </Grid>
+                                  <Grid ColumnDefinitions="0.8*,Auto" ColumnSpacing="8">
+                                    <TextBox
+                                      PlaceholderText="Timeout ms"
+                                      Text="{CompiledBinding SheetMutationTimeoutText, Mode=TwoWay}"
+                                    />
+                                    <Button
+                                      Grid.Column="1"
+                                      Classes="action"
+                                      Command="{CompiledBinding ApplySheetMutationCommand}"
+                                      Content="Apply"
+                                      IsEnabled="{CompiledBinding CanApplySheetMutation}"
+                                    />
+                                  </Grid>
+                                  <TextBlock
+                                    Classes="meta"
+                                    Text="{CompiledBinding SheetMutationInputHintText}"
+                                    TextWrapping="Wrap"
+                                  />
+                                  <Border
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    IsVisible="{CompiledBinding SheetMutationShowLiveStateInspector}"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="6">
+                                      <TextBlock
+                                        Classes="h3"
+                                        Text="{CompiledBinding SheetMutationLiveStateStatusText}"
+                                      />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SheetMutationLiveStateSummaryText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <Grid ColumnDefinitions="1*,1*,Auto" ColumnSpacing="8">
+                                        <TextBox
+                                          IsReadOnly="True"
+                                          PlaceholderText="Current value"
+                                          Text="{CompiledBinding SheetMutationLiveStateValueText}"
+                                        />
+                                        <TextBox
+                                          Grid.Column="1"
+                                          IsReadOnly="True"
+                                          IsVisible="{CompiledBinding SheetMutationLiveStateShowTrainingText}"
+                                          PlaceholderText="Current training"
+                                          Text="{CompiledBinding SheetMutationLiveStateTrainingText}"
+                                        />
+                                        <Button
+                                          Grid.Column="2"
+                                          Classes="secondary"
+                                          Command="{CompiledBinding UseSheetLiveStateValueCommand}"
+                                          Content="Use Current"
+                                          IsEnabled="{CompiledBinding CanUseSheetLiveStateValue}"
+                                        />
+                                      </Grid>
+                                    </StackPanel>
+                                  </Border>
+                                  <ItemsControl ItemsSource="{CompiledBinding SheetMutationResultLines}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                  <Border
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="4">
+                                      <TextBlock Classes="h3" Text="Result" />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SheetMutationDispatcherText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SheetMutationExecutionDetailText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="code" Text="{CompiledBinding SheetMutationResultText}" />
+                                    </StackPanel>
+                                  </Border>
+                                </StackPanel>
+                              </Border>
                             </StackPanel>
                           </Grid>
                         </TabItem>
@@ -513,10 +768,19 @@
                             <Border Classes="metric">
                               <StackPanel Spacing="8">
                                 <TextBlock Classes="h2" Text="Journal" />
-                                <TextBox
-                                  PlaceholderText="Handle token (player)"
-                                  Text="{CompiledBinding LogbookHandleTokenText, Mode=TwoWay}"
-                                />
+                                <Grid ColumnDefinitions="1*,Auto" ColumnSpacing="8">
+                                  <TextBox
+                                    PlaceholderText="Handle token (player)"
+                                    Text="{CompiledBinding LogbookHandleTokenText, Mode=TwoWay}"
+                                  />
+                                  <Button
+                                    Grid.Column="1"
+                                    Classes="secondary"
+                                    Command="{CompiledBinding UseSelectedMobileForLogbookTargetCommand}"
+                                    Content="Use Roster"
+                                    IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
+                                  />
+                                </Grid>
                                 <ComboBox
                                   ItemsSource="{CompiledBinding LogbookPageOptions}"
                                   SelectedItem="{CompiledBinding SelectedLogbookPageOption, Mode=TwoWay}"
@@ -531,6 +795,11 @@
                                   Classes="secondary"
                                   Command="{CompiledBinding ReadLogbookDiagnosticsCommand}"
                                   Content="Load Page"
+                                />
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="Use Roster copies the selected mobile from the Mobiles tab so you can inspect companion journal data without retyping live handles."
+                                  TextWrapping="Wrap"
                                 />
                                 <TextBlock Classes="h3" Text="{CompiledBinding LogbookStatusText}" />
 
@@ -609,6 +878,66 @@
                                 </StackPanel>
                               </Border>
 
+                              <Border Classes="metric">
+                                <StackPanel Spacing="8">
+                                  <TextBlock Classes="h2" Text="Live Entry Shortcuts" />
+                                  <TextBlock
+                                    Classes="meta"
+                                    Text="{CompiledBinding LogbookEditableEntrySummaryText}"
+                                    TextWrapping="Wrap"
+                                  />
+                                  <ListBox
+                                    Classes="sidebar"
+                                    ItemsSource="{CompiledBinding LogbookEditableEntries}"
+                                    MaxHeight="280"
+                                    MinHeight="150"
+                                    SelectedItem="{CompiledBinding SelectedLogbookEditableEntry, Mode=TwoWay}"
+                                  >
+                                    <ListBox.ItemTemplate>
+                                      <DataTemplate x:DataType="viewmodels:DebuggerLogbookEditableEntry">
+                                        <Border
+                                          Margin="0,0,0,6"
+                                          Background="#151A20"
+                                          BorderBrush="{DynamicResource SoftLineBrush}"
+                                          BorderThickness="1"
+                                          CornerRadius="6"
+                                          Padding="8,6"
+                                        >
+                                          <StackPanel Spacing="3">
+                                            <DockPanel LastChildFill="False">
+                                              <TextBlock
+                                                Classes="h3"
+                                                DockPanel.Dock="Left"
+                                                Text="{CompiledBinding DisplayName}"
+                                              />
+                                              <Border
+                                                Background="#21262D"
+                                                CornerRadius="999"
+                                                DockPanel.Dock="Right"
+                                                Padding="8,3"
+                                              >
+                                                <TextBlock Classes="meta" Text="{CompiledBinding Category}" />
+                                              </Border>
+                                            </DockPanel>
+                                            <TextBlock Classes="code" Text="{CompiledBinding CurrentValueText}" />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding SuggestedOperationText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding DetailText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                          </StackPanel>
+                                        </Border>
+                                      </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                  </ListBox>
+                                </StackPanel>
+                              </Border>
+
                               <Border Classes="metric" IsVisible="{CompiledBinding ShowLogbookFallbackLines}">
                                 <StackPanel Spacing="8">
                                   <TextBlock Classes="h2" Text="Fallback" />
@@ -634,6 +963,206 @@
                                   </ItemsControl>
                                 </StackPanel>
                               </Border>
+
+                              <Border Classes="metric">
+                                <StackPanel Spacing="8">
+                                  <DockPanel LastChildFill="False">
+                                    <TextBlock Classes="h2" DockPanel.Dock="Left" Text="Editor" />
+                                    <Button
+                                      Classes="action"
+                                      Command="{CompiledBinding LoadLogbookCatalogCommand}"
+                                      Content="Load Catalog"
+                                      DockPanel.Dock="Right"
+                                      IsEnabled="{CompiledBinding CanLoadLogbookCatalog}"
+                                      IsVisible="{CompiledBinding LogbookMutationShowCatalogBrowser}"
+                                    />
+                                  </DockPanel>
+                                  <TextBlock Classes="meta" Text="{CompiledBinding LogbookCatalogStatusText}" />
+                                  <TextBlock
+                                    Classes="meta"
+                                    Text="{CompiledBinding LogbookCatalogSummaryText}"
+                                    TextWrapping="Wrap"
+                                  />
+                                  <ComboBox
+                                    ItemsSource="{CompiledBinding LogbookMutationOptions}"
+                                    SelectedItem="{CompiledBinding SelectedLogbookMutationOption, Mode=TwoWay}"
+                                  >
+                                    <ComboBox.ItemTemplate>
+                                      <DataTemplate x:DataType="viewmodels:DebuggerLogbookMutationOption">
+                                        <TextBlock Text="{CompiledBinding Label}" />
+                                      </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                  </ComboBox>
+                                  <TextBlock
+                                    Classes="meta"
+                                    Text="{CompiledBinding LogbookMutationInputHintText}"
+                                    TextWrapping="Wrap"
+                                  />
+                                  <Border
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    IsVisible="{CompiledBinding LogbookMutationShowLiveStateInspector}"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="4">
+                                      <TextBlock
+                                        Classes="h3"
+                                        Text="{CompiledBinding LogbookMutationLiveStateStatusText}"
+                                      />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding LogbookMutationLiveStateSummaryText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                    </StackPanel>
+                                  </Border>
+                                  <TextBlock Classes="meta" Text="{CompiledBinding LogbookMutationStatusText}" />
+                                  <TextBox
+                                    IsVisible="{CompiledBinding LogbookMutationShowCatalogBrowser}"
+                                    PlaceholderText="Filter local journal or source catalog"
+                                    Text="{CompiledBinding LogbookCatalogFilterText, Mode=TwoWay}"
+                                  />
+                                  <ListBox
+                                    Classes="sidebar"
+                                    IsVisible="{CompiledBinding LogbookMutationShowCatalogBrowser}"
+                                    ItemsSource="{CompiledBinding LogbookCatalogEntries}"
+                                    MaxHeight="320"
+                                    MinHeight="180"
+                                    SelectedItem="{CompiledBinding SelectedLogbookCatalogEntry, Mode=TwoWay}"
+                                  >
+                                    <ListBox.ItemTemplate>
+                                      <DataTemplate x:DataType="core:LogbookCatalogEntrySnapshot">
+                                        <Border
+                                          Margin="0,0,0,6"
+                                          Background="#151A20"
+                                          BorderBrush="{DynamicResource SoftLineBrush}"
+                                          BorderThickness="1"
+                                          CornerRadius="6"
+                                          Padding="8,6"
+                                        >
+                                          <StackPanel Spacing="3">
+                                            <DockPanel LastChildFill="False">
+                                              <TextBlock
+                                                Classes="h3"
+                                                DockPanel.Dock="Left"
+                                                Text="{CompiledBinding DisplayName}"
+                                              />
+                                              <Border
+                                                Background="#21262D"
+                                                CornerRadius="999"
+                                                DockPanel.Dock="Right"
+                                                Padding="8,3"
+                                              >
+                                                <TextBlock Classes="meta" Text="{CompiledBinding CategoryToken}" />
+                                              </Border>
+                                            </DockPanel>
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding DetailText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                            <DockPanel LastChildFill="False">
+                                              <TextBlock
+                                                Classes="code"
+                                                DockPanel.Dock="Left"
+                                                Text="{CompiledBinding EntryId}"
+                                              />
+                                              <TextBlock
+                                                Classes="meta"
+                                                DockPanel.Dock="Right"
+                                                Text="{CompiledBinding AuxiliaryId}"
+                                              />
+                                            </DockPanel>
+                                          </StackPanel>
+                                        </Border>
+                                      </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                  </ListBox>
+                                  <Grid ColumnDefinitions="1*,1*" ColumnSpacing="8">
+                                    <TextBox
+                                      IsEnabled="{CompiledBinding LogbookMutationRequiresEntry}"
+                                      PlaceholderText="Entry id or selected catalog row"
+                                      Text="{CompiledBinding LogbookMutationEntryText, Mode=TwoWay}"
+                                    />
+                                    <ComboBox
+                                      Grid.Column="1"
+                                      IsVisible="{CompiledBinding LogbookMutationShowValueSelector}"
+                                      ItemsSource="{CompiledBinding LogbookMutationValueOptions}"
+                                      SelectedItem="{CompiledBinding SelectedLogbookMutationValueOption, Mode=TwoWay}"
+                                    >
+                                      <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                          <TextBlock Text="{CompiledBinding Label}" />
+                                        </DataTemplate>
+                                      </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBox
+                                      Grid.Column="1"
+                                      IsVisible="{CompiledBinding LogbookMutationShowValueInput}"
+                                      PlaceholderText="{CompiledBinding LogbookMutationValuePlaceholderText}"
+                                      Text="{CompiledBinding LogbookMutationValueText, Mode=TwoWay}"
+                                    />
+                                  </Grid>
+                                  <Grid ColumnDefinitions="1*,Auto,0.8*,Auto" ColumnSpacing="8">
+                                    <TextBox
+                                      IsVisible="{CompiledBinding LogbookMutationShowAuxiliaryInput}"
+                                      PlaceholderText="{CompiledBinding LogbookMutationAuxiliaryPlaceholderText}"
+                                      Text="{CompiledBinding LogbookMutationAuxiliaryText, Mode=TwoWay}"
+                                    />
+                                    <Button
+                                      Grid.Column="1"
+                                      Classes="secondary"
+                                      Command="{CompiledBinding UseSelectedMobileForLogbookAuxiliaryCommand}"
+                                      Content="Use Roster"
+                                      IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
+                                      IsVisible="{CompiledBinding LogbookMutationShowAuxiliaryRosterButton}"
+                                    />
+                                    <TextBox
+                                      Grid.Column="2"
+                                      PlaceholderText="Timeout ms"
+                                      Text="{CompiledBinding LogbookMutationTimeoutText, Mode=TwoWay}"
+                                    />
+                                    <Button
+                                      Grid.Column="3"
+                                      Classes="action"
+                                      Command="{CompiledBinding ApplyLogbookMutationCommand}"
+                                      Content="Apply"
+                                      IsEnabled="{CompiledBinding CanApplyLogbookMutation}"
+                                    />
+                                  </Grid>
+                                  <ItemsControl ItemsSource="{CompiledBinding LogbookMutationResultLines}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                  <Border
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="4">
+                                      <TextBlock Classes="h3" Text="Result" />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding LogbookMutationDispatcherText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding LogbookMutationExecutionDetailText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="code" Text="{CompiledBinding LogbookMutationResultText}" />
+                                    </StackPanel>
+                                  </Border>
+                                </StackPanel>
+                              </Border>
                             </StackPanel>
                           </Grid>
                         </TabItem>
@@ -647,15 +1176,52 @@
                         <Border Classes="metric" Margin="0,0,0,0">
                           <StackPanel Spacing="8">
                             <TextBlock Classes="h2" Text="Runtime Reads" />
-                            <TextBox
-                              PlaceholderText="Proto token / number"
-                              Text="{CompiledBinding PrototypeTokenText, Mode=TwoWay}"
+                            <Grid ColumnDefinitions="1.05*,Auto,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Proto, name, object id, GUID, or palette search"
+                                Text="{CompiledBinding PrototypeTokenText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="1"
+                                Classes="secondary"
+                                Command="{CompiledBinding BrowseLookupSupportedCatalogCommand}"
+                                Content="Pick Supported"
+                                IsEnabled="{CompiledBinding CanLoadGameDataCatalog}"
+                              />
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding ResolvePrototypeCommand}"
+                                Content="Resolve"
+                              />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <Button
+                                Classes="secondary"
+                                Command="{CompiledBinding BrowseLookupPrototypeCatalogCommand}"
+                                Content="Pick Proto"
+                                IsEnabled="{CompiledBinding CanLoadGameDataCatalog}"
+                              />
+                              <Button
+                                Classes="secondary"
+                                Command="{CompiledBinding BrowseLookupStaticObjectCatalogCommand}"
+                                Content="Pick Placed"
+                                IsEnabled="{CompiledBinding CanLoadGameDataCatalog}"
+                              />
+                            </StackPanel>
+                            <TextBlock
+                              Classes="meta"
+                              Text="Pick Supported searches the local workspace across both prototype palette entries and placed mob or sector objects. Pick Proto stays in the object palette, while Pick Placed searches concrete mob or sector objects and can return exact GUID or object-id tokens. The same lookup box still accepts direct proto numbers, object ids, or GUIDs when you already know them."
+                              TextWrapping="Wrap"
                             />
-                            <Button
-                              Classes="secondary"
-                              Command="{CompiledBinding ResolvePrototypeCommand}"
-                              Content="Resolve"
+                            <controls:GameDataSupportedInputPanel
+                              ApplyEntryCommand="{CompiledBinding ApplyLookupSupportedInputCommand}"
+                              ApplyValueCommand="{CompiledBinding ApplyLookupSupportedInputValueCommand}"
+                              BrowseCommand="{CompiledBinding BrowseLookupSupportedCatalogCommand}"
+                              FilterText="{CompiledBinding LookupSupportedInputFilterText, Mode=TwoWay}"
+                              State="{CompiledBinding LookupSupportedInputPanelState}"
                             />
+                            <controls:GameDataQuickPickPanel IsVisible="{CompiledBinding LookupQuickPickVisible}" />
                             <TextBlock Classes="h3" Text="{CompiledBinding PrototypeStatusText}" />
                             <ItemsControl ItemsSource="{CompiledBinding PrototypeResultLines}">
                               <ItemsControl.ItemTemplate>
@@ -1041,8 +1607,13 @@
                           <StackPanel Spacing="8">
                             <TextBlock Classes="h2" Text="Module Symbols" />
                             <TextBox
-                              PlaceholderText="Module path"
+                              PlaceholderText="Executable or DLL path"
                               Text="{CompiledBinding OfflineModulePathText, Mode=TwoWay}"
+                            />
+                            <TextBlock
+                              Classes="meta"
+                              Text="Use one offline executable or DLL path here when you want a standalone symbol lookup without an attached session."
+                              TextWrapping="Wrap"
                             />
                             <Grid ColumnDefinitions="1.1*,0.45*,0.65*" ColumnSpacing="8">
                               <TextBox
@@ -1426,66 +1997,891 @@
           <TabItem Header="Act">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <StackPanel Margin="2,12,2,2" Spacing="16">
-                <TabControl>
+                <TabControl SelectedIndex="{CompiledBinding SelectedActTabIndex, Mode=TwoWay}">
                   <TabItem Header="Guided">
-                    <Grid Margin="0,12,0,0" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+                    <Border Margin="0,12,0,0" Classes="metric">
+                      <StackPanel Spacing="8">
+                        <TextBlock Classes="h2" Text="Guided Action" />
+                        <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionStatusText}" />
+                        <ComboBox
+                          ItemsSource="{CompiledBinding GuidedActionOptions}"
+                          SelectedItem="{CompiledBinding SelectedGuidedActionOption, Mode=TwoWay}"
+                        >
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="core:GuidedActionDescriptor">
+                              <TextBlock Text="{CompiledBinding DisplayName}" />
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock
+                          Classes="meta"
+                          Text="{CompiledBinding GuidedActionTargetSummaryText}"
+                          TextWrapping="Wrap"
+                        />
+                        <Grid ColumnDefinitions="1.1*,Auto,0.65*,0.65*,Auto" ColumnSpacing="8">
+                          <TextBox
+                            PlaceholderText="{CompiledBinding GuidedActionTravelerPlaceholderText}"
+                            Text="{CompiledBinding GuidedActionTravelerText, Mode=TwoWay}"
+                          />
+                          <Button
+                            Grid.Column="1"
+                            Classes="secondary"
+                            Command="{CompiledBinding UseSelectedMobileForGuidedActionCommand}"
+                            Content="Use Roster"
+                            IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
+                          />
+                          <TextBox
+                            Grid.Column="2"
+                            IsVisible="{CompiledBinding GuidedActionShowTileInputs}"
+                            PlaceholderText="{CompiledBinding GuidedActionTileXPlaceholderText}"
+                            Text="{CompiledBinding GuidedActionTileXText, Mode=TwoWay}"
+                          />
+                          <TextBox
+                            Grid.Column="3"
+                            IsVisible="{CompiledBinding GuidedActionShowTileInputs}"
+                            PlaceholderText="{CompiledBinding GuidedActionTileYPlaceholderText}"
+                            Text="{CompiledBinding GuidedActionTileYText, Mode=TwoWay}"
+                          />
+                          <Button
+                            Grid.Column="4"
+                            Classes="secondary"
+                            Command="{CompiledBinding BrowseGuidedActionWorldCatalogCommand}"
+                            Content="Pick World"
+                            IsEnabled="{CompiledBinding CanLoadGameDataCatalog}"
+                            IsVisible="{CompiledBinding GuidedActionShowTileInputs}"
+                          />
+                        </Grid>
+                        <TextBlock
+                          Classes="meta"
+                          Text="Use Roster copies the currently selected mobile from the Mobiles tab into the traveler field. Pick World now searches the local workspace right here so teleport targets can come from known map data instead of manual coordinates."
+                          TextWrapping="Wrap"
+                        />
+                        <controls:GameDataSupportedInputPanel
+                          ApplyEntryCommand="{CompiledBinding ApplyGuidedActionWorldSupportedInputCommand}"
+                          ApplyValueCommand="{CompiledBinding ApplyGuidedActionWorldSupportedInputValueCommand}"
+                          BrowseCommand="{CompiledBinding BrowseGuidedActionWorldCatalogCommand}"
+                          FilterText="{CompiledBinding GuidedActionWorldSupportedInputFilterText, Mode=TwoWay}"
+                          IsVisible="{CompiledBinding GuidedActionWorldSupportedInputPanelVisible}"
+                          State="{CompiledBinding GuidedActionWorldSupportedInputPanelState}"
+                        />
+                        <controls:GameDataQuickPickPanel IsVisible="{CompiledBinding GuidedActionQuickPickVisible}" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                          <TextBox
+                            IsVisible="{CompiledBinding GuidedActionShowMapIdInput}"
+                            PlaceholderText="{CompiledBinding GuidedActionMapIdPlaceholderText}"
+                            Text="{CompiledBinding GuidedActionMapIdText, Mode=TwoWay}"
+                          />
+                          <TextBox
+                            Grid.Column="1"
+                            IsVisible="{CompiledBinding GuidedActionShowFlagsInput}"
+                            PlaceholderText="{CompiledBinding GuidedActionFlagsPlaceholderText}"
+                            Text="{CompiledBinding GuidedActionFlagsText, Mode=TwoWay}"
+                          />
+                          <TextBox
+                            Grid.Column="2"
+                            PlaceholderText="Timeout ms"
+                            Text="{CompiledBinding GuidedActionTimeoutText, Mode=TwoWay}"
+                          />
+                        </Grid>
+                        <Button
+                          Classes="action"
+                          Command="{CompiledBinding InvokeGuidedActionCommand}"
+                          Content="Run"
+                          IsEnabled="{CompiledBinding CanInvokeGuidedAction}"
+                        />
+                        <Border
+                          Background="#151A20"
+                          BorderBrush="{DynamicResource SoftLineBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8,6"
+                        >
+                          <StackPanel Spacing="4">
+                            <TextBlock Classes="h3" Text="Result" />
+                            <TextBlock
+                              Classes="meta"
+                              Text="{CompiledBinding GuidedActionDispatcherText}"
+                              TextWrapping="Wrap"
+                            />
+                            <TextBlock
+                              Classes="meta"
+                              Text="{CompiledBinding GuidedActionExecutionDetailText}"
+                              TextWrapping="Wrap"
+                            />
+                            <TextBlock Classes="code" Text="{CompiledBinding GuidedActionResultText}" />
+                          </StackPanel>
+                        </Border>
+                      </StackPanel>
+                    </Border>
+                  </TabItem>
+
+                  <TabItem Header="Inventory">
+                    <Grid Margin="0,12,0,0" ColumnDefinitions="320,*" ColumnSpacing="16">
                       <Border Classes="metric">
-                        <StackPanel Spacing="8">
-                          <TextBlock Classes="h2" Text="Guided Action" />
-                          <TextBlock Classes="meta" Text="{CompiledBinding GuidedActionStatusText}" />
-                          <ComboBox
-                            ItemsSource="{CompiledBinding GuidedActionOptions}"
-                            SelectedItem="{CompiledBinding SelectedGuidedActionOption, Mode=TwoWay}"
+                        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="Owners" />
+                            <TextBlock
+                              Classes="meta"
+                              Text="{CompiledBinding InventoryOwnerStatusText}"
+                              TextWrapping="Wrap"
+                            />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <Button
+                                Classes="secondary"
+                                Command="{CompiledBinding RefreshMobileRosterCommand}"
+                                Content="Refresh Characters"
+                                IsEnabled="{CompiledBinding CanRefreshMobileRoster}"
+                              />
+                              <Button
+                                Classes="secondary"
+                                Command="{CompiledBinding RefreshInventoryLiveStateCommand}"
+                                Content="Refresh Items"
+                                IsEnabled="{CompiledBinding CanRefreshInventoryLiveState}"
+                              />
+                            </StackPanel>
+                          </StackPanel>
+
+                          <ListBox
+                            Grid.Row="1"
+                            Classes="sidebar"
+                            ItemsSource="{CompiledBinding InventoryOwnerEntries}"
+                            SelectedItem="{CompiledBinding SelectedInventoryOwnerEntry, Mode=TwoWay}"
                           >
-                            <ComboBox.ItemTemplate>
-                              <DataTemplate x:DataType="core:GuidedActionDescriptor">
-                                <TextBlock Text="{CompiledBinding DisplayName}" />
+                            <ListBox.ItemTemplate>
+                              <DataTemplate x:DataType="viewmodels:InventoryOwnerEntry">
+                                <Border
+                                  Margin="0,0,0,6"
+                                  Background="#151A20"
+                                  BorderBrush="{DynamicResource SoftLineBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="8,6"
+                                >
+                                  <StackPanel Spacing="3">
+                                    <DockPanel LastChildFill="False">
+                                      <TextBlock
+                                        Classes="h3"
+                                        DockPanel.Dock="Left"
+                                        Text="{CompiledBinding DisplayText}"
+                                      />
+                                      <Border
+                                        Background="#21262D"
+                                        CornerRadius="999"
+                                        DockPanel.Dock="Right"
+                                        Padding="8,2"
+                                      >
+                                        <TextBlock Classes="meta" Text="{CompiledBinding RoleText}" />
+                                      </Border>
+                                    </DockPanel>
+                                    <TextBlock
+                                      Classes="meta"
+                                      Text="{CompiledBinding SummaryText}"
+                                      TextWrapping="Wrap"
+                                    />
+                                    <TextBlock Classes="code" Text="{CompiledBinding HandleTokenText}" />
+                                  </StackPanel>
+                                </Border>
                               </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                          </ComboBox>
+                            </ListBox.ItemTemplate>
+                          </ListBox>
+
                           <TextBlock
+                            Grid.Row="2"
                             Classes="meta"
-                            Text="{CompiledBinding GuidedActionTargetSummaryText}"
+                            Text="{CompiledBinding InventoryLiveStatusText}"
                             TextWrapping="Wrap"
                           />
-                          <Grid ColumnDefinitions="1.1*,0.7*,0.7*" ColumnSpacing="8">
-                            <TextBox
-                              PlaceholderText="Traveler handle or player"
-                              Text="{CompiledBinding GuidedActionTravelerText, Mode=TwoWay}"
+                        </Grid>
+                      </Border>
+
+                      <StackPanel Grid.Column="1" Spacing="16">
+                        <Border Classes="metric">
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="Selected Inventory" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding InventoryLiveStatusText}" />
+                            <TextBlock
+                              Classes="meta"
+                              Text="{CompiledBinding InventoryLiveSummaryText}"
+                              TextWrapping="Wrap"
                             />
+                            <Grid ColumnDefinitions="0.95*,1.2*,0.55*,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Owner handle or player"
+                                Text="{CompiledBinding InventoryOwnerTokenText, Mode=TwoWay}"
+                              />
+                              <TextBox
+                                Grid.Column="1"
+                                PlaceholderText="Module item token"
+                                Text="{CompiledBinding InventoryPrototypeTokenText, Mode=TwoWay}"
+                              />
+                              <TextBox
+                                Grid.Column="2"
+                                PlaceholderText="Slot"
+                                Text="{CompiledBinding InventoryLocationText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="3"
+                                Classes="action"
+                                Command="{CompiledBinding CreateInventoryItemCommand}"
+                                Content="Create Item"
+                                IsEnabled="{CompiledBinding CanCreateInventoryItem}"
+                              />
+                            </Grid>
+                            <controls:GameDataSupportedInputPanel
+                              ApplyEntryCommand="{CompiledBinding ApplyInventorySupportedInputCommand}"
+                              ApplyValueCommand="{CompiledBinding ApplyInventorySupportedInputValueCommand}"
+                              BrowseCommand="{CompiledBinding BrowseInventorySupportedCatalogCommand}"
+                              FilterText="{CompiledBinding InventorySupportedInputFilterText, Mode=TwoWay}"
+                              State="{CompiledBinding InventorySupportedInputPanelState}"
+                            />
+                            <controls:GameDataQuickPickPanel IsVisible="{CompiledBinding InventoryQuickPickVisible}" />
+                          </StackPanel>
+                        </Border>
+
+                        <Border Classes="metric">
+                          <StackPanel Spacing="8">
+                            <DockPanel LastChildFill="False">
+                              <TextBlock Classes="h2" DockPanel.Dock="Left" Text="Live Items" />
+                              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                                <Button
+                                  Classes="secondary"
+                                  Command="{CompiledBinding UseSelectedInventoryLiveItemHandleCommand}"
+                                  Content="Use Selected"
+                                  IsEnabled="{CompiledBinding CanUseSelectedInventoryLiveItemHandle}"
+                                />
+                                <Button
+                                  Classes="secondary"
+                                  Command="{CompiledBinding InspectSelectedInventoryLiveItemCommand}"
+                                  Content="Inspect"
+                                  IsEnabled="{CompiledBinding CanInspectSelectedInventoryLiveItem}"
+                                />
+                              </StackPanel>
+                            </DockPanel>
+
+                            <ListBox
+                              Classes="sidebar"
+                              ItemsSource="{CompiledBinding InventoryLiveItemEntries}"
+                              MaxHeight="360"
+                              SelectedItem="{CompiledBinding SelectedInventoryLiveItemEntry, Mode=TwoWay}"
+                            >
+                              <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:InventoryLiveItemEntry">
+                                  <Border
+                                    Margin="0,0,0,6"
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="3">
+                                      <DockPanel LastChildFill="False">
+                                        <TextBlock
+                                          Classes="h3"
+                                          DockPanel.Dock="Left"
+                                          Text="{CompiledBinding DisplayText}"
+                                        />
+                                        <Border
+                                          Background="#21262D"
+                                          CornerRadius="999"
+                                          DockPanel.Dock="Right"
+                                          Padding="8,2"
+                                        >
+                                          <TextBlock Classes="meta" Text="{CompiledBinding SlotLabelText}" />
+                                        </Border>
+                                      </DockPanel>
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding PrototypeText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="code" Text="{CompiledBinding HandleText}" />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SummaryText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                    </StackPanel>
+                                  </Border>
+                                </DataTemplate>
+                              </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Grid ColumnDefinitions="1.1*,0.7*,Auto,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Item handle"
+                                Text="{CompiledBinding InventoryItemHandleText, Mode=TwoWay}"
+                              />
+                              <TextBox
+                                Grid.Column="1"
+                                PlaceholderText="Timeout ms"
+                                Text="{CompiledBinding InventoryTimeoutText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding DestroyInventoryItemCommand}"
+                                Content="Destroy Item"
+                                IsEnabled="{CompiledBinding CanDestroyInventoryItem}"
+                              />
+                              <Button
+                                Grid.Column="3"
+                                Classes="secondary"
+                                Command="{CompiledBinding RefreshInventoryLiveStateCommand}"
+                                Content="Refresh"
+                                IsEnabled="{CompiledBinding CanRefreshInventoryLiveState}"
+                              />
+                            </Grid>
+
+                            <TextBlock Classes="h3" Text="Last Inventory Action" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding InventoryEditorStatusText}" />
+                            <ItemsControl ItemsSource="{CompiledBinding InventoryEditorResultLines}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </Border>
+                      </StackPanel>
+                    </Grid>
+                  </TabItem>
+
+                  <TabItem Header="Mobiles">
+                    <Grid Margin="0,12,0,0" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+                      <Border Classes="metric">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                          <TextBlock Classes="h2" Text="Live Mobile Roster" />
+
+                          <StackPanel Grid.Row="1" Spacing="8">
+                            <TextBlock Classes="meta" Text="{CompiledBinding MobileRosterStatusText}" />
+                            <Grid ColumnDefinitions="1.2*,Auto,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Filter by handle, proto, type, or label"
+                                Text="{CompiledBinding MobileRosterFilterText, Mode=TwoWay}"
+                              />
+                              <CheckBox
+                                Grid.Column="1"
+                                Content="Auto refresh"
+                                IsChecked="{CompiledBinding MobileRosterAutoRefresh, Mode=TwoWay}"
+                                VerticalAlignment="Center"
+                              />
+                              <Button
+                                Grid.Column="2"
+                                Classes="action"
+                                Command="{CompiledBinding RefreshMobileRosterCommand}"
+                                Content="Refresh"
+                                IsEnabled="{CompiledBinding CanRefreshMobileRoster}"
+                              />
+                            </Grid>
+                            <TextBlock
+                              Classes="meta"
+                              Text="{CompiledBinding MobileRosterSummaryText}"
+                              TextWrapping="Wrap"
+                            />
+                          </StackPanel>
+
+                          <ListBox
+                            Grid.Row="2"
+                            Classes="sidebar"
+                            ItemsSource="{CompiledBinding MobileRosterEntries}"
+                            SelectedItem="{CompiledBinding SelectedMobileRosterEntry, Mode=TwoWay}"
+                          >
+                            <ListBox.ItemTemplate>
+                              <DataTemplate x:DataType="core:MobileRosterEntrySnapshot">
+                                <Border
+                                  Margin="0,0,0,6"
+                                  Background="#151A20"
+                                  BorderBrush="{DynamicResource SoftLineBrush}"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="8,6"
+                                >
+                                  <StackPanel Spacing="3">
+                                    <DockPanel LastChildFill="False">
+                                      <TextBlock
+                                        Classes="h3"
+                                        DockPanel.Dock="Left"
+                                        Text="{CompiledBinding DisplayText}"
+                                      />
+                                      <Border
+                                        Background="#21262D"
+                                        CornerRadius="999"
+                                        DockPanel.Dock="Right"
+                                        Padding="8,3"
+                                      >
+                                        <TextBlock Classes="meta" Text="{CompiledBinding ObjectTypeText}" />
+                                      </Border>
+                                    </DockPanel>
+                                    <TextBlock Classes="meta" Text="{CompiledBinding StatusText}" />
+                                    <TextBlock Classes="meta" Text="{CompiledBinding PrototypeText}" />
+                                    <TextBlock Classes="code" Text="{CompiledBinding HandleHex}" />
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ListBox.ItemTemplate>
+                          </ListBox>
+
+                          <TextBlock Grid.Row="3" Classes="meta" Text="{CompiledBinding MobileMutationStatusText}" />
+                        </Grid>
+                      </Border>
+
+                      <StackPanel Grid.Column="1" Spacing="16">
+                        <Border Classes="metric">
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="Selected Mobile" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding MobileMutationStatusText}" />
+                            <ContentControl Content="{CompiledBinding SelectedMobileRosterEntry}">
+                              <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="core:MobileRosterEntrySnapshot">
+                                  <Border
+                                    Background="#151A20"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="3">
+                                      <TextBlock Classes="h3" Text="{CompiledBinding DisplayText}" />
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding PrototypeText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="meta" Text="{CompiledBinding StatusText}" />
+                                      <TextBlock Classes="code" Text="{CompiledBinding HandleHex}" />
+                                    </StackPanel>
+                                  </Border>
+                                </DataTemplate>
+                              </ContentControl.ContentTemplate>
+                            </ContentControl>
+                            <Grid ColumnDefinitions="1.2*,Auto,Auto,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Target handle or player"
+                                Text="{CompiledBinding MobileTargetHandleText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="1"
+                                Classes="action"
+                                Command="{CompiledBinding InspectSelectedMobileCommand}"
+                                Content="Inspect Details"
+                                IsEnabled="{CompiledBinding CanInspectSelectedMobile}"
+                              />
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding KillMobileCommand}"
+                                Content="Kill"
+                                IsEnabled="{CompiledBinding CanKillMobile}"
+                              />
+                              <Button
+                                Grid.Column="3"
+                                Classes="secondary"
+                                Command="{CompiledBinding DespawnMobileCommand}"
+                                Content="Despawn"
+                                IsEnabled="{CompiledBinding CanDespawnMobile}"
+                              />
+                            </Grid>
+                          </StackPanel>
+                        </Border>
+
+                        <Border Classes="metric">
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="Edit Base Stat" />
+                            <Grid ColumnDefinitions="1.1*,0.8*,0.7*,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Stat token (strength, level, alignment)"
+                                Text="{CompiledBinding MobileStatTokenText, Mode=TwoWay}"
+                              />
+                              <TextBox
+                                Grid.Column="1"
+                                PlaceholderText="Value"
+                                Text="{CompiledBinding MobileStatValueText, Mode=TwoWay}"
+                              />
+                              <TextBox
+                                Grid.Column="2"
+                                PlaceholderText="Timeout ms"
+                                Text="{CompiledBinding MobileMutationTimeoutText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="3"
+                                Classes="action"
+                                Command="{CompiledBinding SetMobileStatCommand}"
+                                Content="Set Stat"
+                                IsEnabled="{CompiledBinding CanSetMobileStat}"
+                              />
+                            </Grid>
+                          </StackPanel>
+                        </Border>
+
+                        <Border Classes="metric">
+                          <StackPanel Spacing="12">
+                            <TextBlock Classes="h2" Text="Create Mobile or Object" />
+                            <TextBlock Classes="meta" Text="{CompiledBinding GameDataCatalogPresetSourceText}" />
+                            <Grid ColumnDefinitions="1.0*,Auto,1.0*,Auto" ColumnSpacing="8">
+                              <TextBox
+                                PlaceholderText="Anchor handle or player"
+                                Text="{CompiledBinding MobileSpawnAnchorTokenText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="1"
+                                Classes="secondary"
+                                Command="{CompiledBinding UseSelectedMobileForSpawnAnchorCommand}"
+                                Content="Use Roster"
+                                IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
+                              />
+                              <TextBox
+                                Grid.Column="2"
+                                PlaceholderText="Module spawn token"
+                                Text="{CompiledBinding MobileSpawnPrototypeTokenText, Mode=TwoWay}"
+                              />
+                              <Button
+                                Grid.Column="3"
+                                Classes="action"
+                                Command="{CompiledBinding SpawnMobileCommand}"
+                                Content="Create"
+                                IsEnabled="{CompiledBinding CanSpawnMobile}"
+                              />
+                            </Grid>
+                            <controls:GameDataSupportedInputPanel
+                              ApplyEntryCommand="{CompiledBinding ApplySpawnSupportedInputCommand}"
+                              ApplyValueCommand="{CompiledBinding ApplySpawnSupportedInputValueCommand}"
+                              BrowseCommand="{CompiledBinding BrowseSpawnSupportedCatalogCommand}"
+                              FilterText="{CompiledBinding SpawnSupportedInputFilterText, Mode=TwoWay}"
+                              State="{CompiledBinding SpawnSupportedInputPanelState}"
+                            />
+                            <controls:GameDataQuickPickPanel IsVisible="{CompiledBinding SpawnQuickPickVisible}" />
+                          </StackPanel>
+                        </Border>
+
+                        <Border Classes="metric">
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="Last Mobile Action" />
+                            <ItemsControl ItemsSource="{CompiledBinding MobileMutationResultLines}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </Border>
+                      </StackPanel>
+                    </Grid>
+                  </TabItem>
+
+                  <TabItem Header="Spell/Tech">
+                    <Grid
+                      Margin="0,12,0,0"
+                      RowDefinitions="Auto,*,Auto"
+                      ColumnDefinitions="1.05*,0.95*"
+                      ColumnSpacing="16"
+                      RowSpacing="16"
+                    >
+                      <Border Grid.ColumnSpan="2" Classes="metric">
+                        <StackPanel Spacing="8">
+                          <DockPanel LastChildFill="False">
+                            <TextBlock Classes="h2" DockPanel.Dock="Left" Text="Target" />
+                            <Button
+                              Classes="action"
+                              Command="{CompiledBinding LoadSpellTechLiveStateCommand}"
+                              Content="Load Current"
+                              DockPanel.Dock="Right"
+                              IsEnabled="{CompiledBinding CanLoadSpellTechLiveState}"
+                            />
+                          </DockPanel>
+                          <Grid ColumnDefinitions="1.05*,Auto,0.75*" ColumnSpacing="8">
                             <TextBox
+                              PlaceholderText="Target handle or player"
+                              Text="{CompiledBinding SpellTechTargetHandleText, Mode=TwoWay}"
+                            />
+                            <Button
                               Grid.Column="1"
-                              PlaceholderText="Tile X"
-                              Text="{CompiledBinding GuidedActionTileXText, Mode=TwoWay}"
-                            />
-                            <TextBox
-                              Grid.Column="2"
-                              PlaceholderText="Tile Y"
-                              Text="{CompiledBinding GuidedActionTileYText, Mode=TwoWay}"
-                            />
-                          </Grid>
-                          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                            <TextBox
-                              PlaceholderText="Map id (-1 current map)"
-                              Text="{CompiledBinding GuidedActionMapIdText, Mode=TwoWay}"
-                            />
-                            <TextBox
-                              Grid.Column="1"
-                              PlaceholderText="Flags"
-                              Text="{CompiledBinding GuidedActionFlagsText, Mode=TwoWay}"
+                              Classes="secondary"
+                              Command="{CompiledBinding UseSelectedMobileForSpellTechTargetCommand}"
+                              Content="Use Roster"
+                              IsEnabled="{CompiledBinding CanUseSelectedMobileRosterHandle}"
                             />
                             <TextBox
                               Grid.Column="2"
                               PlaceholderText="Timeout ms"
-                              Text="{CompiledBinding GuidedActionTimeoutText, Mode=TwoWay}"
+                              Text="{CompiledBinding SpellTechTimeoutText, Mode=TwoWay}"
                             />
                           </Grid>
-                          <Button
-                            Classes="action"
-                            Command="{CompiledBinding InvokeGuidedActionCommand}"
-                            Content="Run"
-                            IsEnabled="{CompiledBinding CanInvokeGuidedAction}"
+                          <TextBlock Classes="meta" Text="{CompiledBinding GameDataCatalogPresetSourceText}" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="{CompiledBinding GameDataCatalogPresetSummaryText}"
+                            TextWrapping="Wrap"
                           />
+                        </StackPanel>
+                      </Border>
+
+                      <Border Grid.Row="1" Classes="metric">
+                        <StackPanel Spacing="12">
+                          <TextBlock Classes="h2" Text="Spellbook and Schematics" />
+                          <TextBlock Classes="meta" Text="{CompiledBinding SpellTechMutationStatusText}" />
+
+                          <StackPanel Spacing="8">
+                            <DockPanel LastChildFill="False">
+                              <TextBlock Classes="h3" DockPanel.Dock="Left" Text="Learn Spell" />
+                              <Button
+                                Classes="action"
+                                Command="{CompiledBinding AddSpellCommand}"
+                                Content="Add Spell"
+                                DockPanel.Dock="Right"
+                                IsEnabled="{CompiledBinding CanAddSpell}"
+                              />
+                            </DockPanel>
+                            <TextBox
+                              PlaceholderText="Filter supported spells"
+                              Text="{CompiledBinding SpellTechSpellFilterText, Mode=TwoWay}"
+                            />
+                            <ListBox
+                              Classes="sidebar"
+                              ItemsSource="{CompiledBinding SpellTechSpellEntries}"
+                              MaxHeight="240"
+                              SelectedItem="{CompiledBinding SelectedSpellTechSpellEntry, Mode=TwoWay}"
+                            >
+                              <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+                                  <Border
+                                    Margin="0,0,0,6"
+                                    Background="#11161D"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="3">
+                                      <DockPanel LastChildFill="False">
+                                        <TextBlock
+                                          Classes="h3"
+                                          DockPanel.Dock="Left"
+                                          Text="{CompiledBinding TitleText}"
+                                        />
+                                        <Border
+                                          Background="#21262D"
+                                          CornerRadius="999"
+                                          DockPanel.Dock="Right"
+                                          Padding="8,2"
+                                        >
+                                          <TextBlock Classes="meta" Text="{CompiledBinding BadgeText}" />
+                                        </Border>
+                                      </DockPanel>
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SubtitleText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="code" Text="{CompiledBinding ApplyValueText}" />
+                                    </StackPanel>
+                                  </Border>
+                                </DataTemplate>
+                              </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock
+                              Classes="meta"
+                              Text="Spell add uses the native spellbook path with forced prerequisites, so learning a higher-tier spell also fills the lower tiers in that college."
+                              TextWrapping="Wrap"
+                            />
+                          </StackPanel>
+
+                          <StackPanel Spacing="8">
+                            <DockPanel LastChildFill="False">
+                              <TextBlock Classes="h3" DockPanel.Dock="Left" Text="Grant or Remove Schematic" />
+                              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                                <Button
+                                  Classes="action"
+                                  Command="{CompiledBinding GrantSchematicCommand}"
+                                  Content="Grant"
+                                  IsEnabled="{CompiledBinding CanGrantSchematic}"
+                                />
+                                <Button
+                                  Classes="secondary"
+                                  Command="{CompiledBinding RemoveSchematicCommand}"
+                                  Content="Remove"
+                                  IsEnabled="{CompiledBinding CanRemoveSchematic}"
+                                />
+                              </StackPanel>
+                            </DockPanel>
+                            <TextBox
+                              PlaceholderText="Filter supported schematics from the loaded module"
+                              Text="{CompiledBinding SpellTechSchematicFilterText, Mode=TwoWay}"
+                            />
+                            <ListBox
+                              Classes="sidebar"
+                              ItemsSource="{CompiledBinding SpellTechSchematicCatalogEntries}"
+                              MaxHeight="260"
+                              SelectedItem="{CompiledBinding SelectedSpellTechSchematicCatalogEntry, Mode=TwoWay}"
+                            >
+                              <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+                                  <Border
+                                    Margin="0,0,0,6"
+                                    Background="#11161D"
+                                    BorderBrush="{DynamicResource SoftLineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                  >
+                                    <StackPanel Spacing="3">
+                                      <DockPanel LastChildFill="False">
+                                        <TextBlock
+                                          Classes="h3"
+                                          DockPanel.Dock="Left"
+                                          Text="{CompiledBinding TitleText}"
+                                        />
+                                        <Border
+                                          Background="#21262D"
+                                          CornerRadius="999"
+                                          DockPanel.Dock="Right"
+                                          Padding="8,2"
+                                        >
+                                          <TextBlock Classes="meta" Text="{CompiledBinding BadgeText}" />
+                                        </Border>
+                                      </DockPanel>
+                                      <TextBlock
+                                        Classes="meta"
+                                        Text="{CompiledBinding SubtitleText}"
+                                        TextWrapping="Wrap"
+                                      />
+                                      <TextBlock Classes="code" Text="{CompiledBinding ApplyValueText}" />
+                                    </StackPanel>
+                                  </Border>
+                                </DataTemplate>
+                              </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock
+                              Classes="meta"
+                              Text="Supported schematics come from the loaded module catalog. Grant appends one discovered schematic when it is missing, and Remove compacts the runtime list when the id is already known."
+                              TextWrapping="Wrap"
+                            />
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+
+                      <Border Grid.Row="1" Grid.Column="1" Classes="metric">
+                        <StackPanel Spacing="12">
+                          <TextBlock Classes="h2" Text="Schools, Disciplines, Skills" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="Choose one supported college, discipline, or skill, then apply the level or point value without typing raw tokens."
+                            TextWrapping="Wrap"
+                          />
+
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h3" Text="Spell College Rank" />
+                            <Grid ColumnDefinitions="1.1*,0.65*,Auto" ColumnSpacing="8">
+                              <ComboBox
+                                ItemsSource="{CompiledBinding SpellTechCollegeEntries}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechCollegeEntry, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+                                    <TextBlock Text="{CompiledBinding TitleText}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <ComboBox
+                                Grid.Column="1"
+                                ItemsSource="{CompiledBinding SpellTechCollegeLevelOptions}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechCollegeLevelOption, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                    <TextBlock Text="{CompiledBinding Label}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding SetSpellCollegeLevelCommand}"
+                                Content="Set"
+                                IsEnabled="{CompiledBinding CanSetSpellCollegeLevel}"
+                              />
+                            </Grid>
+                          </StackPanel>
+
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h3" Text="Tech Discipline Degree" />
+                            <Grid ColumnDefinitions="1.1*,0.65*,Auto" ColumnSpacing="8">
+                              <ComboBox
+                                ItemsSource="{CompiledBinding SpellTechDisciplineEntries}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechDisciplineEntry, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+                                    <TextBlock Text="{CompiledBinding TitleText}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <ComboBox
+                                Grid.Column="1"
+                                ItemsSource="{CompiledBinding SpellTechDisciplineLevelOptions}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechDisciplineLevelOption, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                    <TextBlock Text="{CompiledBinding Label}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding SetTechDisciplineLevelCommand}"
+                                Content="Set"
+                                IsEnabled="{CompiledBinding CanSetTechDisciplineLevel}"
+                              />
+                            </Grid>
+                          </StackPanel>
+
+                          <StackPanel Spacing="8">
+                            <TextBlock Classes="h3" Text="Tech Skill Points" />
+                            <Grid ColumnDefinitions="1.1*,0.65*,Auto" ColumnSpacing="8">
+                              <ComboBox
+                                ItemsSource="{CompiledBinding SpellTechSkillEntries}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechSkillEntry, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+                                    <TextBlock Text="{CompiledBinding TitleText}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <ComboBox
+                                Grid.Column="1"
+                                ItemsSource="{CompiledBinding SpellTechSkillPointOptions}"
+                                SelectedItem="{CompiledBinding SelectedSpellTechSkillPointOption, Mode=TwoWay}"
+                              >
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                    <TextBlock Text="{CompiledBinding Label}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <Button
+                                Grid.Column="2"
+                                Classes="secondary"
+                                Command="{CompiledBinding SetTechSkillPointsCommand}"
+                                Content="Set"
+                                IsEnabled="{CompiledBinding CanSetTechSkillPoints}"
+                              />
+                            </Grid>
+                          </StackPanel>
+
+                          <ItemsControl ItemsSource="{CompiledBinding SpellTechMutationResultLines}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+
                           <Border
                             Background="#151A20"
                             BorderBrush="{DynamicResource SoftLineBrush}"
@@ -1497,108 +2893,650 @@
                               <TextBlock Classes="h3" Text="Result" />
                               <TextBlock
                                 Classes="meta"
-                                Text="{CompiledBinding GuidedActionDispatcherText}"
+                                Text="{CompiledBinding SpellTechMutationDispatcherText}"
                                 TextWrapping="Wrap"
                               />
                               <TextBlock
                                 Classes="meta"
-                                Text="{CompiledBinding GuidedActionExecutionDetailText}"
+                                Text="{CompiledBinding SpellTechMutationExecutionDetailText}"
                                 TextWrapping="Wrap"
                               />
-                              <TextBlock Classes="code" Text="{CompiledBinding GuidedActionResultText}" />
+                              <TextBlock Classes="code" Text="{CompiledBinding SpellTechMutationResultText}" />
                             </StackPanel>
                           </Border>
                         </StackPanel>
                       </Border>
 
-                      <StackPanel Grid.Column="1" Spacing="16">
-                        <Border Classes="metric">
-                          <StackPanel Spacing="8">
-                            <TextBlock Classes="h2" Text="Writes" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                              <TextBox
-                                Width="220"
-                                PlaceholderText="Action points value"
-                                Text="{CompiledBinding RuntimeActionPointsText, Mode=TwoWay}"
-                              />
-                              <Button
-                                Classes="action"
-                                Command="{CompiledBinding WriteRuntimeActionPointsCommand}"
-                                Content="Write AP"
-                              />
+                      <Border Grid.Row="2" Grid.ColumnSpan="2" Classes="metric">
+                        <StackPanel Spacing="8">
+                          <TextBlock Classes="h2" Text="Current Target Snapshot" />
+                          <TextBlock Classes="meta" Text="{CompiledBinding SpellTechLiveStateStatusText}" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="{CompiledBinding SpellTechLiveStateSummaryText}"
+                            TextWrapping="Wrap"
+                          />
+                          <Grid ColumnDefinitions="1*,1*,1*" ColumnSpacing="16">
+                            <StackPanel Spacing="8">
+                              <TextBlock Classes="h3" Text="Known Spells" />
+                              <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{CompiledBinding SpellTechKnownSpellEntries}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewmodels:DebuggerSpellTechKnownSpellEntry">
+                                      <Border
+                                        Margin="0,0,0,6"
+                                        Background="#11161D"
+                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                      >
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                          <StackPanel Spacing="3">
+                                            <TextBlock Classes="h3" Text="{CompiledBinding TitleText}" />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding SubtitleText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                            <TextBlock Classes="code" Text="{CompiledBinding TokenText}" />
+                                          </StackPanel>
+                                          <Button
+                                            Grid.Column="1"
+                                            Classes="secondary"
+                                            Command="{Binding #RootWindow.DataContext.UseSpellTechKnownSpellCommand}"
+                                            CommandParameter="{Binding}"
+                                            Content="Use"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                          />
+                                        </Grid>
+                                      </Border>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </ScrollViewer>
                             </StackPanel>
-                            <TextBlock Classes="h3" Text="{CompiledBinding RuntimeStatusText}" />
-                            <ItemsControl ItemsSource="{CompiledBinding RuntimeStatusResultLines}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                  <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                        </Border>
 
-                        <Border Classes="metric">
-                          <StackPanel Spacing="8">
-                            <TextBlock Classes="h2" Text="Dumps" />
-                            <TextBox
-                              PlaceholderText="Manual dump path"
-                              Text="{CompiledBinding RuntimeDumpPathText, Mode=TwoWay}"
-                            />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                              <TextBox
-                                Width="220"
-                                PlaceholderText="Dump kind (mini/full)"
-                                Text="{CompiledBinding RuntimeDumpKindText, Mode=TwoWay}"
-                              />
-                              <Button
-                                Classes="action"
-                                Command="{CompiledBinding WriteRuntimeCrashDumpCommand}"
-                                Content="Write Dump"
-                              />
+                            <StackPanel Grid.Column="1" Spacing="8">
+                              <TextBlock Classes="h3" Text="Live Progression" />
+                              <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{CompiledBinding SpellTechProgressEntries}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewmodels:DebuggerSpellTechLiveEntry">
+                                      <Border
+                                        Margin="0,0,0,6"
+                                        Background="#11161D"
+                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                      >
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                          <StackPanel Spacing="3">
+                                            <DockPanel LastChildFill="False">
+                                              <TextBlock
+                                                Classes="h3"
+                                                DockPanel.Dock="Left"
+                                                Text="{CompiledBinding TitleText}"
+                                              />
+                                              <TextBlock
+                                                Classes="code"
+                                                DockPanel.Dock="Right"
+                                                HorizontalAlignment="Right"
+                                                Text="{CompiledBinding ValueText}"
+                                              />
+                                            </DockPanel>
+                                            <TextBlock Classes="meta" Text="{CompiledBinding CategoryText}" />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding DetailText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                          </StackPanel>
+                                          <Button
+                                            Grid.Column="1"
+                                            Classes="secondary"
+                                            Command="{Binding #RootWindow.DataContext.UseSpellTechLiveEntryCommand}"
+                                            CommandParameter="{Binding}"
+                                            Content="Use"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                          />
+                                        </Grid>
+                                      </Border>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </ScrollViewer>
                             </StackPanel>
-                            <TextBox
-                              PlaceholderText="Process exe (Arcanum.exe)"
-                              Text="{CompiledBinding RuntimeDumpProcessNameText, Mode=TwoWay}"
-                            />
-                            <TextBox
-                              PlaceholderText="Automatic dump directory"
-                              Text="{CompiledBinding RuntimeDumpDirectoryText, Mode=TwoWay}"
-                            />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                              <TextBox
-                                Width="120"
-                                PlaceholderText="Dump count"
-                                Text="{CompiledBinding RuntimeDumpCountText, Mode=TwoWay}"
-                              />
-                              <Button
-                                Classes="secondary"
-                                Command="{CompiledBinding InspectAutomaticCrashDumpsCommand}"
-                                Content="Inspect Auto"
-                              />
-                              <Button
-                                Classes="secondary"
-                                Command="{CompiledBinding EnableAutomaticCrashDumpsCommand}"
-                                Content="Enable Auto"
-                              />
-                              <Button
-                                Classes="secondary"
-                                Command="{CompiledBinding DisableAutomaticCrashDumpsCommand}"
-                                Content="Disable Auto"
-                              />
+
+                            <StackPanel Grid.Column="2" Spacing="8">
+                              <TextBlock Classes="h3" Text="Known Schematics" />
+                              <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{CompiledBinding SpellTechSchematicEntries}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewmodels:DebuggerSpellTechSchematicEntry">
+                                      <Border
+                                        Margin="0,0,0,6"
+                                        Background="#11161D"
+                                        BorderBrush="{DynamicResource SoftLineBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                      >
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                          <StackPanel Spacing="3">
+                                            <TextBlock Classes="h3" Text="{CompiledBinding TitleText}" />
+                                            <TextBlock
+                                              Classes="meta"
+                                              Text="{CompiledBinding SubtitleText}"
+                                              TextWrapping="Wrap"
+                                            />
+                                            <TextBlock Classes="code" Text="{CompiledBinding ValueText}" />
+                                          </StackPanel>
+                                          <Button
+                                            Grid.Column="1"
+                                            Classes="secondary"
+                                            Command="{Binding #RootWindow.DataContext.UseSpellTechSchematicCommand}"
+                                            CommandParameter="{Binding}"
+                                            Content="Use Id"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                          />
+                                        </Grid>
+                                      </Border>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </ScrollViewer>
                             </StackPanel>
-                            <TextBlock Classes="h3" Text="{CompiledBinding RuntimeDumpStatusText}" />
-                            <ItemsControl ItemsSource="{CompiledBinding RuntimeDumpResultLines}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                  <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                        </Border>
-                      </StackPanel>
+                          </Grid>
+                        </StackPanel>
+                      </Border>
                     </Grid>
+                  </TabItem>
+
+                  <TabItem Header="Runtime">
+                    <Grid Margin="0,12,0,0" ColumnDefinitions="0.9*,1.1*" ColumnSpacing="16">
+                      <Border Classes="metric">
+                        <StackPanel Spacing="8">
+                          <TextBlock Classes="h2" Text="Writes" />
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox
+                              Width="220"
+                              PlaceholderText="Action points value"
+                              Text="{CompiledBinding RuntimeActionPointsText, Mode=TwoWay}"
+                            />
+                            <Button
+                              Classes="action"
+                              Command="{CompiledBinding WriteRuntimeActionPointsCommand}"
+                              Content="Write AP"
+                            />
+                          </StackPanel>
+                          <TextBlock Classes="h3" Text="{CompiledBinding RuntimeStatusText}" />
+                          <ItemsControl ItemsSource="{CompiledBinding RuntimeStatusResultLines}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Border>
+
+                      <Border Grid.Column="1" Classes="metric">
+                        <StackPanel Spacing="8">
+                          <TextBlock Classes="h2" Text="Crash Dumps" />
+                          <TextBox
+                            PlaceholderText="Manual dump path"
+                            Text="{CompiledBinding RuntimeDumpPathText, Mode=TwoWay}"
+                          />
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox
+                              Width="220"
+                              PlaceholderText="Dump kind (mini/full)"
+                              Text="{CompiledBinding RuntimeDumpKindText, Mode=TwoWay}"
+                            />
+                            <Button
+                              Classes="action"
+                              Command="{CompiledBinding WriteRuntimeCrashDumpCommand}"
+                              Content="Write Dump"
+                            />
+                          </StackPanel>
+                          <TextBox
+                            PlaceholderText="Process exe (Arcanum.exe)"
+                            Text="{CompiledBinding RuntimeDumpProcessNameText, Mode=TwoWay}"
+                          />
+                          <TextBox
+                            PlaceholderText="Automatic dump directory"
+                            Text="{CompiledBinding RuntimeDumpDirectoryText, Mode=TwoWay}"
+                          />
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox
+                              Width="120"
+                              PlaceholderText="Dump count"
+                              Text="{CompiledBinding RuntimeDumpCountText, Mode=TwoWay}"
+                            />
+                            <Button
+                              Classes="secondary"
+                              Command="{CompiledBinding InspectAutomaticCrashDumpsCommand}"
+                              Content="Inspect Auto"
+                            />
+                            <Button
+                              Classes="secondary"
+                              Command="{CompiledBinding EnableAutomaticCrashDumpsCommand}"
+                              Content="Enable Auto"
+                            />
+                            <Button
+                              Classes="secondary"
+                              Command="{CompiledBinding DisableAutomaticCrashDumpsCommand}"
+                              Content="Disable Auto"
+                            />
+                          </StackPanel>
+                          <TextBlock Classes="h3" Text="{CompiledBinding RuntimeDumpStatusText}" />
+                          <ItemsControl ItemsSource="{CompiledBinding RuntimeDumpResultLines}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+                  </TabItem>
+
+                  <TabItem Header="Catalogs">
+                    <StackPanel Margin="0,12,0,0" Spacing="12">
+                      <Border Classes="metric">
+                        <StackPanel Spacing="8">
+                          <DockPanel LastChildFill="False">
+                            <TextBlock Classes="h2" DockPanel.Dock="Left" Text="Local Game-Data Catalog" />
+                            <Button
+                              Classes="action"
+                              Command="{CompiledBinding LoadGameDataCatalogCommand}"
+                              Content="Reload Module Catalog"
+                              DockPanel.Dock="Right"
+                              IsEnabled="{CompiledBinding CanLoadGameDataCatalog}"
+                            />
+                          </DockPanel>
+                          <TextBlock Classes="meta" Text="{CompiledBinding GameDataCatalogPresetSourceText}" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="{CompiledBinding GameDataCatalogPresetSummaryText}"
+                            TextWrapping="Wrap"
+                          />
+                          <TextBlock Classes="meta" Text="{CompiledBinding GameDataCatalogStatusText}" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="{CompiledBinding GameDataCatalogSummaryText}"
+                            TextWrapping="Wrap"
+                          />
+                          <TextBlock Classes="h3" Text="Staged Supported Input" />
+                          <TextBox IsReadOnly="True" Text="{CompiledBinding GameDataCatalogStagedInputText}" />
+                          <TextBlock
+                            Classes="meta"
+                            Text="{CompiledBinding GameDataCatalogStagedInputSummaryText}"
+                            TextWrapping="Wrap"
+                          />
+                        </StackPanel>
+                      </Border>
+
+                      <TabControl SelectedIndex="{CompiledBinding SelectedGameDataCatalogTabIndex, Mode=TwoWay}">
+                        <TabItem Header="Prototypes">
+                          <Border Classes="metric" Margin="0,12,0,0">
+                            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                              <TextBlock Classes="h2" Text="Prototype Browser" />
+
+                              <StackPanel Grid.Row="1" Spacing="8">
+                                <Grid ColumnDefinitions="1.15*,0.85*" ColumnSpacing="8">
+                                  <TextBox
+                                    PlaceholderText="Filter by name, proto, type, asset path, or art"
+                                    Text="{CompiledBinding GameDataCatalogPrototypeFilterText, Mode=TwoWay}"
+                                  />
+                                  <ComboBox
+                                    Grid.Column="1"
+                                    ItemsSource="{CompiledBinding GameDataCatalogPrototypeScopeOptions}"
+                                    SelectedItem="{CompiledBinding SelectedGameDataCatalogPrototypeScopeOption, Mode=TwoWay}"
+                                  >
+                                    <ComboBox.ItemTemplate>
+                                      <DataTemplate x:DataType="viewmodels:DebuggerChoiceOption">
+                                        <TextBlock Text="{CompiledBinding Label}" />
+                                      </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                  </ComboBox>
+                                </Grid>
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="{CompiledBinding GameDataCatalogPrototypeScopeDescriptionText}"
+                                  TextWrapping="Wrap"
+                                />
+                              </StackPanel>
+
+                              <ListBox
+                                Grid.Row="2"
+                                Classes="sidebar"
+                                ItemsSource="{CompiledBinding GameDataCatalogPrototypeEntries}"
+                                SelectedItem="{CompiledBinding SelectedGameDataCatalogPrototypeEntry, Mode=TwoWay}"
+                              >
+                                <ListBox.ItemTemplate>
+                                  <DataTemplate x:DataType="workspace:PrototypePaletteEntry">
+                                    <Border
+                                      Margin="0,0,0,6"
+                                      Background="#151A20"
+                                      BorderBrush="{DynamicResource SoftLineBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6"
+                                      Padding="8,6"
+                                    >
+                                      <StackPanel Spacing="3">
+                                        <DockPanel LastChildFill="False">
+                                          <TextBlock
+                                            Classes="h3"
+                                            DockPanel.Dock="Left"
+                                            Text="{CompiledBinding DisplayName}"
+                                          />
+                                          <Border
+                                            Background="#21262D"
+                                            CornerRadius="999"
+                                            DockPanel.Dock="Right"
+                                            Padding="8,3"
+                                          >
+                                            <TextBlock Classes="meta" Text="{CompiledBinding ObjectType}" />
+                                          </Border>
+                                        </DockPanel>
+                                        <TextBlock Classes="meta" Text="{CompiledBinding AssetPath}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding Description}" />
+                                        <DockPanel LastChildFill="False">
+                                          <TextBlock
+                                            Classes="code"
+                                            DockPanel.Dock="Left"
+                                            Text="{CompiledBinding ProtoNumber}"
+                                          />
+                                          <TextBlock
+                                            Classes="meta"
+                                            DockPanel.Dock="Right"
+                                            Text="{CompiledBinding PaletteGroup}"
+                                          />
+                                        </DockPanel>
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ListBox.ItemTemplate>
+                              </ListBox>
+
+                              <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                                <Button
+                                  Classes="secondary"
+                                  Command="{CompiledBinding UseSelectedCatalogPrototypeForLookupCommand}"
+                                  Content="Use for Lookup"
+                                  IsEnabled="{CompiledBinding CanUseSelectedCatalogPrototypeForLookup}"
+                                />
+                                <Button
+                                  Classes="secondary"
+                                  Command="{CompiledBinding UseSelectedCatalogPrototypeForInventoryCommand}"
+                                  Content="Use for Inventory"
+                                  IsEnabled="{CompiledBinding CanUseSelectedCatalogPrototypeForInventory}"
+                                />
+                                <Button
+                                  Classes="action"
+                                  Command="{CompiledBinding UseSelectedCatalogPrototypeForSpawnCommand}"
+                                  Content="Use for Spawn"
+                                  IsEnabled="{CompiledBinding CanUseSelectedCatalogPrototypeForSpawn}"
+                                />
+                              </StackPanel>
+                            </Grid>
+                          </Border>
+                        </TabItem>
+
+                        <TabItem Header="World Map">
+                          <Border Classes="metric" Margin="0,12,0,0">
+                            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                              <TextBlock Classes="h2" Text="World Map Locations" />
+
+                              <StackPanel Grid.Row="1" Spacing="8">
+                                <TextBox
+                                  PlaceholderText="Filter by area, name, description, or linked map"
+                                  Text="{CompiledBinding GameDataCatalogWorldFilterText, Mode=TwoWay}"
+                                />
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="Apply one location to the guided teleport fields. These coordinates target the global world scene, so use them when the traveler is already on the world map."
+                                  TextWrapping="Wrap"
+                                />
+                              </StackPanel>
+
+                              <ListBox
+                                Grid.Row="2"
+                                Classes="sidebar"
+                                ItemsSource="{CompiledBinding GameDataCatalogWorldEntries}"
+                                SelectedItem="{CompiledBinding SelectedGameDataCatalogWorldEntry, Mode=TwoWay}"
+                              >
+                                <ListBox.ItemTemplate>
+                                  <DataTemplate x:DataType="workspace:WorldMapCatalogEntry">
+                                    <Border
+                                      Margin="0,0,0,6"
+                                      Background="#151A20"
+                                      BorderBrush="{DynamicResource SoftLineBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6"
+                                      Padding="8,6"
+                                    >
+                                      <StackPanel Spacing="3">
+                                        <DockPanel LastChildFill="False">
+                                          <TextBlock
+                                            Classes="h3"
+                                            DockPanel.Dock="Left"
+                                            Text="{CompiledBinding DisplayName}"
+                                          />
+                                          <Border
+                                            Background="#21262D"
+                                            CornerRadius="999"
+                                            DockPanel.Dock="Right"
+                                            Padding="8,3"
+                                          >
+                                            <TextBlock Classes="meta" Text="{CompiledBinding AreaId}" />
+                                          </Border>
+                                        </DockPanel>
+                                        <TextBlock Classes="meta" Text="{CompiledBinding CoordinateText}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding MapSummaryText}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding Description}" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ListBox.ItemTemplate>
+                              </ListBox>
+
+                              <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                                <Button
+                                  Classes="action"
+                                  Command="{CompiledBinding UseSelectedCatalogWorldLocationForGuidedActionCommand}"
+                                  Content="Use for Teleport"
+                                  IsEnabled="{CompiledBinding CanUseSelectedCatalogWorldLocationForGuidedAction}"
+                                />
+                              </StackPanel>
+                            </Grid>
+                          </Border>
+                        </TabItem>
+
+                        <TabItem Header="Tile Art">
+                          <Border Classes="metric" Margin="0,12,0,0">
+                            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                              <TextBlock Classes="h2" Text="Tile Art Ids" />
+
+                              <StackPanel Grid.Row="1" Spacing="8">
+                                <TextBox
+                                  PlaceholderText="Filter by art id, name, type, path, or summary"
+                                  Text="{CompiledBinding GameDataCatalogTileArtFilterText, Mode=TwoWay}"
+                                />
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="Browse the local tile-art palette to resolve canonical AIDs from the installed game data instead of decoding raw bitfields by hand."
+                                  TextWrapping="Wrap"
+                                />
+                              </StackPanel>
+
+                              <ListBox
+                                Grid.Row="2"
+                                Classes="sidebar"
+                                ItemsSource="{CompiledBinding GameDataCatalogTileArtEntries}"
+                                SelectedItem="{CompiledBinding SelectedGameDataCatalogTileArtEntry, Mode=TwoWay}"
+                              >
+                                <ListBox.ItemTemplate>
+                                  <DataTemplate x:DataType="workspace:TileArtCatalogEntry">
+                                    <Border
+                                      Margin="0,0,0,6"
+                                      Background="#151A20"
+                                      BorderBrush="{DynamicResource SoftLineBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6"
+                                      Padding="8,6"
+                                    >
+                                      <StackPanel Spacing="3">
+                                        <DockPanel LastChildFill="False">
+                                          <TextBlock
+                                            Classes="h3"
+                                            DockPanel.Dock="Left"
+                                            Text="{CompiledBinding DisplayName}"
+                                          />
+                                          <Border
+                                            Background="#21262D"
+                                            CornerRadius="999"
+                                            DockPanel.Dock="Right"
+                                            Padding="8,3"
+                                          >
+                                            <TextBlock Classes="meta" Text="{CompiledBinding ArtTypeText}" />
+                                          </Border>
+                                        </DockPanel>
+                                        <TextBlock Classes="meta" Text="{CompiledBinding SummaryText}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding AssetPath}" />
+                                        <TextBlock Classes="code" Text="{CompiledBinding ArtIdText}" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ListBox.ItemTemplate>
+                              </ListBox>
+
+                              <controls:GameDataValueOptionPanel
+                                Grid.Row="3"
+                                ApplyEntryCommand="{CompiledBinding StageSelectedGameDataCatalogInputCommand}"
+                                ApplyValueCommand="{CompiledBinding StageSelectedGameDataCatalogInputValueCommand}"
+                                EmptyStateText="Select one tile-art row to stage its canonical art id here."
+                                Entry="{CompiledBinding SelectedGameDataCatalogTileArtValueEntry}"
+                                TitleText="Supported Tile-Art Input"
+                              />
+                            </Grid>
+                          </Border>
+                        </TabItem>
+
+                        <TabItem Header="Static Objects">
+                          <Border Classes="metric" Margin="0,12,0,0">
+                            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                              <TextBlock Classes="h2" Text="Static Object Ids" />
+
+                              <StackPanel Grid.Row="1" Spacing="8">
+                                <TextBox
+                                  PlaceholderText="Filter by name, type, proto, object id, guid, asset path, or tile"
+                                  Text="{CompiledBinding GameDataCatalogStaticObjectFilterText, Mode=TwoWay}"
+                                />
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="Browse loaded mob and sector assets to inspect placed object ids, GUIDs, prototypes, and source paths. Use the token actions when you want lookup, inventory creation, or live spawning to reuse one exact workspace-backed object reference instead of guessing its proto."
+                                  TextWrapping="Wrap"
+                                />
+                              </StackPanel>
+
+                              <ListBox
+                                Grid.Row="2"
+                                Classes="sidebar"
+                                ItemsSource="{CompiledBinding GameDataCatalogStaticObjectEntries}"
+                                SelectedItem="{CompiledBinding SelectedGameDataCatalogStaticObjectEntry, Mode=TwoWay}"
+                              >
+                                <ListBox.ItemTemplate>
+                                  <DataTemplate x:DataType="workspace:StaticObjectCatalogEntry">
+                                    <Border
+                                      Margin="0,0,0,6"
+                                      Background="#151A20"
+                                      BorderBrush="{DynamicResource SoftLineBrush}"
+                                      BorderThickness="1"
+                                      CornerRadius="6"
+                                      Padding="8,6"
+                                    >
+                                      <StackPanel Spacing="3">
+                                        <DockPanel LastChildFill="False">
+                                          <TextBlock
+                                            Classes="h3"
+                                            DockPanel.Dock="Left"
+                                            Text="{CompiledBinding DisplayName}"
+                                          />
+                                          <Border
+                                            Background="#21262D"
+                                            CornerRadius="999"
+                                            DockPanel.Dock="Right"
+                                            Padding="8,3"
+                                          >
+                                            <TextBlock Classes="meta" Text="{CompiledBinding ObjectType}" />
+                                          </Border>
+                                        </DockPanel>
+                                        <TextBlock Classes="meta" Text="{CompiledBinding SummaryText}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding PrototypeText}" />
+                                        <TextBlock Classes="meta" Text="{CompiledBinding LocationText}" />
+                                        <TextBlock Classes="code" Text="{CompiledBinding ObjectIdText}" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ListBox.ItemTemplate>
+                              </ListBox>
+
+                              <StackPanel Grid.Row="3" Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <Button
+                                    Classes="secondary"
+                                    Command="{CompiledBinding UseSelectedCatalogStaticObjectPrototypeForLookupCommand}"
+                                    Content="Use Token for Lookup"
+                                    IsEnabled="{CompiledBinding CanUseSelectedCatalogStaticObjectPrototypeForLookup}"
+                                  />
+                                  <Button
+                                    Classes="secondary"
+                                    Command="{CompiledBinding UseSelectedCatalogStaticObjectPrototypeForInventoryCommand}"
+                                    Content="Use Token for Inventory"
+                                    IsEnabled="{CompiledBinding CanUseSelectedCatalogStaticObjectPrototypeForInventory}"
+                                  />
+                                  <Button
+                                    Classes="action"
+                                    Command="{CompiledBinding UseSelectedCatalogStaticObjectPrototypeForSpawnCommand}"
+                                    Content="Use Token for Spawn"
+                                    IsEnabled="{CompiledBinding CanUseSelectedCatalogStaticObjectPrototypeForSpawn}"
+                                  />
+                                </StackPanel>
+                                <controls:GameDataValueOptionPanel
+                                  ApplyEntryCommand="{CompiledBinding StageSelectedGameDataCatalogInputCommand}"
+                                  ApplyValueCommand="{CompiledBinding StageSelectedGameDataCatalogInputValueCommand}"
+                                  EmptyStateText="Select one placed object row to stage its GUID, object id, or proto token here."
+                                  Entry="{CompiledBinding SelectedGameDataCatalogStaticObjectValueEntry}"
+                                  TitleText="Supported Object Inputs"
+                                />
+                                <TextBlock Classes="h3" Text="Selected Object" />
+                                <TextBox
+                                  IsReadOnly="True"
+                                  Text="{CompiledBinding GameDataCatalogSelectedStaticObjectIdText}"
+                                />
+                                <TextBox
+                                  IsReadOnly="True"
+                                  Text="{CompiledBinding GameDataCatalogSelectedStaticObjectGuidText}"
+                                />
+                                <TextBlock
+                                  Classes="meta"
+                                  Text="{CompiledBinding GameDataCatalogSelectedStaticObjectSummaryText}"
+                                  TextWrapping="Wrap"
+                                />
+                              </StackPanel>
+                            </Grid>
+                          </Border>
+                        </TabItem>
+                      </TabControl>
+                    </StackPanel>
                   </TabItem>
 
                   <TabItem Header="Native Calls">
@@ -1926,6 +3864,7 @@
                   <StackPanel Spacing="8">
                     <TextBlock Classes="h2" Text="Target" />
                     <TextBlock Classes="meta" Text="{CompiledBinding ObjectProbeStatusText}" />
+                    <TextBlock Classes="meta" Text="{CompiledBinding ObjectProbeSummaryText}" TextWrapping="Wrap" />
                     <TextBox
                       PlaceholderText="0x000000004000004A or player"
                       Text="{CompiledBinding ObjectProbeHandleText, Mode=TwoWay}"
@@ -1946,10 +3885,15 @@
                       <Button
                         Classes="action"
                         Command="{CompiledBinding InspectObjectHandleCommand}"
-                        Content="Inspect"
+                        Content="Inspect Handle"
                         IsEnabled="{CompiledBinding CanInspectObjectHandle}"
                       />
                     </StackPanel>
+                    <TextBlock
+                      Classes="meta"
+                      Text="Inspect actions launched from the Mobiles roster or timeline reuse this surface automatically, so this tab stays focused on deep detail review."
+                      TextWrapping="Wrap"
+                    />
                   </StackPanel>
 
                   <StackPanel Grid.Row="1" Spacing="8">
@@ -1986,61 +3930,6 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                   <StackPanel Spacing="8">
                     <TextBlock Classes="h2" Text="Details" />
-                    <ItemsControl ItemsSource="{CompiledBinding ObjectProbeHighlightCards}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <WrapPanel />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="viewmodels:DebuggerInsightCard">
-                          <Border
-                            Width="170"
-                            Margin="0,0,10,10"
-                            Background="#151A20"
-                            BorderBrush="{DynamicResource SoftLineBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="8,6"
-                          >
-                            <StackPanel Spacing="2">
-                              <TextBlock Classes="meta" Text="{CompiledBinding Label}" />
-                              <TextBlock Classes="h3" Text="{CompiledBinding Value}" />
-                              <TextBlock Classes="meta" Text="{CompiledBinding Detail}" TextWrapping="Wrap" />
-                            </StackPanel>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <ItemsControl
-                      IsVisible="{CompiledBinding HasObjectProbeSectionSummaries}"
-                      ItemsSource="{CompiledBinding ObjectProbeSectionSummaries}"
-                    >
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="viewmodels:DebuggerInsightSection">
-                          <Border
-                            Margin="0,0,0,10"
-                            Background="#151A20"
-                            BorderBrush="{DynamicResource SoftLineBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="8,6"
-                          >
-                            <StackPanel Spacing="6">
-                              <TextBlock Classes="h3" Text="{CompiledBinding Title}" />
-                              <TextBlock Classes="meta" Text="{CompiledBinding Summary}" TextWrapping="Wrap" />
-                              <ItemsControl ItemsSource="{CompiledBinding Entries}">
-                                <ItemsControl.ItemTemplate>
-                                  <DataTemplate>
-                                    <TextBlock Classes="meta" Margin="0,0,0,4" Text="{Binding}" TextWrapping="Wrap" />
-                                  </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                              </ItemsControl>
-                            </StackPanel>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
                     <ContentControl Content="{CompiledBinding SelectedObjectProbeObject}">
                       <ContentControl.ContentTemplate>
                         <DataTemplate x:DataType="core:ObjectProbeObjectSnapshot">

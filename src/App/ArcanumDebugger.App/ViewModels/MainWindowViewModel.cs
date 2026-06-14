@@ -1,10 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.Versioning;
 using ArcanumDebugger.App.Composition;
 using ArcNET.Diagnostics;
-using ArcNET.Diagnostics.Windows;
 using ArcNET.Patch;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -21,18 +20,29 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly IDisposable _workspaceSubscription;
     private readonly IDisposable _clockSubscription;
     private readonly IDisposable _watchSubscription;
-    private readonly EnvironmentService _environmentService = EnvironmentService.Default;
-    private readonly SessionService _sessionService = SessionService.Default;
-    private readonly WatchService _watchService = WatchService.Default;
-    private readonly ObjectProbeService _objectProbeService = ObjectProbeService.Default;
-    private readonly FunctionCallService _functionCallService = FunctionCallService.Default;
-    private readonly GuidedActionService _guidedActionService = GuidedActionService.Default;
+    private readonly EnvironmentService _environmentService;
+    private readonly SessionService _sessionService;
+    private readonly WatchService _watchService;
+    private readonly ObjectProbeService _objectProbeService;
+    private readonly FunctionCallService _functionCallService;
+    private readonly GuidedActionService _guidedActionService;
+    private readonly InventoryEditorService _inventoryEditorService;
+    private readonly MobileEntityService _mobileEntityService;
     private WorkspaceSnapshot _previewWorkspace = WorkspaceService.Create(
         ArcanumDebuggerPreviewCatalog.Scenarios[0].WorkspaceRequest
     );
     private SessionHandle? _activeSessionHandle;
     private WatchHandle? _activeWatchHandle;
     private bool _watchPollInFlight;
+    private bool _mobileRosterPollInFlight;
+    private IReadOnlyList<MobileRosterEntrySnapshot> _mobileRosterCache = [];
+    private string? _pendingMobileSelectionHandle;
+
+    [ObservableProperty]
+    private int selectedRootTabIndex;
+
+    [ObservableProperty]
+    private int selectedReadTabIndex;
 
     [ObservableProperty]
     private IReadOnlyList<ArcanumDebuggerPreviewScenario> scenarios = [.. ArcanumDebuggerPreviewCatalog.Scenarios];
@@ -46,9 +56,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     );
 
     [ObservableProperty]
-    private EnvironmentSnapshot environment = EnvironmentService.Default.Create(
-        new EnvironmentRequest([], null, ArcanumExecutableKind.Auto, false)
-    );
+    private EnvironmentSnapshot environment = null!;
 
     [ObservableProperty]
     private IReadOnlyList<LaunchExecutableKindOption> launchExecutableOptions =
@@ -63,6 +71,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string installPath = string.Empty;
+
+    [ObservableProperty]
+    private string workspaceOverridePathText = string.Empty;
 
     [ObservableProperty]
     private bool launchWindowed;
@@ -180,6 +191,30 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool canInvokeGuidedAction;
 
     [ObservableProperty]
+    private bool guidedActionShowTileInputs = true;
+
+    [ObservableProperty]
+    private bool guidedActionShowMapIdInput = true;
+
+    [ObservableProperty]
+    private bool guidedActionShowFlagsInput = true;
+
+    [ObservableProperty]
+    private string guidedActionTravelerPlaceholderText = "Traveler handle or player";
+
+    [ObservableProperty]
+    private string guidedActionTileXPlaceholderText = "Tile X";
+
+    [ObservableProperty]
+    private string guidedActionTileYPlaceholderText = "Tile Y";
+
+    [ObservableProperty]
+    private string guidedActionMapIdPlaceholderText = "Map id (-1 current map)";
+
+    [ObservableProperty]
+    private string guidedActionFlagsPlaceholderText = "Flags";
+
+    [ObservableProperty]
     private string guidedActionStatusText = "No guided action executed.";
 
     [ObservableProperty]
@@ -202,6 +237,124 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string guidedActionResultText = "EAX and EDX values will appear here after a live action.";
+
+    [ObservableProperty]
+    private string inventoryOwnerTokenText = "player";
+
+    [ObservableProperty]
+    private string inventoryPrototypeTokenText = string.Empty;
+
+    [ObservableProperty]
+    private string inventoryLocationText = "0";
+
+    [ObservableProperty]
+    private string inventoryItemHandleText = string.Empty;
+
+    [ObservableProperty]
+    private string inventoryTimeoutText = "1000";
+
+    [ObservableProperty]
+    private bool canCreateInventoryItem;
+
+    [ObservableProperty]
+    private bool canDestroyInventoryItem;
+
+    [ObservableProperty]
+    private string inventoryEditorStatusText = "No inventory mutation executed.";
+
+    [ObservableProperty]
+    private IReadOnlyList<string> inventoryEditorResultLines =
+    [
+        "Create items from proto tokens or remove live item handles through the native inventory hooks.",
+    ];
+
+    [ObservableProperty]
+    private string inventoryEditorDispatcherText = "Dispatcher result unavailable.";
+
+    [ObservableProperty]
+    private string inventoryEditorExecutionDetailText =
+        "Target address and hook details will appear here after a live inventory mutation.";
+
+    [ObservableProperty]
+    private string inventoryEditorResultText =
+        "Mutation result values will appear here after a live inventory mutation.";
+
+    [ObservableProperty]
+    private string mobileRosterFilterText = string.Empty;
+
+    [ObservableProperty]
+    private bool mobileRosterAutoRefresh = true;
+
+    [ObservableProperty]
+    private string mobileRosterStatusText = "No live mobile roster loaded.";
+
+    [ObservableProperty]
+    private string mobileRosterSummaryText =
+        "Refresh to scan the live object pool for PC and NPC instances, then select one mobile to mutate or inspect.";
+
+    [ObservableProperty]
+    private IReadOnlyList<MobileRosterEntrySnapshot> mobileRosterEntries = [];
+
+    [ObservableProperty]
+    private MobileRosterEntrySnapshot? selectedMobileRosterEntry;
+
+    [ObservableProperty]
+    private bool canUseSelectedMobileRosterHandle;
+
+    [ObservableProperty]
+    private string mobileTargetHandleText = string.Empty;
+
+    [ObservableProperty]
+    private string mobileStatTokenText = "strength";
+
+    [ObservableProperty]
+    private string mobileStatValueText = string.Empty;
+
+    [ObservableProperty]
+    private string mobileSpawnPrototypeTokenText = string.Empty;
+
+    [ObservableProperty]
+    private string mobileSpawnAnchorTokenText = "player";
+
+    [ObservableProperty]
+    private string mobileMutationTimeoutText = "1000";
+
+    [ObservableProperty]
+    private bool canRefreshMobileRoster;
+
+    [ObservableProperty]
+    private bool canInspectSelectedMobile;
+
+    [ObservableProperty]
+    private bool canSetMobileStat;
+
+    [ObservableProperty]
+    private bool canKillMobile;
+
+    [ObservableProperty]
+    private bool canDespawnMobile;
+
+    [ObservableProperty]
+    private bool canSpawnMobile;
+
+    [ObservableProperty]
+    private string mobileMutationStatusText = "No mobile mutation executed.";
+
+    [ObservableProperty]
+    private IReadOnlyList<string> mobileMutationResultLines =
+    [
+        "Pick a live mobile from the roster, then edit one base stat, trigger critter_kill, destroy it, or create a mobile or world object from one prototype token.",
+    ];
+
+    [ObservableProperty]
+    private string mobileMutationDispatcherText = "Dispatcher result unavailable.";
+
+    [ObservableProperty]
+    private string mobileMutationExecutionDetailText =
+        "Target address and hook details will appear here after a live mobile mutation.";
+
+    [ObservableProperty]
+    private string mobileMutationResultText = "Mutation result values will appear here after a live mobile mutation.";
 
     [ObservableProperty]
     private IReadOnlyList<DebuggerObjectGroupCard> featuredObjectGroups = [];
@@ -370,14 +523,45 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private IBrush supportSurfaceBrush = s_validatedSurfaceBrush;
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(IDiagnosticsServices diagnosticsServices)
     {
+        var services = diagnosticsServices ?? throw new ArgumentNullException(nameof(diagnosticsServices));
+        _environmentService = services.EnvironmentService;
+        _sessionService = services.SessionService;
+        _watchService = services.WatchService;
+        _objectProbeService = services.ObjectProbeService;
+        _functionCallService = services.FunctionCallService;
+        _guidedActionService = services.GuidedActionService;
+        _inventoryEditorService = services.InventoryEditorService;
+        _mobileEntityService = services.MobileEntityService;
+        _auditService = services.AuditService;
+        _prototypeResolutionService = services.PrototypeResolutionService;
+        _readService = services.ReadService;
+        _sheetService = services.SheetService;
+        _scriptAttachmentService = services.ScriptAttachmentService;
+        _logbookService = services.LogbookService;
+        _interceptService = services.InterceptService;
+        _interceptTargetResolver = services.InterceptTargetResolver;
+        _moduleSymbolQueryService = services.ModuleSymbolQueryService;
+        _runtimeStatusService = services.RuntimeStatusService;
+        _crashDumpService = services.CrashDumpService;
+        _gameDataCatalogService = services.GameDataCatalogService;
+        _sheetEditorService = services.SheetEditorService;
+        _spellTechEditorService = services.SpellTechEditorService;
+        _logbookEditorService = services.LogbookEditorService;
+        Environment = _environmentService.Create(new EnvironmentRequest([], null, ArcanumExecutableKind.Auto, false));
         _workspaceSubscription = _workspaceRequests
             .Select(static scenario => WorkspaceService.Create(scenario.WorkspaceRequest))
             .Subscribe(snapshot => Dispatcher.UIThread.Post(() => ApplyPreviewWorkspace(snapshot)));
         _clockSubscription = Observable
             .Interval(TimeSpan.FromSeconds(1))
-            .Subscribe(_ => Dispatcher.UIThread.Post(UpdateGeneratedAgoText));
+            .Subscribe(__ =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    UpdateGeneratedAgoText();
+                    _ = RefreshMobileRosterAsync();
+                })
+            );
         _watchSubscription = Observable
             .Interval(TimeSpan.FromMilliseconds(250))
             .Subscribe(__ =>
@@ -388,6 +572,15 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         RefreshEnvironment();
         RefreshGuidedActionMetadata();
         RefreshGuidedActionActions();
+        ApplyLogbookMutationOption(SelectedLogbookMutationOption);
+        RefreshInventoryOwnerEntries();
+        RefreshInventoryEditorActions();
+        RefreshInventoryLiveActions();
+        RefreshLogbookEditorActions();
+        RefreshSheetEditorActions();
+        RefreshSpellTechEditorActions();
+        RefreshMobileEditorActions();
+        RefreshGameDataCatalogActions();
     }
 
     partial void OnSelectedScenarioChanged(ArcanumDebuggerPreviewScenario? value)
@@ -445,7 +638,20 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnSelectedGuidedActionOptionChanged(GuidedActionDescriptor? value)
     {
         RefreshGuidedActionMetadata();
+        if (!GuidedActionShowTileInputs && GuidedActionQuickPickVisible)
+            CloseGameDataQuickPick();
+
         RefreshGuidedActionActions();
+        RefreshSupportedInputPanels();
+    }
+
+    partial void OnSelectedMobileRosterEntryChanged(MobileRosterEntrySnapshot? value)
+    {
+        if (value is not null && !MobileTargetHandleText.Equals(value.HandleHex, StringComparison.OrdinalIgnoreCase))
+            MobileTargetHandleText = value.HandleHex;
+
+        RefreshSelectedMobileHandleActions();
+        RefreshMobileEditorActions();
     }
 
     partial void OnObjectProbeHandleTextChanged(string value) => RefreshObjectProbeActions();
@@ -462,6 +668,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnSelectedLaunchExecutableOptionChanged(LaunchExecutableKindOption? value) => RefreshEnvironment();
 
     partial void OnLaunchWindowedChanged(bool value) => RefreshEnvironment();
+
+    private void RefreshSelectedMobileHandleActions() =>
+        CanUseSelectedMobileRosterHandle = SelectedMobileRosterEntry is not null;
 
     partial void OnFunctionCallUseSuggestedCleanupChanged(bool value) => RefreshFunctionCallActions();
 
@@ -485,6 +694,51 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     partial void OnGuidedActionTimeoutTextChanged(string value) => RefreshGuidedActionActions();
 
+    partial void OnMobileRosterFilterTextChanged(string value) => ApplyFilteredMobileRoster();
+
+    partial void OnMobileRosterAutoRefreshChanged(bool value)
+    {
+        if (value)
+            _ = RefreshMobileRosterAsync(force: true);
+
+        RefreshMobileEditorActions();
+    }
+
+    partial void OnMobileTargetHandleTextChanged(string value) => RefreshMobileEditorActions();
+
+    partial void OnMobileStatTokenTextChanged(string value) => RefreshMobileEditorActions();
+
+    partial void OnMobileStatValueTextChanged(string value) => RefreshMobileEditorActions();
+
+    partial void OnMobileSpawnPrototypeTokenTextChanged(string value)
+    {
+        RefreshMobileEditorActions();
+        RefreshSupportedInputPanels();
+    }
+
+    partial void OnMobileSpawnAnchorTokenTextChanged(string value) => RefreshMobileEditorActions();
+
+    partial void OnMobileMutationTimeoutTextChanged(string value) => RefreshMobileEditorActions();
+
+    partial void OnInventoryOwnerTokenTextChanged(string value)
+    {
+        SyncSelectedInventoryOwnerEntry(value);
+        RefreshInventoryEditorActions();
+        RefreshInventoryLiveActions();
+    }
+
+    partial void OnInventoryPrototypeTokenTextChanged(string value)
+    {
+        RefreshInventoryEditorActions();
+        RefreshSupportedInputPanels();
+    }
+
+    partial void OnInventoryLocationTextChanged(string value) => RefreshInventoryEditorActions();
+
+    partial void OnInventoryItemHandleTextChanged(string value) => RefreshInventoryEditorActions();
+
+    partial void OnInventoryTimeoutTextChanged(string value) => RefreshInventoryEditorActions();
+
     [RelayCommand]
     private void RefreshWorkspace() => RefreshEnvironment(forceWorkspaceRefresh: true);
 
@@ -503,7 +757,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            var handle = await Task.Run(() => _sessionService.Attach(runtime));
+            var handle = await Task.Run(() => _sessionService.Attach(runtime, ResolveWorkspacePathOverride()));
             ReplaceActiveSession(handle);
             RefreshEnvironment(forceWorkspaceRefresh: true);
         }
@@ -530,7 +784,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                     new LaunchSessionRequest(
                         InstallPath,
                         SelectedLaunchExecutableOption?.Kind ?? ArcanumExecutableKind.Auto,
-                        LaunchWindowed
+                        LaunchWindowed,
+                        WorkspacePathHint: ResolveWorkspacePathOverride()
                     )
                 )
             );
@@ -758,18 +1013,17 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            var snapshot = await Task.Run(() =>
-                _guidedActionService.Execute(
-                    new GuidedActionRequest(
-                        ActiveSession,
-                        action.Key,
-                        GuidedActionTravelerText,
-                        GuidedActionTileXText,
-                        GuidedActionTileYText,
-                        GuidedActionMapIdText,
-                        GuidedActionFlagsText,
-                        GuidedActionTimeoutText
-                    )
+            var snapshot = await _guidedActionService.ExecuteAsync(
+                new GuidedActionRequest(
+                    ActiveSession,
+                    action.Key,
+                    GuidedActionTravelerText,
+                    GuidedActionTileXText,
+                    GuidedActionTileYText,
+                    GuidedActionMapIdText,
+                    GuidedActionFlagsText,
+                    GuidedActionTimeoutText,
+                    ResolveWorkspacePathOverride()
                 )
             );
             ApplyGuidedActionSnapshot(snapshot);
@@ -777,6 +1031,350 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             ApplyDormantGuidedAction("Guided action failed", ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private async Task CreateInventoryItem()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantInventoryEditor(
+                "No active session",
+                ["Attach to a validated runtime before editing inventory."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantInventoryEditor(
+                "Inventory editor unavailable",
+                ["Attach to a validated runtime before editing inventory."]
+            );
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(InventoryPrototypeTokenText))
+        {
+            ApplyDormantInventoryEditor(
+                "Prototype token required",
+                [
+                    "Enter a proto number, palette search term, explicit prototype handle, or use the local catalog before creating an item.",
+                ]
+            );
+            return;
+        }
+
+        try
+        {
+            var prototype = await _prototypeResolutionService.ResolveAsync(
+                new PrototypeResolutionRequest(session, InventoryPrototypeTokenText, ResolveWorkspacePathOverride())
+            );
+            if (!prototype.IsAvailable || prototype.Handle is not ulong prototypeHandle)
+            {
+                ApplyDormantInventoryEditor(
+                    prototype.Status,
+                    [prototype.Summary, .. prototype.Notes.Take(4).Select(static note => $"Note: {note}")]
+                );
+                return;
+            }
+
+            var snapshot = await Task.Run(() =>
+                _inventoryEditorService.CreateItem(
+                    new InventoryCreateRequest(
+                        session,
+                        InventoryOwnerTokenText,
+                        prototypeHandle,
+                        InventoryLocationText,
+                        InventoryTimeoutText
+                    )
+                )
+            );
+            ApplyInventoryEditorSnapshot(snapshot);
+            if (snapshot.IsAvailable && !string.IsNullOrWhiteSpace(snapshot.ItemHandleText))
+                ObjectProbeHandleText = snapshot.ItemHandleText;
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantInventoryEditor("Inventory create failed", [ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DestroyInventoryItem()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantInventoryEditor(
+                "No active session",
+                ["Attach to a validated runtime before editing inventory."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantInventoryEditor(
+                "Inventory editor unavailable",
+                ["Attach to a validated runtime before editing inventory."]
+            );
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(InventoryItemHandleText))
+        {
+            ApplyDormantInventoryEditor(
+                "Item handle required",
+                ["Enter one live item handle before removing it from inventory."]
+            );
+            return;
+        }
+
+        try
+        {
+            var snapshot = await Task.Run(() =>
+                _inventoryEditorService.DestroyItem(
+                    new InventoryDestroyRequest(session, InventoryItemHandleText, InventoryTimeoutText)
+                )
+            );
+            ApplyInventoryEditorSnapshot(snapshot);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantInventoryEditor("Inventory destroy failed", [ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task RefreshMobileRoster()
+    {
+        await RefreshMobileRosterAsync(force: true);
+    }
+
+    [RelayCommand]
+    private async Task InspectSelectedMobile()
+    {
+        if (SelectedMobileRosterEntry is not { } entry)
+            return;
+
+        ObjectProbeHandleText = entry.HandleHex;
+        await InspectObjectHandle();
+    }
+
+    [RelayCommand]
+    private void UseSelectedMobileForGuidedAction()
+    {
+        if (SelectedMobileRosterEntry is not { } entry)
+            return;
+
+        GuidedActionTravelerText = entry.HandleHex;
+    }
+
+    [RelayCommand]
+    private void UseSelectedMobileForInventoryOwner()
+    {
+        if (SelectedMobileRosterEntry is not { } entry)
+            return;
+
+        InventoryOwnerTokenText = entry.HandleHex;
+    }
+
+    [RelayCommand]
+    private void UseSelectedMobileForSpawnAnchor()
+    {
+        if (SelectedMobileRosterEntry is not { } entry)
+            return;
+
+        MobileSpawnAnchorTokenText = entry.HandleHex;
+    }
+
+    [RelayCommand]
+    private void UseSelectedMobileForSpellTechTarget()
+    {
+        if (SelectedMobileRosterEntry is not { } entry)
+            return;
+
+        SpellTechTargetHandleText = entry.HandleHex;
+    }
+
+    [RelayCommand]
+    private async Task SetMobileStat()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantMobileMutation(
+                "No active session",
+                ["Attach to a validated runtime before editing live mobiles."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantMobileMutation("Mobile editor unavailable", [CreateMobileEditorAvailabilitySummary(session)]);
+            return;
+        }
+
+        try
+        {
+            var snapshot = await Task.Run(() =>
+                _mobileEntityService.SetStat(
+                    new MobileStatWriteRequest(
+                        session,
+                        MobileTargetHandleText,
+                        MobileStatTokenText,
+                        MobileStatValueText,
+                        MobileMutationTimeoutText
+                    )
+                )
+            );
+            ApplyMobileMutationSnapshot(snapshot);
+            if (snapshot.IsAvailable && !string.IsNullOrWhiteSpace(snapshot.TargetHandleText))
+                ObjectProbeHandleText = snapshot.TargetHandleText;
+
+            await RefreshMobileRosterAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantMobileMutation("Mobile stat write failed", [ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task KillMobile()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantMobileMutation(
+                "No active session",
+                ["Attach to a validated runtime before editing live mobiles."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantMobileMutation("Mobile editor unavailable", [CreateMobileEditorAvailabilitySummary(session)]);
+            return;
+        }
+
+        try
+        {
+            var snapshot = await Task.Run(() =>
+                _mobileEntityService.Kill(
+                    new MobileActionRequest(session, MobileTargetHandleText, MobileMutationTimeoutText)
+                )
+            );
+            ApplyMobileMutationSnapshot(snapshot);
+            await RefreshMobileRosterAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantMobileMutation("Mobile kill failed", [ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DespawnMobile()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantMobileMutation(
+                "No active session",
+                ["Attach to a validated runtime before editing live mobiles."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantMobileMutation("Mobile editor unavailable", [CreateMobileEditorAvailabilitySummary(session)]);
+            return;
+        }
+
+        try
+        {
+            var snapshot = await Task.Run(() =>
+                _mobileEntityService.Despawn(
+                    new MobileActionRequest(session, MobileTargetHandleText, MobileMutationTimeoutText)
+                )
+            );
+            ApplyMobileMutationSnapshot(snapshot);
+            await RefreshMobileRosterAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantMobileMutation("Mobile despawn failed", [ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task SpawnMobile()
+    {
+        if (ActiveSession is not { } session)
+        {
+            ApplyDormantMobileMutation(
+                "No active session",
+                ["Attach to a validated runtime before editing live mobiles."]
+            );
+            return;
+        }
+
+        if (!CanInvokeFunctions(session))
+        {
+            ApplyDormantMobileMutation("Mobile editor unavailable", [CreateMobileEditorAvailabilitySummary(session)]);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(MobileSpawnPrototypeTokenText))
+        {
+            ApplyDormantMobileMutation(
+                "Prototype token required",
+                [
+                    "Enter a proto number, palette search term, explicit prototype handle, or use the local catalog before creating a mobile or world object.",
+                ]
+            );
+            return;
+        }
+
+        try
+        {
+            var prototype = await _prototypeResolutionService.ResolveAsync(
+                new PrototypeResolutionRequest(session, MobileSpawnPrototypeTokenText, ResolveWorkspacePathOverride())
+            );
+            if (!prototype.IsAvailable || prototype.Handle is not ulong prototypeHandle)
+            {
+                ApplyDormantMobileMutation(
+                    prototype.Status,
+                    [prototype.Summary, .. prototype.Notes.Take(4).Select(static note => $"Note: {note}")]
+                );
+                return;
+            }
+
+            var snapshot = await Task.Run(() =>
+                _mobileEntityService.Spawn(
+                    new MobileSpawnRequest(
+                        session,
+                        MobileSpawnAnchorTokenText,
+                        prototypeHandle,
+                        MobileMutationTimeoutText
+                    )
+                )
+            );
+            ApplyMobileMutationSnapshot(snapshot);
+            if (snapshot.IsAvailable && !string.IsNullOrWhiteSpace(snapshot.TargetHandleText))
+            {
+                ObjectProbeHandleText = snapshot.TargetHandleText;
+                MobileTargetHandleText = snapshot.TargetHandleText;
+                _pendingMobileSelectionHandle = snapshot.TargetHandleText;
+            }
+
+            await RefreshMobileRosterAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantMobileMutation("Mobile spawn failed", [ex.Message]);
         }
     }
 
@@ -1061,7 +1659,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             && snapshot.Capabilities.Capabilities.HasFlag(
                 ArcNET.Diagnostics.Contracts.DiagnosticsCapability.WatchHooks
             );
-        ApplyWorkspace(WorkspaceService.CreateForSession(snapshot), "Attached session workspace");
+        ApplyWorkspace(WorkspaceService.CreateForSession(snapshot), CreateWorkspaceSourceText(snapshot));
         ApplyDormantGuidedAction(
             CanInvokeFunctions(snapshot) ? "No guided action executed." : "Guided action unavailable",
             CreateGuidedActionAvailabilitySummary(snapshot)
@@ -1070,10 +1668,34 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             CanInvokeFunctions(snapshot) ? "No live function call executed." : "Function call unavailable",
             CreateFunctionCallAvailabilitySummary(snapshot)
         );
+        ApplyDormantInventoryEditor(
+            CanInvokeFunctions(snapshot) ? "No inventory mutation executed." : "Inventory editor unavailable",
+            [CreateInventoryEditorAvailabilitySummary(snapshot)]
+        );
+        ApplyDormantSpellTechMutation(
+            CanInvokeFunctions(snapshot) ? "No spell or tech mutation executed." : "Spell/tech editor unavailable",
+            [CreateSpellTechEditorAvailabilitySummary(snapshot)]
+        );
+        ResetSpellTechLiveState(
+            CanInvokeFunctions(snapshot) ? "Live progression not loaded." : "Live progression unavailable",
+            CanInvokeFunctions(snapshot)
+                ? "Load current spell colleges, known spells, schematics, tech disciplines, and tech skills for player or a selected companion."
+                : CreateSpellTechEditorAvailabilitySummary(snapshot)
+        );
+        ApplyDormantMobileRoster(
+            CanProbeStructuredState(snapshot) ? "No live mobile roster loaded." : "Mobile roster unavailable",
+            CreateMobileRosterAvailabilitySummary(snapshot)
+        );
+        ApplyDormantMobileMutation(
+            CanInvokeFunctions(snapshot) ? "No mobile mutation executed." : "Mobile editor unavailable",
+            [CreateMobileEditorAvailabilitySummary(snapshot)]
+        );
         ApplyDormantObjectProbe(
             CanProbeStructuredState(snapshot) ? "No live object inspected." : "Object probe unavailable",
             CreateObjectProbeAvailabilitySummary(snapshot)
         );
+        ApplySessionLogbookEditorState(snapshot);
+        ApplySessionGameDataCatalogState(snapshot);
 
         if (_activeWatchHandle is null)
         {
@@ -1084,6 +1706,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         RefreshFeaturedNotes();
+        _ = RefreshMobileRosterAsync(force: true);
+        _ = EnsureGameDataCatalogLoadedAsync();
     }
 
     private void ApplyDormantSession(string headline, string detail)
@@ -1110,9 +1734,41 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             "No live function call executed.",
             "Attach to a validated session before invoking native functions through the dispatcher surface."
         );
+        ApplyDormantInventoryEditor(
+            "No inventory mutation executed.",
+            ["Attach to a validated session before creating or destroying inventory items."]
+        );
+        ApplyDormantSpellTechMutation(
+            "No spell or tech mutation executed.",
+            ["Attach to a validated session before editing spell or technology progression."]
+        );
+        ResetSpellTechLiveState(
+            "Live progression not loaded.",
+            "Attach to a validated session before reading spell or technology progression."
+        );
+        ApplyDormantMobileRoster(
+            "No live mobile roster loaded.",
+            "Attach to a session with structured-state support before scanning live mobiles."
+        );
+        ApplyDormantMobileMutation(
+            "No mobile mutation executed.",
+            ["Attach to a validated session before editing live mobiles."]
+        );
         ApplyDormantObjectProbe(
             "No live object inspected.",
             "Attach to a session with structured-state support before probing runtime object handles."
+        );
+        ApplyDormantGameDataCatalog(
+            "Game-data catalog not loaded.",
+            "Attach to a live runtime before loading the local workspace catalog."
+        );
+        ApplyDormantLogbookEditorState(
+            "Journal catalog not loaded.",
+            "Attach to a live runtime before loading the local journal catalog."
+        );
+        ApplyDormantLogbookMutation(
+            "No live journal mutation executed.",
+            ["Attach to a validated session before editing journal entries."]
         );
         RefreshFeaturedNotes();
     }
@@ -1174,6 +1830,53 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             _watchPollInFlight = false;
+        }
+    }
+
+    private async Task RefreshMobileRosterAsync(bool force = false)
+    {
+        if (ActiveSession is not { } session)
+        {
+            if (force)
+            {
+                ApplyDormantMobileRoster(
+                    "No live mobile roster loaded.",
+                    "Attach to a session with structured-state support before scanning live mobiles."
+                );
+            }
+
+            return;
+        }
+
+        if (!CanProbeStructuredState(session))
+        {
+            if (force)
+                ApplyDormantMobileRoster("Mobile roster unavailable", CreateMobileRosterAvailabilitySummary(session));
+
+            return;
+        }
+
+        if (_mobileRosterPollInFlight && !force)
+            return;
+
+        if (!MobileRosterAutoRefresh && !force)
+            return;
+
+        _mobileRosterPollInFlight = true;
+        try
+        {
+            var snapshot = await Task.Run(() =>
+                _mobileEntityService.ListMobiles(new MobileRosterRequest(session, MobileRosterMaxEntries))
+            );
+            ApplyMobileRosterSnapshot(snapshot);
+        }
+        catch (Exception ex)
+        {
+            ApplyDormantMobileRoster("Mobile roster failed", ex.Message);
+        }
+        finally
+        {
+            _mobileRosterPollInFlight = false;
         }
     }
 
@@ -1265,6 +1968,73 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         RefreshGuidedActionActions();
     }
 
+    private void ApplyInventoryEditorSnapshot(InventoryEditorSnapshot snapshot)
+    {
+        InventoryEditorStatusText = snapshot.Status;
+        InventoryEditorDispatcherText = snapshot.DispatcherText;
+        InventoryEditorExecutionDetailText = snapshot.ExecutionDetailText;
+        InventoryEditorResultText = snapshot.ResultText;
+        InventoryEditorResultLines = CreateInventoryEditorLines(snapshot);
+        if (!string.IsNullOrWhiteSpace(snapshot.ItemHandleText))
+            _pendingInventoryItemHandle = snapshot.ItemHandleText;
+
+        QueueRefreshInventoryInspection();
+        RefreshInventoryEditorActions();
+    }
+
+    private void ApplyDormantInventoryEditor(string status, IReadOnlyList<string> lines)
+    {
+        InventoryEditorStatusText = status;
+        InventoryEditorDispatcherText = "Dispatcher result unavailable.";
+        InventoryEditorExecutionDetailText =
+            "Target address and hook details will appear here after a live inventory mutation.";
+        InventoryEditorResultText = "Mutation result values will appear here after a live inventory mutation.";
+        InventoryEditorResultLines = lines;
+        RefreshInventoryEditorActions();
+    }
+
+    private void ApplyMobileRosterSnapshot(MobileRosterSnapshot snapshot)
+    {
+        MobileRosterStatusText = snapshot.Status;
+        MobileRosterSummaryText = snapshot.Summary;
+        _mobileRosterCache = snapshot.Mobiles;
+        ApplyFilteredMobileRoster();
+        RefreshInventoryOwnerEntries();
+        RefreshMobileEditorActions();
+    }
+
+    private void ApplyDormantMobileRoster(string status, string summary)
+    {
+        MobileRosterStatusText = status;
+        MobileRosterSummaryText = summary;
+        _mobileRosterCache = [];
+        MobileRosterEntries = [];
+        SelectedMobileRosterEntry = null;
+        RefreshInventoryOwnerEntries();
+        RefreshMobileEditorActions();
+    }
+
+    private void ApplyMobileMutationSnapshot(MobileMutationSnapshot snapshot)
+    {
+        MobileMutationStatusText = snapshot.Status;
+        MobileMutationDispatcherText = snapshot.DispatcherText;
+        MobileMutationExecutionDetailText = snapshot.ExecutionDetailText;
+        MobileMutationResultText = snapshot.ResultText;
+        MobileMutationResultLines = CreateMobileMutationLines(snapshot);
+        RefreshMobileEditorActions();
+    }
+
+    private void ApplyDormantMobileMutation(string status, IReadOnlyList<string> lines)
+    {
+        MobileMutationStatusText = status;
+        MobileMutationDispatcherText = "Dispatcher result unavailable.";
+        MobileMutationExecutionDetailText =
+            "Target address and hook details will appear here after a live mobile mutation.";
+        MobileMutationResultText = "Mutation result values will appear here after a live mobile mutation.";
+        MobileMutationResultLines = lines;
+        RefreshMobileEditorActions();
+    }
+
     private void ApplyFunctionCallSnapshot(FunctionCallSnapshot snapshot)
     {
         FunctionCallStatusText = snapshot.Status;
@@ -1304,6 +2074,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         ObjectProbeSummaryText = snapshot.Summary;
         ObjectProbeObjects = snapshot.Objects;
         SelectedObjectProbeObject = snapshot.Objects.FirstOrDefault();
+        if (snapshot.Objects.Count > 0)
+            SelectedRootTabIndex = InspectRootTabIndex;
+
         RefreshObjectProbeActions();
     }
 
@@ -1328,20 +2101,55 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             || SelectedLiveTimelineEvent?.SuggestedHandleHex is not null;
     }
 
-    private void RefreshGuidedActionActions() =>
+    private void RefreshGuidedActionActions()
+    {
+        var requiresTileCoordinates =
+            SelectedGuidedActionOption?.Key.Equals("teleport_traveler", StringComparison.OrdinalIgnoreCase) == true;
         CanInvokeGuidedAction =
             ActiveSession is { } session
             && CanInvokeFunctions(session)
             && SelectedGuidedActionOption is not null
-            && !string.IsNullOrWhiteSpace(GuidedActionTravelerText)
-            && !string.IsNullOrWhiteSpace(GuidedActionTileXText)
-            && !string.IsNullOrWhiteSpace(GuidedActionTileYText);
+            && (
+                !requiresTileCoordinates
+                || (
+                    !string.IsNullOrWhiteSpace(GuidedActionTileXText)
+                    && !string.IsNullOrWhiteSpace(GuidedActionTileYText)
+                )
+            );
+    }
 
     private void RefreshFunctionCallActions() =>
         CanInvokeFunctionCall =
             ActiveSession is { } session
             && CanInvokeFunctions(session)
             && !string.IsNullOrWhiteSpace(FunctionCallTargetText);
+
+    private void RefreshInventoryEditorActions()
+    {
+        var hasActiveSession = ActiveSession is { } session && CanInvokeFunctions(session);
+        CanCreateInventoryItem =
+            hasActiveSession
+            && !string.IsNullOrWhiteSpace(InventoryOwnerTokenText)
+            && !string.IsNullOrWhiteSpace(InventoryPrototypeTokenText)
+            && !string.IsNullOrWhiteSpace(InventoryLocationText);
+        CanDestroyInventoryItem = hasActiveSession && !string.IsNullOrWhiteSpace(InventoryItemHandleText);
+    }
+
+    private void RefreshMobileEditorActions()
+    {
+        var hasReadableSession = ActiveSession is { } readableSession && CanProbeStructuredState(readableSession);
+        var hasWritableSession = ActiveSession is { } writableSession && CanInvokeFunctions(writableSession);
+        CanRefreshMobileRoster = hasReadableSession;
+        CanInspectSelectedMobile = hasReadableSession && SelectedMobileRosterEntry is not null;
+        CanSetMobileStat =
+            hasWritableSession
+            && !string.IsNullOrWhiteSpace(MobileTargetHandleText)
+            && !string.IsNullOrWhiteSpace(MobileStatTokenText)
+            && !string.IsNullOrWhiteSpace(MobileStatValueText);
+        CanKillMobile = hasWritableSession && !string.IsNullOrWhiteSpace(MobileTargetHandleText);
+        CanDespawnMobile = hasWritableSession && !string.IsNullOrWhiteSpace(MobileTargetHandleText);
+        CanSpawnMobile = hasWritableSession && !string.IsNullOrWhiteSpace(MobileSpawnPrototypeTokenText);
+    }
 
     private static bool CanProbeStructuredState(AttachedSessionSnapshot session) =>
         !session.HasExited
@@ -1393,6 +2201,38 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         )
             ? "Choose one guided game action and describe the destination or target in gameplay terms."
             : "This session does not currently expose live function-invocation capability, so guided game actions stay disabled.";
+    }
+
+    private static string CreateInventoryEditorAvailabilitySummary(AttachedSessionSnapshot session)
+    {
+        if (session.HasExited)
+            return "The attached process has exited, so live inventory edits are unavailable until a new session is attached.";
+
+        return session.Capabilities.Capabilities.HasFlag(
+            ArcNET.Diagnostics.Contracts.DiagnosticsCapability.InvokeFunctions
+        )
+            ? "Create items from prototype tokens or destroy live item handles through native inventory hooks."
+            : "This session does not currently expose live function-invocation capability, so the inventory editor stays disabled.";
+    }
+
+    private static string CreateMobileRosterAvailabilitySummary(AttachedSessionSnapshot session)
+    {
+        if (session.HasExited)
+            return "The attached process has exited, so the live mobile roster is unavailable until a new session is attached.";
+
+        return CanProbeStructuredState(session)
+            ? "Scan the live object pool for PC and NPC instances, then select one mobile to mutate or inspect."
+            : "This session does not currently expose structured-state capability, so the live mobile roster stays disabled.";
+    }
+
+    private static string CreateMobileEditorAvailabilitySummary(AttachedSessionSnapshot session)
+    {
+        if (session.HasExited)
+            return "The attached process has exited, so live mobile edits are unavailable until a new session is attached.";
+
+        return CanInvokeFunctions(session)
+            ? "Edit one mobile base stat, trigger critter_kill, destroy a live mobile, or spawn a new mobile from a prototype token."
+            : "This session does not currently expose live function-invocation capability, so the mobile editor stays disabled.";
     }
 
     private void SyncSelectedFunctionCallOption(string targetText)
@@ -1463,19 +2303,160 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             GuidedActionTargetSummaryText = "Guided action metadata will appear here.";
             GuidedActionHintText =
                 "Traveler can be player or a raw object handle. Leave map id at -1 to stay on the current map.";
+            GuidedActionShowTileInputs = true;
+            GuidedActionShowMapIdInput = true;
+            GuidedActionShowFlagsInput = true;
+            GuidedActionTravelerPlaceholderText = "Traveler handle or player";
+            GuidedActionTileXPlaceholderText = "Tile X";
+            GuidedActionTileYPlaceholderText = "Tile Y";
+            GuidedActionMapIdPlaceholderText = "Map id (-1 current map)";
+            GuidedActionFlagsPlaceholderText = "Flags";
             return;
         }
 
         if (FunctionCatalog.TryGetDefinition(action.FunctionKey, out var function))
         {
             GuidedActionTargetSummaryText = $"{action.DisplayName} · {function.Site}";
+            if (action.Key.Equals("discover_world_map_locations", StringComparison.OrdinalIgnoreCase))
+            {
+                GuidedActionHintText =
+                    "ArcNET loads the world-area catalog from the attached install, marks every area known, and only walks anchor teleports when the traveler is already standing on the world map.";
+                GuidedActionShowTileInputs = false;
+                GuidedActionShowMapIdInput = false;
+                GuidedActionShowFlagsInput = false;
+                GuidedActionTravelerPlaceholderText = "Traveler handle or player";
+                GuidedActionTileXPlaceholderText = "Unused for discovery";
+                GuidedActionTileYPlaceholderText = "Unused for discovery";
+                GuidedActionMapIdPlaceholderText = "Unused for discovery";
+                GuidedActionFlagsPlaceholderText = "Unused for discovery";
+                return;
+            }
+
             GuidedActionHintText =
                 "Traveler can be player or a raw object handle. Leave map id at -1 to stay on the current map, and use flags only when you intentionally need a non-default teleport mode.";
+            GuidedActionShowTileInputs = true;
+            GuidedActionShowMapIdInput = true;
+            GuidedActionShowFlagsInput = true;
+            GuidedActionTravelerPlaceholderText = "Traveler handle or player";
+            GuidedActionTileXPlaceholderText = "Tile X";
+            GuidedActionTileYPlaceholderText = "Tile Y";
+            GuidedActionMapIdPlaceholderText = "Map id (-1 current map)";
+            GuidedActionFlagsPlaceholderText = "Flags";
             return;
         }
 
         GuidedActionTargetSummaryText = $"{action.DisplayName} · {action.FunctionKey}";
         GuidedActionHintText = action.Summary;
+        GuidedActionShowTileInputs = true;
+        GuidedActionShowMapIdInput = true;
+        GuidedActionShowFlagsInput = true;
+        GuidedActionTravelerPlaceholderText = "Traveler handle or player";
+        GuidedActionTileXPlaceholderText = "Tile X";
+        GuidedActionTileYPlaceholderText = "Tile Y";
+        GuidedActionMapIdPlaceholderText = "Map id (-1 current map)";
+        GuidedActionFlagsPlaceholderText = "Flags";
+    }
+
+    private static IReadOnlyList<string> CreateInventoryEditorLines(InventoryEditorSnapshot snapshot)
+    {
+        List<string> lines = [snapshot.Summary];
+        if (!string.IsNullOrWhiteSpace(snapshot.OwnerHandleText))
+            lines.Add($"Owner handle: {snapshot.OwnerHandleText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.OwnerTargetText))
+            lines.Add($"Owner: {snapshot.OwnerTargetText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.ItemHandleText))
+            lines.Add($"Item handle: {snapshot.ItemHandleText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.PrototypeHandleText))
+            lines.Add($"Prototype handle: {snapshot.PrototypeHandleText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.InventoryLocationText))
+            lines.Add($"Slot: {snapshot.InventoryLocationText}");
+
+        lines.AddRange(snapshot.Notes.Take(4).Select(static note => $"Note: {note}"));
+        return lines;
+    }
+
+    private void ApplyFilteredMobileRoster()
+    {
+        var filter = NormalizeMobileFilter(MobileRosterFilterText);
+        var filteredMobiles =
+            filter.Length == 0
+                ? _mobileRosterCache
+                : [.. _mobileRosterCache.Where(entry => MatchesMobileFilter(entry, filter))];
+        var selectionHandle = _pendingMobileSelectionHandle ?? SelectedMobileRosterEntry?.HandleHex;
+        MobileRosterEntries = filteredMobiles;
+        if (!string.IsNullOrWhiteSpace(selectionHandle))
+        {
+            var matchingEntry = filteredMobiles.FirstOrDefault(entry =>
+                entry.HandleHex.Equals(selectionHandle, StringComparison.OrdinalIgnoreCase)
+            );
+            if (matchingEntry is not null)
+            {
+                if (
+                    !EqualityComparer<MobileRosterEntrySnapshot?>.Default.Equals(
+                        SelectedMobileRosterEntry,
+                        matchingEntry
+                    )
+                )
+                    SelectedMobileRosterEntry = matchingEntry;
+
+                _pendingMobileSelectionHandle = null;
+                return;
+            }
+        }
+
+        if (SelectedMobileRosterEntry is not null)
+            SelectedMobileRosterEntry = null;
+    }
+
+    private static IReadOnlyList<string> CreateMobileMutationLines(MobileMutationSnapshot snapshot)
+    {
+        List<string> lines = [snapshot.Summary];
+        if (!string.IsNullOrWhiteSpace(snapshot.TargetHandleText))
+            lines.Add($"Handle: {snapshot.TargetHandleText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.TargetText))
+            lines.Add($"Target: {snapshot.TargetText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.PrototypeHandleText))
+            lines.Add($"Prototype handle: {snapshot.PrototypeHandleText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.StatNameText))
+            lines.Add($"Stat: {snapshot.StatNameText}");
+
+        if (!string.IsNullOrWhiteSpace(snapshot.StatValueText))
+            lines.Add($"Value: {snapshot.StatValueText}");
+
+        lines.AddRange(snapshot.Notes.Take(4).Select(static note => $"Note: {note}"));
+        return lines;
+    }
+
+    private static bool MatchesMobileFilter(MobileRosterEntrySnapshot entry, string filter) =>
+        NormalizeMobileFilter(entry.HandleHex).Contains(filter, StringComparison.Ordinal)
+        || NormalizeMobileFilter(entry.DisplayText).Contains(filter, StringComparison.Ordinal)
+        || NormalizeMobileFilter(entry.ObjectIdText).Contains(filter, StringComparison.Ordinal)
+        || NormalizeMobileFilter(entry.PrototypeText).Contains(filter, StringComparison.Ordinal)
+        || NormalizeMobileFilter(entry.ObjectTypeText).Contains(filter, StringComparison.Ordinal);
+
+    private static string NormalizeMobileFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        Span<char> buffer = stackalloc char[value.Length];
+        var count = 0;
+        foreach (var ch in value)
+        {
+            if (!char.IsLetterOrDigit(ch))
+                continue;
+
+            buffer[count++] = char.ToLowerInvariant(ch);
+        }
+
+        return new string(buffer[..count]);
     }
 
     private static bool TryFormatRawTarget(string text, out string formatted)
@@ -1523,6 +2504,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private static readonly IBrush s_unsupportedAccentBrush = CreateBrush("#FF9A402B");
     private static readonly IBrush s_unsupportedSurfaceBrush = CreateBrush("#FFF9ECE8");
     private static readonly IBrush s_dormantAccentBrush = CreateBrush("#FF7C6A55");
+    private const int MobileRosterMaxEntries = 128;
 
     private static IBrush CreateBrush(string hex) => new SolidColorBrush(Color.Parse(hex));
 }

@@ -1,6 +1,5 @@
 using ArcanumDebugger.App.Composition;
 using ArcNET.Diagnostics;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcanumDebugger.App.Tests;
 
@@ -126,12 +125,19 @@ public sealed class DiagnosticsFeatureCatalogTests
                     type is { IsClass: true, IsPublic: true }
                     && type.Name.EndsWith("Service", StringComparison.Ordinal)
                     && type.Namespace is not null
-                    && (
-                        type.Namespace.Equals("ArcNET.Diagnostics", StringComparison.Ordinal)
-                        || type.Namespace.Equals("ArcNET.Diagnostics.Windows", StringComparison.Ordinal)
-                    )
+                    && type.Namespace.Equals("ArcNET.Diagnostics", StringComparison.Ordinal)
                 )
                 .Select(static type => type.Name)
+                .Concat(
+                    typeof(IDiagnosticsServices)
+                        .GetProperties()
+                        .Select(static property => property.PropertyType)
+                        .Where(static type =>
+                            type is { IsClass: true } && type.Name.EndsWith("Service", StringComparison.Ordinal)
+                        )
+                        .Select(static type => type.Name)
+                )
+                .Append(nameof(RuntimeProfileService))
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static name => name),
         ];

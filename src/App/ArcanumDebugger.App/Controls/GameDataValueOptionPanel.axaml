@@ -1,0 +1,90 @@
+<UserControl
+  x:Class="ArcanumDebugger.App.Controls.GameDataValueOptionPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="using:ArcanumDebugger.App.Controls"
+  xmlns:viewmodels="using:ArcanumDebugger.App.ViewModels"
+  x:Name="ValueOptionPanelRoot"
+  x:DataType="controls:GameDataValueOptionPanel"
+>
+  <Border
+    Background="#11161D"
+    BorderBrush="{DynamicResource SoftLineBrush}"
+    BorderThickness="1"
+    CornerRadius="6"
+    Padding="8,6"
+  >
+    <StackPanel Spacing="6">
+      <TextBlock Classes="h3" Text="{CompiledBinding #ValueOptionPanelRoot.TitleText}" />
+      <TextBlock
+        Classes="meta"
+        IsVisible="{CompiledBinding #ValueOptionPanelRoot.ShowEmptyState}"
+        Text="{CompiledBinding #ValueOptionPanelRoot.EmptyStateText}"
+        TextWrapping="Wrap"
+      />
+      <StackPanel IsVisible="{CompiledBinding #ValueOptionPanelRoot.ShowEntry}" Spacing="6">
+        <DockPanel LastChildFill="True">
+          <Border Background="#21262D" CornerRadius="999" DockPanel.Dock="Left" Padding="8,2">
+            <TextBlock Classes="meta" Text="{CompiledBinding #ValueOptionPanelRoot.Entry.BadgeText}" />
+          </Border>
+          <TextBlock
+            Classes="meta"
+            DockPanel.Dock="Right"
+            HorizontalAlignment="Right"
+            Text="{CompiledBinding #ValueOptionPanelRoot.Entry.SubtitleText}"
+          />
+        </DockPanel>
+        <TextBlock Classes="h3" Text="{CompiledBinding #ValueOptionPanelRoot.Entry.TitleText}" />
+        <TextBlock Classes="meta" Text="{CompiledBinding #ValueOptionPanelRoot.Entry.DetailText}" TextWrapping="Wrap" />
+        <Button
+          Classes="action"
+          Command="{CompiledBinding #ValueOptionPanelRoot.ApplyEntryCommand}"
+          CommandParameter="{CompiledBinding #ValueOptionPanelRoot.Entry}"
+          Content="Stage Recommended Value"
+          IsVisible="{CompiledBinding #ValueOptionPanelRoot.Entry.HasSingleValueOption}"
+        />
+        <ItemsControl
+          IsVisible="{CompiledBinding #ValueOptionPanelRoot.Entry.HasMultipleValueOptions}"
+          ItemsSource="{CompiledBinding #ValueOptionPanelRoot.Entry.ValueChoices}"
+        >
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="viewmodels:GameDataSupportedInputValueChoice">
+              <Border
+                Margin="0,0,0,6"
+                Background="#0F141A"
+                BorderBrush="{DynamicResource SoftLineBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="8,6"
+              >
+                <StackPanel Spacing="4">
+                  <DockPanel LastChildFill="False">
+                    <TextBlock Classes="h3" DockPanel.Dock="Left" Text="{CompiledBinding Option.LabelText}" />
+                    <Border
+                      Background="#1F6FEB"
+                      CornerRadius="999"
+                      DockPanel.Dock="Right"
+                      IsVisible="{CompiledBinding IsRecommended}"
+                      Padding="8,2"
+                    >
+                      <TextBlock Classes="meta" Foreground="White" Text="Recommended" />
+                    </Border>
+                  </DockPanel>
+                  <TextBlock Classes="code" Text="{CompiledBinding ValueText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="meta" Text="{CompiledBinding HintText}" TextWrapping="Wrap" />
+                  <Button
+                    Classes="secondary"
+                    Command="{CompiledBinding #ValueOptionPanelRoot.ApplyValueCommand}"
+                    CommandParameter="{Binding}"
+                    Content="Stage This Value"
+                    HorizontalAlignment="Left"
+                  />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

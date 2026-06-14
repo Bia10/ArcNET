@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>ArcanumDebugger.App</RootNamespace>
     <AssemblyName>ArcanumDebugger.App</AssemblyName>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Library</OutputType>
     <IsPackable>false</IsPackable>
     <Description>Preview Avalonia shell for the standalone ArcanumDebugger desktop app.</Description>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -20,6 +20,5 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
     <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
-    <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.Windows\ArcNET.Diagnostics.Windows.csproj" />
   </ItemGroup>
 </Project>

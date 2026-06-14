@@ -1,0 +1,117 @@
+<UserControl
+  x:Class="ArcanumDebugger.App.Controls.GameDataQuickPickPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:viewmodels="using:ArcanumDebugger.App.ViewModels"
+  x:Name="QuickPickPanelRoot"
+  x:DataType="viewmodels:MainWindowViewModel"
+>
+  <Border
+    Background="#151A20"
+    BorderBrush="{DynamicResource SoftLineBrush}"
+    BorderThickness="1"
+    CornerRadius="6"
+    Padding="8,6"
+  >
+    <StackPanel Spacing="8">
+      <DockPanel LastChildFill="False">
+        <TextBlock Classes="h3" DockPanel.Dock="Left" Text="{CompiledBinding GameDataQuickPickTitleText}" />
+        <Button
+          Classes="secondary"
+          Command="{CompiledBinding CloseGameDataQuickPickCommand}"
+          Content="Hide"
+          DockPanel.Dock="Right"
+        />
+      </DockPanel>
+      <TextBlock Classes="meta" Text="{CompiledBinding GameDataQuickPickSummaryText}" TextWrapping="Wrap" />
+      <TextBox
+        PlaceholderText="{CompiledBinding GameDataQuickPickFilterPlaceholderText}"
+        Text="{CompiledBinding GameDataQuickPickFilterText, Mode=TwoWay}"
+      />
+      <ListBox
+        Classes="sidebar"
+        ItemsSource="{CompiledBinding GameDataQuickPickEntries}"
+        MaxHeight="220"
+        SelectedItem="{CompiledBinding SelectedGameDataQuickPickEntry, Mode=TwoWay}"
+      >
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="viewmodels:GameDataQuickPickEntry">
+            <Border
+              Margin="0,0,0,6"
+              Background="#11161D"
+              BorderBrush="{DynamicResource SoftLineBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="8,6"
+            >
+              <StackPanel Spacing="3">
+                <DockPanel LastChildFill="True">
+                  <Border Background="#21262D" CornerRadius="999" DockPanel.Dock="Left" Padding="8,2">
+                    <TextBlock Classes="meta" Text="{CompiledBinding BadgeText}" />
+                  </Border>
+                  <TextBlock
+                    Classes="meta"
+                    DockPanel.Dock="Right"
+                    HorizontalAlignment="Right"
+                    Text="{CompiledBinding SubtitleText}"
+                  />
+                </DockPanel>
+                <TextBlock Classes="h3" Text="{CompiledBinding TitleText}" />
+                <TextBlock Classes="code" Text="{CompiledBinding ApplyValueText}" />
+                <TextBlock Classes="meta" Text="{CompiledBinding DetailText}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel IsVisible="{CompiledBinding CanApplySelectedGameDataQuickPick}" Spacing="6">
+        <TextBlock Classes="h3" Text="Supported Inputs" />
+        <ItemsControl ItemsSource="{CompiledBinding SelectedGameDataQuickPickEntry.ValueOptions}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="viewmodels:GameDataQuickPickValueOption">
+              <Border
+                Margin="0,0,0,6"
+                Background="#11161D"
+                BorderBrush="{DynamicResource SoftLineBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="8,6"
+              >
+                <StackPanel Spacing="4">
+                  <DockPanel LastChildFill="False">
+                    <TextBlock Classes="h3" DockPanel.Dock="Left" Text="{CompiledBinding LabelText}" />
+                    <Border
+                      IsVisible="{CompiledBinding IsRecommended}"
+                      Background="#1F6FEB"
+                      CornerRadius="999"
+                      DockPanel.Dock="Right"
+                      Padding="8,2"
+                    >
+                      <TextBlock Classes="meta" Foreground="White" Text="Recommended" />
+                    </Border>
+                  </DockPanel>
+                  <TextBlock Classes="code" Text="{CompiledBinding ValueText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="meta" Text="{CompiledBinding HintText}" TextWrapping="Wrap" />
+                  <Button
+                    HorizontalAlignment="Left"
+                    Classes="secondary"
+                    Command="{Binding #QuickPickPanelRoot.DataContext.ApplyGameDataQuickPickValueCommand}"
+                    CommandParameter="{Binding}"
+                    Content="Use This Value"
+                  />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <Button
+        HorizontalAlignment="Left"
+        Classes="action"
+        Command="{CompiledBinding ApplySelectedGameDataQuickPickCommand}"
+        Content="{CompiledBinding GameDataQuickPickApplyButtonText}"
+        IsEnabled="{CompiledBinding CanApplySelectedGameDataQuickPick}"
+      />
+    </StackPanel>
+  </Border>
+</UserControl>

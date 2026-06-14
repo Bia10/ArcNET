@@ -19,15 +19,22 @@ public static class DiagnosticsFeatureCatalog
         "object-probe",
         "function-call",
         "guided-action",
+        "game-data-catalog",
         "audit",
         "prototype-resolution",
         "read",
         "sheet",
+        "sheet-editor",
         "script-attachment",
         "logbook",
+        "logbook-editor",
+        "inventory-editor",
+        "mobile-entity",
+        "spell-tech-editor",
         "intercept",
         "module-symbol-query",
         "crash-dump",
+        "crash-dump-analysis",
         "ce-source-audit",
         "save-slot-load",
         "save-file-audit",
@@ -94,121 +101,170 @@ public static class DiagnosticsFeatureCatalog
         Create(
             "environment",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "EnvironmentService",
             "Discovers candidate processes, live runtimes, and launch-preview posture from the local machine."
         ),
         Create(
             "session",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "SessionService",
             "Attaches to running processes or launches supported executables and establishes a process-backed session."
         ),
         Create(
             "runtime-profile",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "RuntimeProfileService",
             "Resolves module fingerprints, hashes, and support posture for a concrete runtime binary."
         ),
         Create(
             "runtime-status",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "RuntimeStatusService",
             "Reads capability-aware live runtime status such as action points and current character-sheet identity."
         ),
         Create(
             "watch",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "WatchService",
             "Streams live hook events through validated runtime watch presets."
         ),
         Create(
             "object-probe",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "ObjectProbeService",
             "Inspects runtime object handles and expands identity plus getter-backed object details."
         ),
         Create(
             "function-call",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "FunctionCallService",
             "Invokes known catalog functions or raw RVAs through the live dispatcher surface."
         ),
         Create(
             "guided-action",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "GuidedActionService",
             "Wraps common runtime mutations such as traveler teleport into safer guided workflows."
         ),
         Create(
+            "game-data-catalog",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "GameDataCatalogService",
+            "Loads the local ArcNET workspace palette plus world-area catalog so debugger inputs can be picked from supported game data."
+        ),
+        Create(
             "audit",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "AuditService",
             "Audits dispatcher resolution, function metadata, and optional hook install/pass behavior on a live process."
         ),
         Create(
             "prototype-resolution",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "PrototypeResolutionService",
             "Resolves proto numbers, palette entries, and explicit prototype handles into live runtime objects."
         ),
         Create(
             "sheet",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "SheetService",
             "Reads typed sheet values and can capture or diff live sheet snapshots."
         ),
         Create(
+            "sheet-editor",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "SheetEditorService",
+            "Writes live sheet stats, resistances, skills, spell mastery, colleges, and tech disciplines."
+        ),
+        Create(
             "script-attachment",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "ScriptAttachmentService",
             "Reads script attachment records by attachment point for live runtime objects."
         ),
         Create(
             "logbook",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "LogbookService",
             "Decodes rumors, quests, reputations, blessings, curses, injuries, background, and keyring pages."
         ),
         Create(
+            "logbook-editor",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "LogbookEditorService",
+            "Mutates quests, rumors, reputations, blessings, curses, and backgrounds through the live journal hook surface."
+        ),
+        Create(
+            "inventory-editor",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "InventoryEditorService",
+            "Creates or destroys live inventory items through object_create, item_insert, and related inventory hooks."
+        ),
+        Create(
+            "mobile-entity",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "MobileEntityService",
+            "Scans the live mobile roster and mutates stats, kill state, despawn state, or anchor-created runtime objects."
+        ),
+        Create(
+            "spell-tech-editor",
+            "Runtime live",
+            "ArcNET.Diagnostics",
+            "SpellTechEditorService",
+            "Learns spells, grants or removes schematics, or writes live spell-college, tech-discipline, and tech-skill progression."
+        ),
+        Create(
             "read",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "ReadService",
             "Performs getter-backed reads for quests, fields, stats, effects, and other structured runtime state."
         ),
         Create(
             "intercept",
             "Runtime live",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "InterceptService",
             "Hooks one function with register overrides, argument mutation, dereference capture, and event polling."
         ),
         Create(
             "module-symbol-query",
             "Runtime research",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "ModuleSymbolQueryService",
             "Queries file-based or live-loaded symbols to crosswalk names, RVAs, sizes, and duplicate matches."
         ),
         Create(
             "crash-dump",
             "Runtime research",
-            "ArcNET.Diagnostics.Windows",
+            "ArcNET.Diagnostics",
             "CrashDumpService",
             "Writes manual process dumps and manages automatic WER LocalDumps configuration."
+        ),
+        Create(
+            "crash-dump-analysis",
+            "Runtime research",
+            "ArcNET.Diagnostics",
+            "CrashDumpAnalysisService",
+            "Runs cdb.exe against a dump file and writes a sidecar native stack-trace report when debugger tools are installed."
         ),
         Create(
             "ce-source-audit",

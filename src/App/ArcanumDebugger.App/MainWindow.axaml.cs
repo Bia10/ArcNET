@@ -11,9 +11,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainWindowViewModel();
         Closed += OnClosed;
     }
+
+    public MainWindow(MainWindowViewModel viewModel)
+        : this() => DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
     private void OnClosed(object? sender, EventArgs e) => (DataContext as IDisposable)?.Dispose();
 }

@@ -31,6 +31,7 @@
     <Project Path="src/App/ArcNET.App/ArcNET.App.csproj" />
     <Project Path="src/App/ArcanumDebugger.App/ArcanumDebugger.App.csproj" />
     <Project Path="src/App/ArcanumDebugger.App.Tests/ArcanumDebugger.App.Tests.csproj" />
+    <Project Path="src/App/ArcanumDebugger.App.Windows/ArcanumDebugger.App.Windows.csproj" />
   </Folder>
   <Folder Name="/src/Benchmarks/">
     <Project Path="src/Benchmarks/ArcNET.Benchmarks/ArcNET.Benchmarks.csproj" />

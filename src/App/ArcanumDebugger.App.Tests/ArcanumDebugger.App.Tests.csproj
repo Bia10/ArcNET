@@ -10,7 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ArcanumDebugger.App\ArcanumDebugger.App.csproj" />
     <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
-    <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.Windows\ArcNET.Diagnostics.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

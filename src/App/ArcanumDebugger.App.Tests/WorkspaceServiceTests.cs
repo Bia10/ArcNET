@@ -1,7 +1,6 @@
 using ArcanumDebugger.App.Composition;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
-using ArcNET.Diagnostics.Windows;
 
 namespace ArcanumDebugger.App.Tests;
 

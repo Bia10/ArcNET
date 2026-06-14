@@ -1,9 +1,8 @@
 using System.Globalization;
 using ArcanumDebugger.App.Composition;
 using ArcNET.Diagnostics;
-using ArcNET.Diagnostics.Windows;
-using ArcNET.Editor;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -11,13 +10,17 @@ namespace ArcanumDebugger.App.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
-    private readonly AuditService _auditService = AuditService.Default;
-    private readonly PrototypeResolutionService _prototypeResolutionService = PrototypeResolutionService.Default;
-    private readonly ReadService _readService = ReadService.Default;
-    private readonly SheetService _sheetService = SheetService.Default;
-    private readonly ScriptAttachmentService _scriptAttachmentService = ScriptAttachmentService.Default;
-    private readonly LogbookService _logbookService = LogbookService.Default;
-    private readonly InterceptService _interceptService = InterceptService.Default;
+    private readonly AuditService _auditService;
+    private readonly PrototypeResolutionService _prototypeResolutionService;
+    private readonly ReadService _readService;
+    private readonly SheetService _sheetService;
+    private readonly ScriptAttachmentService _scriptAttachmentService;
+    private readonly LogbookService _logbookService;
+    private readonly InterceptService _interceptService;
+    private readonly InterceptTargetResolver _interceptTargetResolver;
+    private readonly ModuleSymbolQueryService _moduleSymbolQueryService;
+    private readonly RuntimeStatusService _runtimeStatusService;
+    private readonly CrashDumpService _crashDumpService;
     private InterceptHandle? _activeInterceptHandle;
 
     [ObservableProperty]
@@ -61,6 +64,8 @@ public sealed partial class MainWindowViewModel
 
     [ObservableProperty]
     private IReadOnlyList<string> prototypeResultLines = [];
+
+    partial void OnPrototypeTokenTextChanged(string value) => RefreshSupportedInputPanels();
 
     [ObservableProperty]
     private string readAdapterKeyText = "story-state";
@@ -411,7 +416,11 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     private bool hasObjectProbeSectionSummaries;
 
-    partial void OnLogbookPageTokenTextChanged(string value) => RefreshSelectedLogbookPageOption();
+    partial void OnLogbookPageTokenTextChanged(string value)
+    {
+        InvalidateLoadedLogbookSnapshotIfRequestChanged(pageTokenText: value);
+        RefreshSelectedLogbookPageOption();
+    }
 
     partial void OnSelectedLogbookPageOptionChanged(DebuggerChoiceOption? value)
     {
@@ -460,6 +469,18 @@ public sealed partial class MainWindowViewModel
                 "Use the journal reader for quests, rumors, reputations, blessings, injuries, background, and keys.",
                 []
             );
+            ResetSheetEditorState(
+                "Load editable fields from one live sheet snapshot to browse stats, resistances, skills, spell mastery, colleges, and tech disciplines."
+            );
+            SheetMutationStatusText = "No live sheet mutation executed.";
+            SheetMutationResultLines =
+            [
+                "Load editable fields, pick one row, then write a new value without hunting internal ids or remembering every sheet token.",
+            ];
+            SheetMutationDispatcherText = "Dispatcher result unavailable.";
+            SheetMutationExecutionDetailText =
+                "Target address and hook details will appear here after a live sheet mutation.";
+            SheetMutationResultText = "Mutation result values will appear here after a live sheet mutation.";
             RuntimeStatusText = "No runtime status read yet.";
             RuntimeStatusResultLines = [];
             RuntimeModuleStatusText = "No live symbol lookup yet.";
@@ -483,6 +504,20 @@ public sealed partial class MainWindowViewModel
             "Read a live journal page to populate decoded sections such as quests, blessings, background, or keys.",
             []
         );
+        ResetSheetEditorState(
+            "Load editable fields from one live sheet snapshot to browse stats, resistances, skills, spell mastery, colleges, and tech disciplines."
+        );
+        SheetMutationStatusText = CanInvokeFunctions(value)
+            ? "No live sheet mutation executed."
+            : "Sheet editor unavailable";
+        SheetMutationResultLines =
+        [
+            "Load editable fields, pick one row, then write a new value without hunting internal ids or remembering every sheet token.",
+        ];
+        SheetMutationDispatcherText = "Dispatcher result unavailable.";
+        SheetMutationExecutionDetailText =
+            "Target address and hook details will appear here after a live sheet mutation.";
+        SheetMutationResultText = "Mutation result values will appear here after a live sheet mutation.";
         RuntimeStatusText =
             "Inspect runtime profile, fingerprint, action points, and current character-sheet identity.";
         RuntimeModuleStatusText =
@@ -544,8 +579,8 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            var snapshot = await Task.Run(() =>
-                _prototypeResolutionService.Resolve(new PrototypeResolutionRequest(session, PrototypeTokenText))
+            var snapshot = await _prototypeResolutionService.ResolveAsync(
+                new PrototypeResolutionRequest(session, PrototypeTokenText, ResolveWorkspacePathOverride())
             );
             PrototypeStatusText = snapshot.Status;
             PrototypeResultLines = CreatePrototypeLines(snapshot);
@@ -641,6 +676,7 @@ public sealed partial class MainWindowViewModel
             );
             SheetStatusText = snapshot.Status;
             SheetResultLines = CreateSheetScanLines(snapshot);
+            ApplySheetEditableFieldSnapshot(snapshot);
         }
         catch (Exception ex)
         {
@@ -739,10 +775,15 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            var snapshot = await Task.Run(() =>
-                _logbookService.Read(new LogbookRequest(session, LogbookHandleTokenText, LogbookPageTokenText))
+            var snapshot = await _logbookService.ReadAsync(
+                new LogbookRequest(
+                    session,
+                    LogbookHandleTokenText,
+                    LogbookPageTokenText,
+                    ResolveWorkspacePathOverride()
+                )
             );
-            ApplyLogbookSnapshot(snapshot);
+            ApplyLogbookReadSnapshot(snapshot);
         }
         catch (Exception ex)
         {
@@ -767,23 +808,11 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            var result = await Task.Run(() =>
-            {
-                using var memory = ProcessMemory.Attach(session.ProcessId);
-                var runtimeProfile = RuntimeProfileService.Resolve(
-                    memory.ProcessName,
-                    memory.ProcessId,
-                    memory.ModulePath,
-                    memory.ModuleBase,
-                    memory.ModuleSize
-                );
-                var status = RuntimeStatusService.Inspect(memory);
-                return (runtimeProfile, status);
-            });
+            var result = await Task.Run(() => _runtimeStatusService.Inspect(session.ProcessId));
             RuntimeStatusText = "Runtime status inspection completed";
-            RuntimeStatusResultLines = CreateRuntimeStatusLines(result.runtimeProfile, result.status);
-            if (result.status.ActionPoints.HasValue)
-                RuntimeActionPointsText = result.status.ActionPoints.Value.ToString(CultureInfo.InvariantCulture);
+            RuntimeStatusResultLines = CreateRuntimeStatusLines(result);
+            if (result.ActionPoints.HasValue)
+                RuntimeActionPointsText = result.ActionPoints.Value.ToString(CultureInfo.InvariantCulture);
         }
         catch (Exception ex)
         {
@@ -806,17 +835,15 @@ public sealed partial class MainWindowViewModel
         {
             var limit = ParsePositiveInt(RuntimeModuleLimitText, "live module-symbol limit");
             var snapshot = await Task.Run(() =>
-            {
-                using var memory = ProcessMemory.Attach(session.ProcessId);
-                return ModuleSymbolQueryService.QueryLive(
-                    memory,
+                _moduleSymbolQueryService.QueryLive(
+                    session.ProcessId,
                     new ModuleSymbolQueryRequest(
                         string.IsNullOrWhiteSpace(RuntimeModuleFilterText) ? null : RuntimeModuleFilterText,
                         limit,
                         RuntimeModuleDuplicatesOnly
                     )
-                );
-            });
+                )
+            );
             RuntimeModuleStatusText = "Live module-symbol query completed";
             RuntimeModuleResultLines = CreateModuleSymbolLines(snapshot);
         }
@@ -846,17 +873,11 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            var result = await Task.Run(() =>
-            {
-                using var memory = ProcessMemory.Attach(session.ProcessId);
-                var mutation = RuntimeStatusService.WriteActionPoints(memory, value);
-                var status = RuntimeStatusService.Inspect(memory);
-                return (mutation, status);
-            });
+            var result = await Task.Run(() => _runtimeStatusService.WriteActionPoints(session.ProcessId, value));
             RuntimeStatusText = "Runtime action points updated";
-            RuntimeStatusResultLines = CreateRuntimeMutationLines(result.mutation, result.status);
-            if (result.status.ActionPoints.HasValue)
-                RuntimeActionPointsText = result.status.ActionPoints.Value.ToString(CultureInfo.InvariantCulture);
+            RuntimeStatusResultLines = CreateRuntimeMutationLines(result.Mutation, result.Status);
+            if (result.Status.ActionPoints.HasValue)
+                RuntimeActionPointsText = result.Status.ActionPoints.Value.ToString(CultureInfo.InvariantCulture);
         }
         catch (Exception ex)
         {
@@ -885,13 +906,9 @@ public sealed partial class MainWindowViewModel
         try
         {
             var dumpKind = ParseCrashDumpKind(RuntimeDumpKindText);
-            var snapshot = await Task.Run(() =>
-            {
-                using var memory = ProcessMemory.Attach(session.ProcessId);
-                return CrashDumpService.WriteDump(memory, RuntimeDumpPathText, dumpKind);
-            });
+            var result = await _crashDumpService.WriteDumpAsync(session.ProcessId, RuntimeDumpPathText, dumpKind);
             RuntimeDumpStatusText = "Runtime dump captured";
-            RuntimeDumpResultLines = CreateCrashDumpWriteLines(snapshot);
+            RuntimeDumpResultLines = CreateCrashDumpWriteLines(result.Dump, result.Analysis);
         }
         catch (Exception ex)
         {
@@ -905,11 +922,13 @@ public sealed partial class MainWindowViewModel
     {
         try
         {
-            var snapshot = await Task.Run(() =>
-                CrashDumpService.GetAutomaticDumpStatus(NormalizeProcessExecutableName(RuntimeDumpProcessNameText))
+            var modulePath = ActiveSession?.Fingerprint.ModulePath;
+            var snapshot = await _crashDumpService.InspectAutomaticDumpsAsync(
+                NormalizeProcessExecutableName(RuntimeDumpProcessNameText),
+                modulePath
             );
-            RuntimeDumpStatusText = snapshot.IsEnabled ? "Automatic dumps are enabled" : "Automatic dumps are disabled";
-            RuntimeDumpResultLines = CreateCrashDumpConfigurationLines(snapshot);
+            RuntimeDumpStatusText = snapshot.Status;
+            RuntimeDumpResultLines = CreateCrashDumpAutoInspectionLines(snapshot);
         }
         catch (Exception ex)
         {
@@ -933,7 +952,7 @@ public sealed partial class MainWindowViewModel
             var dumpKind = ParseCrashDumpKind(RuntimeDumpKindText);
             var dumpCount = ParseDumpCount(RuntimeDumpCountText);
             var snapshot = await Task.Run(() =>
-                CrashDumpService.EnableAutomaticDumps(
+                _crashDumpService.EnableAutomaticDumps(
                     RuntimeDumpDirectoryText,
                     dumpKind,
                     dumpCount,
@@ -956,7 +975,7 @@ public sealed partial class MainWindowViewModel
         try
         {
             var snapshot = await Task.Run(() =>
-                CrashDumpService.DisableAutomaticDumps(NormalizeProcessExecutableName(RuntimeDumpProcessNameText))
+                _crashDumpService.DisableAutomaticDumps(NormalizeProcessExecutableName(RuntimeDumpProcessNameText))
             );
             RuntimeDumpStatusText = "Automatic dumps disabled";
             RuntimeDumpResultLines = CreateCrashDumpConfigurationLines(snapshot);
@@ -1176,7 +1195,7 @@ public sealed partial class MainWindowViewModel
         {
             var limit = ParsePositiveInt(OfflineModuleLimitText, "offline module-symbol limit");
             var snapshot = await Task.Run(() =>
-                ModuleSymbolQueryService.QueryFile(
+                _moduleSymbolQueryService.QueryFile(
                     OfflineModulePathText,
                     new ModuleSymbolQueryRequest(
                         string.IsNullOrWhiteSpace(OfflineModuleFilterText) ? null : OfflineModuleFilterText,
@@ -1516,6 +1535,12 @@ public sealed partial class MainWindowViewModel
         if (!string.IsNullOrWhiteSpace(snapshot.TargetText))
             lines.Add($"Target: {snapshot.TargetText}");
 
+        if (!snapshot.IsAvailable)
+        {
+            lines.AddRange(snapshot.Notes.Take(4).Select(static note => $"Note: {note}"));
+            return lines;
+        }
+
         lines.Add(
             $"Primary: {string.Join(", ", snapshot.Data.PrimaryStats.Take(4).Select(static entry => $"{entry.Name}={entry.Value}"))}"
         );
@@ -1628,27 +1653,73 @@ public sealed partial class MainWindowViewModel
 
     private void ApplyLogbookSnapshot(LogbookSnapshot snapshot)
     {
+        _loadedLogbookHandleTokenText = LogbookHandleTokenText.Trim();
+        _loadedLogbookPageTokenText = snapshot.RequestedPageToken.Trim();
+        _loadedLogbookWorkspacePath = NormalizeWorkspacePathKey(
+            ActiveSession is { } activeSession
+                ? ResolveEffectiveWorkspacePath(activeSession)
+                : ResolveWorkspacePathOverride()
+        );
         LogbookStatusText = snapshot.Status;
         LogbookDisplaySummaryText = snapshot.Summary;
         LogbookResultLines = CreateLogbookLines(snapshot);
         LogbookHighlights = CreateLogbookHighlights(snapshot);
         LogbookSections = CreateLogbookSections(snapshot);
+        ApplyLogbookEditableEntries(snapshot);
         LogbookNotes = [.. snapshot.Notes.Take(4)];
         HasLogbookSections = LogbookSections.Count > 0;
         ShowLogbookFallbackLines = !HasLogbookSections && LogbookResultLines.Count > 0;
         RefreshSelectedLogbookPageOption();
+        QueueRefreshLogbookLiveInspection();
+    }
+
+    private void ApplyLogbookReadSnapshot(LogbookSnapshot snapshot)
+    {
+        if (snapshot.IsAvailable)
+        {
+            ApplyLogbookSnapshot(snapshot);
+            return;
+        }
+
+        var lines = CreateLogbookLines(snapshot);
+        LogbookStatusText = snapshot.Status;
+        if (IsExitedRuntimeMessage(snapshot.Summary))
+        {
+            ApplyDormantSession("Attached process exited", snapshot.Summary);
+            LogbookStatusText = snapshot.Status;
+            ApplyLogbookFallback(
+                "The attached process is no longer running. Reattach before reading the journal again.",
+                lines
+            );
+            return;
+        }
+
+        ApplyLogbookFallback(snapshot.Summary, lines);
     }
 
     private void ApplyLogbookFallback(string summary, IReadOnlyList<string> lines)
     {
+        ResetLoadedLogbookSnapshotState();
         LogbookDisplaySummaryText = summary;
+        LogbookResultLines = lines;
         LogbookHighlights = [];
         LogbookSections = [];
+        ClearLogbookEditableEntries(
+            "Load one journal page to turn the current live entries into editor-prefill shortcuts for player or a selected companion."
+        );
         LogbookNotes = [];
         HasLogbookSections = false;
         ShowLogbookFallbackLines = lines.Count > 0;
         RefreshSelectedLogbookPageOption();
+        QueueRefreshLogbookLiveInspection();
     }
+
+    private static bool IsExitedRuntimeMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (
+            message.Contains("is not running", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("has exited", StringComparison.OrdinalIgnoreCase)
+        );
 
     private void RefreshSelectedLogbookPageOption()
     {
@@ -1983,11 +2054,9 @@ public sealed partial class MainWindowViewModel
             _ => token,
         };
 
-    private static IReadOnlyList<string> CreateRuntimeStatusLines(
-        ArcNET.Diagnostics.Contracts.RuntimeProfileSnapshot runtimeProfile,
-        RuntimeStatusSnapshot status
-    )
+    private static IReadOnlyList<string> CreateRuntimeStatusLines(RuntimeStatusSnapshot status)
     {
+        var runtimeProfile = status.RuntimeProfile;
         List<string> lines =
         [
             status.DisplayName,
@@ -2029,13 +2098,42 @@ public sealed partial class MainWindowViewModel
         return lines;
     }
 
-    private static IReadOnlyList<string> CreateCrashDumpWriteLines(CrashDumpWriteSnapshot snapshot) =>
+    private static IReadOnlyList<string> CreateCrashDumpWriteLines(
+        CrashDumpWriteSnapshot snapshot,
+        CrashDumpAnalysisSnapshot analysis
+    )
+    {
+        List<string> lines =
         [
             $"{snapshot.ProcessName}.exe PID {snapshot.ProcessId} dump captured.",
             $"Kind: {snapshot.DumpKind}",
             $"Output: {snapshot.OutputPath}",
             $"Module: {snapshot.ModulePath} @ {snapshot.ModuleBase}",
+            $"Analysis: {analysis.Status}",
         ];
+
+        if (!string.IsNullOrWhiteSpace(analysis.OutputPath))
+            lines.Add($"Stack trace: {analysis.OutputPath}");
+
+        if (!string.IsNullOrWhiteSpace(analysis.AnalyzerPath))
+            lines.Add($"Analyzer: {analysis.AnalyzerPath}");
+
+        if (!string.IsNullOrWhiteSpace(analysis.ProcessName))
+            lines.Add($"Process: {analysis.ProcessName}");
+
+        if (!string.IsNullOrWhiteSpace(analysis.ExceptionCode))
+            lines.Add($"Exception: {analysis.ExceptionCode}");
+
+        if (!string.IsNullOrWhiteSpace(analysis.FaultingInstruction))
+            lines.Add($"Faulting IP: {analysis.FaultingInstruction}");
+
+        if (analysis.StackPreview.Count > 0)
+            lines.AddRange(analysis.StackPreview.Take(3).Select(static frame => $"Stack: {frame}"));
+        else
+            lines.AddRange(analysis.Highlights.Take(4));
+
+        return lines;
+    }
 
     private static IReadOnlyList<string> CreateCrashDumpConfigurationLines(CrashDumpAutoConfigurationSnapshot snapshot)
     {
@@ -2055,6 +2153,45 @@ public sealed partial class MainWindowViewModel
         if (snapshot.DumpCount.HasValue)
             lines.Add($"Dump count: {snapshot.DumpCount.Value.ToString(CultureInfo.InvariantCulture)}");
 
+        return lines;
+    }
+
+    private static IReadOnlyList<string> CreateCrashDumpAutoInspectionLines(CrashDumpAutoInspectionSnapshot snapshot)
+    {
+        List<string> lines = [.. CreateCrashDumpConfigurationLines(snapshot.Configuration)];
+
+        if (!string.IsNullOrWhiteSpace(snapshot.LatestDumpPath))
+        {
+            lines.Add($"Latest dump: {snapshot.LatestDumpPath}");
+
+            if (snapshot.LatestDumpWrittenAtUtc.HasValue)
+            {
+                lines.Add(
+                    $"Modified (UTC): {snapshot.LatestDumpWrittenAtUtc.Value.ToString("u", CultureInfo.InvariantCulture)}"
+                );
+            }
+
+            if (snapshot.LatestDumpSizeBytes.HasValue)
+                lines.Add($"Size: {snapshot.LatestDumpSizeBytes.Value.ToString(CultureInfo.InvariantCulture)} bytes");
+        }
+
+        if (snapshot.Analysis is { } analysis)
+        {
+            lines.Add($"Analysis: {analysis.Status}");
+
+            if (!string.IsNullOrWhiteSpace(analysis.ExceptionCode))
+                lines.Add($"Exception: {analysis.ExceptionCode}");
+
+            if (!string.IsNullOrWhiteSpace(analysis.FaultingInstruction))
+                lines.Add($"Faulting IP: {analysis.FaultingInstruction}");
+
+            if (analysis.StackPreview.Count > 0)
+                lines.AddRange(analysis.StackPreview.Take(3).Select(static frame => $"Stack: {frame}"));
+            else
+                lines.AddRange(analysis.Highlights.Take(4));
+        }
+
+        lines.AddRange(snapshot.Notes.Take(4));
         return lines;
     }
 
@@ -3111,10 +3248,9 @@ public sealed partial class MainWindowViewModel
 
     private InterceptStartRequest CreateInterceptStartRequest(AttachedSessionSnapshot session)
     {
-        using var memory = ProcessMemory.Attach(session.ProcessId);
         return new InterceptStartRequest(
             session,
-            ResolveInterceptTarget(InterceptTargetText, memory),
+            _interceptTargetResolver.Resolve(session.ProcessId, InterceptTargetText),
             ParsePositiveInt(InterceptStackCaptureCountText, "stack capture dword count"),
             new InterceptMutationRequest(
                 InterceptSkipOriginal,
@@ -3125,37 +3261,6 @@ public sealed partial class MainWindowViewModel
                 ParseInterceptArgumentOverrides(InterceptArgumentOverridesText)
             ),
             ParseInterceptDereferences(InterceptDereferencesText)
-        );
-    }
-
-    private static InterceptTarget ResolveInterceptTarget(string targetText, ProcessMemory memory)
-    {
-        var trimmed = targetText.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-            throw new InvalidOperationException("Interception target is required.");
-
-        if (FunctionCatalog.TryGetDefinition(trimmed, out var definition))
-        {
-            return new InterceptTarget(
-                definition.Key,
-                checked((uint)(long)memory.ResolveRva(definition.Rva)),
-                unchecked((uint)definition.Rva),
-                definition.Site,
-                definition.Summary,
-                "catalog-function"
-            );
-        }
-
-        if (!TryParseRvaValue(trimmed, out var rva))
-            throw new FormatException($"Unknown interception target: {targetText}");
-
-        return new InterceptTarget(
-            $"raw_rva_{rva:X8}",
-            checked((uint)(long)memory.ResolveRva(unchecked((int)rva))),
-            rva,
-            CodeCatalog.FormatModuleAddress(Path.GetFileName(memory.ModulePath), rva),
-            "Raw interception target.",
-            "raw-rva"
         );
     }
 
