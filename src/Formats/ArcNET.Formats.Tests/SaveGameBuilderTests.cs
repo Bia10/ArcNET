@@ -199,7 +199,7 @@ public sealed class SaveGameBuilderTests
             .WithMessageContaining("modules/");
     }
 
-    // ── Round-trip: SaveGameWriter → SaveGameReader ───────────────────────────
+    // ── Round-trip: SaveGameFileWriter → SaveGameReader ───────────────────────
 
     [Test]
     public async Task CreateNew_RoundTrips_ThroughWriter()
@@ -221,7 +221,7 @@ public sealed class SaveGameBuilderTests
         };
 
         var save = SaveGameBuilder.CreateNew(info, "modules/Arcanum/maps/Map01", pc);
-        var (tfai, tfaf, gsi) = SaveGameWriter.SaveToMemory(save);
+        var (tfai, tfaf, gsi) = SaveGameFileWriter.SaveToMemory(save);
 
         var reparsed = SaveGameReader.ParseMemory(tfai, tfaf, gsi);
 
@@ -248,10 +248,10 @@ public sealed class SaveGameBuilderTests
             var exactGsiPath = Path.Combine(tempDir, "Slot0000.gsi");
             var decoratedGsiPath = Path.Combine(tempDir, "Slot0000Elsbeth.gsi");
 
-            SaveGameWriter.Save(save, tfaiPath);
+            SaveGameFileWriter.Save(save, tfaiPath);
             File.Move(exactGsiPath, decoratedGsiPath);
 
-            SaveGameWriter.Save(save, tfaiPath);
+            SaveGameFileWriter.Save(save, tfaiPath);
             var reparsed = SaveGameReader.Load(tfaiPath);
 
             await Assert.That(File.Exists(decoratedGsiPath)).IsTrue();
@@ -284,7 +284,7 @@ public sealed class SaveGameBuilderTests
             RawFiles = [("globals/custom.bin", nestedRaw)],
         };
 
-        var (tfai, tfaf, gsi) = SaveGameWriter.SaveToMemory(save);
+        var (tfai, tfaf, gsi) = SaveGameFileWriter.SaveToMemory(save);
         var reparsed = SaveGameReader.ParseMemory(tfai, tfaf, gsi);
         var index = SaveIndexFormat.ParseMemory(tfai);
 
@@ -395,7 +395,7 @@ public sealed class SaveGameBuilderTests
             SaveInfoFormat.WriteToArray(save.Info)
         );
 
-        var (roundTripTfai, roundTripTfaf, _) = SaveGameWriter.SaveToMemory(parsed);
+        var (roundTripTfai, roundTripTfaf, _) = SaveGameFileWriter.SaveToMemory(parsed);
         var roundTripPayloads = TfafFormat.ExtractAll(SaveIndexFormat.ParseMemory(roundTripTfai), roundTripTfaf);
 
         await Assert.That(roundTripPayloads.ContainsKey("modules/Arcanum/maps/Map01/state/custom.bin")).IsTrue();

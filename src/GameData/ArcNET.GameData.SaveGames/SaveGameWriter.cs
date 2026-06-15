@@ -1,6 +1,6 @@
 using ArcNET.Formats;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 /// <summary>
 /// Writes a modified <see cref="LoadedSave"/> back to disk.

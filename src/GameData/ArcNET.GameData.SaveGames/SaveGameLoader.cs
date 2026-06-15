@@ -1,6 +1,6 @@
 using ArcNET.Formats;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 /// <summary>
 /// Loads an Arcanum save slot from disk into a <see cref="LoadedSave"/> instance.

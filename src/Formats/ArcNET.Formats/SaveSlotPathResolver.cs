@@ -1,6 +1,6 @@
 ﻿namespace ArcNET.Formats;
 
-internal static class SaveSlotPathResolver
+public static class SaveSlotPathResolver
 {
     public static SaveSlotPaths ResolveFromFolder(string saveFolder, string slotName)
     {
@@ -68,4 +68,4 @@ internal static class SaveSlotPathResolver
     }
 }
 
-internal readonly record struct SaveSlotPaths(string GsiPath, string TfaiPath, string TfafPath);
+public readonly record struct SaveSlotPaths(string GsiPath, string TfaiPath, string TfafPath);

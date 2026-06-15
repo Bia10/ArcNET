@@ -14,7 +14,7 @@
 /// <see cref="SaveGameReader"/>.
 /// </para>
 /// </summary>
-public static class SaveGameWriter
+public static class SaveGameFileWriter
 {
     /// <summary>
     /// Serialises <paramref name="save"/> and writes the three companion files to disk.

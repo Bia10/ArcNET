@@ -1,6 +1,6 @@
 using ArcNET.Formats;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 /// <summary>
 /// In-memory representation of a fully loaded Arcanum save slot.

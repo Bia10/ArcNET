@@ -15,17 +15,15 @@ public static class SaveGameSnapshotComposer
     {
         ArgumentNullException.ThrowIfNull(original);
 
-        var files = ArcNET.Editor.SaveGamePayloadComposer.Compose(original, SaveGameUpdates.ToLegacy(updates));
-        var index = ArcNET.Editor.SaveGameIndexRebuilder.Rebuild(original.Index, files);
+        var files = SaveGamePayloadComposer.Compose(original, updates);
+        var index = SaveGameIndexRebuilder.Rebuild(original.Index, files);
 
-        return LoadedSave.FromLegacy(
-            ArcNET.Editor.SaveGameLoader.LoadFromFiles(
-                updates?.UpdatedInfo ?? original.Info,
-                index,
-                files,
-                progress,
-                cancellationToken
-            )
+        return SaveGameLoader.LoadFromFiles(
+            updates?.UpdatedInfo ?? original.Info,
+            index,
+            files,
+            progress,
+            cancellationToken
         );
     }
 }

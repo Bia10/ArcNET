@@ -39,7 +39,7 @@ public enum SaveEngineVersion
 /// </para>
 /// <para>
 /// Use <see cref="SaveGameReader"/> to load a slot from disk or from bytes, and
-/// <see cref="SaveGameWriter"/> to write it back.
+/// <see cref="SaveGameFileWriter"/> to write it back.
 /// </para>
 /// </summary>
 public sealed class SaveGame

@@ -1,6 +1,6 @@
 using ArcNET.Formats;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 internal sealed class LoadedSaveBuilder
 {

@@ -1,4 +1,4 @@
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 internal static class AtomicSaveSlotFileWriter
 {

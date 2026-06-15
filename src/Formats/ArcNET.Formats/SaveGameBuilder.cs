@@ -25,7 +25,7 @@
 /// };
 ///
 /// var save = SaveGameBuilder.CreateNew(info, "modules/Arcanum/maps/Map01", pc);
-/// SaveGameWriter.Save(save, @"C:\path\Slot0001.tfai");
+/// SaveGameFileWriter.Save(save, @"C:\path\Slot0001.tfai");
 /// </code>
 /// </para>
 /// </summary>
@@ -50,7 +50,7 @@ public static class SaveGameBuilder
     /// </param>
     /// <returns>
     /// A <see cref="SaveGame"/> with one map and no static objects, sectors, or diff records.
-    /// Pass to <see cref="SaveGameWriter.Save(SaveGame, string)"/> to write to disk.
+    /// Pass to <see cref="SaveGameFileWriter.Save(SaveGame, string)"/> to write to disk.
     /// </returns>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="mapPath"/> does not start with <c>modules/</c>.

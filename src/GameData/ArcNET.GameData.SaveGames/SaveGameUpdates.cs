@@ -1,6 +1,6 @@
 using ArcNET.Formats;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 /// <summary>
 /// Bundles optional per-type replacements passed to <see cref="SaveGameWriter.Save(LoadedSave, string, string, SaveGameUpdates?)"/>.

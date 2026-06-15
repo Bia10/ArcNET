@@ -1,8 +1,8 @@
 using ArcNET.Formats;
 using ArcNET.GameObjects;
-using static ArcNET.Editor.SaveValidationIssue;
+using static ArcNET.GameData.SaveGames.SaveValidationIssue;
 
-namespace ArcNET.Editor;
+namespace ArcNET.GameData.SaveGames;
 
 /// <summary>
 /// A single validation finding produced by <see cref="SaveGameValidator"/>.
