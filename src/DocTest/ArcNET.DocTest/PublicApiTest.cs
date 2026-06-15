@@ -8,6 +8,7 @@ using ArcNET.Diagnostics.Contracts;
 using ArcNET.Editor;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameData.Workspace;
 using ArcNET.GameObjects;
 using PublicApiGenerator;

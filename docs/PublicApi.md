@@ -749,6 +749,18 @@ namespace ArcNET.Formats
         public required ArcNET.GameObjects.GameObjectHeader Header { get; init; }
         public required System.Collections.Generic.IReadOnlyList<ArcNET.Formats.ObjectProperty> Properties { get; init; }
     }
+    public sealed class MobDataBuilder
+    {
+        public MobDataBuilder(ArcNET.Formats.MobData existing) { }
+        public MobDataBuilder(ArcNET.GameObjects.ObjectType type, ArcNET.Core.Primitives.GameObjectGuid objectId, ArcNET.Core.Primitives.GameObjectGuid protoId) { }
+        public ArcNET.Formats.MobData Build() { }
+        public ArcNET.Formats.MobDataBuilder WithLocation(int tileX, int tileY) { }
+        public ArcNET.Formats.MobDataBuilder WithOffset(int offsetX, int offsetY) { }
+        public ArcNET.Formats.MobDataBuilder WithProperty(ArcNET.Formats.ObjectProperty property) { }
+        public ArcNET.Formats.MobDataBuilder WithRotation(float rotation) { }
+        public ArcNET.Formats.MobDataBuilder WithRotationPitch(float rotationPitch) { }
+        public ArcNET.Formats.MobDataBuilder WithoutProperty(ArcNET.GameObjects.ObjectField field) { }
+    }
     public static class MobDataExtensions
     {
         public static ArcNET.Formats.ObjectProperty? GetProperty(this ArcNET.Formats.MobData mob, ArcNET.GameObjects.ObjectField field) { }
@@ -967,14 +979,7 @@ namespace ArcNET.Formats
         public static ArcNET.Formats.SaveGame CreateNew(ArcNET.Formats.SaveInfo info, ArcNET.Formats.SaveMapState map) { }
         public static ArcNET.Formats.SaveGame CreateNew(ArcNET.Formats.SaveInfo info, string mapPath, ArcNET.Formats.CharacterMdyRecord pc) { }
     }
-    public static class SaveGameReader
-    {
-        public static ArcNET.Formats.SaveGame Load(string tfaiPath) { }
-        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath) { }
-        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath, string gsiPath) { }
-        public static ArcNET.Formats.SaveGame ParseMemory(System.ReadOnlyMemory<byte> tfaiData, System.ReadOnlyMemory<byte> tfafData, System.ReadOnlyMemory<byte> gsiData) { }
-    }
-    public static class SaveGameWriter
+    public static class SaveGameFileWriter
     {
         public static void Save(ArcNET.Formats.SaveGame save, string tfaiPath) { }
         public static void Save(ArcNET.Formats.SaveGame save, string tfaiPath, string tfafPath) { }
@@ -984,6 +989,13 @@ namespace ArcNET.Formats
                 "Tfaf",
                 "Gsi"})]
         public static System.ValueTuple<byte[], byte[], byte[]> SaveToMemory(ArcNET.Formats.SaveGame save) { }
+    }
+    public static class SaveGameReader
+    {
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath) { }
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath) { }
+        public static ArcNET.Formats.SaveGame Load(string tfaiPath, string tfafPath, string gsiPath) { }
+        public static ArcNET.Formats.SaveGame ParseMemory(System.ReadOnlyMemory<byte> tfaiData, System.ReadOnlyMemory<byte> tfafData, System.ReadOnlyMemory<byte> gsiData) { }
     }
     public sealed class SaveIndex
     {
@@ -1047,6 +1059,19 @@ namespace ArcNET.Formats
                 "RelativePath",
                 "Data"})]
         public System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, byte[]>> UnknownFiles { get; init; }
+    }
+    public static class SaveSlotPathResolver
+    {
+        public static ArcNET.Formats.SaveSlotPaths ResolveFromFolder(string saveFolder, string slotName) { }
+        public static ArcNET.Formats.SaveSlotPaths ResolveFromTfaiAndTfafPaths(string tfaiPath, string tfafPath) { }
+        public static ArcNET.Formats.SaveSlotPaths ResolveFromTfaiPath(string tfaiPath) { }
+    }
+    public readonly struct SaveSlotPaths : System.IEquatable<ArcNET.Formats.SaveSlotPaths>
+    {
+        public SaveSlotPaths(string GsiPath, string TfaiPath, string TfafPath) { }
+        public string GsiPath { get; init; }
+        public string TfafPath { get; init; }
+        public string TfaiPath { get; init; }
     }
     public sealed class ScrFile
     {
@@ -1392,6 +1417,32 @@ namespace ArcNET.Formats
         public required uint[] Tiles { get; init; }
         public required int TownmapInfo { get; init; }
         public static uint GetSectorLoc(int x, int y) { }
+    }
+    public sealed class SectorBuilder
+    {
+        public SectorBuilder() { }
+        public SectorBuilder(ArcNET.Formats.Sector sector) { }
+        public ArcNET.Formats.SectorBuilder AddLight(ArcNET.Formats.SectorLight light) { }
+        public ArcNET.Formats.SectorBuilder AddObject(ArcNET.Formats.MobData obj) { }
+        public ArcNET.Formats.SectorBuilder AddTileScript(ArcNET.Formats.TileScript script) { }
+        public ArcNET.Formats.Sector Build() { }
+        public ArcNET.Formats.SectorBuilder ClearLights() { }
+        public ArcNET.Formats.SectorBuilder ClearObjects() { }
+        public ArcNET.Formats.SectorBuilder ClearRoofs() { }
+        public ArcNET.Formats.SectorBuilder RemoveLight(int index) { }
+        public ArcNET.Formats.SectorBuilder RemoveObject(int index) { }
+        public ArcNET.Formats.SectorBuilder RemoveTileScript(int index) { }
+        public ArcNET.Formats.SectorBuilder ReplaceLight(int index, ArcNET.Formats.SectorLight light) { }
+        public ArcNET.Formats.SectorBuilder ReplaceObject(int index, ArcNET.Formats.MobData obj) { }
+        public ArcNET.Formats.SectorBuilder ReplaceTileScript(int index, ArcNET.Formats.TileScript script) { }
+        public ArcNET.Formats.SectorBuilder SetBlocked(int tileX, int tileY, bool blocked) { }
+        public ArcNET.Formats.SectorBuilder SetRoof(int roofX, int roofY, uint artId) { }
+        public ArcNET.Formats.SectorBuilder SetTile(int tileX, int tileY, uint artId) { }
+        public ArcNET.Formats.SectorBuilder WithAptitudeAdjustment(int value) { }
+        public ArcNET.Formats.SectorBuilder WithLightSchemeIdx(int value) { }
+        public ArcNET.Formats.SectorBuilder WithSectorScript(ArcNET.GameObjects.GameObjectScript? script) { }
+        public ArcNET.Formats.SectorBuilder WithSoundList(ArcNET.Formats.SectorSoundList soundList) { }
+        public ArcNET.Formats.SectorBuilder WithTownmapInfo(int value) { }
     }
     public sealed class SectorFormat : ArcNET.Formats.IFormatFileReader<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatFileWriter<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatReader<ArcNET.Formats.Sector>, ArcNET.Formats.IFormatWriter<ArcNET.Formats.Sector>
     {
@@ -2363,6 +2414,56 @@ namespace ArcNET.GameObjects.Classes
         public Unique() { }
     }
 }
+namespace ArcNET.GameObjects.Metadata
+{
+    public static class CharacterSheetMetadata
+    {
+        public static string BasicSkillName(int index) { }
+        public static string GenderName(int gender) { }
+        public static string RaceName(int race) { }
+        public static string ResistanceName(int index) { }
+        public static string SpellCollegeName(int index) { }
+        public static string SpellTechSlotName(int index) { }
+        public static string StatName(int stat) { }
+        public static string TechDisciplineName(int index) { }
+        public static string TechSkillName(int index) { }
+        public static string TrainingName(int training) { }
+    }
+    public static class GameObjectRuntimeMetadata
+    {
+        public static string AttachmentPointName(int attachmentPoint) { }
+        public static string InventoryLocationContext(int inventoryLocation) { }
+        public static string InventoryLocationName(int inventoryLocation) { }
+    }
+    public readonly struct ObjectFieldDescriptor : System.IEquatable<ArcNET.GameObjects.Metadata.ObjectFieldDescriptor>
+    {
+        public ObjectFieldDescriptor(int FieldId, string RawName, string DisplayName, string CollectionName, bool IsNoise) { }
+        public string CollectionName { get; init; }
+        public string DisplayName { get; init; }
+        public int FieldId { get; init; }
+        public bool IsNoise { get; init; }
+        public string RawName { get; init; }
+    }
+    public static class ObjectFieldMetadataCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameObjects.Metadata.ObjectFieldDescriptor> Fields { get; }
+        public static string ArrayElementName(int fieldId, int index) { }
+        public static string BasicSkillName(int index) { }
+        public static string CollectionName(ArcNET.GameObjects.ObjectField field) { }
+        public static string CollectionName(int fieldId) { }
+        public static string DisplayName(ArcNET.GameObjects.ObjectField field) { }
+        public static string DisplayName(int fieldId) { }
+        public static bool IsNoiseField(int fieldId) { }
+        public static string RawName(ArcNET.GameObjects.ObjectField field) { }
+        public static string RawName(int fieldId) { }
+        public static string ResistanceName(int index) { }
+        public static string SpellCollegeName(int index) { }
+        public static string TechSkillName(int index) { }
+        public static string TrainingName(int training) { }
+        public static bool TryGetField(string rawName, out ArcNET.GameObjects.ObjectField field) { }
+        public static bool TryGetFieldId(string rawName, out int fieldId) { }
+    }
+}
 namespace ArcNET.GameObjects.Runtime
 {
     public enum CharacterSheetPropertyId
@@ -2877,8 +2978,206 @@ namespace ArcNET.GameData
 [assembly: System.Resources.NeutralResourcesLanguage("en")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Editor.Tests")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
-namespace ArcNET.Editor
+namespace ArcNET.GameData.SaveGames
 {
+    public sealed class CharacterRecord
+    {
+        public int AcAdjustment { get; }
+        public int Age { get; }
+        public int Alignment { get; }
+        public int Arrows { get; }
+        public int Beauty { get; }
+        public int BlessingProtoElementCount { get; }
+        public int[]? BlessingRaw { get; }
+        public byte[]? BlessingTsRaw { get; }
+        public int Bullets { get; }
+        public int CarryWeight { get; }
+        public int Charisma { get; }
+        public int Constitution { get; }
+        public int CurseProtoElementCount { get; }
+        public int[]? CurseRaw { get; }
+        public byte[]? CurseTsRaw { get; }
+        public int DamageBonus { get; }
+        public int Dexterity { get; }
+        public int ExperiencePoints { get; }
+        public int FatePoints { get; }
+        public int FatigueDamage { get; }
+        public int[]? FatigueDamageRaw { get; }
+        public int Gender { get; }
+        public int Gold { get; }
+        public bool HasCompleteData { get; }
+        public int HealRate { get; }
+        public int HpDamage { get; }
+        public int[]? HpDamageRaw { get; }
+        public int Intelligence { get; }
+        public int Level { get; }
+        public int MagickPoints { get; }
+        public int MagickTechAptitude { get; }
+        public int MaxFollowers { get; }
+        public string? Name { get; }
+        public int Perception { get; }
+        public int PoisonLevel { get; }
+        public int PoisonRecovery { get; }
+        public int PortraitIndex { get; }
+        public int[]? PositionAiRaw { get; }
+        public int PowerCells { get; }
+        public int[]? QuestBitsetRaw { get; }
+        public int QuestCount { get; }
+        public byte[]? QuestDataRaw { get; }
+        public int Race { get; }
+        public int ReactionModifier { get; }
+        public int[]? ReputationRaw { get; }
+        public int RumorsCount { get; }
+        public byte[]? RumorsRaw { get; }
+        public int SchematicsElementCount { get; }
+        public int[]? SchematicsRaw { get; }
+        public int SkillBackstab { get; }
+        public int SkillBow { get; }
+        public int SkillDisarmTraps { get; }
+        public int SkillDodge { get; }
+        public int SkillFirearms { get; }
+        public int SkillGambling { get; }
+        public int SkillHaggle { get; }
+        public int SkillHeal { get; }
+        public int SkillMelee { get; }
+        public int SkillPersuasion { get; }
+        public int SkillPickLocks { get; }
+        public int SkillPickPocket { get; }
+        public int SkillProwling { get; }
+        public int SkillRepair { get; }
+        public int SkillSpotTrap { get; }
+        public int SkillThrowing { get; }
+        public int Speed { get; }
+        public int SpellAir { get; }
+        public int SpellConveyance { get; }
+        public int SpellDivination { get; }
+        public int SpellEarth { get; }
+        public int SpellFire { get; }
+        public int SpellForce { get; }
+        public int SpellMastery { get; }
+        public int SpellMental { get; }
+        public int SpellMeta { get; }
+        public int SpellMorph { get; }
+        public int SpellNature { get; }
+        public int SpellNecroBlack { get; }
+        public int SpellNecroWhite { get; }
+        public int SpellPhantasm { get; }
+        public int SpellSummoning { get; }
+        public int SpellTemporal { get; }
+        public int SpellWater { get; }
+        public int Strength { get; }
+        public int TechChemistry { get; }
+        public int TechElectric { get; }
+        public int TechExplosives { get; }
+        public int TechGun { get; }
+        public int TechHerbology { get; }
+        public int TechMechanical { get; }
+        public int TechPoints { get; }
+        public int TechSmithy { get; }
+        public int TechTherapeutics { get; }
+        public int TotalKills { get; }
+        public int UnspentPoints { get; }
+        public int Willpower { get; }
+        public ArcNET.Formats.CharacterMdyRecord ApplyTo(ArcNET.Formats.CharacterMdyRecord original) { }
+        public ArcNET.GameData.SaveGames.CharacterRecord.Builder ToBuilder() { }
+        public static ArcNET.GameData.SaveGames.CharacterRecord From(ArcNET.Formats.CharacterMdyRecord rec) { }
+        public sealed class Builder
+        {
+            public Builder() { }
+            public Builder(ArcNET.GameData.SaveGames.CharacterRecord from) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord Build() { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithAcAdjustment(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithAge(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithAlignment(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithArrows(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithBeauty(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithBlessingRaw(int[] bless) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithBlessingTsRaw(byte[] ts) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithBullets(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithCarryWeight(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithCharisma(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithConstitution(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithCurseRaw(int[] curse) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithCurseTsRaw(byte[] ts) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithDamageBonus(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithDexterity(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithExperiencePoints(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithFatePoints(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithFatigueDamage(int damage) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithFatigueDamageRaw(int[] v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithGender(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithGold(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithHealRate(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithHpDamage(int damage) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithHpDamageRaw(int[] v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithIntelligence(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithLevel(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithMagickPoints(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithMagickTechAptitude(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithMaxFollowers(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithName(string? v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPerception(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPoisonLevel(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPoisonRecovery(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPortraitIndex(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPositionAiRaw(int[] v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithPowerCells(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithQuestBitsetRaw(int[] bitset) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithQuestDataRaw(byte[] data) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithRace(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithReactionModifier(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithReputationRaw(int[] rep) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithRumorsRaw(byte[] rumors) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSchematicsRaw(int[] sch) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillBackstab(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillBow(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillDisarmTraps(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillDodge(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillFirearms(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillGambling(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillHaggle(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillHeal(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillMelee(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillPersuasion(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillPickLocks(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillPickPocket(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillProwling(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillRepair(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillSpotTrap(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSkillThrowing(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpeed(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellAir(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellConveyance(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellDivination(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellEarth(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellFire(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellForce(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellMastery(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellMental(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellMeta(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellMorph(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellNature(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellNecroBlack(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellNecroWhite(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellPhantasm(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellSummoning(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellTemporal(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithSpellWater(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithStrength(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechChemistry(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechElectric(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechExplosives(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechGun(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechHerbology(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechMechanical(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechPoints(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechSmithy(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTechTherapeutics(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithTotalKills(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithUnspentPoints(int v) { }
+            public ArcNET.GameData.SaveGames.CharacterRecord.Builder WithWillpower(int v) { }
+        }
+    }
     public class LoadedSave
     {
         public LoadedSave() { }
@@ -2899,66 +3198,6 @@ namespace ArcNET.Editor
         public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile> Scripts { get; init; }
         public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector> Sectors { get; init; }
         public required System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog> TownMapFogs { get; init; }
-    }
-    public static class SaveGameLoader
-    {
-        public static ArcNET.Editor.LoadedSave Load(string saveFolder, string slotName) { }
-        public static ArcNET.Editor.LoadedSave Load(string gsiPath, string tfaiPath, string tfafPath) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string saveFolder, string slotName, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static System.Threading.Tasks.Task<ArcNET.Editor.LoadedSave> LoadAsync(string gsiPath, string tfaiPath, string tfafPath, System.IProgress<float>? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class SaveGameUpdates : System.IEquatable<ArcNET.Editor.SaveGameUpdates>
-    {
-        public SaveGameUpdates() { }
-        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? RawFileUpdates { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Data2SavFile>? UpdatedData2SavFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DataSavFile>? UpdatedDataSavFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.DlgFile>? UpdatedDialogs { get; init; }
-        public ArcNET.Formats.SaveInfo? UpdatedInfo { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.JmpFile>? UpdatedJumpFiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MapProperties>? UpdatedMapProperties { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MesFile>? UpdatedMessages { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdFile>? UpdatedMobileMds { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobileMdyFile>? UpdatedMobileMdys { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.MobData>? UpdatedMobiles { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.ScrFile>? UpdatedScripts { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.Sector>? UpdatedSectors { get; init; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, ArcNET.Formats.TownMapFog>? UpdatedTownMapFogs { get; init; }
-    }
-    public static class SaveGameValidator
-    {
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> Validate(ArcNET.Editor.LoadedSave save) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMob(string virtualPath, ArcNET.Formats.MobData mob) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMd(string virtualPath, ArcNET.Formats.MobileMdFile md) { }
-        public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.SaveValidationIssue> ValidateMobileMdy(string virtualPath, ArcNET.Formats.MobileMdyFile mdy) { }
-    }
-    public static class SaveGameWriter
-    {
-        public static void Save(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null) { }
-        public static void Save(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null) { }
-        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string saveFolder, string slotName, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
-        public static System.Threading.Tasks.Task SaveAsync(ArcNET.Editor.LoadedSave original, string gsiPath, string tfaiPath, string tfafPath, ArcNET.Editor.SaveGameUpdates? updates = null, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class SaveValidationIssue : System.IEquatable<ArcNET.Editor.SaveValidationIssue>
-    {
-        public SaveValidationIssue() { }
-        public string? FilePath { get; init; }
-        public required string Message { get; init; }
-        public required ArcNET.Editor.SaveValidationSeverity Severity { get; init; }
-        public override string ToString() { }
-    }
-    public enum SaveValidationSeverity
-    {
-        Info = 0,
-        Warning = 1,
-        Error = 2,
-    }
-}
-namespace ArcNET.GameData.SaveGames
-{
-    public sealed class LoadedSave : ArcNET.Editor.LoadedSave
-    {
-        public static ArcNET.GameData.SaveGames.LoadedSave FromLegacy(ArcNET.Editor.LoadedSave save) { }
     }
     public static class SaveGameLoader
     {
@@ -5188,14 +5427,18 @@ namespace ArcNET.Diagnostics
         public static System.Collections.Generic.IReadOnlyList<ArcNET.Diagnostics.ObjectFieldDescriptor> Fields { get; }
         public static string ArrayElementName(int fieldId, int index) { }
         public static string BasicSkillName(int index) { }
+        public static string CollectionName(ArcNET.GameObjects.ObjectField field) { }
         public static string CollectionName(int fieldId) { }
+        public static string DisplayName(ArcNET.GameObjects.ObjectField field) { }
         public static string DisplayName(int fieldId) { }
         public static bool IsNoiseField(int fieldId) { }
+        public static string RawName(ArcNET.GameObjects.ObjectField field) { }
         public static string RawName(int fieldId) { }
         public static string ResistanceName(int index) { }
         public static string SpellCollegeName(int index) { }
         public static string TechSkillName(int index) { }
         public static string TrainingName(int training) { }
+        public static bool TryGetField(string rawName, out ArcNET.GameObjects.ObjectField field) { }
         public static bool TryGetFieldId(string rawName, out int fieldId) { }
     }
     public readonly struct ObjectFieldDescriptor : System.IEquatable<ArcNET.Diagnostics.ObjectFieldDescriptor>
@@ -6184,204 +6427,6 @@ namespace ArcNET.Editor
         public ArcNET.Editor.CharacterBuilder WithSpellTech(System.ReadOnlySpan<int> ranks) { }
         public ArcNET.Editor.CharacterBuilder WithTechSkills(System.ReadOnlySpan<int> skills) { }
         public ArcNET.Editor.CharacterBuilder WithoutProperty(ArcNET.GameObjects.ObjectField field) { }
-    }
-    public sealed class CharacterRecord
-    {
-        public int AcAdjustment { get; }
-        public int Age { get; }
-        public int Alignment { get; }
-        public int Arrows { get; }
-        public int Beauty { get; }
-        public int BlessingProtoElementCount { get; }
-        public int[]? BlessingRaw { get; }
-        public byte[]? BlessingTsRaw { get; }
-        public int Bullets { get; }
-        public int CarryWeight { get; }
-        public int Charisma { get; }
-        public int Constitution { get; }
-        public int CurseProtoElementCount { get; }
-        public int[]? CurseRaw { get; }
-        public byte[]? CurseTsRaw { get; }
-        public int DamageBonus { get; }
-        public int Dexterity { get; }
-        public int ExperiencePoints { get; }
-        public int FatePoints { get; }
-        public int FatigueDamage { get; }
-        public int[]? FatigueDamageRaw { get; }
-        public int Gender { get; }
-        public int Gold { get; }
-        public bool HasCompleteData { get; }
-        public int HealRate { get; }
-        public int HpDamage { get; }
-        public int[]? HpDamageRaw { get; }
-        public int Intelligence { get; }
-        public int Level { get; }
-        public int MagickPoints { get; }
-        public int MagickTechAptitude { get; }
-        public int MaxFollowers { get; }
-        public string? Name { get; }
-        public int Perception { get; }
-        public int PoisonLevel { get; }
-        public int PoisonRecovery { get; }
-        public int PortraitIndex { get; }
-        public int[]? PositionAiRaw { get; }
-        public int PowerCells { get; }
-        public int[]? QuestBitsetRaw { get; }
-        public int QuestCount { get; }
-        public byte[]? QuestDataRaw { get; }
-        public int Race { get; }
-        public int ReactionModifier { get; }
-        public int[]? ReputationRaw { get; }
-        public int RumorsCount { get; }
-        public byte[]? RumorsRaw { get; }
-        public int SchematicsElementCount { get; }
-        public int[]? SchematicsRaw { get; }
-        public int SkillBackstab { get; }
-        public int SkillBow { get; }
-        public int SkillDisarmTraps { get; }
-        public int SkillDodge { get; }
-        public int SkillFirearms { get; }
-        public int SkillGambling { get; }
-        public int SkillHaggle { get; }
-        public int SkillHeal { get; }
-        public int SkillMelee { get; }
-        public int SkillPersuasion { get; }
-        public int SkillPickLocks { get; }
-        public int SkillPickPocket { get; }
-        public int SkillProwling { get; }
-        public int SkillRepair { get; }
-        public int SkillSpotTrap { get; }
-        public int SkillThrowing { get; }
-        public int Speed { get; }
-        public int SpellAir { get; }
-        public int SpellConveyance { get; }
-        public int SpellDivination { get; }
-        public int SpellEarth { get; }
-        public int SpellFire { get; }
-        public int SpellForce { get; }
-        public int SpellMastery { get; }
-        public int SpellMental { get; }
-        public int SpellMeta { get; }
-        public int SpellMorph { get; }
-        public int SpellNature { get; }
-        public int SpellNecroBlack { get; }
-        public int SpellNecroWhite { get; }
-        public int SpellPhantasm { get; }
-        public int SpellSummoning { get; }
-        public int SpellTemporal { get; }
-        public int SpellWater { get; }
-        public int Strength { get; }
-        public int TechChemistry { get; }
-        public int TechElectric { get; }
-        public int TechExplosives { get; }
-        public int TechGun { get; }
-        public int TechHerbology { get; }
-        public int TechMechanical { get; }
-        public int TechPoints { get; }
-        public int TechSmithy { get; }
-        public int TechTherapeutics { get; }
-        public int TotalKills { get; }
-        public int UnspentPoints { get; }
-        public int Willpower { get; }
-        public ArcNET.Formats.CharacterMdyRecord ApplyTo(ArcNET.Formats.CharacterMdyRecord original) { }
-        public ArcNET.Editor.CharacterRecord.Builder ToBuilder() { }
-        public static ArcNET.Editor.CharacterRecord From(ArcNET.Formats.CharacterMdyRecord rec) { }
-        public sealed class Builder
-        {
-            public Builder() { }
-            public Builder(ArcNET.Editor.CharacterRecord from) { }
-            public ArcNET.Editor.CharacterRecord Build() { }
-            public ArcNET.Editor.CharacterRecord.Builder WithAcAdjustment(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithAge(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithAlignment(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithArrows(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithBeauty(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithBlessingRaw(int[] bless) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithBlessingTsRaw(byte[] ts) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithBullets(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithCarryWeight(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithCharisma(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithConstitution(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithCurseRaw(int[] curse) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithCurseTsRaw(byte[] ts) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithDamageBonus(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithDexterity(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithExperiencePoints(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithFatePoints(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithFatigueDamage(int damage) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithFatigueDamageRaw(int[] v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithGender(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithGold(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithHealRate(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithHpDamage(int damage) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithHpDamageRaw(int[] v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithIntelligence(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithLevel(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithMagickPoints(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithMagickTechAptitude(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithMaxFollowers(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithName(string? v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPerception(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPoisonLevel(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPoisonRecovery(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPortraitIndex(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPositionAiRaw(int[] v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithPowerCells(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithQuestBitsetRaw(int[] bitset) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithQuestDataRaw(byte[] data) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithRace(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithReactionModifier(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithReputationRaw(int[] rep) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithRumorsRaw(byte[] rumors) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSchematicsRaw(int[] sch) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillBackstab(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillBow(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillDisarmTraps(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillDodge(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillFirearms(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillGambling(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillHaggle(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillHeal(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillMelee(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillPersuasion(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillPickLocks(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillPickPocket(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillProwling(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillRepair(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillSpotTrap(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSkillThrowing(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpeed(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellAir(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellConveyance(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellDivination(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellEarth(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellFire(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellForce(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellMastery(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellMental(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellMeta(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellMorph(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellNature(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellNecroBlack(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellNecroWhite(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellPhantasm(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellSummoning(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellTemporal(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithSpellWater(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithStrength(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechChemistry(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechElectric(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechExplosives(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechGun(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechHerbology(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechMechanical(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechPoints(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechSmithy(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTechTherapeutics(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithTotalKills(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithUnspentPoints(int v) { }
-            public ArcNET.Editor.CharacterRecord.Builder WithWillpower(int v) { }
-        }
     }
     public sealed class DialogBuilder
     {
@@ -8900,7 +8945,7 @@ namespace ArcNET.Editor
         public int LoadedArtCacheEntryCount { get; }
         public long LoadedArtCacheRetainedBytes { get; }
         public ArcNET.GameData.Workspace.WorkspaceModuleContext? Module { get; init; }
-        public ArcNET.Editor.LoadedSave? Save { get; init; }
+        public ArcNET.GameData.SaveGames.LoadedSave? Save { get; init; }
         public string? SaveFolder { get; init; }
         public string? SaveSlotName { get; init; }
         public ArcNET.Editor.EditorWorkspaceValidationReport Validation { get; init; }
@@ -9452,25 +9497,13 @@ namespace ArcNET.Editor
         ArcNET.Editor.EditorTerrainDefinition? FindTerrainDetail(string assetPath);
         System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorTerrainDefinition> SearchTerrainDetails(string text);
     }
-    public sealed class MobDataBuilder
-    {
-        public MobDataBuilder(ArcNET.Formats.MobData existing) { }
-        public MobDataBuilder(ArcNET.GameObjects.ObjectType type, ArcNET.Core.Primitives.GameObjectGuid objectId, ArcNET.Core.Primitives.GameObjectGuid protoId) { }
-        public ArcNET.Formats.MobData Build() { }
-        public ArcNET.Editor.MobDataBuilder WithLocation(int tileX, int tileY) { }
-        public ArcNET.Editor.MobDataBuilder WithOffset(int offsetX, int offsetY) { }
-        public ArcNET.Editor.MobDataBuilder WithProperty(ArcNET.Formats.ObjectProperty property) { }
-        public ArcNET.Editor.MobDataBuilder WithRotation(float rotation) { }
-        public ArcNET.Editor.MobDataBuilder WithRotationPitch(float rotationPitch) { }
-        public ArcNET.Editor.MobDataBuilder WithoutProperty(ArcNET.GameObjects.ObjectField field) { }
-    }
     public sealed class SaveGameEditor
     {
-        public SaveGameEditor(ArcNET.Editor.LoadedSave save) { }
+        public SaveGameEditor(ArcNET.GameData.SaveGames.LoadedSave save) { }
         public bool CanRedo { get; }
         public bool CanUndo { get; }
         public bool HasPendingChanges { get; }
-        public ArcNET.Editor.LoadedSave CommitPendingChanges() { }
+        public ArcNET.GameData.SaveGames.LoadedSave CommitPendingChanges() { }
         public ArcNET.Editor.SaveGameEditor DiscardPendingChanges() { }
         public ArcNET.Formats.Data2SavFile? GetCurrentData2Sav(string path) { }
         public ArcNET.Formats.DataSavFile? GetCurrentDataSav(string path) { }
@@ -9494,12 +9527,12 @@ namespace ArcNET.Editor
         public void Save(string gsiPath, string tfaiPath, string tfafPath) { }
         public System.Threading.Tasks.Task SaveAsync(string saveFolder, string slotName, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task SaveAsync(string gsiPath, string tfaiPath, string tfafPath, System.Threading.CancellationToken cancellationToken = default) { }
-        public bool TryFindCharacter(System.Func<ArcNET.Editor.CharacterRecord, bool> predicate, out ArcNET.Editor.CharacterRecord character, out string mdyPath) { }
-        public bool TryFindPendingPlayerCharacter(out ArcNET.Editor.CharacterRecord character) { }
-        public bool TryFindPlayerCharacter(out ArcNET.Editor.CharacterRecord character) { }
-        public bool TryFindPlayerCharacter(out ArcNET.Editor.CharacterRecord character, out string mdyPath) { }
+        public bool TryFindCharacter(System.Func<ArcNET.GameData.SaveGames.CharacterRecord, bool> predicate, out ArcNET.GameData.SaveGames.CharacterRecord character, out string mdyPath) { }
+        public bool TryFindPendingPlayerCharacter(out ArcNET.GameData.SaveGames.CharacterRecord character) { }
+        public bool TryFindPlayerCharacter(out ArcNET.GameData.SaveGames.CharacterRecord character) { }
+        public bool TryFindPlayerCharacter(out ArcNET.GameData.SaveGames.CharacterRecord character, out string mdyPath) { }
         public ArcNET.Editor.SaveGameEditor Undo() { }
-        public ArcNET.Editor.SaveGameEditor WithCharacter(string mdyPath, System.Func<ArcNET.Editor.CharacterRecord, bool> predicate, ArcNET.Editor.CharacterRecord updated) { }
+        public ArcNET.Editor.SaveGameEditor WithCharacter(string mdyPath, System.Func<ArcNET.GameData.SaveGames.CharacterRecord, bool> predicate, ArcNET.GameData.SaveGames.CharacterRecord updated) { }
         public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, ArcNET.Formats.Data2SavFile updated) { }
         public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, System.Action<ArcNET.Formats.Data2SavFile.Builder> update) { }
         public ArcNET.Editor.SaveGameEditor WithData2Sav(string path, System.Func<ArcNET.Formats.Data2SavFile, ArcNET.Formats.Data2SavFile> update) { }
@@ -9512,8 +9545,8 @@ namespace ArcNET.Editor
         public ArcNET.Editor.SaveGameEditor WithMapProperties(string path, System.Func<ArcNET.Formats.MapProperties, ArcNET.Formats.MapProperties> update) { }
         public ArcNET.Editor.SaveGameEditor WithMessageFile(string path, ArcNET.Formats.MesFile updated) { }
         public ArcNET.Editor.SaveGameEditor WithMessageFile(string path, System.Func<ArcNET.Formats.MesFile, ArcNET.Formats.MesFile> update) { }
-        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(ArcNET.Editor.CharacterRecord updated) { }
-        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(System.Func<ArcNET.Editor.CharacterRecord, ArcNET.Editor.CharacterRecord> update) { }
+        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(ArcNET.GameData.SaveGames.CharacterRecord updated) { }
+        public ArcNET.Editor.SaveGameEditor WithPlayerCharacter(System.Func<ArcNET.GameData.SaveGames.CharacterRecord, ArcNET.GameData.SaveGames.CharacterRecord> update) { }
         public ArcNET.Editor.SaveGameEditor WithRawFile(string path, System.Func<System.ReadOnlyMemory<byte>, byte[]> update) { }
         public ArcNET.Editor.SaveGameEditor WithRawFile(string path, byte[] updatedBytes) { }
         public ArcNET.Editor.SaveGameEditor WithSaveInfo(ArcNET.Formats.SaveInfo updated) { }
@@ -9602,32 +9635,6 @@ namespace ArcNET.Editor
     public static class ScriptValidator
     {
         public static System.Collections.Generic.IReadOnlyList<ArcNET.Editor.ScriptValidationIssue> Validate(ArcNET.Formats.ScrFile script) { }
-    }
-    public sealed class SectorBuilder
-    {
-        public SectorBuilder() { }
-        public SectorBuilder(ArcNET.Formats.Sector sector) { }
-        public ArcNET.Editor.SectorBuilder AddLight(ArcNET.Formats.SectorLight light) { }
-        public ArcNET.Editor.SectorBuilder AddObject(ArcNET.Formats.MobData obj) { }
-        public ArcNET.Editor.SectorBuilder AddTileScript(ArcNET.Formats.TileScript script) { }
-        public ArcNET.Formats.Sector Build() { }
-        public ArcNET.Editor.SectorBuilder ClearLights() { }
-        public ArcNET.Editor.SectorBuilder ClearObjects() { }
-        public ArcNET.Editor.SectorBuilder ClearRoofs() { }
-        public ArcNET.Editor.SectorBuilder RemoveLight(int index) { }
-        public ArcNET.Editor.SectorBuilder RemoveObject(int index) { }
-        public ArcNET.Editor.SectorBuilder RemoveTileScript(int index) { }
-        public ArcNET.Editor.SectorBuilder ReplaceLight(int index, ArcNET.Formats.SectorLight light) { }
-        public ArcNET.Editor.SectorBuilder ReplaceObject(int index, ArcNET.Formats.MobData obj) { }
-        public ArcNET.Editor.SectorBuilder ReplaceTileScript(int index, ArcNET.Formats.TileScript script) { }
-        public ArcNET.Editor.SectorBuilder SetBlocked(int tileX, int tileY, bool blocked) { }
-        public ArcNET.Editor.SectorBuilder SetRoof(int roofX, int roofY, uint artId) { }
-        public ArcNET.Editor.SectorBuilder SetTile(int tileX, int tileY, uint artId) { }
-        public ArcNET.Editor.SectorBuilder WithAptitudeAdjustment(int value) { }
-        public ArcNET.Editor.SectorBuilder WithLightSchemeIdx(int value) { }
-        public ArcNET.Editor.SectorBuilder WithSectorScript(ArcNET.GameObjects.GameObjectScript? script) { }
-        public ArcNET.Editor.SectorBuilder WithSoundList(ArcNET.Formats.SectorSoundList soundList) { }
-        public ArcNET.Editor.SectorBuilder WithTownmapInfo(int value) { }
     }
 }```
 
