@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using ArcNET.Diagnostics;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcanumDebugger.App.ViewModels;
 
@@ -185,7 +186,7 @@ public static class SheetMutationOptionCatalog
             return s_spellMasteryOptions[0];
 
         var collegeId = SpellTechCatalog.ParseSpellCollegeId(valueText);
-        var token = ObjectFieldCatalog.SpellCollegeName(collegeId);
+        var token = CharacterSheetMetadata.SpellCollegeName(collegeId);
         return s_spellMasteryOptions.FirstOrDefault(option =>
             option.Token.Equals(token, StringComparison.OrdinalIgnoreCase)
         );
@@ -212,7 +213,7 @@ public static class SheetMutationOptionCatalog
                 .Range(0, SpellTechCatalog.SpellCollegeCount)
                 .Select(collegeId =>
                 {
-                    var collegeName = ObjectFieldCatalog.SpellCollegeName(collegeId);
+                    var collegeName = CharacterSheetMetadata.SpellCollegeName(collegeId);
                     return new DebuggerChoiceOption(
                         collegeName,
                         collegeName,

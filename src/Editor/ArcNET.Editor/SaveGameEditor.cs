@@ -1,7 +1,5 @@
 ﻿using ArcNET.Formats;
-using SharedLoadedSave = ArcNET.GameData.SaveGames.LoadedSave;
-using SharedSaveGameSnapshotComposer = ArcNET.GameData.SaveGames.SaveGameSnapshotComposer;
-using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
+using ArcNET.GameData.SaveGames;
 
 namespace ArcNET.Editor;
 
@@ -125,12 +123,6 @@ public sealed class SaveGameEditor
         return _pendingUpdates.ToSaveGameUpdates(updatedInfo);
     }
 
-    private SharedSaveGameUpdates? CreateSharedUpdateBundle()
-    {
-        var updatedInfo = _saveInfoEditor.GetPendingSaveInfo();
-        return _pendingUpdates.ToSharedSaveGameUpdates(updatedInfo);
-    }
-
     // ── Character discovery ───────────────────────────────────────────────────
 
     /// <summary>
@@ -148,7 +140,7 @@ public sealed class SaveGameEditor
     /// Finds the player character in the save.
     /// A PC is identified as the first v2 character record that has all four SAR arrays
     /// present: stats, basic skills, tech skills, and spell / tech colleges.
-    /// Use <see cref="TryFindCharacter(System.Func{ArcNET.Editor.CharacterRecord, bool}, out ArcNET.Editor.CharacterRecord, out string)"/>
+    /// Use <see cref="TryFindCharacter(Func{CharacterRecord, bool}, out CharacterRecord, out string)"/>
     /// with a custom predicate for finer control.
     /// </summary>
     public bool TryFindPlayerCharacter(out CharacterRecord character, out string mdyPath) =>
@@ -808,8 +800,7 @@ public sealed class SaveGameEditor
         CancellationToken cancellationToken = default
     ) => _saveGameWriter.SaveAsync(_save, gsiPath, tfaiPath, tfafPath, CreateUpdateBundle(), cancellationToken);
 
-    internal LoadedSave CreateCommittedSnapshot() =>
-        SharedSaveGameSnapshotComposer.Compose(SharedLoadedSave.FromLegacy(_save), CreateSharedUpdateBundle());
+    internal LoadedSave CreateCommittedSnapshot() => SaveGameSnapshotComposer.Compose(_save, CreateUpdateBundle());
 
     internal void ResetCommittedState(LoadedSave save)
     {

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics.Windows;
 
@@ -59,32 +60,32 @@ public sealed class SheetBackend : ISheetBackend
             ],
             [
                 .. Enumerable
-                    .Range(0, DerivedStatLabels.Length)
+                    .Range(0, DerivedStatCount)
                     .Select(index => new SheetScalarSnapshot(
                         DerivedStatBaseIndex + index,
-                        DerivedStatLabels[index],
+                        CharacterSheetMetadata.StatName(DerivedStatBaseIndex + index),
                         ReadStatValue(dispatcher, memory, handle, DerivedStatBaseIndex + index)
                     )),
             ],
             [
                 .. Enumerable
-                    .Range(0, ResistanceLabels.Length)
+                    .Range(0, ResistanceCount)
                     .Select(index => new SheetScalarSnapshot(
                         index,
-                        ResistanceLabels[index],
+                        CharacterSheetMetadata.ResistanceName(index),
                         ReadResistanceValue(dispatcher, memory, handle, index)
                     )),
             ],
             [
                 .. Enumerable
-                    .Range(0, BasicSkillLabels.Length)
+                    .Range(0, BasicSkillCount)
                     .Select(index =>
                     {
                         var encoded = ReadArrayInt32Value(dispatcher, memory, handle, s_basicSkillFieldId, index);
                         var training = (encoded >> 6) & 3;
                         return new SheetSkillSnapshot(
                             index,
-                            BasicSkillLabels[index],
+                            CharacterSheetMetadata.BasicSkillName(index),
                             encoded & 63,
                             training,
                             ObjectValueFormatter.FormatSkillTraining(training),
@@ -94,14 +95,14 @@ public sealed class SheetBackend : ISheetBackend
             ],
             [
                 .. Enumerable
-                    .Range(0, TechSkillLabels.Length)
+                    .Range(0, TechSkillCount)
                     .Select(index =>
                     {
                         var encoded = ReadArrayInt32Value(dispatcher, memory, handle, s_techSkillFieldId, index);
                         var training = (encoded >> 6) & 3;
                         return new SheetSkillSnapshot(
                             index,
-                            TechSkillLabels[index],
+                            CharacterSheetMetadata.TechSkillName(index),
                             encoded & 63,
                             training,
                             ObjectValueFormatter.FormatSkillTraining(training),
@@ -114,7 +115,7 @@ public sealed class SheetBackend : ISheetBackend
                     .Range(0, SpellCollegeCount)
                     .Select(index => new SheetScalarSnapshot(
                         index,
-                        ObjectFieldCatalog.SpellCollegeName(index),
+                        CharacterSheetMetadata.SpellCollegeName(index),
                         ReadArrayInt32Value(dispatcher, memory, handle, s_spellTechFieldId, index)
                     )),
             ],
@@ -125,10 +126,10 @@ public sealed class SheetBackend : ISheetBackend
             ),
             [
                 .. Enumerable
-                    .Range(0, TechDisciplineLabels.Length)
+                    .Range(0, TechDisciplineCount)
                     .Select(index => new SheetScalarSnapshot(
                         index,
-                        TechDisciplineLabels[index],
+                        CharacterSheetMetadata.TechDisciplineName(index),
                         ReadArrayInt32Value(
                             dispatcher,
                             memory,
@@ -193,7 +194,12 @@ public sealed class SheetBackend : ISheetBackend
     private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(1);
     private const int PrimaryStatCount = 8;
     private const int DerivedStatBaseIndex = 8;
+    private const int DerivedStatCount = 9;
+    private const int ResistanceCount = 5;
+    private const int BasicSkillCount = 12;
+    private const int TechSkillCount = 4;
     private const int SpellCollegeCount = 16;
+    private const int TechDisciplineCount = 8;
     private static readonly int[] ProgressionStatIds = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
     private static readonly FunctionDefinition s_objectArrayFieldGetter = FunctionCatalog.GetDefinition(
         "obj_array_field_int32_get"
@@ -205,49 +211,4 @@ public sealed class SheetBackend : ISheetBackend
     private static readonly int s_basicSkillFieldId = ResolveFieldId("OBJ_F_CRITTER_BASIC_SKILL_IDX");
     private static readonly int s_techSkillFieldId = ResolveFieldId("OBJ_F_CRITTER_TECH_SKILL_IDX");
     private static readonly int s_spellTechFieldId = ResolveFieldId("OBJ_F_CRITTER_SPELL_TECH_IDX");
-
-    private static readonly string[] BasicSkillLabels =
-    [
-        "Bow",
-        "Dodge",
-        "Melee",
-        "Throw",
-        "Backstab",
-        "Pick Pocket",
-        "Prowling",
-        "Spot Trap",
-        "Gambling",
-        "Haggle",
-        "Heal",
-        "Persuasion",
-    ];
-
-    private static readonly string[] TechSkillLabels = ["Repair", "Firearms", "Pick Locks", "Disarm Traps"];
-
-    private static readonly string[] DerivedStatLabels =
-    [
-        "CarryWeight",
-        "DamageBonus",
-        "AcAdjustment",
-        "Speed",
-        "HealRate",
-        "PoisonRecovery",
-        "ReactionModifier",
-        "MaxFollowers",
-        "MagickTechAptitude",
-    ];
-
-    private static readonly string[] ResistanceLabels = ["Normal", "Fire", "Electrical", "Poison", "Magic"];
-
-    private static readonly string[] TechDisciplineLabels =
-    [
-        "Herbology",
-        "Chemistry",
-        "Electric",
-        "Explosives",
-        "Gun Smithy",
-        "Mechanical",
-        "Smithy",
-        "Therapeutics",
-    ];
 }

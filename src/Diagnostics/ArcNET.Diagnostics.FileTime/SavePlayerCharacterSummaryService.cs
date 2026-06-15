@@ -1,5 +1,6 @@
 using ArcNET.Formats;
 using ArcNET.GameData.SaveGames;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -62,84 +63,84 @@ public static class SavePlayerCharacterSummaryService
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreatePrimaryAttributes(CharacterMdyRecord record) =>
         [
-            new(0, "STR", ReadStat(record, 0)),
-            new(1, "DEX", ReadStat(record, 1)),
-            new(2, "CON", ReadStat(record, 2)),
-            new(3, "BEA", ReadStat(record, 3)),
-            new(4, "INT", ReadStat(record, 4)),
-            new(5, "PER", ReadStat(record, 5)),
-            new(6, "WIL", ReadStat(record, 6)),
-            new(7, "CHA", ReadStat(record, 7)),
+            new(0, CharacterSheetMetadata.StatName(0), ReadStat(record, 0)),
+            new(1, CharacterSheetMetadata.StatName(1), ReadStat(record, 1)),
+            new(2, CharacterSheetMetadata.StatName(2), ReadStat(record, 2)),
+            new(3, CharacterSheetMetadata.StatName(3), ReadStat(record, 3)),
+            new(4, CharacterSheetMetadata.StatName(4), ReadStat(record, 4)),
+            new(5, CharacterSheetMetadata.StatName(5), ReadStat(record, 5)),
+            new(6, CharacterSheetMetadata.StatName(6), ReadStat(record, 6)),
+            new(7, CharacterSheetMetadata.StatName(7), ReadStat(record, 7)),
         ];
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateDerivedStats(CharacterMdyRecord record) =>
         [
-            new(0, "carry", ReadStat(record, 8)),
-            new(1, "dmgBonus", ReadStat(record, 9)),
-            new(2, "acAdj", ReadStat(record, 10)),
-            new(3, "speed", ReadStat(record, 11)),
-            new(4, "healRate", ReadStat(record, 12)),
-            new(5, "poisonRec", ReadStat(record, 13)),
-            new(6, "reactMod", ReadStat(record, 14)),
-            new(7, "maxFoll", ReadStat(record, 15)),
-            new(8, "mtApt", ReadStat(record, 16)),
+            new(0, CharacterSheetMetadata.StatName(8), ReadStat(record, 8)),
+            new(1, CharacterSheetMetadata.StatName(9), ReadStat(record, 9)),
+            new(2, CharacterSheetMetadata.StatName(10), ReadStat(record, 10)),
+            new(3, CharacterSheetMetadata.StatName(11), ReadStat(record, 11)),
+            new(4, CharacterSheetMetadata.StatName(12), ReadStat(record, 12)),
+            new(5, CharacterSheetMetadata.StatName(13), ReadStat(record, 13)),
+            new(6, CharacterSheetMetadata.StatName(14), ReadStat(record, 14)),
+            new(7, CharacterSheetMetadata.StatName(15), ReadStat(record, 15)),
+            new(8, CharacterSheetMetadata.StatName(16), ReadStat(record, 16)),
         ];
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateBasicSkills(CharacterMdyRecord record) =>
         [
-            new(0, "bow", ReadBasicSkill(record, 0)),
-            new(1, "dodge", ReadBasicSkill(record, 1)),
-            new(2, "melee", ReadBasicSkill(record, 2)),
-            new(3, "throw", ReadBasicSkill(record, 3)),
-            new(4, "backstab", ReadBasicSkill(record, 4)),
-            new(5, "pickpocket", ReadBasicSkill(record, 5)),
-            new(6, "prowl", ReadBasicSkill(record, 6)),
-            new(7, "spotTrap", ReadBasicSkill(record, 7)),
-            new(8, "gamble", ReadBasicSkill(record, 8)),
-            new(9, "haggle", ReadBasicSkill(record, 9)),
-            new(10, "heal", ReadBasicSkill(record, 10)),
-            new(11, "persuade", ReadBasicSkill(record, 11)),
+            new(0, CharacterSheetMetadata.BasicSkillName(0), ReadBasicSkill(record, 0)),
+            new(1, CharacterSheetMetadata.BasicSkillName(1), ReadBasicSkill(record, 1)),
+            new(2, CharacterSheetMetadata.BasicSkillName(2), ReadBasicSkill(record, 2)),
+            new(3, CharacterSheetMetadata.BasicSkillName(3), ReadBasicSkill(record, 3)),
+            new(4, CharacterSheetMetadata.BasicSkillName(4), ReadBasicSkill(record, 4)),
+            new(5, CharacterSheetMetadata.BasicSkillName(5), ReadBasicSkill(record, 5)),
+            new(6, CharacterSheetMetadata.BasicSkillName(6), ReadBasicSkill(record, 6)),
+            new(7, CharacterSheetMetadata.BasicSkillName(7), ReadBasicSkill(record, 7)),
+            new(8, CharacterSheetMetadata.BasicSkillName(8), ReadBasicSkill(record, 8)),
+            new(9, CharacterSheetMetadata.BasicSkillName(9), ReadBasicSkill(record, 9)),
+            new(10, CharacterSheetMetadata.BasicSkillName(10), ReadBasicSkill(record, 10)),
+            new(11, CharacterSheetMetadata.BasicSkillName(11), ReadBasicSkill(record, 11)),
         ];
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateTechSkills(CharacterMdyRecord record) =>
         [
-            new(0, "repair", ReadTechSkill(record, 0)),
-            new(1, "firearms", ReadTechSkill(record, 1)),
-            new(2, "pickLocks", ReadTechSkill(record, 2)),
-            new(3, "disarmTraps", ReadTechSkill(record, 3)),
+            new(0, CharacterSheetMetadata.TechSkillName(0), ReadTechSkill(record, 0)),
+            new(1, CharacterSheetMetadata.TechSkillName(1), ReadTechSkill(record, 1)),
+            new(2, CharacterSheetMetadata.TechSkillName(2), ReadTechSkill(record, 2)),
+            new(3, CharacterSheetMetadata.TechSkillName(3), ReadTechSkill(record, 3)),
         ];
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateSpellColleges(CharacterMdyRecord record) =>
         [
-            new(0, "conv", ReadSpellTech(record, 0)),
-            new(1, "div", ReadSpellTech(record, 1)),
-            new(2, "air", ReadSpellTech(record, 2)),
-            new(3, "earth", ReadSpellTech(record, 3)),
-            new(4, "fire", ReadSpellTech(record, 4)),
-            new(5, "water", ReadSpellTech(record, 5)),
-            new(6, "force", ReadSpellTech(record, 6)),
-            new(7, "mental", ReadSpellTech(record, 7)),
-            new(8, "meta", ReadSpellTech(record, 8)),
-            new(9, "morph", ReadSpellTech(record, 9)),
-            new(10, "nature", ReadSpellTech(record, 10)),
-            new(11, "necroBlk", ReadSpellTech(record, 11)),
-            new(12, "necroWht", ReadSpellTech(record, 12)),
-            new(13, "phantasm", ReadSpellTech(record, 13)),
-            new(14, "summon", ReadSpellTech(record, 14)),
-            new(15, "temporal", ReadSpellTech(record, 15)),
-            new(16, "mastery", ReadSpellTech(record, 16)),
+            new(0, CharacterSheetMetadata.SpellCollegeName(0), ReadSpellTech(record, 0)),
+            new(1, CharacterSheetMetadata.SpellCollegeName(1), ReadSpellTech(record, 1)),
+            new(2, CharacterSheetMetadata.SpellCollegeName(2), ReadSpellTech(record, 2)),
+            new(3, CharacterSheetMetadata.SpellCollegeName(3), ReadSpellTech(record, 3)),
+            new(4, CharacterSheetMetadata.SpellCollegeName(4), ReadSpellTech(record, 4)),
+            new(5, CharacterSheetMetadata.SpellCollegeName(5), ReadSpellTech(record, 5)),
+            new(6, CharacterSheetMetadata.SpellCollegeName(6), ReadSpellTech(record, 6)),
+            new(7, CharacterSheetMetadata.SpellCollegeName(7), ReadSpellTech(record, 7)),
+            new(8, CharacterSheetMetadata.SpellCollegeName(8), ReadSpellTech(record, 8)),
+            new(9, CharacterSheetMetadata.SpellCollegeName(9), ReadSpellTech(record, 9)),
+            new(10, CharacterSheetMetadata.SpellCollegeName(10), ReadSpellTech(record, 10)),
+            new(11, CharacterSheetMetadata.SpellCollegeName(11), ReadSpellTech(record, 11)),
+            new(12, CharacterSheetMetadata.SpellCollegeName(12), ReadSpellTech(record, 12)),
+            new(13, CharacterSheetMetadata.SpellCollegeName(13), ReadSpellTech(record, 13)),
+            new(14, CharacterSheetMetadata.SpellCollegeName(14), ReadSpellTech(record, 14)),
+            new(15, CharacterSheetMetadata.SpellCollegeName(15), ReadSpellTech(record, 15)),
+            new(16, CharacterSheetMetadata.SpellTechSlotName(16), ReadSpellTech(record, 16)),
         ];
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateTechDisciplines(CharacterMdyRecord record) =>
         [
-            new(0, "herb", ReadSpellTech(record, 17)),
-            new(1, "chem", ReadSpellTech(record, 18)),
-            new(2, "elec", ReadSpellTech(record, 19)),
-            new(3, "exp", ReadSpellTech(record, 20)),
-            new(4, "gun", ReadSpellTech(record, 21)),
-            new(5, "mech", ReadSpellTech(record, 22)),
-            new(6, "smith", ReadSpellTech(record, 23)),
-            new(7, "therap", ReadSpellTech(record, 24)),
+            new(0, CharacterSheetMetadata.TechDisciplineName(0), ReadSpellTech(record, 17)),
+            new(1, CharacterSheetMetadata.TechDisciplineName(1), ReadSpellTech(record, 18)),
+            new(2, CharacterSheetMetadata.TechDisciplineName(2), ReadSpellTech(record, 19)),
+            new(3, CharacterSheetMetadata.TechDisciplineName(3), ReadSpellTech(record, 20)),
+            new(4, CharacterSheetMetadata.TechDisciplineName(4), ReadSpellTech(record, 21)),
+            new(5, CharacterSheetMetadata.TechDisciplineName(5), ReadSpellTech(record, 22)),
+            new(6, CharacterSheetMetadata.TechDisciplineName(6), ReadSpellTech(record, 23)),
+            new(7, CharacterSheetMetadata.TechDisciplineName(7), ReadSpellTech(record, 24)),
         ];
 
     private static IReadOnlyList<PlayerReputationEntrySnapshot> CreateReputation(CharacterMdyRecord record)

@@ -3,7 +3,6 @@ using ArcNET.Formats;
 using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 using Probe;
-using SharedSaveGameWriter = ArcNET.GameData.SaveGames.SaveGameWriter;
 
 namespace Probe.Commands;
 
@@ -60,13 +59,7 @@ internal sealed class RawGoldCollCommand : IProbeCommand
 
         Console.WriteLine($"  Patched {patchedCount} PC records");
         var (gsiOut, tfaiOut, tfafOut) = SharedProbeContext.GetLegacyOutputPaths(saveDir);
-        SharedSaveGameWriter.Save(
-            ctx.Save,
-            gsiOut,
-            tfaiOut,
-            tfafOut,
-            new SaveGameUpdates { UpdatedMobileMds = rawPatched }
-        );
+        SaveGameWriter.Save(ctx.Save, gsiOut, tfaiOut, tfafOut, new SaveGameUpdates { UpdatedMobileMds = rawPatched });
         SharedProbeContext.CompareBytes($"TFAF vs {ctx.SlotStem}", File.ReadAllBytes(tfafOut), ctx.TfafBytes);
         Console.WriteLine($"  delta={new FileInfo(tfafOut).Length - ctx.TfafBytes.Length}B");
 

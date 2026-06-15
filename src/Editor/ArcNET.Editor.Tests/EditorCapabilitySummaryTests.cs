@@ -1,5 +1,6 @@
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameData.Workspace;
 
 namespace ArcNET.Editor.Tests;

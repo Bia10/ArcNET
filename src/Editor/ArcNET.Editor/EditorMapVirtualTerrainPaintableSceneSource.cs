@@ -18,6 +18,79 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
 
     public bool HasItems => sceneRender.VirtualTerrainSectors.Count > 0;
 
+    private sealed class LightSpatialIndex
+    {
+        private const double CellSize = LightSampleRadius;
+        private static readonly IReadOnlyList<EditorMapLightRenderItem> EmptyLights = [];
+        private readonly Dictionary<(int X, int Y), List<EditorMapLightRenderItem>> _cells = [];
+
+        public LightSpatialIndex(
+            IReadOnlyList<EditorMapLightRenderItem> sceneLights,
+            IReadOnlyList<EditorMapLightRenderItem> virtualLights
+        )
+        {
+            Add(sceneLights);
+            Add(virtualLights);
+        }
+
+        public IReadOnlyList<EditorMapLightRenderItem> Query(double centerX, double centerY, double radius)
+        {
+            if (_cells.Count == 0)
+                return EmptyLights;
+
+            var minCellX = GetCellCoordinate(centerX - radius);
+            var maxCellX = GetCellCoordinate(centerX + radius);
+            var minCellY = GetCellCoordinate(centerY - radius);
+            var maxCellY = GetCellCoordinate(centerY + radius);
+            var radiusSquared = radius * radius;
+            List<EditorMapLightRenderItem>? matches = null;
+            for (var cellY = minCellY; cellY <= maxCellY; cellY++)
+            {
+                for (var cellX = minCellX; cellX <= maxCellX; cellX++)
+                {
+                    if (!_cells.TryGetValue((cellX, cellY), out var bucket))
+                        continue;
+
+                    for (var index = 0; index < bucket.Count; index++)
+                    {
+                        var light = bucket[index];
+                        var dx = centerX - light.AnchorX;
+                        var dy = centerY - light.AnchorY;
+                        if ((dx * dx) + (dy * dy) >= radiusSquared)
+                            continue;
+
+                        (matches ??= []).Add(light);
+                    }
+                }
+            }
+
+            return matches ?? EmptyLights;
+        }
+
+        private void Add(IReadOnlyList<EditorMapLightRenderItem> lights)
+        {
+            for (var index = 0; index < lights.Count; index++)
+            {
+                var light = lights[index];
+                if (light.Flags.HasFlag(SectorLightFlags.Off))
+                    continue;
+
+                var cell = GetCell(light.AnchorX, light.AnchorY);
+                if (!_cells.TryGetValue(cell, out var bucket))
+                {
+                    bucket = [];
+                    _cells[cell] = bucket;
+                }
+
+                bucket.Add(light);
+            }
+        }
+
+        private static (int X, int Y) GetCell(double x, double y) => (GetCellCoordinate(x), GetCellCoordinate(y));
+
+        private static int GetCellCoordinate(double value) => (int)Math.Floor(value / CellSize);
+    }
+
     public IEnumerable<EditorMapPaintableSceneItem> EnumerateVisibleItems(EditorMapSceneViewportLayout viewport)
     {
         if (!HasItems)
@@ -27,6 +100,9 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         IReadOnlyList<EditorMapLightRenderItem> virtualLights = sceneRender.IncludeFloorLightTint
             ? CreateVisibleVirtualLights(viewport)
             : [];
+        var lightSpatialIndex = sceneRender.IncludeFloorLightTint
+            ? new LightSpatialIndex(sceneRender.Lights, virtualLights)
+            : null;
 
         for (var sectorIndex = 0; sectorIndex < sceneRender.VirtualTerrainSectors.Count; sectorIndex++)
         {
@@ -39,7 +115,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
                 continue;
             }
 
-            AddVisibleFloorTiles(sector, viewport, virtualLights, queue);
+            AddVisibleFloorTiles(sector, viewport, virtualLights, lightSpatialIndex, queue);
             AddVisibleRoofs(sector, viewport, queue);
             AddVisibleSectorLights(sector, viewport, queue);
         }
@@ -65,6 +141,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         EditorMapSectorScenePreview sector,
         EditorMapSceneViewportLayout viewport,
         IReadOnlyList<EditorMapLightRenderItem> virtualLights,
+        LightSpatialIndex? lightSpatialIndex,
         List<EditorMapRenderQueueItem> queue
     )
     {
@@ -92,6 +169,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
                         scriptedTileIndices,
                         jumpPointTileIndices,
                         virtualLights,
+                        lightSpatialIndex,
                         queue
                     );
                 continue;
@@ -110,6 +188,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
                     scriptedTileIndices,
                     jumpPointTileIndices,
                     virtualLights,
+                    lightSpatialIndex,
                     queue
                 );
                 remaining &= remaining - 1;
@@ -126,6 +205,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         HashSet<int> scriptedTileIndices,
         HashSet<int> jumpPointTileIndices,
         IReadOnlyList<EditorMapLightRenderItem> virtualLights,
+        LightSpatialIndex? lightSpatialIndex,
         List<EditorMapRenderQueueItem> queue
     )
     {
@@ -145,7 +225,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         var drawOrder = EditorMapFloorRenderPreview.CreateVirtualTerrainDrawOrder(tileDrawOrder);
         var artId = new ArtId(tileArtId);
         var (suggestedTintColor, diagnostics) = sceneRender.IncludeFloorLightTint
-            ? CreateLightDiagnostics(centerX, centerY, artId, sector, virtualLights)
+            ? CreateLightDiagnostics(centerX, centerY, artId, sector, virtualLights, lightSpatialIndex)
             : (null, null);
         var tile = new EditorMapFloorTileRenderItem
         {
@@ -448,14 +528,22 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         double tileCenterY,
         ArtId artId,
         EditorMapSectorScenePreview sector,
-        IReadOnlyList<EditorMapLightRenderItem> virtualLights
+        IReadOnlyList<EditorMapLightRenderItem> virtualLights,
+        LightSpatialIndex? lightSpatialIndex
     )
     {
         var stepX = sceneRender.TileWidthPixels / 2d;
         var stepY = sceneRender.TileHeightPixels / 2d;
         var isIndoor = IsIndoorTileArt(artId);
         var ambientColors = ResolveSectorAmbientLightColors(sector.LightSchemeIdx, sceneRender.AmbientLighting);
-        var activeLights = CreateActiveLightList(tileCenterX, tileCenterY, stepX, stepY, virtualLights);
+        var activeLights = CreateActiveLightList(
+            tileCenterX,
+            tileCenterY,
+            stepX,
+            stepY,
+            virtualLights,
+            lightSpatialIndex
+        );
         var topLeft = SampleLightColor(tileCenterX - stepX, tileCenterY - stepY, ambientColors, isIndoor, activeLights);
         var topCenter = SampleLightColor(tileCenterX, tileCenterY - stepY, ambientColors, isIndoor, activeLights);
         var topRight = SampleLightColor(
@@ -505,10 +593,14 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         double tileCenterY,
         double stepX,
         double stepY,
-        IReadOnlyList<EditorMapLightRenderItem> virtualLights
+        IReadOnlyList<EditorMapLightRenderItem> virtualLights,
+        LightSpatialIndex? lightSpatialIndex
     )
     {
         var activeRadius = LightSampleRadius + Math.Sqrt((stepX * stepX) + (stepY * stepY));
+        if (lightSpatialIndex is not null)
+            return lightSpatialIndex.Query(tileCenterX, tileCenterY, activeRadius);
+
         List<EditorMapLightRenderItem>? activeLights = null;
         AddActiveLights(sceneRender.Lights, tileCenterX, tileCenterY, activeRadius, ref activeLights);
         AddActiveLights(virtualLights, tileCenterX, tileCenterY, activeRadius, ref activeLights);

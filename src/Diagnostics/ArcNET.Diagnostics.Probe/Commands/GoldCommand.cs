@@ -3,7 +3,6 @@ using ArcNET.Formats;
 using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 using Probe;
-using SharedSaveGameWriter = ArcNET.GameData.SaveGames.SaveGameWriter;
 
 namespace Probe.Commands;
 
@@ -25,13 +24,7 @@ internal sealed class GoldCommand : IProbeCommand
                 )
                 : null;
 
-        SharedSaveGameWriter.Save(
-            ctx.Save,
-            gsiOut,
-            tfaiOut,
-            tfafOut,
-            new SaveGameUpdates { UpdatedMobiles = updatedMobs }
-        );
+        SaveGameWriter.Save(ctx.Save, gsiOut, tfaiOut, tfafOut, new SaveGameUpdates { UpdatedMobiles = updatedMobs });
 
         Console.WriteLine(
             $"  TFAF={new FileInfo(tfafOut).Length}B  delta={new FileInfo(tfafOut).Length - ctx.TfafBytes.Length}B"

@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
-using SharedLoadedSave = ArcNET.GameData.SaveGames.LoadedSave;
-using SharedSaveGameSnapshotComposer = ArcNET.GameData.SaveGames.SaveGameSnapshotComposer;
-using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
 
 namespace ArcNET.Editor;
 
@@ -13027,7 +13025,7 @@ public sealed class EditorWorkspaceSession
         }
 
         Directory.CreateDirectory(Workspace.SaveFolder!);
-        SaveGameWriter.Save(saveSnapshot, Workspace.SaveFolder!, Workspace.SaveSlotName!);
+        DefaultSaveGameWriter.Instance.Save(saveSnapshot, Workspace.SaveFolder!, Workspace.SaveSlotName!);
     }
 
     private string ResolveWorkspaceContentPath(string assetPath) =>
@@ -13098,9 +13096,9 @@ public sealed class EditorWorkspaceSession
         if ((saveBackedMobs?.Count ?? 0) == 0 && (saveBackedSectors?.Count ?? 0) == 0)
             return baseSave;
 
-        return SharedSaveGameSnapshotComposer.Compose(
-            SharedLoadedSave.FromLegacy(baseSave),
-            new SharedSaveGameUpdates { UpdatedMobiles = saveBackedMobs, UpdatedSectors = saveBackedSectors }
+        return SaveGameSnapshotComposer.Compose(
+            baseSave,
+            new SaveGameUpdates { UpdatedMobiles = saveBackedMobs, UpdatedSectors = saveBackedSectors }
         );
     }
 

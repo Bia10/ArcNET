@@ -1,5 +1,5 @@
 ﻿using ArcNET.Formats;
-using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
+using ArcNET.GameData.SaveGames;
 
 namespace ArcNET.Editor;
 
@@ -73,25 +73,6 @@ internal sealed class PendingGameUpdates
             return null;
 
         return new SaveGameUpdates
-        {
-            UpdatedInfo = updatedInfo,
-            UpdatedMobileMdys = MobileMdys.PendingOrNull,
-            UpdatedMessages = Messages.PendingOrNull,
-            UpdatedJumpFiles = JumpFiles.PendingOrNull,
-            UpdatedMapProperties = MapProperties.PendingOrNull,
-            UpdatedTownMapFogs = TownMapFogs.PendingOrNull,
-            UpdatedDataSavFiles = DataSavFiles.PendingOrNull,
-            UpdatedData2SavFiles = Data2SavFiles.PendingOrNull,
-            RawFileUpdates = RawFiles.PendingOrNull,
-        };
-    }
-
-    public SharedSaveGameUpdates? ToSharedSaveGameUpdates(SaveInfo? updatedInfo)
-    {
-        if (updatedInfo is null && !HasPending)
-            return null;
-
-        return new SharedSaveGameUpdates
         {
             UpdatedInfo = updatedInfo,
             UpdatedMobileMdys = MobileMdys.PendingOrNull,

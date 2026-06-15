@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArcNET.GameObjects;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -41,8 +42,14 @@ public static class ObjectValueFormatter
     public static string FormatArrayInt32(int fieldId, int index, int value) =>
         ObjectFieldCatalog.RawName(fieldId) switch
         {
-            "OBJ_F_CRITTER_BASIC_SKILL_IDX" => FormatEncodedSkillValue(ObjectFieldCatalog.BasicSkillName(index), value),
-            "OBJ_F_CRITTER_TECH_SKILL_IDX" => FormatEncodedSkillValue(ObjectFieldCatalog.TechSkillName(index), value),
+            "OBJ_F_CRITTER_BASIC_SKILL_IDX" => FormatEncodedSkillValue(
+                CharacterSheetMetadata.BasicSkillName(index),
+                value
+            ),
+            "OBJ_F_CRITTER_TECH_SKILL_IDX" => FormatEncodedSkillValue(
+                CharacterSheetMetadata.TechSkillName(index),
+                value
+            ),
             "OBJ_F_CRITTER_SPELL_TECH_IDX" => FormatSpellTechValue(index, value),
             _ => FormatFieldInt32(fieldId, value),
         };
@@ -64,7 +71,7 @@ public static class ObjectValueFormatter
     }
 
     public static string FormatSkillTraining(int training) =>
-        training == 0 ? "Untrained" : ObjectFieldCatalog.TrainingName(training);
+        training == 0 ? "Untrained" : CharacterSheetMetadata.TrainingName(training);
 
     private static string FormatEncodedSkillValue(string name, int value)
     {
@@ -79,7 +86,7 @@ public static class ObjectValueFormatter
             return $"level {value}";
 
         if (index == SpellCollegeCount)
-            return value is >= 0 and < SpellCollegeCount ? ObjectFieldCatalog.SpellCollegeName(value) : "None";
+            return value is >= 0 and < SpellCollegeCount ? CharacterSheetMetadata.SpellCollegeName(value) : "None";
 
         var disciplineIndex = index - SpellCollegeCount - 1;
         return disciplineIndex is >= 0 and < TechDisciplineCount

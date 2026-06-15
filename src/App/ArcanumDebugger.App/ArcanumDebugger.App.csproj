@@ -20,5 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics\ArcNET.Diagnostics.csproj" />
     <ProjectReference Include="..\..\Diagnostics\ArcNET.Diagnostics.FileTime\ArcNET.Diagnostics.FileTime.csproj" />
+    <ProjectReference Include="..\..\GameObjects\ArcNET.GameObjects\ArcNET.GameObjects.csproj" />
   </ItemGroup>
 </Project>

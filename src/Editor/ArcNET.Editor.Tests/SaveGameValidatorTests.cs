@@ -1,5 +1,6 @@
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameObjects;
 
 namespace ArcNET.Editor.Tests;

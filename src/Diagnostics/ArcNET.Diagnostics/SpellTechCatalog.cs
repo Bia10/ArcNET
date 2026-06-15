@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -10,9 +11,11 @@ public static class SpellTechCatalog
     public static IReadOnlyList<string> EnumerateSpellCollegeNames() =>
         [.. Enumerable.Range(0, SpellCollegeCount).Select(SpellCollegeName)];
 
-    public static IReadOnlyList<string> EnumerateTechDisciplineNames() => [.. TechDisciplineLabels];
+    public static IReadOnlyList<string> EnumerateTechDisciplineNames() =>
+        [.. Enumerable.Range(0, TechDisciplineCount).Select(CharacterSheetMetadata.TechDisciplineName)];
 
-    public static IReadOnlyList<string> EnumerateTechSkillNames() => [.. TechSkillLabels];
+    public static IReadOnlyList<string> EnumerateTechSkillNames() =>
+        [.. Enumerable.Range(0, TechSkillCount).Select(CharacterSheetMetadata.TechSkillName)];
 
     public static SpellDescriptor ParseSpell(string? token)
     {
@@ -49,7 +52,7 @@ public static class SpellTechCatalog
         var normalized = Normalize(token);
         for (var index = 0; index < SpellCollegeCount; index++)
         {
-            if (Normalize(ObjectFieldCatalog.SpellCollegeName(index)) == normalized)
+            if (Normalize(CharacterSheetMetadata.SpellCollegeName(index)) == normalized)
                 return index;
         }
 
@@ -72,13 +75,13 @@ public static class SpellTechCatalog
         if (s_techDisciplineAliases.TryGetValue(normalized, out var aliasedDiscipline))
             return aliasedDiscipline;
 
-        for (var index = 0; index < TechDisciplineLabels.Length; index++)
+        for (var index = 0; index < TechDisciplineCount; index++)
         {
-            if (Normalize(TechDisciplineLabels[index]) == normalized)
+            if (Normalize(CharacterSheetMetadata.TechDisciplineName(index)) == normalized)
                 return index;
         }
 
-        if (TryParseInt32(token.Trim(), out var numericId) && numericId >= 0 && numericId < TechDisciplineLabels.Length)
+        if (TryParseInt32(token.Trim(), out var numericId) && numericId >= 0 && numericId < TechDisciplineCount)
             return numericId;
 
         throw new InvalidOperationException(
@@ -95,13 +98,13 @@ public static class SpellTechCatalog
         if (s_techSkillAliases.TryGetValue(normalized, out var aliasedSkill))
             return aliasedSkill;
 
-        for (var index = 0; index < TechSkillLabels.Length; index++)
+        for (var index = 0; index < TechSkillCount; index++)
         {
-            if (Normalize(TechSkillLabels[index]) == normalized)
+            if (Normalize(CharacterSheetMetadata.TechSkillName(index)) == normalized)
                 return index;
         }
 
-        if (TryParseInt32(token.Trim(), out var numericId) && numericId >= 0 && numericId < TechSkillLabels.Length)
+        if (TryParseInt32(token.Trim(), out var numericId) && numericId >= 0 && numericId < TechSkillCount)
             return numericId;
 
         throw new InvalidOperationException(
@@ -109,17 +112,12 @@ public static class SpellTechCatalog
         );
     }
 
-    public static string SpellCollegeName(int collegeId) => ObjectFieldCatalog.SpellCollegeName(collegeId);
+    public static string SpellCollegeName(int collegeId) => CharacterSheetMetadata.SpellCollegeName(collegeId);
 
     public static string TechDisciplineName(int disciplineId) =>
-        disciplineId >= 0 && disciplineId < TechDisciplineLabels.Length
-            ? TechDisciplineLabels[disciplineId]
-            : $"TechDiscipline[{disciplineId.ToString(CultureInfo.InvariantCulture)}]";
+        CharacterSheetMetadata.TechDisciplineName(disciplineId);
 
-    public static string TechSkillName(int skillId) =>
-        skillId >= 0 && skillId < TechSkillLabels.Length
-            ? TechSkillLabels[skillId]
-            : $"TechSkill[{skillId.ToString(CultureInfo.InvariantCulture)}]";
+    public static string TechSkillName(int skillId) => CharacterSheetMetadata.TechSkillName(skillId);
 
     public static int ParseLevel(string? token, string label, int minimum, int maximumInclusive)
     {
@@ -310,24 +308,12 @@ public static class SpellTechCatalog
     public const int SpellMaxLevel = 5;
     public const int TechDisciplineBaseIndex = SpellCollegeCount + 1;
     public const int TechSkillPointMask = 63;
+    private const int TechSkillCount = 4;
+    private const int TechDisciplineCount = 8;
 
     private static readonly SpellDescriptor[] s_spells = BuildSpells();
 
     private static readonly Dictionary<string, SpellDescriptor> s_spellsByAlias = BuildSpellAliasMap();
-
-    private static readonly string[] TechSkillLabels = ["Repair", "Firearms", "Pick Locks", "Disarm Traps"];
-
-    private static readonly string[] TechDisciplineLabels =
-    [
-        "Herbology",
-        "Chemistry",
-        "Electric",
-        "Explosives",
-        "Gun Smithy",
-        "Mechanical",
-        "Smithy",
-        "Therapeutics",
-    ];
 
     private static readonly Dictionary<string, int> s_techSkillAliases = new(StringComparer.OrdinalIgnoreCase)
     {

@@ -1,5 +1,6 @@
 using ArcNET.Formats;
 using ArcNET.GameData.SaveGames;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -101,9 +102,9 @@ public static class SavePlayerProgressionHistoryService
             record.PowerCells,
             CreateQuestEntries(record, questCatalog),
             CreateReputationEntries(record),
-            CreateIndexedValues(record.Stats, s_baseStatLabels),
-            CreateIndexedValues(record.BasicSkills, s_basicSkillLabels),
-            CreateIndexedValues(record.SpellTech, s_spellTechLabels)
+            CreateIndexedValues(record.Stats, CharacterSheetMetadata.StatName),
+            CreateIndexedValues(record.BasicSkills, CharacterSheetMetadata.BasicSkillName),
+            CreateIndexedValues(record.SpellTech, CharacterSheetMetadata.SpellTechSlotName)
         );
     }
 
@@ -295,20 +296,14 @@ public static class SavePlayerProgressionHistoryService
 
     private static IReadOnlyList<PlayerIndexedValueSnapshot> CreateIndexedValues(
         int[] values,
-        IReadOnlyList<string> labels
+        Func<int, string> getLabel
     )
     {
+        ArgumentNullException.ThrowIfNull(getLabel);
+
         List<PlayerIndexedValueSnapshot> snapshots = [];
         for (var index = 0; index < values.Length; index++)
-        {
-            snapshots.Add(
-                new PlayerIndexedValueSnapshot(
-                    index,
-                    index < labels.Count ? labels[index] : index.ToString(),
-                    values[index]
-                )
-            );
-        }
+            snapshots.Add(new PlayerIndexedValueSnapshot(index, getLabel(index), values[index]));
 
         return snapshots;
     }
@@ -317,81 +312,4 @@ public static class SavePlayerProgressionHistoryService
         entry.Label is null ? $"q{entry.ProtoId}" : $"q{entry.ProtoId}[{entry.Label}]";
 
     private static int ReadValue(int[] values, int index) => values.Length > index ? values[index] : 0;
-
-    private static readonly string[] s_baseStatLabels =
-    [
-        "STR",
-        "DEX",
-        "CON",
-        "BEA",
-        "INT",
-        "PER",
-        "WIL",
-        "CHA",
-        "CarryWt",
-        "DmgBonus",
-        "AcAdj",
-        "Speed",
-        "HealRate",
-        "PoisRec",
-        "ReactMod",
-        "MaxFoll",
-        "MTApt",
-        "lv",
-        "XP",
-        "align",
-        "fate",
-        "unspent",
-        "magicPts",
-        "techPts",
-        "poisonLvl",
-        "age",
-        "gender",
-        "race",
-    ];
-
-    private static readonly string[] s_basicSkillLabels =
-    [
-        "BOW",
-        "DODGE",
-        "MELEE",
-        "THROW",
-        "BKSTB",
-        "PPKT",
-        "PROWL",
-        "STRAP",
-        "GAMBL",
-        "HAGGL",
-        "HEAL",
-        "PERS",
-    ];
-
-    private static readonly string[] s_spellTechLabels =
-    [
-        "Conv",
-        "Div",
-        "Air",
-        "Erth",
-        "Fire",
-        "Watr",
-        "Forc",
-        "Ment",
-        "Meta",
-        "Mrph",
-        "Natr",
-        "NBlk",
-        "NWht",
-        "Phan",
-        "Summ",
-        "Temp",
-        "MAST",
-        "Herb",
-        "Chem",
-        "Elec",
-        "Xpls",
-        "Gun",
-        "Mech",
-        "Smth",
-        "Thrp",
-    ];
 }

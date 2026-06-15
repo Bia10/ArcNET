@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArcNET.Diagnostics.Contracts;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -183,7 +184,7 @@ public sealed class SheetService(ISheetBackend backend)
                     "value_name",
                     "College",
                     data.SpellMastery.Value is >= 0 and < SpellTechCatalog.SpellCollegeCount
-                        ? ObjectFieldCatalog.SpellCollegeName(data.SpellMastery.Value)
+                        ? CharacterSheetMetadata.SpellCollegeName(data.SpellMastery.Value)
                         : "None"
                 ),
             ],

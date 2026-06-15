@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
 using ArcNET.GameObjects;
+using ArcNET.GameObjects.Metadata;
 using ArcNET.GameObjects.Runtime;
 
 namespace ArcNET.Diagnostics.Windows;
@@ -402,7 +403,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
                 new LiveObjectDetail(
                     $"basic_skill_{skillIndex}",
                     field.Label,
-                    $"{level.ToString(CultureInfo.InvariantCulture)} ({ObjectFieldCatalog.TrainingName(training)})",
+                    $"{level.ToString(CultureInfo.InvariantCulture)} ({CharacterSheetMetadata.TrainingName(training)})",
                     "character_base_aggregate"
                 )
             );
@@ -422,7 +423,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
         details.Add(
             new LiveObjectDetail(
                 $"resistance_{resistanceId}",
-                $"Resistance / {ObjectFieldCatalog.ResistanceName(resistanceId)}",
+                $"Resistance / {CharacterSheetMetadata.ResistanceName(resistanceId)}",
                 value.ToString(CultureInfo.InvariantCulture),
                 "object_get_resistance"
             )
@@ -442,8 +443,8 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
             return;
 
         var skillName = isTechSkill
-            ? ObjectFieldCatalog.TechSkillName(index)
-            : ObjectFieldCatalog.BasicSkillName(index);
+            ? CharacterSheetMetadata.TechSkillName(index)
+            : CharacterSheetMetadata.BasicSkillName(index);
         var category = isTechSkill ? "Tech Skill" : "Basic Skill";
         var level = encodedValue & 63;
         var training = (encodedValue >> 6) & 3;
@@ -451,7 +452,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
             new LiveObjectDetail(
                 $"{(isTechSkill ? "tech" : "basic")}_skill_{index}",
                 $"{category} / {skillName}",
-                $"{level.ToString(CultureInfo.InvariantCulture)} ({ObjectFieldCatalog.TrainingName(training)})",
+                $"{level.ToString(CultureInfo.InvariantCulture)} ({CharacterSheetMetadata.TrainingName(training)})",
                 "obj_array_field_int32_get"
             )
         );
@@ -470,7 +471,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
         details.Add(
             new LiveObjectDetail(
                 $"spell_college_{collegeIndex}",
-                $"Spell College / {ObjectFieldCatalog.SpellCollegeName(collegeIndex)}",
+                $"Spell College / {CharacterSheetMetadata.SpellCollegeName(collegeIndex)}",
                 value.ToString(CultureInfo.InvariantCulture),
                 "obj_array_field_int32_get"
             )
@@ -487,7 +488,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
             return;
 
         var masteryLabel = masteryValue is >= 0 and < SpellCollegeCount
-            ? ObjectFieldCatalog.SpellCollegeName(masteryValue)
+            ? CharacterSheetMetadata.SpellCollegeName(masteryValue)
             : "None";
         details.Add(new LiveObjectDetail("spell_mastery", "Spell Mastery", masteryLabel, "obj_array_field_int32_get"));
     }
@@ -779,7 +780,7 @@ public sealed class LiveObjectDetailsReader(ProcessMemory memory, RuntimeProfile
         {
             if (
                 string.Equals(
-                    ObjectFieldCatalog.BasicSkillName(index).Replace(" ", string.Empty),
+                    CharacterSheetMetadata.BasicSkillName(index).Replace(" ", string.Empty),
                     name,
                     StringComparison.OrdinalIgnoreCase
                 )

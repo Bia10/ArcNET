@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArcNET.Diagnostics.Contracts;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -253,14 +254,15 @@ public sealed class ReadService(IReadBackend backend)
             [ToLow32(target.Handle), ToHigh32(target.Handle), unchecked((uint)collegeId)]
         );
 
+        var collegeName = CharacterSheetMetadata.SpellCollegeName(collegeId);
         return CreateSuccessSnapshot(
             request,
-            $"Read spell-college level for {ObjectFieldCatalog.SpellCollegeName(collegeId)} on {target.TargetText}.",
+            $"Read spell-college level for {collegeName} on {target.TargetText}.",
             target,
             nativeRead,
             [
                 Value("college_id", "College Id", collegeId),
-                Value("college_name", "College", ObjectFieldCatalog.SpellCollegeName(collegeId)),
+                Value("college_name", "College", collegeName),
                 Value("level", "Level", nativeRead.Int32Value),
             ]
         );
@@ -339,14 +341,15 @@ public sealed class ReadService(IReadBackend backend)
             [ToLow32(target.Handle), ToHigh32(target.Handle), unchecked((uint)derivedStatId)]
         );
 
+        var derivedStatName = CharacterSheetMetadata.StatName(derivedStatId);
         return CreateSuccessSnapshot(
             request,
-            $"Read derived stat {DerivedStatLabels[derivedStatId - DerivedStatBaseIndex]} for {target.TargetText}.",
+            $"Read derived stat {derivedStatName} for {target.TargetText}.",
             target,
             nativeRead,
             [
                 Value("derived_stat_id", "Derived Stat Id", derivedStatId),
-                Value("derived_stat_name", "Derived Stat", DerivedStatLabels[derivedStatId - DerivedStatBaseIndex]),
+                Value("derived_stat_name", "Derived Stat", derivedStatName),
                 Value("value", "Value", nativeRead.Int32Value),
             ]
         );
@@ -365,12 +368,12 @@ public sealed class ReadService(IReadBackend backend)
 
         return CreateSuccessSnapshot(
             request,
-            $"Read {ObjectFieldCatalog.ResistanceName(resistanceId)} resistance for {target.TargetText}.",
+            $"Read {CharacterSheetMetadata.ResistanceName(resistanceId)} resistance for {target.TargetText}.",
             target,
             nativeRead,
             [
                 Value("resistance_id", "Resistance Id", resistanceId),
-                Value("resistance_name", "Resistance", ObjectFieldCatalog.ResistanceName(resistanceId)),
+                Value("resistance_name", "Resistance", CharacterSheetMetadata.ResistanceName(resistanceId)),
                 Value("identified_aware", "Identified Aware", "Yes"),
                 Value("value", "Value", nativeRead.Int32Value),
             ]
@@ -395,15 +398,16 @@ public sealed class ReadService(IReadBackend backend)
             [ToLow32(target.Handle), ToHigh32(target.Handle), unchecked((uint)fieldId), unchecked((uint)slotIndex)]
         );
 
+        var disciplineName = CharacterSheetMetadata.TechDisciplineName(disciplineId);
         return CreateSuccessSnapshot(
             request,
-            $"Read tech discipline {TechDisciplineLabels[disciplineId]} for {target.TargetText}.",
+            $"Read tech discipline {disciplineName} for {target.TargetText}.",
             target,
             nativeRead,
             [
                 .. CreateArrayFieldValues(fieldId, slotIndex, nativeRead.Int32Value, unsigned: false),
                 Value("discipline_id", "Discipline Id", disciplineId),
-                Value("discipline_name", "Discipline", TechDisciplineLabels[disciplineId]),
+                Value("discipline_name", "Discipline", disciplineName),
                 Value("degree", "Degree", nativeRead.Int32Value),
             ]
         );
@@ -892,7 +896,7 @@ public sealed class ReadService(IReadBackend backend)
         var normalized = Normalize(value);
         for (var index = 0; index < SpellCollegeCount; index++)
         {
-            if (Normalize(ObjectFieldCatalog.SpellCollegeName(index)) == normalized)
+            if (Normalize(CharacterSheetMetadata.SpellCollegeName(index)) == normalized)
                 return index;
         }
 
@@ -920,9 +924,9 @@ public sealed class ReadService(IReadBackend backend)
         if (DerivedStatAliases.TryGetValue(normalized, out var aliasedStat))
             return aliasedStat;
 
-        for (var index = 0; index < DerivedStatLabels.Length; index++)
+        for (var index = 0; index < DerivedStatCount; index++)
         {
-            if (Normalize(DerivedStatLabels[index]) == normalized)
+            if (Normalize(CharacterSheetMetadata.StatName(DerivedStatBaseIndex + index)) == normalized)
                 return DerivedStatBaseIndex + index;
         }
 
@@ -937,7 +941,7 @@ public sealed class ReadService(IReadBackend backend)
 
         for (var index = 0; index < ResistanceCount; index++)
         {
-            if (Normalize(ObjectFieldCatalog.ResistanceName(index)) == normalized)
+            if (Normalize(CharacterSheetMetadata.ResistanceName(index)) == normalized)
                 return index;
         }
 
@@ -950,9 +954,9 @@ public sealed class ReadService(IReadBackend backend)
         if (TechDisciplineAliases.TryGetValue(normalized, out var aliasedDiscipline))
             return aliasedDiscipline;
 
-        for (var index = 0; index < TechDisciplineLabels.Length; index++)
+        for (var index = 0; index < TechDisciplineCount; index++)
         {
-            if (Normalize(TechDisciplineLabels[index]) == normalized)
+            if (Normalize(CharacterSheetMetadata.TechDisciplineName(index)) == normalized)
                 return index;
         }
 
@@ -1096,33 +1100,10 @@ public sealed class ReadService(IReadBackend backend)
     private const int SpellCollegeCount = 16;
     private const int RuntimeStatCount = 28;
     private const int DerivedStatBaseIndex = 8;
+    private const int DerivedStatCount = 9;
     private const int ResistanceCount = 5;
+    private const int TechDisciplineCount = 8;
     private const int MaxAttachmentPointScan = 128;
-
-    private static readonly string[] DerivedStatLabels =
-    [
-        "CarryWeight",
-        "DamageBonus",
-        "AcAdjustment",
-        "Speed",
-        "HealRate",
-        "PoisonRecovery",
-        "ReactionModifier",
-        "MaxFollowers",
-        "MagickTechAptitude",
-    ];
-
-    private static readonly string[] TechDisciplineLabels =
-    [
-        "Herbology",
-        "Chemistry",
-        "Electric",
-        "Explosives",
-        "Gun Smithy",
-        "Mechanical",
-        "Smithy",
-        "Therapeutics",
-    ];
 
     private static readonly Dictionary<string, int> BasicSkillAliases = new(StringComparer.OrdinalIgnoreCase)
     {

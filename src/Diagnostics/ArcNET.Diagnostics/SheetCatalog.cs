@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics;
 
@@ -14,19 +15,19 @@ public static class SheetCatalog
             return new SheetReference(
                 SheetRoute.DerivedStat,
                 derivedStatId,
-                DerivedStatLabels[derivedStatId - DerivedStatBaseIndex]
+                CharacterSheetMetadata.StatName(derivedStatId)
             );
         }
 
         if (BasicSkillAliases.TryGetValue(normalized, out var basicSkillId))
-            return new(SheetRoute.BasicSkill, basicSkillId, BasicSkillLabels[basicSkillId]);
+            return new(SheetRoute.BasicSkill, basicSkillId, CharacterSheetMetadata.BasicSkillName(basicSkillId));
 
         if (TechSkillAliases.TryGetValue(normalized, out var techSkillId))
-            return new(SheetRoute.TechSkill, techSkillId, TechSkillLabels[techSkillId]);
+            return new(SheetRoute.TechSkill, techSkillId, CharacterSheetMetadata.TechSkillName(techSkillId));
 
         for (var index = 0; index < SpellCollegeCount; index++)
         {
-            var collegeName = ObjectFieldCatalog.SpellCollegeName(index);
+            var collegeName = CharacterSheetMetadata.SpellCollegeName(index);
             if (Normalize(collegeName) == normalized)
                 return new(SheetRoute.SpellCollege, index, collegeName);
         }
@@ -35,32 +36,36 @@ public static class SheetCatalog
             return new(SheetRoute.SpellMastery, SpellCollegeCount, "Spell Mastery");
 
         if (TechDisciplineAliases.TryGetValue(normalized, out var disciplineId))
-            return new(SheetRoute.TechDiscipline, disciplineId, TechDisciplineLabels[disciplineId]);
+            return new(
+                SheetRoute.TechDiscipline,
+                disciplineId,
+                CharacterSheetMetadata.TechDisciplineName(disciplineId)
+            );
 
         if (ResistanceAliases.TryGetValue(normalized, out var resistanceId))
-            return new(SheetRoute.Resistance, resistanceId, ResistanceLabels[resistanceId]);
+            return new(SheetRoute.Resistance, resistanceId, CharacterSheetMetadata.ResistanceName(resistanceId));
 
         for (var index = 0; index < RuntimeStatCount; index++)
         {
             if (Normalize(RuntimeSemanticCatalog.StatName(index)) != normalized)
                 continue;
 
-            return index >= DerivedStatBaseIndex && index < DerivedStatBaseIndex + DerivedStatLabels.Length
-                ? new(SheetRoute.DerivedStat, index, DerivedStatLabels[index - DerivedStatBaseIndex])
+            return index >= DerivedStatBaseIndex && index < DerivedStatBaseIndex + DerivedStatCount
+                ? new(SheetRoute.DerivedStat, index, CharacterSheetMetadata.StatName(index))
                 : new(SheetRoute.Stat, index, RuntimeSemanticCatalog.StatName(index));
         }
 
         if (StatAliases.TryGetValue(normalized, out var statId))
         {
-            return statId >= DerivedStatBaseIndex && statId < DerivedStatBaseIndex + DerivedStatLabels.Length
-                ? new(SheetRoute.DerivedStat, statId, DerivedStatLabels[statId - DerivedStatBaseIndex])
+            return statId >= DerivedStatBaseIndex && statId < DerivedStatBaseIndex + DerivedStatCount
+                ? new(SheetRoute.DerivedStat, statId, CharacterSheetMetadata.StatName(statId))
                 : new(SheetRoute.Stat, statId, RuntimeSemanticCatalog.StatName(statId));
         }
 
         if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericId))
         {
-            return numericId >= DerivedStatBaseIndex && numericId < DerivedStatBaseIndex + DerivedStatLabels.Length
-                ? new(SheetRoute.DerivedStat, numericId, DerivedStatLabels[numericId - DerivedStatBaseIndex])
+            return numericId >= DerivedStatBaseIndex && numericId < DerivedStatBaseIndex + DerivedStatCount
+                ? new(SheetRoute.DerivedStat, numericId, CharacterSheetMetadata.StatName(numericId))
                 : new(SheetRoute.Stat, numericId, RuntimeSemanticCatalog.StatName(numericId));
         }
 
@@ -87,51 +92,7 @@ public static class SheetCatalog
     private const int SpellCollegeCount = 16;
     private const int RuntimeStatCount = 28;
     private const int DerivedStatBaseIndex = 8;
-
-    private static readonly string[] BasicSkillLabels =
-    [
-        "Bow",
-        "Dodge",
-        "Melee",
-        "Throw",
-        "Backstab",
-        "Pick Pocket",
-        "Prowling",
-        "Spot Trap",
-        "Gambling",
-        "Haggle",
-        "Heal",
-        "Persuasion",
-    ];
-
-    private static readonly string[] TechSkillLabels = ["Repair", "Firearms", "Pick Locks", "Disarm Traps"];
-
-    private static readonly string[] DerivedStatLabels =
-    [
-        "CarryWeight",
-        "DamageBonus",
-        "AcAdjustment",
-        "Speed",
-        "HealRate",
-        "PoisonRecovery",
-        "ReactionModifier",
-        "MaxFollowers",
-        "MagickTechAptitude",
-    ];
-
-    private static readonly string[] ResistanceLabels = ["Normal", "Fire", "Electrical", "Poison", "Magic"];
-
-    private static readonly string[] TechDisciplineLabels =
-    [
-        "Herbology",
-        "Chemistry",
-        "Electric",
-        "Explosives",
-        "Gun Smithy",
-        "Mechanical",
-        "Smithy",
-        "Therapeutics",
-    ];
+    private const int DerivedStatCount = 9;
 
     private static readonly Dictionary<string, int> BasicSkillAliases = new(StringComparer.OrdinalIgnoreCase)
     {

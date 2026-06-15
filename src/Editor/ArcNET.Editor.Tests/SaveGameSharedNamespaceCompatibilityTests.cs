@@ -1,12 +1,5 @@
 using ArcNET.Formats;
 using ArcNET.GameData.SaveGames;
-using SharedLoadedSave = ArcNET.GameData.SaveGames.LoadedSave;
-using SharedSaveGameLoader = ArcNET.GameData.SaveGames.SaveGameLoader;
-using SharedSaveGameSnapshotComposer = ArcNET.GameData.SaveGames.SaveGameSnapshotComposer;
-using SharedSaveGameUpdates = ArcNET.GameData.SaveGames.SaveGameUpdates;
-using SharedSaveGameValidator = ArcNET.GameData.SaveGames.SaveGameValidator;
-using SharedSaveGameWriter = ArcNET.GameData.SaveGames.SaveGameWriter;
-using SharedSaveValidationSeverity = ArcNET.GameData.SaveGames.SaveValidationSeverity;
 
 namespace ArcNET.Editor.Tests;
 
@@ -24,12 +17,12 @@ public sealed class SaveGameSharedNamespaceCompatibilityTests
             var tfafPath = Path.Combine(directory.FullName, "slot.tfaf");
             byte[] updatedBytes = [9, 8, 7];
 
-            SharedSaveGameWriter.Save(
+            SaveGameWriter.Save(
                 save,
                 gsiPath,
                 tfaiPath,
                 tfafPath,
-                new SharedSaveGameUpdates
+                new SaveGameUpdates
                 {
                     RawFileUpdates = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -38,7 +31,7 @@ public sealed class SaveGameSharedNamespaceCompatibilityTests
                 }
             );
 
-            var roundTripped = SharedSaveGameLoader.Load(gsiPath, tfaiPath, tfafPath);
+            var roundTripped = SaveGameLoader.Load(gsiPath, tfaiPath, tfafPath);
 
             await Assert.That(roundTripped.Files["test.bin"]).IsEquivalentTo(updatedBytes);
             await Assert.That(roundTripped.RawFiles["test.bin"]).IsEquivalentTo(updatedBytes);
@@ -55,9 +48,9 @@ public sealed class SaveGameSharedNamespaceCompatibilityTests
         var save = CreateSave();
         byte[] updatedBytes = [9, 8, 7, 6, 5];
 
-        var snapshot = SharedSaveGameSnapshotComposer.Compose(
+        var snapshot = SaveGameSnapshotComposer.Compose(
             save,
-            new SharedSaveGameUpdates
+            new SaveGameUpdates
             {
                 UpdatedInfo = save.Info.With(displayName: "Updated Slot"),
                 RawFileUpdates = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
@@ -93,20 +86,16 @@ public sealed class SaveGameSharedNamespaceCompatibilityTests
             }
         );
 
-        var issues = SharedSaveGameValidator.Validate(save);
+        var issues = SaveGameValidator.Validate(save);
 
-        await Assert
-            .That(issues.Count(static issue => issue.Severity == SharedSaveValidationSeverity.Error))
-            .IsEqualTo(2);
-        await Assert
-            .That(issues.Count(static issue => issue.Severity == SharedSaveValidationSeverity.Warning))
-            .IsEqualTo(1);
+        await Assert.That(issues.Count(static issue => issue.Severity == SaveValidationSeverity.Error)).IsEqualTo(2);
+        await Assert.That(issues.Count(static issue => issue.Severity == SaveValidationSeverity.Warning)).IsEqualTo(1);
         await Assert
             .That(issues.Any(static issue => issue.Message.Contains("invalid map reference", StringComparison.Ordinal)))
             .IsTrue();
     }
 
-    private static SharedLoadedSave CreateSave(SaveInfo? info = null)
+    private static LoadedSave CreateSave(SaveInfo? info = null)
     {
         info ??= new SaveInfo
         {
@@ -126,27 +115,25 @@ public sealed class SaveGameSharedNamespaceCompatibilityTests
         byte[] fileBytes = [1, 2, 3, 4];
         Dictionary<string, byte[]> files = new(StringComparer.OrdinalIgnoreCase) { ["test.bin"] = fileBytes };
 
-        return SharedLoadedSave.FromLegacy(
-            new ArcNET.Editor.LoadedSave
-            {
-                Info = info,
-                Index = new SaveIndex { Root = [new TfaiFileEntry { Name = "test.bin", Size = fileBytes.Length }] },
-                Files = files,
-                RawFiles = new Dictionary<string, byte[]>(files, StringComparer.OrdinalIgnoreCase),
-                Mobiles = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase),
-                Sectors = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase),
-                JumpFiles = new Dictionary<string, JmpFile>(StringComparer.OrdinalIgnoreCase),
-                MapPropertiesList = new Dictionary<string, MapProperties>(StringComparer.OrdinalIgnoreCase),
-                Messages = new Dictionary<string, MesFile>(StringComparer.OrdinalIgnoreCase),
-                TownMapFogs = new Dictionary<string, TownMapFog>(StringComparer.OrdinalIgnoreCase),
-                DataSavFiles = new Dictionary<string, DataSavFile>(StringComparer.OrdinalIgnoreCase),
-                Data2SavFiles = new Dictionary<string, Data2SavFile>(StringComparer.OrdinalIgnoreCase),
-                Scripts = new Dictionary<string, ScrFile>(StringComparer.OrdinalIgnoreCase),
-                Dialogs = new Dictionary<string, DlgFile>(StringComparer.OrdinalIgnoreCase),
-                MobileMds = new Dictionary<string, MobileMdFile>(StringComparer.OrdinalIgnoreCase),
-                MobileMdys = new Dictionary<string, MobileMdyFile>(StringComparer.OrdinalIgnoreCase),
-                ParseErrors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            }
-        );
+        return new LoadedSave
+        {
+            Info = info,
+            Index = new SaveIndex { Root = [new TfaiFileEntry { Name = "test.bin", Size = fileBytes.Length }] },
+            Files = files,
+            RawFiles = new Dictionary<string, byte[]>(files, StringComparer.OrdinalIgnoreCase),
+            Mobiles = new Dictionary<string, MobData>(StringComparer.OrdinalIgnoreCase),
+            Sectors = new Dictionary<string, Sector>(StringComparer.OrdinalIgnoreCase),
+            JumpFiles = new Dictionary<string, JmpFile>(StringComparer.OrdinalIgnoreCase),
+            MapPropertiesList = new Dictionary<string, MapProperties>(StringComparer.OrdinalIgnoreCase),
+            Messages = new Dictionary<string, MesFile>(StringComparer.OrdinalIgnoreCase),
+            TownMapFogs = new Dictionary<string, TownMapFog>(StringComparer.OrdinalIgnoreCase),
+            DataSavFiles = new Dictionary<string, DataSavFile>(StringComparer.OrdinalIgnoreCase),
+            Data2SavFiles = new Dictionary<string, Data2SavFile>(StringComparer.OrdinalIgnoreCase),
+            Scripts = new Dictionary<string, ScrFile>(StringComparer.OrdinalIgnoreCase),
+            Dialogs = new Dictionary<string, DlgFile>(StringComparer.OrdinalIgnoreCase),
+            MobileMds = new Dictionary<string, MobileMdFile>(StringComparer.OrdinalIgnoreCase),
+            MobileMdys = new Dictionary<string, MobileMdyFile>(StringComparer.OrdinalIgnoreCase),
+            ParseErrors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+        };
     }
 }

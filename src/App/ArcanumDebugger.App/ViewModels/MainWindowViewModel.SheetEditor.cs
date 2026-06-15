@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using ArcNET.Diagnostics;
+using ArcNET.GameObjects.Metadata;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -711,7 +712,7 @@ public sealed partial class MainWindowViewModel
             route == SheetRoute.SpellMastery
                 ? (
                     value.Value is >= 0 and < SpellCollegeCount
-                        ? ObjectFieldCatalog.SpellCollegeName(value.Value)
+                        ? CharacterSheetMetadata.SpellCollegeName(value.Value)
                         : "none"
                 )
                 : SheetValueCatalog.FormatEditorValue(reference, value.Value);
@@ -787,7 +788,7 @@ public sealed partial class MainWindowViewModel
             "Spell Mastery",
             FormatSpellMasteryValue(value.Value),
             "Use a college name or 'none' to clear spell mastery.",
-            value.Value is >= 0 and < SpellCollegeCount ? ObjectFieldCatalog.SpellCollegeName(value.Value) : "none",
+            value.Value is >= 0 and < SpellCollegeCount ? CharacterSheetMetadata.SpellCollegeName(value.Value) : "none",
             string.Empty,
             "Use one college name such as fire or temporal, or enter 'none' to clear mastery.",
             SheetRoute.SpellMastery,
@@ -803,7 +804,7 @@ public sealed partial class MainWindowViewModel
         };
 
     private static string FormatSpellMasteryValue(int value) =>
-        value is >= 0 and < SpellCollegeCount ? ObjectFieldCatalog.SpellCollegeName(value) : "None";
+        value is >= 0 and < SpellCollegeCount ? CharacterSheetMetadata.SpellCollegeName(value) : "None";
 
     private static string CreateSheetEditorAvailabilitySummary(AttachedSessionSnapshot session)
     {

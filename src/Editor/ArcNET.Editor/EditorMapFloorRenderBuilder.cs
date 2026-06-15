@@ -14,6 +14,7 @@ public static class EditorMapFloorRenderBuilder
     private const int WallTransparencyLeft = 0x0002;
     private const int WallTransparencyRight = 0x0004;
     private const int WallTransDisallow = 0x0001;
+    private const double LightSampleRadius = 300.0d;
 
     private static readonly bool[,,] RoofCoverageMatrix =
     {
@@ -110,6 +111,70 @@ public static class EditorMapFloorRenderBuilder
         double CenterX,
         double CenterY
     );
+
+    private sealed class LightSpatialIndex
+    {
+        private const double CellSize = LightSampleRadius;
+        private static readonly IReadOnlyList<EditorMapLightRenderItem> EmptyLights = [];
+        private readonly Dictionary<(int X, int Y), List<EditorMapLightRenderItem>> _cells = [];
+
+        public LightSpatialIndex(IReadOnlyList<EditorMapLightRenderItem> lights)
+        {
+            for (var index = 0; index < lights.Count; index++)
+            {
+                var light = lights[index];
+                if (light.Flags.HasFlag(SectorLightFlags.Off))
+                    continue;
+
+                var cell = GetCell(light.AnchorX, light.AnchorY);
+                if (!_cells.TryGetValue(cell, out var bucket))
+                {
+                    bucket = [];
+                    _cells[cell] = bucket;
+                }
+
+                bucket.Add(light);
+            }
+        }
+
+        public IReadOnlyList<EditorMapLightRenderItem> Query(double centerX, double centerY, double radius)
+        {
+            if (_cells.Count == 0)
+                return EmptyLights;
+
+            var minCellX = GetCellCoordinate(centerX - radius);
+            var maxCellX = GetCellCoordinate(centerX + radius);
+            var minCellY = GetCellCoordinate(centerY - radius);
+            var maxCellY = GetCellCoordinate(centerY + radius);
+            var radiusSquared = radius * radius;
+            List<EditorMapLightRenderItem>? matches = null;
+            for (var cellY = minCellY; cellY <= maxCellY; cellY++)
+            {
+                for (var cellX = minCellX; cellX <= maxCellX; cellX++)
+                {
+                    if (!_cells.TryGetValue((cellX, cellY), out var bucket))
+                        continue;
+
+                    for (var index = 0; index < bucket.Count; index++)
+                    {
+                        var light = bucket[index];
+                        var dx = centerX - light.AnchorX;
+                        var dy = centerY - light.AnchorY;
+                        if ((dx * dx) + (dy * dy) >= radiusSquared)
+                            continue;
+
+                        (matches ??= []).Add(light);
+                    }
+                }
+            }
+
+            return matches ?? EmptyLights;
+        }
+
+        private static (int X, int Y) GetCell(double x, double y) => (GetCellCoordinate(x), GetCellCoordinate(y));
+
+        private static int GetCellCoordinate(double value) => (int)Math.Floor(value / CellSize);
+    }
 
     private sealed record RawTileOverlayRenderItem(
         string SectorAssetPath,
@@ -2780,8 +2845,6 @@ public static class EditorMapFloorRenderBuilder
         double accumG = baseAmbientColor.G;
         double accumB = baseAmbientColor.B;
 
-        const double radius = 300.0d;
-
         foreach (var light in lights)
         {
             if (light.Flags.HasFlag(SectorLightFlags.Off))
@@ -2790,10 +2853,10 @@ public static class EditorMapFloorRenderBuilder
             var dx = px - light.AnchorX;
             var dy = py - light.AnchorY;
             var distance = Math.Sqrt(dx * dx + dy * dy);
-            if (distance >= radius)
+            if (distance >= LightSampleRadius)
                 continue;
 
-            var intensity = 1.0d - (distance / radius);
+            var intensity = 1.0d - (distance / LightSampleRadius);
 
             var lightColor = light.SuggestedTintColor;
             var r = (double)((lightColor >> 16) & 0xFFu);
@@ -2908,6 +2971,7 @@ public static class EditorMapFloorRenderBuilder
                 return cmp != 0 ? cmp : a.MapTileY.CompareTo(b.MapTileY);
             }
         );
+        var lightSpatialIndex = request.IncludeFloorLightTint ? new LightSpatialIndex(finalLights) : null;
         var sliceBuilders = new List<SectorRenderSliceBuilder>();
         var sliceIndexByAssetPath = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -2947,26 +3011,8 @@ public static class EditorMapFloorRenderBuilder
                 var tileCenterX = t.CenterX + offsetX;
                 var tileCenterY = t.CenterY + offsetY;
                 var maxSampleOffset = Math.Sqrt(stepX * stepX + stepY * stepY);
-                var activeRadius = 300.0d + maxSampleOffset;
-                List<EditorMapLightRenderItem>? activeLights = null;
-
-                for (var lightIndex = 0; lightIndex < finalLights.Length; lightIndex++)
-                {
-                    var light = finalLights[lightIndex];
-                    if (light.Flags.HasFlag(SectorLightFlags.Off))
-                        continue;
-
-                    var dx = tileCenterX - light.AnchorX;
-                    var dy = tileCenterY - light.AnchorY;
-                    var dist = Math.Sqrt(dx * dx + dy * dy);
-                    if (dist >= activeRadius)
-                        continue;
-
-                    activeLights ??= [];
-                    activeLights.Add(light);
-                }
-
-                var sampledLights = activeLights ?? [];
+                var activeRadius = LightSampleRadius + maxSampleOffset;
+                var sampledLights = lightSpatialIndex?.Query(tileCenterX, tileCenterY, activeRadius) ?? [];
                 var topLeft = SampleLightColor(
                     tileCenterX - stepX,
                     tileCenterY - stepY,

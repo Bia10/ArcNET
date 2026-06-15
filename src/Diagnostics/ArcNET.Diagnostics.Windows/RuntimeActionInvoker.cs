@@ -2,6 +2,7 @@
 using System.Runtime.Versioning;
 using ArcNET.Diagnostics;
 using ArcNET.Diagnostics.Contracts;
+using ArcNET.GameObjects.Metadata;
 
 namespace ArcNET.Diagnostics.Windows;
 
@@ -320,7 +321,7 @@ public static class RuntimeActionInvoker
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(runtimeProfile);
 
-        var resistanceName = ObjectFieldCatalog.ResistanceName(resistanceId);
+        var resistanceName = CharacterSheetMetadata.ResistanceName(resistanceId);
         using var dispatcher = RuntimeCallDispatcher.Install(memory, runtimeProfile);
         var currentValue = InvokeInt32(
             memory,
@@ -397,7 +398,7 @@ public static class RuntimeActionInvoker
             points,
             training,
             SkillPointsStatId,
-            ObjectFieldCatalog.BasicSkillName(skillId),
+            CharacterSheetMetadata.BasicSkillName(skillId),
             timeout
         );
     }
@@ -424,7 +425,7 @@ public static class RuntimeActionInvoker
             points,
             training,
             TechPointsStatId,
-            ObjectFieldCatalog.TechSkillName(skillId),
+            CharacterSheetMetadata.TechSkillName(skillId),
             timeout
         );
     }
@@ -1351,7 +1352,7 @@ public static class RuntimeActionInvoker
                 dispatcher.ModeDescription,
                 dispatcher.SiteDescription,
                 $"obj_array_field_int32_get @ {s_objectArrayFieldInt32Getter.Site}",
-                $"{skillName} already has {points.ToString()} point(s) and {ObjectFieldCatalog.TrainingName(updatedTraining)} training on {RuntimeSemanticCatalog.FormatHandle(handle)}.",
+                $"{skillName} already has {points.ToString()} point(s) and {CharacterSheetMetadata.TrainingName(updatedTraining)} training on {RuntimeSemanticCatalog.FormatHandle(handle)}.",
                 NoMutation: true
             );
         }
@@ -1388,7 +1389,7 @@ public static class RuntimeActionInvoker
         if (confirmedPoints != points || confirmedTraining != updatedTraining)
         {
             throw new InvalidOperationException(
-                $"Failed to persist {skillName} = {points.ToString()} with {ObjectFieldCatalog.TrainingName(updatedTraining)} training on {RuntimeSemanticCatalog.FormatHandle(handle)}."
+                $"Failed to persist {skillName} = {points.ToString()} with {CharacterSheetMetadata.TrainingName(updatedTraining)} training on {RuntimeSemanticCatalog.FormatHandle(handle)}."
             );
         }
 
@@ -1426,13 +1427,13 @@ public static class RuntimeActionInvoker
             dispatcher.ModeDescription,
             dispatcher.SiteDescription,
             executionDetailText,
-            $"{skillName} {currentPoints.ToString()} ({ObjectFieldCatalog.TrainingName(currentTraining)}) -> {confirmedPoints.ToString()} ({ObjectFieldCatalog.TrainingName(confirmedTraining)}) · {RuntimeSemanticCatalog.StatName(pointStatId)} {currentPointStat.ToString()} -> {confirmedPointStat.ToString()}"
+            $"{skillName} {currentPoints.ToString()} ({CharacterSheetMetadata.TrainingName(currentTraining)}) -> {confirmedPoints.ToString()} ({CharacterSheetMetadata.TrainingName(confirmedTraining)}) · {RuntimeSemanticCatalog.StatName(pointStatId)} {currentPointStat.ToString()} -> {confirmedPointStat.ToString()}"
         );
     }
 
     private static string FormatSpellMastery(int masteryCollegeId) =>
         masteryCollegeId is >= 0 and < SpellTechCatalog.SpellCollegeCount
-            ? ObjectFieldCatalog.SpellCollegeName(masteryCollegeId)
+            ? CharacterSheetMetadata.SpellCollegeName(masteryCollegeId)
             : "None";
 
     private static uint ToLow32(ulong value) => unchecked((uint)(value & uint.MaxValue));

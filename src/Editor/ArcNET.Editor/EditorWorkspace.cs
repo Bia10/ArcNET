@@ -6,6 +6,7 @@ using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameData;
+using ArcNET.GameData.SaveGames;
 using ArcNET.GameData.Workspace;
 using ArcNET.GameObjects;
 
