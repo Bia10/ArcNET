@@ -1405,18 +1405,6 @@ public sealed class EditorWorkspaceSession
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
         var selection = mapViewState.Selection;
         var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
-        if (explicitSelectedObjectIds.Count == 0)
-        {
-            return CreateTrackedObjectSelectionSummary(
-                mapViewState.Id,
-                mapViewState.MapName,
-                selection,
-                explicitSelectedObjectIds,
-                [],
-                []
-            );
-        }
-
         var (selectedObjects, sectorAssetPaths) = ResolveSelectedObjectSelectionFromRender(
             effectiveWorkspace,
             sceneRender,
@@ -2905,7 +2893,8 @@ public sealed class EditorWorkspaceSession
         var mapChanged =
             existingMapViewState is not null
             && !string.Equals(existingMapViewState.MapName, target.MapName, StringComparison.OrdinalIgnoreCase);
-        var existingZoom = existingMapViewState?.Camera?.Zoom > 0d ? existingMapViewState.Camera.Zoom : 1d;
+        var existingCamera = existingMapViewState?.Camera;
+        var existingZoom = existingCamera?.Zoom > 0d ? existingCamera.Zoom : 1d;
 
         var updatedMapViewState = SetMapViewState(
             new EditorProjectMapViewState
@@ -2918,6 +2907,9 @@ public sealed class EditorWorkspaceSession
                     CenterTileX = target.CenterTileX,
                     CenterTileY = target.CenterTileY,
                     Zoom = existingZoom,
+                    RollDegrees = existingCamera?.RollDegrees ?? 0d,
+                    PitchDegrees = existingCamera?.PitchDegrees ?? 0d,
+                    YawDegrees = existingCamera?.YawDegrees ?? 0d,
                 },
                 Selection = new EditorProjectMapSelectionState
                 {
@@ -3749,7 +3741,7 @@ public sealed class EditorWorkspaceSession
                     && objectPlacementTool.CanPreviewOrApply;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
+                var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId, scene.SceneRender);
                 var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
                 var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
 
@@ -9664,6 +9656,9 @@ public sealed class EditorWorkspaceSession
                 CenterTileX = camera.CenterTileX,
                 CenterTileY = camera.CenterTileY,
                 Zoom = camera.Zoom,
+                RollDegrees = camera.RollDegrees,
+                PitchDegrees = camera.PitchDegrees,
+                YawDegrees = camera.YawDegrees,
             },
             Selection = new EditorProjectMapSelectionState
             {
@@ -10803,11 +10798,10 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(selection);
 
         var selectedObjectIds = selection.GetSelectedObjectIds();
-        if (selectedObjectIds.Count == 0)
-            return ([], []);
-
-        var selectedObjectIdSet = selectedObjectIds.ToHashSet();
-        var selectedRenderItems = ResolveSelectedObjectRenderItems(sceneRender, selection, selectedObjectIdSet);
+        var selectedRenderItems =
+            selectedObjectIds.Count == 0
+                ? ResolveImplicitSelectedObjectRenderItems(sceneRender, selection)
+                : ResolveSelectedObjectRenderItems(sceneRender, selection, selectedObjectIds.ToHashSet());
         if (selectedRenderItems.Count > 0)
         {
             return (
@@ -10816,7 +10810,7 @@ public sealed class EditorWorkspaceSession
             );
         }
 
-        if (!CanFallbackTrackedObjectSelectionSummary(selection))
+        if (selectedObjectIds.Count == 0 || !CanFallbackTrackedObjectSelectionSummary(selection))
             return ([], []);
 
         var sector = workspace.FindSector(selection.SectorAssetPath!);
@@ -10865,23 +10859,16 @@ public sealed class EditorWorkspaceSession
         if (selection.Area is { } areaSelection)
         {
             var resolvedObjects = new List<EditorMapObjectRenderItem>(selectedObjectIdSet.Count);
-            var seenObjectIds = new HashSet<GameObjectGuid>();
             for (var index = 0; index < sceneRender.Objects.Count; index++)
             {
                 var candidate = sceneRender.Objects[index];
                 if (
-                    candidate.MapTileX < areaSelection.MinMapTileX
-                    || candidate.MapTileX > areaSelection.MaxMapTileX
-                    || candidate.MapTileY < areaSelection.MinMapTileY
-                    || candidate.MapTileY > areaSelection.MaxMapTileY
-                    || !selectedObjectIdSet.Contains(candidate.ObjectId)
-                    || !seenObjectIds.Add(candidate.ObjectId)
+                    IsRenderItemInsideAreaSelection(candidate, areaSelection)
+                    && selectedObjectIdSet.Contains(candidate.ObjectId)
                 )
                 {
-                    continue;
+                    resolvedObjects.Add(candidate);
                 }
-
-                resolvedObjects.Add(candidate);
             }
 
             return resolvedObjects;
@@ -10915,6 +10902,39 @@ public sealed class EditorWorkspaceSession
 
         return directObjects;
     }
+
+    private static IReadOnlyList<EditorMapObjectRenderItem> ResolveImplicitSelectedObjectRenderItems(
+        EditorMapFloorRenderPreview sceneRender,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.Area is { } areaSelection)
+        {
+            var areaObjects = new List<EditorMapObjectRenderItem>();
+            for (var index = 0; index < sceneRender.Objects.Count; index++)
+            {
+                var candidate = sceneRender.Objects[index];
+                if (IsRenderItemInsideAreaSelection(candidate, areaSelection))
+                    areaObjects.Add(candidate);
+            }
+
+            return areaObjects;
+        }
+
+        return selection.Tile is { } tile ? sceneRender.GetObjectsAtTile(selection.SectorAssetPath, tile) : [];
+    }
+
+    private static bool IsRenderItemInsideAreaSelection(
+        EditorMapObjectRenderItem candidate,
+        EditorProjectMapAreaSelectionState areaSelection
+    ) =>
+        candidate.MapTileX >= areaSelection.MinMapTileX
+        && candidate.MapTileX <= areaSelection.MaxMapTileX
+        && candidate.MapTileY >= areaSelection.MinMapTileY
+        && candidate.MapTileY <= areaSelection.MaxMapTileY;
 
     private static string? ResolveSelectionSourceAssetPath(EditorProjectMapSelectionState selection)
     {

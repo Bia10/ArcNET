@@ -2435,7 +2435,7 @@ public static class EditorMapFloorRenderBuilder
             return;
 
         var roof = new ArtId(roofArtId.Value);
-        if (roof.IsRoofFill)
+        if (roof.IsRoofFill || roof.IsRoofFaded)
             return;
 
         var mapTileX = checked((sector.LocalX * sectorTileWidth) + (roofX * 4));

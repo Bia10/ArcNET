@@ -1459,7 +1459,10 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert
             .That(preview.RenderQueue.Count(item => item.Kind == EditorMapRenderQueueItemKind.Object))
             .IsEqualTo(0);
-        await Assert.That(preview.Roofs.Count).IsEqualTo(1);
+        await Assert.That(preview.Roofs).IsEmpty();
+        await Assert
+            .That(preview.RenderQueue.Count(item => item.Kind == EditorMapRenderQueueItemKind.Roof))
+            .IsEqualTo(0);
     }
 
     [Test]

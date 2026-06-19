@@ -256,7 +256,7 @@ public sealed class EditorMapSectorScenePreview
     public IReadOnlyList<ArtId> UniqueTerrainRoofArtIds =>
         _uniqueTerrainRoofArtIds ??= RoofArtIds is null
             ? EmptyArtIds
-            : CreateUniqueTerrainArtIds(RoofArtIds, skipRoofSentinels: true, skipRoofFill: true);
+            : CreateUniqueTerrainArtIds(RoofArtIds, skipRoofSentinels: true, skipRoofFill: true, skipRoofFaded: true);
 
     /// <summary>
     /// Unique sector-light art ids referenced by this sector's terrain.
@@ -351,7 +351,12 @@ public sealed class EditorMapSectorScenePreview
             );
     }
 
-    private static ArtId[] CreateUniqueTerrainArtIds(uint[] artIds, bool skipRoofSentinels, bool skipRoofFill)
+    private static ArtId[] CreateUniqueTerrainArtIds(
+        uint[] artIds,
+        bool skipRoofSentinels,
+        bool skipRoofFill,
+        bool skipRoofFaded = false
+    )
     {
         var uniqueValues = new HashSet<uint>();
         for (var index = 0; index < artIds.Length; index++)
@@ -362,6 +367,9 @@ public sealed class EditorMapSectorScenePreview
 
             var typedArtId = new ArtId(artId);
             if (skipRoofFill && typedArtId.IsRoofFill)
+                continue;
+
+            if (skipRoofFaded && typedArtId.IsRoofFaded)
                 continue;
 
             uniqueValues.Add(artId);

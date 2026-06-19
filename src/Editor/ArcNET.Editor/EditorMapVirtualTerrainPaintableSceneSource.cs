@@ -368,7 +368,7 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
             return;
 
         var artId = new ArtId(roofArtId.Value);
-        if (artId.IsRoofFill)
+        if (artId.IsRoofFill || artId.IsRoofFaded)
             return;
 
         var mapTileX = checked((sector.LocalX * sector.TileWidth) + (roofX * 4));

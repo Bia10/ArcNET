@@ -22,6 +22,21 @@ public sealed class EditorMapRenderViewportState
     /// Render-space zoom factor.
     /// </summary>
     public double Zoom { get; init; } = 1d;
+
+    /// <summary>
+    /// Clockwise camera roll, in degrees, around the viewport center.
+    /// </summary>
+    public double RollDegrees { get; init; }
+
+    /// <summary>
+    /// Camera pitch, in degrees, applied as vertical render-space tilt.
+    /// </summary>
+    public double PitchDegrees { get; init; }
+
+    /// <summary>
+    /// Camera yaw, in degrees, applied as horizontal render-space tilt.
+    /// </summary>
+    public double YawDegrees { get; init; }
 }
 
 /// <summary>
@@ -36,17 +51,37 @@ public sealed class EditorMapSceneViewportLayout
     public required double CenterRenderX { get; init; }
     public required double CenterRenderY { get; init; }
     public required double Zoom { get; init; }
+    public double RollDegrees { get; init; }
+    public double PitchDegrees { get; init; }
+    public double YawDegrees { get; init; }
 
-    public double VisibleLeft => CenterRenderX - ((ViewportWidth / Zoom) / 2d);
-    public double VisibleTop => CenterRenderY - ((ViewportHeight / Zoom) / 2d);
-    public double VisibleRight => CenterRenderX + ((ViewportWidth / Zoom) / 2d);
-    public double VisibleBottom => CenterRenderY + ((ViewportHeight / Zoom) / 2d);
+    public double VisibleLeft => EditorMapSceneRenderSpaceMath.CreateVisibleRenderBounds(this).Left;
+    public double VisibleTop => EditorMapSceneRenderSpaceMath.CreateVisibleRenderBounds(this).Top;
+    public double VisibleRight => EditorMapSceneRenderSpaceMath.CreateVisibleRenderBounds(this).Right;
+    public double VisibleBottom => EditorMapSceneRenderSpaceMath.CreateVisibleRenderBounds(this).Bottom;
 }
 
 /// <summary>
 /// One point in normalized render space.
 /// </summary>
 public readonly record struct EditorMapRenderPoint(double X, double Y);
+
+/// <summary>
+/// One axis-aligned normalized render-space rectangle.
+/// </summary>
+public readonly record struct EditorMapRenderBounds(double Left, double Top, double Right, double Bottom);
+
+/// <summary>
+/// One affine transform from normalized render space to viewport pixels.
+/// </summary>
+public readonly record struct EditorMapSceneViewportTransform(
+    double M11,
+    double M12,
+    double M21,
+    double M22,
+    double OffsetX,
+    double OffsetY
+);
 
 /// <summary>
 /// One point in fractional map-tile space.
@@ -79,6 +114,10 @@ public sealed class EditorMapRenderHit
 /// </summary>
 public static class EditorMapSceneRenderSpaceMath
 {
+    public const double MaxCameraTiltDegrees = 60d;
+    private const double MinimumTiltScale = 0.35d;
+    private const double TiltShearFactor = 0.25d;
+
     /// <summary>
     /// Creates one render-space viewport state centered on the supplied scene, or projects the supplied tile-space camera
     /// into the scene's normalized render space when <paramref name="camera"/> is provided.
@@ -106,6 +145,9 @@ public static class EditorMapSceneRenderSpaceMath
             CenterRenderX = center.X,
             CenterRenderY = center.Y,
             Zoom = camera.Zoom,
+            RollDegrees = NormalizeRollDegrees(camera.RollDegrees),
+            PitchDegrees = ClampCameraTiltDegrees(camera.PitchDegrees),
+            YawDegrees = ClampCameraTiltDegrees(camera.YawDegrees),
         };
     }
 
@@ -135,7 +177,56 @@ public static class EditorMapSceneRenderSpaceMath
             CenterRenderX = effectiveViewport.CenterRenderX,
             CenterRenderY = effectiveViewport.CenterRenderY,
             Zoom = effectiveViewport.Zoom,
+            RollDegrees = NormalizeRollDegrees(effectiveViewport.RollDegrees),
+            PitchDegrees = ClampCameraTiltDegrees(effectiveViewport.PitchDegrees),
+            YawDegrees = ClampCameraTiltDegrees(effectiveViewport.YawDegrees),
         };
+    }
+
+    /// <summary>
+    /// Creates the affine transform that maps normalized render space into viewport pixel space.
+    /// </summary>
+    public static EditorMapSceneViewportTransform CreateViewportTransform(EditorMapSceneViewportLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ValidatePositiveFinite(nameof(layout.Zoom), layout.Zoom);
+
+        var rollRadians = DegreesToRadians(NormalizeRollDegrees(layout.RollDegrees));
+        var pitchRadians = DegreesToRadians(ClampCameraTiltDegrees(layout.PitchDegrees));
+        var yawRadians = DegreesToRadians(ClampCameraTiltDegrees(layout.YawDegrees));
+        var scaleX = Math.Max(MinimumTiltScale, Math.Cos(yawRadians));
+        var scaleY = Math.Max(MinimumTiltScale, Math.Cos(pitchRadians));
+        var shearX = Math.Sin(yawRadians) * TiltShearFactor;
+        var shearY = -Math.Sin(pitchRadians) * TiltShearFactor;
+        var cos = Math.Cos(rollRadians);
+        var sin = Math.Sin(rollRadians);
+
+        var m11 = layout.Zoom * ((cos * scaleX) - (sin * shearY));
+        var m12 = layout.Zoom * ((sin * scaleX) + (cos * shearY));
+        var m21 = layout.Zoom * ((cos * shearX) - (sin * scaleY));
+        var m22 = layout.Zoom * ((sin * shearX) + (cos * scaleY));
+        var offsetX = (layout.ViewportWidth / 2d) - (m11 * layout.CenterRenderX) - (m21 * layout.CenterRenderY);
+        var offsetY = (layout.ViewportHeight / 2d) - (m12 * layout.CenterRenderX) - (m22 * layout.CenterRenderY);
+        return new EditorMapSceneViewportTransform(m11, m12, m21, m22, offsetX, offsetY);
+    }
+
+    /// <summary>
+    /// Creates the axis-aligned normalized render-space bounds currently visible in the viewport.
+    /// </summary>
+    public static EditorMapRenderBounds CreateVisibleRenderBounds(EditorMapSceneViewportLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+
+        var topLeft = ViewportToRenderPoint(layout, 0d, 0d);
+        var topRight = ViewportToRenderPoint(layout, layout.ViewportWidth, 0d);
+        var bottomLeft = ViewportToRenderPoint(layout, 0d, layout.ViewportHeight);
+        var bottomRight = ViewportToRenderPoint(layout, layout.ViewportWidth, layout.ViewportHeight);
+        return new EditorMapRenderBounds(
+            Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X)),
+            Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y)),
+            Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X)),
+            Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y))
+        );
     }
 
     /// <summary>
@@ -210,7 +301,7 @@ public static class EditorMapSceneRenderSpaceMath
     {
         ArgumentNullException.ThrowIfNull(layout);
         ValidateFinite(nameof(renderX), renderX);
-        return (layout.ViewportWidth / 2d) + ((renderX - layout.CenterRenderX) * layout.Zoom);
+        return RenderToViewportPoint(layout, renderX, layout.CenterRenderY).X;
     }
 
     /// <summary>
@@ -220,7 +311,27 @@ public static class EditorMapSceneRenderSpaceMath
     {
         ArgumentNullException.ThrowIfNull(layout);
         ValidateFinite(nameof(renderY), renderY);
-        return (layout.ViewportHeight / 2d) + ((renderY - layout.CenterRenderY) * layout.Zoom);
+        return RenderToViewportPoint(layout, layout.CenterRenderX, renderY).Y;
+    }
+
+    /// <summary>
+    /// Converts one normalized render-space point into viewport pixel space.
+    /// </summary>
+    public static EditorMapRenderPoint RenderToViewportPoint(
+        EditorMapSceneViewportLayout layout,
+        double renderX,
+        double renderY
+    )
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ValidateFinite(nameof(renderX), renderX);
+        ValidateFinite(nameof(renderY), renderY);
+
+        var transform = CreateViewportTransform(layout);
+        return new EditorMapRenderPoint(
+            (renderX * transform.M11) + (renderY * transform.M21) + transform.OffsetX,
+            (renderX * transform.M12) + (renderY * transform.M22) + transform.OffsetY
+        );
     }
 
     /// <summary>
@@ -230,7 +341,7 @@ public static class EditorMapSceneRenderSpaceMath
     {
         ArgumentNullException.ThrowIfNull(layout);
         ValidateFinite(nameof(viewportX), viewportX);
-        return layout.CenterRenderX + ((viewportX - (layout.ViewportWidth / 2d)) / layout.Zoom);
+        return ViewportToRenderPoint(layout, viewportX, layout.ViewportHeight / 2d).X;
     }
 
     /// <summary>
@@ -240,7 +351,33 @@ public static class EditorMapSceneRenderSpaceMath
     {
         ArgumentNullException.ThrowIfNull(layout);
         ValidateFinite(nameof(viewportY), viewportY);
-        return layout.CenterRenderY + ((viewportY - (layout.ViewportHeight / 2d)) / layout.Zoom);
+        return ViewportToRenderPoint(layout, layout.ViewportWidth / 2d, viewportY).Y;
+    }
+
+    /// <summary>
+    /// Converts one viewport pixel point back into normalized render space.
+    /// </summary>
+    public static EditorMapRenderPoint ViewportToRenderPoint(
+        EditorMapSceneViewportLayout layout,
+        double viewportX,
+        double viewportY
+    )
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ValidateFinite(nameof(viewportX), viewportX);
+        ValidateFinite(nameof(viewportY), viewportY);
+
+        var transform = CreateViewportTransform(layout);
+        var deltaX = viewportX - transform.OffsetX;
+        var deltaY = viewportY - transform.OffsetY;
+        var determinant = (transform.M11 * transform.M22) - (transform.M21 * transform.M12);
+        if (Math.Abs(determinant) < 0.000001d)
+            throw new InvalidOperationException("The map scene viewport transform is not invertible.");
+
+        return new EditorMapRenderPoint(
+            ((deltaX * transform.M22) - (deltaY * transform.M21)) / determinant,
+            ((deltaY * transform.M11) - (deltaX * transform.M12)) / determinant
+        );
     }
 
     /// <summary>
@@ -261,17 +398,16 @@ public static class EditorMapSceneRenderSpaceMath
         if (viewportX < 0d || viewportX >= layout.ViewportWidth || viewportY < 0d || viewportY >= layout.ViewportHeight)
             return null;
 
-        var renderX = ViewportToRenderX(layout, viewportX);
-        var renderY = ViewportToRenderY(layout, viewportY);
+        var renderPoint = ViewportToRenderPoint(layout, viewportX, viewportY);
 
-        var tilePoint = UnprojectMapTile(sceneRender, renderX, renderY);
+        var tilePoint = UnprojectMapTile(sceneRender, renderPoint.X, renderPoint.Y);
         var mapTileX = (int)Math.Round(tilePoint.MapTileX, MidpointRounding.AwayFromZero);
         var mapTileY = (int)Math.Round(tilePoint.MapTileY, MidpointRounding.AwayFromZero);
 
         if (
             !sceneRender
                 .GetOrCreateSpatialIndex()
-                .TryHitTest(renderX, renderY, mapTileX, mapTileY, out var hitTile, out var objectHits)
+                .TryHitTest(renderPoint.X, renderPoint.Y, mapTileX, mapTileY, out var hitTile, out var objectHits)
             || hitTile is null
         )
         {
@@ -284,7 +420,7 @@ public static class EditorMapSceneRenderSpaceMath
             MapTileY = hitTile.MapTileY,
             SectorAssetPath = hitTile.SectorAssetPath,
             Tile = hitTile.Tile,
-            RenderPoint = new EditorMapRenderPoint(renderX, renderY),
+            RenderPoint = renderPoint,
             ObjectHits = objectHits,
         };
     }
@@ -394,4 +530,25 @@ public static class EditorMapSceneRenderSpaceMath
         if (!double.IsFinite(value) || value <= 0d)
             throw new ArgumentOutOfRangeException(paramName, value, "Value must be finite and positive.");
     }
+
+    public static double NormalizeRollDegrees(double value)
+    {
+        ValidateFinite(nameof(value), value);
+
+        var normalized = value % 360d;
+        if (normalized > 180d)
+            normalized -= 360d;
+        else if (normalized <= -180d)
+            normalized += 360d;
+
+        return normalized;
+    }
+
+    public static double ClampCameraTiltDegrees(double value)
+    {
+        ValidateFinite(nameof(value), value);
+        return Math.Clamp(value, -MaxCameraTiltDegrees, MaxCameraTiltDegrees);
+    }
+
+    private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
 }
