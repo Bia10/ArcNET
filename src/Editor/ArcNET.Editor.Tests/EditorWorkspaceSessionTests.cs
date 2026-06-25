@@ -5093,6 +5093,214 @@ public sealed class EditorWorkspaceSessionTests
     }
 
     [Test]
+    public async Task SectorCompositionHelpers_SetSectorTileScripts_StagesReplacementAndClear()
+    {
+        const string sectorAssetPath = "maps/map01/sector_a.sec";
+        const int tileX = 7;
+        const int tileY = 0;
+        const int replacementScriptId = 88;
+        const uint replacementNodeFlags = 11u;
+        const uint replacementScriptFlags = 22u;
+        const uint replacementScriptCounters = 33u;
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            SectorFormat.WriteToFile(
+                MakeSectorWithScriptRefs(77),
+                Path.Combine(contentDir, "maps", "map01", "sector_a.sec")
+            );
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var sectorHitGroups = new EditorMapSceneSectorHitGroup[]
+            {
+                new()
+                {
+                    SectorAssetPath = sectorAssetPath,
+                    LocalX = 0,
+                    LocalY = 0,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = tileX,
+                            MapTileY = tileY,
+                            SectorAssetPath = sectorAssetPath,
+                            Tile = new Location(tileX, tileY),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            };
+
+            var session = workspace.CreateSession();
+            var changes = session.SetSectorTileScripts(
+                sectorHitGroups,
+                replacementScriptId,
+                replacementNodeFlags,
+                replacementScriptFlags,
+                replacementScriptCounters
+            );
+
+            await Assert.That(changes).HasSingleItem();
+            await Assert.That(changes[0].Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+            await Assert.That(changes[0].Target).IsEqualTo(sectorAssetPath);
+
+            var updatedWorkspace = session.BeginChangeGroup("Paint script tile").ApplyPendingChanges();
+            var updatedSector = updatedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(updatedSector).IsNotNull();
+            await Assert.That(updatedSector!.TileScripts).HasSingleItem();
+            await Assert.That(updatedSector.TileScripts[0].TileId).IsEqualTo((uint)((tileY * 64) + tileX));
+            await Assert.That(updatedSector.TileScripts[0].ScriptNum).IsEqualTo(replacementScriptId);
+            await Assert.That(updatedSector.TileScripts[0].NodeFlags).IsEqualTo(replacementNodeFlags);
+            await Assert.That(updatedSector.TileScripts[0].ScriptFlags).IsEqualTo(replacementScriptFlags);
+            await Assert.That(updatedSector.TileScripts[0].ScriptCounters).IsEqualTo(replacementScriptCounters);
+
+            var clearSession = updatedWorkspace.CreateSession();
+            var clearChanges = clearSession.ClearSectorTileScripts(sectorHitGroups);
+
+            await Assert.That(clearChanges).HasSingleItem();
+            await Assert.That(clearChanges[0].Kind).IsEqualTo(EditorSessionChangeKind.Sector);
+
+            var clearedWorkspace = clearSession.BeginChangeGroup("Clear script tile").ApplyPendingChanges();
+            var clearedSector = clearedWorkspace.FindSector(sectorAssetPath);
+
+            await Assert.That(clearedSector).IsNotNull();
+            await Assert.That(clearedSector!.TileScripts).IsEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task SectorCompositionHelpers_SetMapJumpPoints_StagesNewJumpAssetAndPendingOverlay()
+    {
+        const ulong sectorKey = 101334386389UL;
+        const int sectorX = 1749;
+        const int sectorY = 1510;
+        const int tileX = 7;
+        const int tileY = 8;
+        const int destinationMapId = 42;
+        const int destinationTileX = 10;
+        const int destinationTileY = 11;
+        const uint jumpFlags = 5u;
+        var sourceLoc = ((long)(uint)((sectorY * 64) + tileY) << 32) | (uint)((sectorX * 64) + tileX);
+        var destinationLoc = ((long)(uint)destinationTileY << 32) | (uint)destinationTileX;
+        var sectorAssetPath = $"maps/map01/{sectorKey}.sec";
+
+        var contentDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(Path.Combine(contentDir, "maps", "map01"));
+
+        try
+        {
+            var sector = new SectorBuilder(MakeSector()).SetTile(tileX, tileY, 100u).Build();
+            SectorFormat.WriteToFile(sector, Path.Combine(contentDir, "maps", "map01", $"{sectorKey}.sec"));
+            var workspace = await EditorWorkspaceLoader.LoadAsync(contentDir);
+            var sectorHitGroups = new EditorMapSceneSectorHitGroup[]
+            {
+                new()
+                {
+                    SectorAssetPath = sectorAssetPath,
+                    LocalX = sectorX,
+                    LocalY = sectorY,
+                    Hits =
+                    [
+                        new EditorMapSceneHit
+                        {
+                            MapTileX = (sectorX * 64) + tileX,
+                            MapTileY = (sectorY * 64) + tileY,
+                            SectorAssetPath = sectorAssetPath,
+                            Tile = new Location(tileX, tileY),
+                            ObjectHits = [],
+                        },
+                    ],
+                },
+            };
+
+            var session = workspace.CreateSession();
+            session.SetMapViewState(
+                new EditorProjectMapViewState
+                {
+                    Id = "map-view-scene",
+                    MapName = "map01",
+                    ViewId = "scene",
+                    Camera = new EditorProjectMapCameraState(),
+                    Selection = new EditorProjectMapSelectionState(),
+                    Preview = new EditorProjectMapPreviewState
+                    {
+                        UseScenePreview = true,
+                        ShowObjects = false,
+                        ShowRoofs = false,
+                        ShowLights = false,
+                        ShowBlockedTiles = false,
+                        ShowScripts = false,
+                        ShowJumpPoints = true,
+                    },
+                }
+            );
+
+            var changes = session.SetMapJumpPoints(
+                "map01",
+                sectorHitGroups,
+                destinationMapId,
+                destinationTileX,
+                destinationTileY,
+                jumpFlags
+            );
+
+            await Assert.That(changes).HasSingleItem();
+            await Assert.That(changes[0].Kind).IsEqualTo(EditorSessionChangeKind.Jump);
+            await Assert.That(changes[0].Target).IsEqualTo("maps/map01/map.jmp");
+
+            var pendingPreview = session.CreateMapFloorRenderPreview(
+                "map-view-scene",
+                new EditorMapFloorRenderRequest
+                {
+                    ViewMode = EditorMapSceneViewMode.TopDown,
+                    TileWidthPixels = 32d,
+                    TileHeightPixels = 32d,
+                }
+            );
+
+            await Assert.That(pendingPreview.Overlays).HasSingleItem();
+            await Assert.That(pendingPreview.Overlays[0].Kind).IsEqualTo(EditorMapTileOverlayKind.JumpPoint);
+            await Assert.That(pendingPreview.Overlays[0].MapTileX).IsEqualTo(tileX);
+            await Assert.That(pendingPreview.Overlays[0].MapTileY).IsEqualTo(tileY);
+
+            var updatedWorkspace = session.BeginChangeGroup("Paint jump tile").ApplyPendingChanges();
+            var updatedJumpFile = updatedWorkspace.FindMapJumpFile("map01");
+
+            await Assert.That(updatedJumpFile).IsNotNull();
+            await Assert.That(updatedJumpFile!.Jumps).HasSingleItem();
+            await Assert.That(updatedJumpFile.Jumps[0].Flags).IsEqualTo(jumpFlags);
+            await Assert.That(updatedJumpFile.Jumps[0].SourceLoc).IsEqualTo(sourceLoc);
+            await Assert.That(updatedJumpFile.Jumps[0].DestinationMapId).IsEqualTo(destinationMapId);
+            await Assert.That(updatedJumpFile.Jumps[0].DestinationLoc).IsEqualTo(destinationLoc);
+
+            var clearSession = updatedWorkspace.CreateSession();
+            var clearChanges = clearSession.ClearMapJumpPoints("map01", sectorHitGroups);
+
+            await Assert.That(clearChanges).HasSingleItem();
+            await Assert.That(clearChanges[0].Kind).IsEqualTo(EditorSessionChangeKind.Jump);
+
+            var clearedWorkspace = clearSession.BeginChangeGroup("Clear jump tile").ApplyPendingChanges();
+            var clearedJumpFile = clearedWorkspace.FindMapJumpFile("map01");
+
+            await Assert.That(clearedJumpFile).IsNotNull();
+            await Assert.That(clearedJumpFile!.Jumps).IsEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(contentDir))
+                Directory.Delete(contentDir, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task SectorCompositionHelpers_ApplyLayerBrushRequest_FromAreaSelection_StagesProjectedRectangleTiles()
     {
         const int protoNumber = 1001;

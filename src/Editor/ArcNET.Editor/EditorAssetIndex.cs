@@ -61,7 +61,7 @@ public sealed class EditorAssetIndex
     /// when the asset path was not present in the workspace asset catalog.
     /// </summary>
     public EditorAssetDependencySummary? FindAssetDependencySummary(string assetPath) =>
-        _data.AssetDependencySummariesByAssetPath.TryGetValue(assetPath, out var summary) ? summary : null;
+        _data.AssetDependencySummariesByAssetPath.Value.TryGetValue(assetPath, out var summary) ? summary : null;
 
     /// <summary>
     /// Returns parsed sector summaries for all indexed sector assets that belong to one map.
@@ -244,12 +244,12 @@ public sealed class EditorAssetIndex
     /// Returns all assets that reference the supplied art identifier.
     /// </summary>
     public IReadOnlyList<EditorArtReference> FindArtReferences(uint artId) =>
-        _data.ArtReferencesById.TryGetValue(artId, out var references) ? references : [];
+        _data.ArtReferencesById.Value.TryGetValue(artId, out var references) ? references : [];
 
     /// <summary>
     /// Returns all distinct ART identifiers referenced by indexed game-data assets.
     /// </summary>
-    public IReadOnlyCollection<uint> GetReferencedArtIds() => _data.ArtReferencesById.Keys.ToArray();
+    public IReadOnlyCollection<uint> GetReferencedArtIds() => _data.ArtReferencesById.Value.Keys.ToArray();
 
     /// <summary>
     /// Returns the indexed jump-file detail for one asset path, or <see langword="null"/>

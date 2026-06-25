@@ -208,6 +208,24 @@ public sealed class EditorMapSectorScenePreview
     }
 
     /// <summary>
+    /// Returns tile-script previews attached to one tile index.
+    /// </summary>
+    public IReadOnlyList<EditorMapTileScriptPreview> GetTileScriptsAtIndex(int tileIndex)
+    {
+        _tileScriptsByIndex ??= CreateTileScriptsByIndex();
+        return _tileScriptsByIndex.TryGetValue(tileIndex, out var tileScripts) ? tileScripts : [];
+    }
+
+    /// <summary>
+    /// Returns jump-point previews attached to one tile index.
+    /// </summary>
+    public IReadOnlyList<EditorMapJumpPointPreview> GetJumpPointsAtIndex(int tileIndex)
+    {
+        _jumpPointsByIndex ??= CreateJumpPointsByIndex();
+        return _jumpPointsByIndex.TryGetValue(tileIndex, out var jumpPoints) ? jumpPoints : [];
+    }
+
+    /// <summary>
     /// Precomputed roof-tile row bitmasks. Each <see cref="ulong"/> bit represents one column.
     /// A zero row can be skipped entirely during iteration. Returns <see langword="null"/> when the sector has no roofs.
     /// </summary>
@@ -269,6 +287,8 @@ public sealed class EditorMapSectorScenePreview
     private HashSet<int>? _lightTileIndices;
     private HashSet<int>? _scriptedTileIndices;
     private HashSet<int>? _jumpPointTileIndices;
+    private Dictionary<int, IReadOnlyList<EditorMapTileScriptPreview>>? _tileScriptsByIndex;
+    private Dictionary<int, IReadOnlyList<EditorMapJumpPointPreview>>? _jumpPointsByIndex;
     private ArtId[]? _uniqueTerrainFloorArtIds;
     private ArtId[]? _uniqueTerrainRoofArtIds;
     private ArtId[]? _uniqueTerrainLightArtIds;
@@ -309,6 +329,42 @@ public sealed class EditorMapSectorScenePreview
 
         var tileIndex = (tileY * TileGridWidth) + tileX;
         return (BlockMask[tileIndex / 32] & (1u << (tileIndex % 32))) != 0;
+    }
+
+    private Dictionary<int, IReadOnlyList<EditorMapTileScriptPreview>> CreateTileScriptsByIndex()
+    {
+        var lookup = new Dictionary<int, IReadOnlyList<EditorMapTileScriptPreview>>();
+        for (var index = 0; index < TileScripts.Count; index++)
+        {
+            var tileScript = TileScripts[index];
+            if (!lookup.TryGetValue(tileScript.TileIndex, out var existing))
+            {
+                lookup[tileScript.TileIndex] = [tileScript];
+                continue;
+            }
+
+            lookup[tileScript.TileIndex] = [.. existing, tileScript];
+        }
+
+        return lookup;
+    }
+
+    private Dictionary<int, IReadOnlyList<EditorMapJumpPointPreview>> CreateJumpPointsByIndex()
+    {
+        var lookup = new Dictionary<int, IReadOnlyList<EditorMapJumpPointPreview>>();
+        for (var index = 0; index < JumpPoints.Count; index++)
+        {
+            var jumpPoint = JumpPoints[index];
+            if (!lookup.TryGetValue(jumpPoint.TileIndex, out var existing))
+            {
+                lookup[jumpPoint.TileIndex] = [jumpPoint];
+                continue;
+            }
+
+            lookup[jumpPoint.TileIndex] = [.. existing, jumpPoint];
+        }
+
+        return lookup;
     }
 
     private static void ValidateTileCoordinates(int tileX, int tileY)

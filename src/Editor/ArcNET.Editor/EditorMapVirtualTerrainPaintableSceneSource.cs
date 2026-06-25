@@ -284,10 +284,24 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
             AddOverlay(sector.AssetPath, tile, EditorMapTileOverlayKind.Light, tileSortOrdinal, queue);
 
         if (sceneRender.IncludeTerrainScriptOverlays && scriptedTileIndices.Contains(tileIndex))
-            AddOverlay(sector.AssetPath, tile, EditorMapTileOverlayKind.Script, tileSortOrdinal, queue);
+            AddOverlay(
+                sector.AssetPath,
+                tile,
+                EditorMapTileOverlayKind.Script,
+                tileSortOrdinal,
+                queue,
+                tileScripts: sector.GetTileScriptsAtIndex(tileIndex)
+            );
 
         if (sceneRender.IncludeTerrainJumpPointOverlays && jumpPointTileIndices.Contains(tileIndex))
-            AddOverlay(sector.AssetPath, tile, EditorMapTileOverlayKind.JumpPoint, tileSortOrdinal, queue);
+            AddOverlay(
+                sector.AssetPath,
+                tile,
+                EditorMapTileOverlayKind.JumpPoint,
+                tileSortOrdinal,
+                queue,
+                jumpPoints: sector.GetJumpPointsAtIndex(tileIndex)
+            );
     }
 
     private static void AddOverlay(
@@ -295,7 +309,9 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
         EditorMapFloorTileRenderItem tile,
         EditorMapTileOverlayKind kind,
         double tileSortOrdinal,
-        List<EditorMapRenderQueueItem> queue
+        List<EditorMapRenderQueueItem> queue,
+        IReadOnlyList<EditorMapTileScriptPreview>? tileScripts = null,
+        IReadOnlyList<EditorMapJumpPointPreview>? jumpPoints = null
     )
     {
         var overlay = new EditorMapTileOverlayRenderItem
@@ -310,6 +326,8 @@ internal sealed class EditorMapVirtualTerrainPaintableSceneSource(
             CenterY = tile.CenterY,
             SuggestedOpacity = EditorMapFloorRenderBuilder.GetTileOverlaySuggestedOpacity(kind),
             SuggestedTintColor = EditorMapFloorRenderBuilder.GetTileOverlaySuggestedTintColor(kind),
+            Label = EditorMapFloorRenderBuilder.CreateTileOverlayLabel(kind, tileScripts, jumpPoints),
+            Detail = EditorMapFloorRenderBuilder.CreateTileOverlayDetail(kind, tileScripts, jumpPoints),
         };
         queue.Add(
             new EditorMapRenderQueueItem

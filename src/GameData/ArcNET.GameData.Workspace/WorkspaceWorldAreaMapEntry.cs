@@ -6,6 +6,12 @@ namespace ArcNET.GameData.Workspace;
 public sealed class WorkspaceWorldAreaMapEntry
 {
     /// <summary>
+    /// One-based map id assigned by <c>Rules/MapList.mes</c> load order.
+    /// This is the value used by jump points and teleport data.
+    /// </summary>
+    public int MapId { get; init; }
+
+    /// <summary>
     /// Logical map name from <c>Rules/MapList.mes</c>.
     /// </summary>
     public required string MapName { get; init; }

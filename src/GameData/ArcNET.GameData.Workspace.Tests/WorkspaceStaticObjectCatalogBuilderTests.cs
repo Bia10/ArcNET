@@ -1,3 +1,4 @@
+using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -66,5 +67,61 @@ public sealed class WorkspaceStaticObjectCatalogBuilderTests
             .IsEquivalentTo(["Tile (5, 6)", "Tile (7, 8)"]);
         await Assert.That(entries.Any(static entry => entry.SourceAssetPath == "maps/map01/mobile/lamp.mob")).IsTrue();
         await Assert.That(entries.Any(static entry => entry.SourceAssetPath == "maps/map01/0.sec")).IsTrue();
+    }
+
+    [Test]
+    public async Task Build_ProjectsPlacedObjectFlagsWithPrototypeFallback(CancellationToken cancellationToken)
+    {
+        using var sandbox = TemporaryDirectory.Create();
+        var gameDirectory = sandbox.CreateDirectory("Arcanum");
+        Directory.CreateDirectory(Path.Combine(gameDirectory, "data", "proto", "portal"));
+        Directory.CreateDirectory(Path.Combine(gameDirectory, "data", "maps", "map01", "mobile"));
+
+        var prototypeArtId = new ArtId(0x30000000u);
+        var placedArtId = prototypeArtId.WithFrameIndex(3);
+        var prototype = WorkspaceCatalogTestData.MakePrototype(
+            ObjectType.Portal,
+            3001,
+            ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)prototypeArtId.Value)),
+            ObjectPropertyFactory.ForInt32(ObjectField.PortalFlags, unchecked((int)PortalFlags.Locked)),
+            ObjectPropertyFactory.ForInt32(ObjectField.PortalLockDifficulty, 35),
+            ObjectPropertyFactory.ForInt32(ObjectField.PortalKeyId, 11)
+        );
+        ProtoFormat.WriteToFile(
+            in prototype,
+            Path.Combine(gameDirectory, "data", "proto", "portal", "003001 - Door.pro")
+        );
+
+        var mobileObject = WorkspaceCatalogTestData.MakeMob(
+            ObjectType.Portal,
+            3001,
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            tileX: 5,
+            tileY: 6,
+            ObjectPropertyFactory.ForInt32(ObjectField.CurrentAid, unchecked((int)placedArtId.Value)),
+            ObjectPropertyFactory.ForInt32(ObjectField.PortalFlags, unchecked((int)PortalFlags.Jammed))
+        );
+        MobFormat.WriteToFile(
+            in mobileObject,
+            Path.Combine(gameDirectory, "data", "maps", "map01", "mobile", "door.mob")
+        );
+
+        var loadResult = await WorkspaceContentLoader.LoadGameInstallAsync(
+            gameDirectory,
+            cancellationToken: cancellationToken
+        );
+        var prototypeEntries = WorkspacePrototypeCatalogBuilder.Build(loadResult.GameData);
+
+        var entries = WorkspaceStaticObjectCatalogBuilder.Build(loadResult.GameData, prototypeEntries);
+
+        await Assert.That(entries.Count).IsEqualTo(1);
+        await Assert.That(entries[0].ObjectType).IsEqualTo(ObjectType.Portal);
+        await Assert.That(entries[0].CurrentArtId).IsEqualTo(placedArtId);
+        await Assert.That(entries[0].CurrentArtId?.FrameIndex).IsEqualTo(3);
+        await Assert.That(entries[0].PortalFlags).IsEqualTo(PortalFlags.Jammed);
+        await Assert.That(entries[0].PortalLockDifficulty).IsEqualTo(35);
+        await Assert.That(entries[0].PortalKeyId).IsEqualTo(11);
+        await Assert.That(entries[0].ContainerFlags).IsNull();
+        await Assert.That(entries[0].SceneryFlags).IsNull();
     }
 }

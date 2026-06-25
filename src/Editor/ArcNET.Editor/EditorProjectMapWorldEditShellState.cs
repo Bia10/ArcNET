@@ -45,4 +45,9 @@ public sealed class EditorProjectMapWorldEditShellState
     /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
     /// </summary>
     public bool IncludeFloorLightTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether blocked, script, and jump tile overlays should be included by default.
+    /// </summary>
+    public bool IncludeSpecialTileOverlays { get; init; } = true;
 }

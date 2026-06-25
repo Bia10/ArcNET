@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using ArcNET.Formats;
 
 namespace ArcNET.Editor;
@@ -76,17 +77,25 @@ public static class EditorArtPreviewBuilder
             );
         }
 
-        var pixelData = new byte[checked(expectedPixels * 4)];
         var usePaletteAlpha = UsesExplicitPaletteAlpha(palette);
-        for (var destinationRow = 0; destinationRow < height; destinationRow++)
+        var pixelData = new byte[checked(expectedPixels * 4)];
+        if (BitConverter.IsLittleEndian && palette.Length >= byte.MaxValue + 1)
         {
-            var sourceRow = options.FlipVertically ? height - 1 - destinationRow : destinationRow;
-            for (var column = 0; column < width; column++)
+            Span<uint> paletteLookup = stackalloc uint[byte.MaxValue + 1];
+            PopulatePackedPaletteLookup(palette, options.PixelFormat, usePaletteAlpha, paletteLookup);
+            var destinationPixels = MemoryMarshal.Cast<byte, uint>(pixelData.AsSpan());
+
+            for (var destinationRow = 0; destinationRow < height; destinationRow++)
             {
-                var sourceIndex = sourceRow * width + column;
-                var destinationIndex = checked((destinationRow * width + column) * 4);
-                WritePixel(pixelData, destinationIndex, frame.Pixels[sourceIndex], palette, options, usePaletteAlpha);
+                var sourceRow = options.FlipVertically ? height - 1 - destinationRow : destinationRow;
+                var source = frame.Pixels.AsSpan(sourceRow * width, width);
+                var destination = destinationPixels.Slice(destinationRow * width, width);
+                ExpandPaletteIndexedRow(source, destination, paletteLookup);
             }
+        }
+        else
+        {
+            WritePixelDataPortable(frame.Pixels, pixelData, width, height, palette, options, usePaletteAlpha);
         }
 
         return new EditorArtPreviewFrame
@@ -96,6 +105,65 @@ public static class EditorArtPreviewBuilder
             Header = frame.Header,
             PixelData = pixelData,
         };
+    }
+
+    private static void PopulatePackedPaletteLookup(
+        ArtPaletteEntry[] palette,
+        EditorArtPreviewPixelFormat pixelFormat,
+        bool usePaletteAlpha,
+        Span<uint> paletteLookup
+    )
+    {
+        for (var paletteIndex = 1; paletteIndex < paletteLookup.Length; paletteIndex++)
+        {
+            var color = palette[paletteIndex];
+            var alpha = usePaletteAlpha ? color.Alpha : byte.MaxValue;
+            paletteLookup[paletteIndex] = pixelFormat switch
+            {
+                EditorArtPreviewPixelFormat.Rgba32 => PackLittleEndianPixel(color.Red, color.Green, color.Blue, alpha),
+                EditorArtPreviewPixelFormat.Bgra32 => PackLittleEndianPixel(color.Blue, color.Green, color.Red, alpha),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(pixelFormat),
+                    pixelFormat,
+                    "Unsupported ART preview pixel format."
+                ),
+            };
+        }
+    }
+
+    private static void ExpandPaletteIndexedRow(
+        ReadOnlySpan<byte> source,
+        Span<uint> destination,
+        ReadOnlySpan<uint> paletteLookup
+    )
+    {
+        for (var index = 0; index < source.Length; index++)
+            destination[index] = paletteLookup[source[index]];
+    }
+
+    private static uint PackLittleEndianPixel(byte first, byte second, byte third, byte alpha) =>
+        (uint)first | ((uint)second << 8) | ((uint)third << 16) | ((uint)alpha << 24);
+
+    private static void WritePixelDataPortable(
+        byte[] sourcePixels,
+        byte[] pixelData,
+        int width,
+        int height,
+        ArtPaletteEntry[] palette,
+        EditorArtPreviewOptions options,
+        bool usePaletteAlpha
+    )
+    {
+        for (var destinationRow = 0; destinationRow < height; destinationRow++)
+        {
+            var sourceRow = options.FlipVertically ? height - 1 - destinationRow : destinationRow;
+            for (var column = 0; column < width; column++)
+            {
+                var sourceIndex = sourceRow * width + column;
+                var destinationIndex = checked((destinationRow * width + column) * 4);
+                WritePixel(pixelData, destinationIndex, sourcePixels[sourceIndex], palette, options, usePaletteAlpha);
+            }
+        }
     }
 
     private static void WritePixel(

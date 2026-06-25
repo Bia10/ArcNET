@@ -246,6 +246,7 @@ namespace ArcNET.Archive
         public System.Collections.Generic.IReadOnlyCollection<ArcNET.Archive.ArchiveEntry> Entries { get; }
         public void Dispose() { }
         public ArcNET.Archive.ArchiveEntry? FindEntry(string virtualPath) { }
+        public System.ReadOnlyMemory<byte> GetEntryData(ArcNET.Archive.ArchiveEntry entry) { }
         public System.ReadOnlyMemory<byte> GetEntryData(string name) { }
         public System.IO.Stream OpenEntry(string name) { }
         public byte[] ReadEntry(ArcNET.Archive.ArchiveEntry entry) { }
@@ -3324,6 +3325,7 @@ namespace ArcNET.GameData.Workspace
     public sealed class WorkspaceAssetSource
     {
         public WorkspaceAssetSource() { }
+        public int? ByteLength { get; init; }
         public string? SourceEntryPath { get; init; }
         public required ArcNET.GameData.Workspace.WorkspaceAssetSourceKind SourceKind { get; init; }
         public required string SourcePath { get; init; }
@@ -3390,6 +3392,25 @@ namespace ArcNET.GameData.Workspace
         public static bool TryResolveSingleModuleDirectory(string gameDirectory, out string moduleDirectory) { }
         public static bool TryResolveWorkspaceModuleDirectory(string path, out string moduleDirectory) { }
     }
+    public static class WorkspaceJumpPointCatalogBuilder
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceJumpPointCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData) { }
+    }
+    public sealed class WorkspaceJumpPointCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceJumpPointCatalogEntry>
+    {
+        public WorkspaceJumpPointCatalogEntry(string SourceAssetPath, string SourceMapName, uint Flags, long SourcePackedLocation, int SourceTileX, int SourceTileY, int DestinationMapId, long DestinationPackedLocation, int DestinationTileX, int DestinationTileY, string SummaryText) { }
+        public int DestinationMapId { get; init; }
+        public long DestinationPackedLocation { get; init; }
+        public int DestinationTileX { get; init; }
+        public int DestinationTileY { get; init; }
+        public uint Flags { get; init; }
+        public string SourceAssetPath { get; init; }
+        public string SourceMapName { get; init; }
+        public long SourcePackedLocation { get; init; }
+        public int SourceTileX { get; init; }
+        public int SourceTileY { get; init; }
+        public string SummaryText { get; init; }
+    }
     public sealed class WorkspaceLoadReport
     {
         public WorkspaceLoadReport(System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedArchiveCandidate> skippedArchiveCandidates, System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSkippedAsset> skippedAssets) { }
@@ -3418,15 +3439,39 @@ namespace ArcNET.GameData.Workspace
     }
     public sealed class WorkspacePrototypeCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry>
     {
-        public WorkspacePrototypeCatalogEntry(int ProtoNumber, ArcNET.GameObjects.ObjectType ObjectType, string AssetPath, string? DisplayName, string? Description, string? PaletteGroup, ArcNET.Core.Primitives.ArtId? CurrentArtId, string? ArtAssetPath) { }
+        public WorkspacePrototypeCatalogEntry(
+                    int ProtoNumber,
+                    ArcNET.GameObjects.ObjectType ObjectType,
+                    string AssetPath,
+                    string? DisplayName,
+                    string? Description,
+                    string? PaletteGroup,
+                    ArcNET.Core.Primitives.ArtId? CurrentArtId,
+                    ArcNET.Core.Primitives.ArtId? DestroyedArtId,
+                    string? ArtAssetPath,
+                    ArcNET.GameObjects.PortalFlags? PortalFlags = default,
+                    ArcNET.GameObjects.ContainerFlags? ContainerFlags = default,
+                    ArcNET.GameObjects.SceneryFlags? SceneryFlags = default,
+                    int? PortalLockDifficulty = default,
+                    int? PortalKeyId = default,
+                    int? ContainerLockDifficulty = default,
+                    int? ContainerKeyId = default) { }
         public string? ArtAssetPath { get; init; }
         public string AssetPath { get; init; }
+        public ArcNET.GameObjects.ContainerFlags? ContainerFlags { get; init; }
+        public int? ContainerKeyId { get; init; }
+        public int? ContainerLockDifficulty { get; init; }
         public ArcNET.Core.Primitives.ArtId? CurrentArtId { get; init; }
         public string? Description { get; init; }
+        public ArcNET.Core.Primitives.ArtId? DestroyedArtId { get; init; }
         public string? DisplayName { get; init; }
         public ArcNET.GameObjects.ObjectType ObjectType { get; init; }
         public string? PaletteGroup { get; init; }
+        public ArcNET.GameObjects.PortalFlags? PortalFlags { get; init; }
+        public int? PortalKeyId { get; init; }
+        public int? PortalLockDifficulty { get; init; }
         public int ProtoNumber { get; init; }
+        public ArcNET.GameObjects.SceneryFlags? SceneryFlags { get; init; }
     }
     public sealed class WorkspaceSkippedArchiveCandidate
     {
@@ -3444,6 +3489,19 @@ namespace ArcNET.GameData.Workspace
         public required ArcNET.GameData.Workspace.WorkspaceAssetSourceKind SourceKind { get; init; }
         public required string SourcePath { get; init; }
     }
+    public static class WorkspaceSpellCatalogBuilder
+    {
+        public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceSpellCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData) { }
+    }
+    public sealed class WorkspaceSpellCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceSpellCatalogEntry>
+    {
+        public WorkspaceSpellCatalogEntry(int SpellId, string Name, int CollegeId, string CollegeName, int Level) { }
+        public int CollegeId { get; init; }
+        public string CollegeName { get; init; }
+        public int Level { get; init; }
+        public string Name { get; init; }
+        public int SpellId { get; init; }
+    }
     public static class WorkspaceStaticObjectCatalogBuilder
     {
         public static System.Collections.Generic.IReadOnlyList<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry> Build(ArcNET.GameData.GameDataStore gameData, System.Collections.Generic.IReadOnlyDictionary<int, ArcNET.GameData.Workspace.WorkspacePrototypeCatalogEntry> prototypesByNumber) { }
@@ -3451,15 +3509,43 @@ namespace ArcNET.GameData.Workspace
     }
     public sealed class WorkspaceStaticObjectCatalogEntry : System.IEquatable<ArcNET.GameData.Workspace.WorkspaceStaticObjectCatalogEntry>
     {
-        public WorkspaceStaticObjectCatalogEntry(string SourceKindText, string DisplayName, ArcNET.GameObjects.ObjectType ObjectType, string ObjectIdText, string ObjectGuidText, int? ProtoNumber, string PrototypeText, string SourceAssetPath, string LocationText, string SummaryText) { }
+        public WorkspaceStaticObjectCatalogEntry(
+                    string SourceKindText,
+                    string DisplayName,
+                    ArcNET.GameObjects.ObjectType ObjectType,
+                    string ObjectIdText,
+                    string ObjectGuidText,
+                    int? ProtoNumber,
+                    string PrototypeText,
+                    ArcNET.Core.Primitives.ArtId? CurrentArtId,
+                    ArcNET.Core.Primitives.ArtId? DestroyedArtId,
+                    string SourceAssetPath,
+                    string LocationText,
+                    string SummaryText,
+                    ArcNET.GameObjects.PortalFlags? PortalFlags = default,
+                    ArcNET.GameObjects.ContainerFlags? ContainerFlags = default,
+                    ArcNET.GameObjects.SceneryFlags? SceneryFlags = default,
+                    int? PortalLockDifficulty = default,
+                    int? PortalKeyId = default,
+                    int? ContainerLockDifficulty = default,
+                    int? ContainerKeyId = default) { }
+        public ArcNET.GameObjects.ContainerFlags? ContainerFlags { get; init; }
+        public int? ContainerKeyId { get; init; }
+        public int? ContainerLockDifficulty { get; init; }
+        public ArcNET.Core.Primitives.ArtId? CurrentArtId { get; init; }
+        public ArcNET.Core.Primitives.ArtId? DestroyedArtId { get; init; }
         public string DisplayName { get; init; }
         public bool HasPrototype { get; }
         public string LocationText { get; init; }
         public string ObjectGuidText { get; init; }
         public string ObjectIdText { get; init; }
         public ArcNET.GameObjects.ObjectType ObjectType { get; init; }
+        public ArcNET.GameObjects.PortalFlags? PortalFlags { get; init; }
+        public int? PortalKeyId { get; init; }
+        public int? PortalLockDifficulty { get; init; }
         public int? ProtoNumber { get; init; }
         public string PrototypeText { get; init; }
+        public ArcNET.GameObjects.SceneryFlags? SceneryFlags { get; init; }
         public string SourceAssetPath { get; init; }
         public string SourceKindText { get; init; }
         public string SummaryText { get; init; }
@@ -3562,6 +3648,7 @@ namespace ArcNET.GameData.Workspace
         public WorkspaceWorldAreaMapEntry() { }
         public int EntryTileX { get; init; }
         public int EntryTileY { get; init; }
+        public int MapId { get; init; }
         public required string MapName { get; init; }
         public string? Type { get; init; }
         public int? WorldMapId { get; init; }
@@ -6399,6 +6486,7 @@ namespace ArcNET.Patch
 [assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Bia10/ArcNET/")]
 [assembly: System.Resources.NeutralResourcesLanguage("en")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Benchmarks")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ArcNET.Editor.Tests")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace ArcNET.Editor
@@ -7303,7 +7391,7 @@ namespace ArcNET.Editor
     }
     public static class EditorMapPaintableSceneBuilder
     {
-        public static ArcNET.Editor.EditorMapPaintableScene Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview = null, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null, ArcNET.Editor.EditorMapRenderSpriteCoverage? existingSpriteCoverage = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public static ArcNET.Editor.EditorMapPaintableScene Build(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview = null, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null, ArcNET.Editor.EditorMapRenderSpriteCoverage? existingSpriteCoverage = null, System.Threading.CancellationToken cancellationToken = default, bool includeVirtualTerrainSpriteCoverage = true) { }
         public static ArcNET.Editor.EditorMapPaintableScene BuildPlacementOverlay(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapPlacementPreview? placementPreview, ArcNET.Editor.IEditorMapRenderSpriteSource? spriteSource = null, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public readonly struct EditorMapPaintableSceneGeometry : System.IEquatable<ArcNET.Editor.EditorMapPaintableSceneGeometry>
@@ -7347,7 +7435,9 @@ namespace ArcNET.Editor
         public uint? SuggestedTintColor { get; init; }
         public bool SuppressFallback { get; init; }
         public ArcNET.Editor.EditorMapTileLightDiagnostics? TileLightDiagnostics { get; init; }
+        public string? TileOverlayDetail { get; init; }
         public ArcNET.Editor.EditorMapTileOverlayKind? TileOverlayKind { get; init; }
+        public string? TileOverlayLabel { get; init; }
         public bool TintIgnoresLightVisibility { get; init; }
         public required double Top { get; init; }
         public bool UseGrayscalePaletteOverride { get; init; }
@@ -7479,6 +7569,14 @@ namespace ArcNET.Editor
         public required ulong LimitX { get; init; }
         public required ulong LimitY { get; init; }
     }
+    public readonly struct EditorMapRenderBounds : System.IEquatable<ArcNET.Editor.EditorMapRenderBounds>
+    {
+        public EditorMapRenderBounds(double Left, double Top, double Right, double Bottom) { }
+        public double Bottom { get; init; }
+        public double Left { get; init; }
+        public double Right { get; init; }
+        public double Top { get; init; }
+    }
     public sealed class EditorMapRenderHit
     {
         public EditorMapRenderHit() { }
@@ -7605,6 +7703,9 @@ namespace ArcNET.Editor
         public EditorMapRenderViewportState() { }
         public double CenterRenderX { get; init; }
         public double CenterRenderY { get; init; }
+        public double PitchDegrees { get; init; }
+        public double RollDegrees { get; init; }
+        public double YawDegrees { get; init; }
         public double Zoom { get; init; }
     }
     public readonly struct EditorMapRoofAlphaLerp : System.IEquatable<ArcNET.Editor.EditorMapRoofAlphaLerp>
@@ -7659,14 +7760,21 @@ namespace ArcNET.Editor
     }
     public static class EditorMapSceneRenderSpaceMath
     {
+        public const double MaxCameraTiltDegrees = 60D;
+        public static double ClampCameraTiltDegrees(double value) { }
         public static ArcNET.Editor.EditorMapSceneViewportLayout CreateViewportLayout(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, double viewportWidth, double viewportHeight, ArcNET.Editor.EditorMapRenderViewportState? viewportState = null) { }
         public static ArcNET.Editor.EditorMapRenderViewportState CreateViewportState(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorProjectMapCameraState? camera = null) { }
+        public static ArcNET.Editor.EditorMapSceneViewportTransform CreateViewportTransform(ArcNET.Editor.EditorMapSceneViewportLayout layout) { }
+        public static ArcNET.Editor.EditorMapRenderBounds CreateVisibleRenderBounds(ArcNET.Editor.EditorMapSceneViewportLayout layout) { }
         public static ArcNET.Editor.EditorMapRenderHit? HitTestScene(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapSceneViewportLayout layout, double viewportX, double viewportY) { }
         public static ArcNET.Editor.EditorProjectMapSelectionState? HitTestSceneSelection(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, ArcNET.Editor.EditorMapSceneViewportLayout layout, double viewportX, double viewportY) { }
+        public static double NormalizeRollDegrees(double value) { }
         public static ArcNET.Editor.EditorMapRenderPoint ProjectMapTileCenter(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, double mapTileX, double mapTileY) { }
+        public static ArcNET.Editor.EditorMapRenderPoint RenderToViewportPoint(ArcNET.Editor.EditorMapSceneViewportLayout layout, double renderX, double renderY) { }
         public static double RenderToViewportX(ArcNET.Editor.EditorMapSceneViewportLayout layout, double renderX) { }
         public static double RenderToViewportY(ArcNET.Editor.EditorMapSceneViewportLayout layout, double renderY) { }
         public static ArcNET.Editor.EditorMapTilePoint UnprojectMapTile(ArcNET.Editor.EditorMapFloorRenderPreview sceneRender, double renderX, double renderY) { }
+        public static ArcNET.Editor.EditorMapRenderPoint ViewportToRenderPoint(ArcNET.Editor.EditorMapSceneViewportLayout layout, double viewportX, double viewportY) { }
         public static double ViewportToRenderX(ArcNET.Editor.EditorMapSceneViewportLayout layout, double viewportX) { }
         public static double ViewportToRenderY(ArcNET.Editor.EditorMapSceneViewportLayout layout, double viewportY) { }
     }
@@ -7689,6 +7797,8 @@ namespace ArcNET.Editor
         public EditorMapSceneViewportLayout() { }
         public required double CenterRenderX { get; init; }
         public required double CenterRenderY { get; init; }
+        public double PitchDegrees { get; init; }
+        public double RollDegrees { get; init; }
         public required double SceneHeight { get; init; }
         public required double SceneWidth { get; init; }
         public required double ViewportHeight { get; init; }
@@ -7697,7 +7807,18 @@ namespace ArcNET.Editor
         public double VisibleLeft { get; }
         public double VisibleRight { get; }
         public double VisibleTop { get; }
+        public double YawDegrees { get; init; }
         public required double Zoom { get; init; }
+    }
+    public readonly struct EditorMapSceneViewportTransform : System.IEquatable<ArcNET.Editor.EditorMapSceneViewportTransform>
+    {
+        public EditorMapSceneViewportTransform(double M11, double M12, double M21, double M22, double OffsetX, double OffsetY) { }
+        public double M11 { get; init; }
+        public double M12 { get; init; }
+        public double M21 { get; init; }
+        public double M22 { get; init; }
+        public double OffsetX { get; init; }
+        public double OffsetY { get; init; }
     }
     public enum EditorMapSectorDensityBand
     {
@@ -7793,8 +7914,10 @@ namespace ArcNET.Editor
         public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainFloorArtIds { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainLightArtIds { get; }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Core.Primitives.ArtId> UniqueTerrainRoofArtIds { get; }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapJumpPointPreview> GetJumpPointsAtIndex(int tileIndex) { }
         public uint? GetRoofArtId(int roofX, int roofY) { }
         public uint GetTileArtId(int tileX, int tileY) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapTileScriptPreview> GetTileScriptsAtIndex(int tileIndex) { }
         public bool IsTileBlocked(int tileX, int tileY) { }
     }
     public enum EditorMapSpriteBlendMode
@@ -7862,8 +7985,10 @@ namespace ArcNET.Editor
         public EditorMapTileOverlayRenderItem() { }
         public required double CenterX { get; init; }
         public required double CenterY { get; init; }
+        public string? Detail { get; init; }
         public required int DrawOrder { get; init; }
         public required ArcNET.Editor.EditorMapTileOverlayKind Kind { get; init; }
+        public string? Label { get; init; }
         public required int MapTileX { get; init; }
         public required int MapTileY { get; init; }
         public required string SectorAssetPath { get; init; }
@@ -7918,6 +8043,9 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapRenderSpriteCoverage? ExistingSpriteCoverage { get; init; }
         public int? FocusedObjectSectorRadius { get; init; }
         public int? FocusedTerrainSectorRadius { get; init; }
+        public bool? IncludeSpecialTileOverlays { get; init; }
+        public bool IncludeSpriteCoverage { get; init; }
+        public bool IncludeVirtualTerrainSpriteCoverage { get; init; }
         public ArcNET.Editor.EditorObjectPalettePlacementRequest? PlacementRequest { get; init; }
         public bool PreloadSceneSprites { get; init; }
         public ArcNET.Editor.EditorMapFloorRenderRequest? RenderRequest { get; init; }
@@ -7967,7 +8095,10 @@ namespace ArcNET.Editor
         public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeFloorLightTint { get; init; }
         public bool IncludeFullObjectPaletteBrowse { get; init; }
+        public bool IncludeSpecialTileOverlays { get; init; }
+        public bool IncludeSpriteCoverage { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
+        public bool IncludeVirtualTerrainSpriteCoverage { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }
         public bool PreloadSceneSprites { get; init; }
@@ -8432,6 +8563,9 @@ namespace ArcNET.Editor
         public EditorProjectMapCameraState() { }
         public double CenterTileX { get; init; }
         public double CenterTileY { get; init; }
+        public double PitchDegrees { get; init; }
+        public double RollDegrees { get; init; }
+        public double YawDegrees { get; init; }
         public double Zoom { get; init; }
     }
     public sealed class EditorProjectMapObjectInspectorState
@@ -8522,6 +8656,7 @@ namespace ArcNET.Editor
         public EditorProjectMapWorldEditShellState() { }
         public bool IncludeEditorObjectStateTint { get; init; }
         public bool IncludeFloorLightTint { get; init; }
+        public bool IncludeSpecialTileOverlays { get; init; }
         public bool IncludeTrackedPlacementPreview { get; init; }
         public string? ObjectPaletteCategory { get; init; }
         public string? ObjectPaletteSearchText { get; init; }
@@ -8676,6 +8811,7 @@ namespace ArcNET.Editor
         Sector = 4,
         Save = 5,
         Message = 6,
+        Jump = 7,
     }
     public sealed class EditorSessionChangeKindSummary
     {
@@ -9161,7 +9297,9 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorMapLayerBrushResult ApplyTrackedTerrainTool(string mapViewStateId) { }
         public ArcNET.Editor.EditorSessionChange ApplyValidationRepairCandidate(ArcNET.Editor.EditorSessionValidationRepairCandidate candidate) { }
         public ArcNET.Editor.EditorSessionChangeGroup BeginChangeGroup(string? label = null) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> ClearMapJumpPoints(string mapName, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups) { }
         public ArcNET.Editor.EditorSessionChange? ClearProtoInspectorScriptAttachment(int protoNumber, ArcNET.Formats.ScriptAttachmentPoint attachmentPoint) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> ClearSectorTileScripts(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups) { }
         public ArcNET.Editor.EditorSessionChange? ClearTrackedObjectInspectorScriptAttachment(string mapViewStateId, ArcNET.Formats.ScriptAttachmentPoint attachmentPoint) { }
         public void CloseAllAssets(bool discardPendingChanges = false) { }
         public bool CloseAsset(string assetPath, bool discardPendingChanges = false) { }
@@ -9310,6 +9448,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SelectTrackedObjectPaletteEntry(string mapViewStateId, int protoNumber, string? searchText = null, string? category = null, bool activateTool = false) { }
         public ArcNET.Editor.EditorProjectMapObjectPlacementToolState SelectTrackedObjectPlacementPreset(string mapViewStateId, string presetId, bool activateTool = true) { }
         public void SetActiveAsset(string? assetPath) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> SetMapJumpPoints(string mapName, System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, int destinationMapId, int destinationTileX, int destinationTileY, uint flags = 0) { }
         public ArcNET.Editor.EditorProjectMapViewState SetMapViewState(ArcNET.Editor.EditorProjectMapViewState mapViewState) { }
         public ArcNET.Editor.EditorProjectMapWorldEditState SetMapWorldEditState(string mapViewStateId, ArcNET.Editor.EditorProjectMapWorldEditState worldEditState) { }
         public ArcNET.Editor.EditorSessionChange? SetMessageEntry(string assetPath, int messageIndex, string text, string? soundId = null) { }
@@ -9329,6 +9468,7 @@ namespace ArcNET.Editor
         public ArcNET.Editor.EditorSessionChange? SetSectorRoofArt(string assetPath, int roofX, int roofY, uint artId) { }
         public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> SetSectorTileArt(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, uint artId) { }
         public ArcNET.Editor.EditorSessionChange? SetSectorTileArt(string assetPath, int tileX, int tileY, uint artId) { }
+        public System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorSessionChange> SetSectorTileScripts(System.Collections.Generic.IReadOnlyList<ArcNET.Editor.EditorMapSceneSectorHitGroup> sectorHitGroups, int scriptId, uint nodeFlags = 0, uint scriptFlags = 0, uint scriptCounters = 0) { }
         public ArcNET.Editor.EditorProjectToolState SetToolState(ArcNET.Editor.EditorProjectToolState toolState) { }
         public ArcNET.Editor.EditorProjectMapWorldEditShellState SetTrackedMapWorldEditShellPreferences(string mapViewStateId, ArcNET.Editor.EditorMapWorldEditShellRequest request) { }
         public ArcNET.Editor.EditorSessionChange? SetTrackedObjectInspectorBlending(string mapViewStateId, ArcNET.Editor.EditorObjectInspectorBlendingUpdate update) { }
@@ -9414,6 +9554,7 @@ namespace ArcNET.Editor
         public EditorWorldAreaMapEntry() { }
         public int EntryTileX { get; init; }
         public int EntryTileY { get; init; }
+        public int MapId { get; init; }
         public required string MapName { get; init; }
         public string? Type { get; init; }
         public int? WorldMapId { get; init; }

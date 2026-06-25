@@ -24,6 +24,18 @@ public sealed class EditorMapWorldEditShellRequest
     public bool PreloadSceneSprites { get; init; } = true;
 
     /// <summary>
+    /// Indicates whether paintable scene sprite coverage should be resolved while composing this shell.
+    /// Hosts that defer sprite warm-up to retained/on-demand render caches can disable this for the first shell.
+    /// </summary>
+    public bool IncludeSpriteCoverage { get; init; } = true;
+
+    /// <summary>
+    /// Indicates whether partial terrain sprite coverage should include non-materialized virtual terrain sectors.
+    /// Hosts that render virtual terrain through retained chunk sources can disable this to reduce first-shell latency.
+    /// </summary>
+    public bool IncludeVirtualTerrainSpriteCoverage { get; init; } = true;
+
+    /// <summary>
     /// Scene/view preset used for the committed render and tracked placement preview.
     /// </summary>
     public EditorMapSceneViewMode ViewMode { get; init; } = EditorMapSceneViewMode.Isometric;
@@ -82,6 +94,11 @@ public sealed class EditorMapWorldEditShellRequest
     /// Indicates whether committed floor tiles should expose floor-light tint diagnostics.
     /// </summary>
     public bool IncludeFloorLightTint { get; init; }
+
+    /// <summary>
+    /// Indicates whether blocked, script, and jump tile overlays should be emitted.
+    /// </summary>
+    public bool IncludeSpecialTileOverlays { get; init; } = true;
 
     /// <summary>
     /// Optional explicit ambient-lighting context used when composing the shell render.

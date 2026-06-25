@@ -64,6 +64,14 @@ public sealed class DatArchive : IDisposable
         return DatEntryReader.ReadEntryData(_mmf, entry);
     }
 
+    /// <summary>Returns the decompressed bytes of an already-resolved entry.</summary>
+    public ReadOnlyMemory<byte> GetEntryData(ArchiveEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return DatEntryReader.ReadEntryData(_mmf, entry);
+    }
+
     /// <summary>Opens a readable stream over the given entry, decompressing on-the-fly if needed.</summary>
     public Stream OpenEntry(string name)
     {
@@ -77,8 +85,7 @@ public sealed class DatArchive : IDisposable
     /// <summary>Reads and decompresses the given entry.</summary>
     public byte[] ReadEntry(ArchiveEntry entry)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        return DatEntryReader.ReadEntryData(_mmf, entry).ToArray();
+        return GetEntryData(entry).ToArray();
     }
 
     /// <inheritdoc/>

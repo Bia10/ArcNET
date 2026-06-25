@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
 
@@ -803,23 +804,16 @@ public sealed class EditorWorkspaceMapRenderSpriteSource : IEditorMapRenderSprit
 
     private static void FlipPixelDataHorizontally(byte[] pixelData, int width, int height)
     {
-        const int bytesPerPixel = 4;
         if (width <= 1 || height <= 0)
             return;
 
+        var pixels = MemoryMarshal.Cast<byte, uint>(pixelData.AsSpan());
         for (var row = 0; row < height; row++)
         {
-            var rowStart = checked(row * width * bytesPerPixel);
-            for (int left = 0, right = width - 1; left < right; left++, right--)
-            {
-                var leftIndex = rowStart + (left * bytesPerPixel);
-                var rightIndex = rowStart + (right * bytesPerPixel);
-                for (var channel = 0; channel < bytesPerPixel; channel++)
-                    (pixelData[leftIndex + channel], pixelData[rightIndex + channel]) = (
-                        pixelData[rightIndex + channel],
-                        pixelData[leftIndex + channel]
-                    );
-            }
+            var rowStart = checked(row * width);
+            var rowPixels = pixels.Slice(rowStart, width);
+            for (int left = 0, right = rowPixels.Length - 1; left < right; left++, right--)
+                (rowPixels[left], rowPixels[right]) = (rowPixels[right], rowPixels[left]);
         }
     }
 

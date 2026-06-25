@@ -45,7 +45,15 @@ public static partial class WorkspacePrototypeCatalogBuilder
                         ResolveMessageText(TryGetInt32Property(proto, ObjectField.Description)),
                         GetObjectPaletteGroup(assetPath),
                         ResolveCurrentArtId(proto),
-                        null
+                        ResolveDestroyedArtId(proto),
+                        null,
+                        ResolvePortalFlags(proto),
+                        ResolveContainerFlags(proto),
+                        ResolveSceneryFlags(proto),
+                        ResolvePortalInt32(proto, ObjectField.PortalLockDifficulty),
+                        ResolvePortalInt32(proto, ObjectField.PortalKeyId),
+                        ResolveContainerInt32(proto, ObjectField.ContainerLockDifficulty),
+                        ResolveContainerInt32(proto, ObjectField.ContainerKeyId)
                     )
                 );
             }
@@ -171,17 +179,23 @@ public static partial class WorkspacePrototypeCatalogBuilder
     private static ArtId? ResolveCurrentArtId(ProtoData proto)
     {
         var currentArtId = TryGetArtId(proto, ObjectField.CurrentAid);
-        if (currentArtId is { Value: 0u })
+        if (!IsValidArtId(currentArtId))
             currentArtId = null;
 
         if (!currentArtId.HasValue)
         {
             currentArtId = TryGetArtId(proto, ObjectField.Aid);
-            if (currentArtId is { Value: 0u })
+            if (!IsValidArtId(currentArtId))
                 currentArtId = null;
         }
 
         return currentArtId;
+    }
+
+    private static ArtId? ResolveDestroyedArtId(ProtoData proto)
+    {
+        var destroyedArtId = TryGetArtId(proto, ObjectField.DestroyedAid);
+        return IsValidArtId(destroyedArtId) ? destroyedArtId : null;
     }
 
     private static ArtId? TryGetArtId(ProtoData proto, ObjectField field)
@@ -189,6 +203,41 @@ public static partial class WorkspacePrototypeCatalogBuilder
         var value = TryGetInt32Property(proto, field);
         return value.HasValue ? new ArtId(unchecked((uint)value.Value)) : null;
     }
+
+    private static PortalFlags? ResolvePortalFlags(ProtoData proto)
+    {
+        if (proto.Header.GameObjectType is not ObjectType.Portal)
+            return null;
+
+        var value = TryGetInt32Property(proto, ObjectField.PortalFlags);
+        return value.HasValue ? unchecked((PortalFlags)(uint)value.Value) : null;
+    }
+
+    private static ContainerFlags? ResolveContainerFlags(ProtoData proto)
+    {
+        if (proto.Header.GameObjectType is not ObjectType.Container)
+            return null;
+
+        var value = TryGetInt32Property(proto, ObjectField.ContainerFlags);
+        return value.HasValue ? unchecked((ContainerFlags)(uint)value.Value) : null;
+    }
+
+    private static SceneryFlags? ResolveSceneryFlags(ProtoData proto)
+    {
+        if (proto.Header.GameObjectType is not ObjectType.Scenery)
+            return null;
+
+        var value = TryGetInt32Property(proto, ObjectField.SceneryFlags);
+        return value.HasValue ? unchecked((SceneryFlags)(uint)value.Value) : null;
+    }
+
+    private static int? ResolvePortalInt32(ProtoData proto, ObjectField field) =>
+        proto.Header.GameObjectType is ObjectType.Portal ? TryGetInt32Property(proto, field) : null;
+
+    private static int? ResolveContainerInt32(ProtoData proto, ObjectField field) =>
+        proto.Header.GameObjectType is ObjectType.Container ? TryGetInt32Property(proto, field) : null;
+
+    private static bool IsValidArtId(ArtId? artId) => artId is { Value: not 0u and not uint.MaxValue };
 
     private static string? GetObjectPaletteGroup(string assetPath)
     {

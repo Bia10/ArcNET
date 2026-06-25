@@ -13,4 +13,26 @@ public sealed class BytePatternTests
         await Assert.That(pattern.NormalizedText).IsEqualTo("8B ?? FF");
         await Assert.That(matches).IsEquivalentTo([0, 3]);
     }
+
+    [Test]
+    public async Task FindMatches_WhenPatternIsOnlyWildcards_ReturnsEveryValidOffset()
+    {
+        var pattern = BytePattern.Parse("?? ??");
+        var haystack = new byte[] { 0x10, 0x20, 0x30, 0x40 };
+
+        var matches = pattern.FindMatches(haystack);
+
+        await Assert.That(matches).IsEquivalentTo([0, 1, 2]);
+    }
+
+    [Test]
+    public async Task FindMatches_WhenAnchorIsNotFirstByte_DoesNotReadPastLastValidCandidate()
+    {
+        var pattern = BytePattern.Parse("?? FE 10");
+        var haystack = new byte[] { 0x00, 0xFE, 0x10, 0x11, 0x22, 0xFE };
+
+        var matches = pattern.FindMatches(haystack);
+
+        await Assert.That(matches).IsEquivalentTo([0]);
+    }
 }
