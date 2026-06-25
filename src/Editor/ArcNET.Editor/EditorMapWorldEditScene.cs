@@ -12,6 +12,12 @@ public sealed class EditorMapWorldEditSceneRequest
     public EditorMapFloorRenderRequest? RenderRequest { get; init; }
 
     /// <summary>
+    /// Optional override for blocked, script, and jump overlay preview visibility.
+    /// When omitted, the owning map view preview state controls each overlay independently.
+    /// </summary>
+    public bool? IncludeSpecialTileOverlays { get; init; }
+
+    /// <summary>
     /// Optional radius, in sectors around the current camera, whose terrain should be materialized.
     /// Objects remain projected for every sector so editor object catalogs stay complete.
     /// </summary>
@@ -61,6 +67,18 @@ public sealed class EditorMapWorldEditSceneRequest
     /// Hosts that render through retained/on-demand chunk caches can disable this to reduce first-shell latency.
     /// </summary>
     public bool PreloadSceneSprites { get; init; } = true;
+
+    /// <summary>
+    /// Indicates whether paintable scene sprite coverage should be resolved while composing this scene.
+    /// Hosts that defer sprite warm-up to retained/on-demand render caches can disable this for the first shell.
+    /// </summary>
+    public bool IncludeSpriteCoverage { get; init; } = true;
+
+    /// <summary>
+    /// Indicates whether partial terrain sprite coverage should include non-materialized virtual terrain sectors.
+    /// Hosts that render virtual terrain through retained chunk sources can disable this to reduce first-shell latency.
+    /// </summary>
+    public bool IncludeVirtualTerrainSpriteCoverage { get; init; } = true;
 
     /// <summary>
     /// Optional existing render preview to use for delta building.

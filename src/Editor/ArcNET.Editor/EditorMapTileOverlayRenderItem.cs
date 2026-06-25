@@ -56,4 +56,14 @@ public sealed class EditorMapTileOverlayRenderItem
     /// Suggested overlay tint color for hosts that do not supply their own styling.
     /// </summary>
     public required uint SuggestedTintColor { get; init; }
+
+    /// <summary>
+    /// Short overlay label suitable for drawing inside the tile marker.
+    /// </summary>
+    public string? Label { get; init; }
+
+    /// <summary>
+    /// Longer overlay detail suitable for inspector text or tooltips.
+    /// </summary>
+    public string? Detail { get; init; }
 }

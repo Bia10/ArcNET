@@ -186,7 +186,9 @@ public static class EditorMapFloorRenderBuilder
         double CenterX,
         double CenterY,
         double SuggestedOpacity,
-        uint SuggestedTintColor
+        uint SuggestedTintColor,
+        string? Label,
+        string? Detail
     );
 
     private sealed record RawObjectRenderItem(
@@ -584,6 +586,8 @@ public static class EditorMapFloorRenderBuilder
         hash.Add(overlay.CenterY);
         hash.Add(overlay.SuggestedOpacity);
         hash.Add(overlay.SuggestedTintColor);
+        hash.Add(overlay.Label);
+        hash.Add(overlay.Detail);
     }
 
     private static void AddObjectRevision(ref StableRevisionHash hash, EditorMapObjectRenderItem obj)
@@ -1473,7 +1477,9 @@ public static class EditorMapFloorRenderBuilder
             CenterX: overlay.CenterX - existingPreview.OffsetX,
             CenterY: overlay.CenterY - existingPreview.OffsetY,
             SuggestedOpacity: overlay.SuggestedOpacity,
-            SuggestedTintColor: overlay.SuggestedTintColor
+            SuggestedTintColor: overlay.SuggestedTintColor,
+            Label: overlay.Label,
+            Detail: overlay.Detail
         );
     }
 
@@ -2359,7 +2365,9 @@ public static class EditorMapFloorRenderBuilder
                     CenterX: centerX,
                     CenterY: centerY,
                     SuggestedOpacity: GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind.BlockedTile),
-                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.BlockedTile)
+                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.BlockedTile),
+                    Label: CreateTileOverlayLabel(EditorMapTileOverlayKind.BlockedTile),
+                    Detail: CreateTileOverlayDetail(EditorMapTileOverlayKind.BlockedTile)
                 )
             );
         }
@@ -2377,13 +2385,16 @@ public static class EditorMapFloorRenderBuilder
                     CenterX: centerX,
                     CenterY: centerY,
                     SuggestedOpacity: GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind.Light),
-                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.Light)
+                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.Light),
+                    Label: CreateTileOverlayLabel(EditorMapTileOverlayKind.Light),
+                    Detail: CreateTileOverlayDetail(EditorMapTileOverlayKind.Light)
                 )
             );
         }
 
         if (scriptedTileIndices.Contains(tileIndex) && request.IncludeScriptOverlays)
         {
+            var tileScripts = sector.GetTileScriptsAtIndex(tileIndex);
             local.RawTileOverlays.Add(
                 new RawTileOverlayRenderItem(
                     SectorAssetPath: sector.AssetPath,
@@ -2395,13 +2406,16 @@ public static class EditorMapFloorRenderBuilder
                     CenterX: centerX,
                     CenterY: centerY,
                     SuggestedOpacity: GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind.Script),
-                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.Script)
+                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.Script),
+                    Label: CreateTileOverlayLabel(EditorMapTileOverlayKind.Script, tileScripts),
+                    Detail: CreateTileOverlayDetail(EditorMapTileOverlayKind.Script, tileScripts)
                 )
             );
         }
 
         if (jumpPointTileIndices.Contains(tileIndex) && request.IncludeJumpPointOverlays)
         {
+            var jumpPoints = sector.GetJumpPointsAtIndex(tileIndex);
             local.RawTileOverlays.Add(
                 new RawTileOverlayRenderItem(
                     SectorAssetPath: sector.AssetPath,
@@ -2413,7 +2427,9 @@ public static class EditorMapFloorRenderBuilder
                     CenterX: centerX,
                     CenterY: centerY,
                     SuggestedOpacity: GetTileOverlaySuggestedOpacity(EditorMapTileOverlayKind.JumpPoint),
-                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.JumpPoint)
+                    SuggestedTintColor: GetTileOverlaySuggestedTintColor(EditorMapTileOverlayKind.JumpPoint),
+                    Label: CreateTileOverlayLabel(EditorMapTileOverlayKind.JumpPoint, jumpPoints: jumpPoints),
+                    Detail: CreateTileOverlayDetail(EditorMapTileOverlayKind.JumpPoint, jumpPoints: jumpPoints)
                 )
             );
         }
@@ -3169,6 +3185,8 @@ public static class EditorMapFloorRenderBuilder
                 CenterY = o.CenterY + offsetY,
                 SuggestedOpacity = o.SuggestedOpacity,
                 SuggestedTintColor = o.SuggestedTintColor,
+                Label = o.Label,
+                Detail = o.Detail,
             };
 
             var (sliceBuilder, sliceIndex) = GetOrAddSlice(overlay.SectorAssetPath);
@@ -3521,10 +3539,80 @@ public static class EditorMapFloorRenderBuilder
         {
             EditorMapTileOverlayKind.BlockedTile => 0x88CC6666u,
             EditorMapTileOverlayKind.Light => 0x88E0C85Au,
-            EditorMapTileOverlayKind.Script => 0x88996CCCu,
+            EditorMapTileOverlayKind.Script => 0x8866CC88u,
             EditorMapTileOverlayKind.JumpPoint => 0x8866BBDDu,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported tile overlay kind."),
         };
+
+    internal static string? CreateTileOverlayLabel(
+        EditorMapTileOverlayKind kind,
+        IReadOnlyList<EditorMapTileScriptPreview>? tileScripts = null,
+        IReadOnlyList<EditorMapJumpPointPreview>? jumpPoints = null
+    ) =>
+        kind switch
+        {
+            EditorMapTileOverlayKind.BlockedTile => "BLOCK",
+            EditorMapTileOverlayKind.Light => null,
+            EditorMapTileOverlayKind.Script => CreateScriptTileOverlayLabel(tileScripts),
+            EditorMapTileOverlayKind.JumpPoint => CreateJumpPointTileOverlayLabel(jumpPoints),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported tile overlay kind."),
+        };
+
+    internal static string? CreateTileOverlayDetail(
+        EditorMapTileOverlayKind kind,
+        IReadOnlyList<EditorMapTileScriptPreview>? tileScripts = null,
+        IReadOnlyList<EditorMapJumpPointPreview>? jumpPoints = null
+    ) =>
+        kind switch
+        {
+            EditorMapTileOverlayKind.BlockedTile => "Pathing blocked",
+            EditorMapTileOverlayKind.Light => null,
+            EditorMapTileOverlayKind.Script => CreateScriptTileOverlayDetail(tileScripts),
+            EditorMapTileOverlayKind.JumpPoint => CreateJumpPointTileOverlayDetail(jumpPoints),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported tile overlay kind."),
+        };
+
+    private static string CreateScriptTileOverlayLabel(IReadOnlyList<EditorMapTileScriptPreview>? tileScripts)
+    {
+        if (tileScripts is null || tileScripts.Count == 0)
+            return "SCRIPT";
+
+        var first = tileScripts[0];
+        var suffix = tileScripts.Count == 1 ? string.Empty : $"+{tileScripts.Count - 1}";
+        return $"SCRIPT {first.ScriptId}{suffix}\nC:0x{first.ScriptCounters:X}";
+    }
+
+    private static string CreateScriptTileOverlayDetail(IReadOnlyList<EditorMapTileScriptPreview>? tileScripts)
+    {
+        if (tileScripts is null || tileScripts.Count == 0)
+            return "Tile script";
+
+        var first = tileScripts[0];
+        var detail =
+            $"Script {first.ScriptId}; node=0x{first.NodeFlags:X8}; flags=0x{first.ScriptFlags:X8}; counters=0x{first.ScriptCounters:X8}";
+        return tileScripts.Count == 1 ? detail : $"{detail}; +{tileScripts.Count - 1} more";
+    }
+
+    private static string CreateJumpPointTileOverlayLabel(IReadOnlyList<EditorMapJumpPointPreview>? jumpPoints)
+    {
+        if (jumpPoints is null || jumpPoints.Count == 0)
+            return "JUMP";
+
+        var first = jumpPoints[0];
+        var suffix = jumpPoints.Count == 1 ? string.Empty : $"+{jumpPoints.Count - 1}";
+        return $"MAP {first.DestinationMapId}{suffix}\n{first.DestinationTileX},{first.DestinationTileY}";
+    }
+
+    private static string CreateJumpPointTileOverlayDetail(IReadOnlyList<EditorMapJumpPointPreview>? jumpPoints)
+    {
+        if (jumpPoints is null || jumpPoints.Count == 0)
+            return "Jump point";
+
+        var first = jumpPoints[0];
+        var detail =
+            $"Jump to map {first.DestinationMapId} at {first.DestinationTileX}, {first.DestinationTileY}; flags=0x{first.Flags:X8}";
+        return jumpPoints.Count == 1 ? detail : $"{detail}; +{jumpPoints.Count - 1} more";
+    }
 
     private static int FloorDivide(int value, int divisor)
     {
