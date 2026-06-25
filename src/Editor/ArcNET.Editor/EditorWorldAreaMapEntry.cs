@@ -6,6 +6,11 @@
 public sealed class EditorWorldAreaMapEntry
 {
     /// <summary>
+    /// One-based map id assigned by <c>Rules/MapList.mes</c> load order.
+    /// </summary>
+    public int MapId { get; init; }
+
+    /// <summary>
     /// Logical map name from <c>Rules/MapList.mes</c>.
     /// </summary>
     public required string MapName { get; init; }

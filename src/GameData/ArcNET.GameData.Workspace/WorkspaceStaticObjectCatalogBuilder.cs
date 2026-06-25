@@ -86,9 +86,26 @@ public static class WorkspaceStaticObjectCatalogBuilder
             objectGuidText,
             protoNumber,
             prototypeText,
+            ResolvePlacedOrPrototypeArtId(mob, ObjectField.CurrentAid, prototypeEntry?.CurrentArtId),
+            ResolvePlacedOrPrototypeArtId(mob, ObjectField.DestroyedAid, prototypeEntry?.DestroyedArtId),
             sourceAssetPath,
             TryFormatObjectLocation(mob),
-            $"{sourceKindText} - {sourceAssetPath}"
+            $"{sourceKindText} - {sourceAssetPath}",
+            ResolvePlacedOrPrototypePortalFlags(mob, prototypeEntry),
+            ResolvePlacedOrPrototypeContainerFlags(mob, prototypeEntry),
+            ResolvePlacedOrPrototypeSceneryFlags(mob, prototypeEntry),
+            ResolvePlacedOrPrototypePortalInt32(
+                mob,
+                ObjectField.PortalLockDifficulty,
+                prototypeEntry?.PortalLockDifficulty
+            ),
+            ResolvePlacedOrPrototypePortalInt32(mob, ObjectField.PortalKeyId, prototypeEntry?.PortalKeyId),
+            ResolvePlacedOrPrototypeContainerInt32(
+                mob,
+                ObjectField.ContainerLockDifficulty,
+                prototypeEntry?.ContainerLockDifficulty
+            ),
+            ResolvePlacedOrPrototypeContainerInt32(mob, ObjectField.ContainerKeyId, prototypeEntry?.ContainerKeyId)
         );
     }
 
@@ -102,4 +119,77 @@ public static class WorkspaceStaticObjectCatalogBuilder
             ? $"Tile ({tile.X.ToString(CultureInfo.InvariantCulture)}, {tile.Y.ToString(CultureInfo.InvariantCulture)})"
             : "Tile unavailable";
     }
+
+    private static ArtId? ResolvePlacedOrPrototypeArtId(MobData mob, ObjectField field, ArtId? prototypeArtId)
+    {
+        var property = mob.GetProperty(field);
+        if (property is not null)
+        {
+            var artId = new ArtId(unchecked((uint)property.GetInt32()));
+            if (IsValidArtId(artId))
+                return artId;
+        }
+
+        return IsValidArtId(prototypeArtId) ? prototypeArtId : null;
+    }
+
+    private static PortalFlags? ResolvePlacedOrPrototypePortalFlags(
+        MobData mob,
+        WorkspacePrototypeCatalogEntry? prototypeEntry
+    )
+    {
+        if (mob.Header.GameObjectType is not ObjectType.Portal)
+            return null;
+
+        var value = TryGetInt32Property(mob, ObjectField.PortalFlags);
+        return value.HasValue ? unchecked((PortalFlags)(uint)value.Value) : prototypeEntry?.PortalFlags;
+    }
+
+    private static ContainerFlags? ResolvePlacedOrPrototypeContainerFlags(
+        MobData mob,
+        WorkspacePrototypeCatalogEntry? prototypeEntry
+    )
+    {
+        if (mob.Header.GameObjectType is not ObjectType.Container)
+            return null;
+
+        var value = TryGetInt32Property(mob, ObjectField.ContainerFlags);
+        return value.HasValue ? unchecked((ContainerFlags)(uint)value.Value) : prototypeEntry?.ContainerFlags;
+    }
+
+    private static SceneryFlags? ResolvePlacedOrPrototypeSceneryFlags(
+        MobData mob,
+        WorkspacePrototypeCatalogEntry? prototypeEntry
+    )
+    {
+        if (mob.Header.GameObjectType is not ObjectType.Scenery)
+            return null;
+
+        var value = TryGetInt32Property(mob, ObjectField.SceneryFlags);
+        return value.HasValue ? unchecked((SceneryFlags)(uint)value.Value) : prototypeEntry?.SceneryFlags;
+    }
+
+    private static int? ResolvePlacedOrPrototypePortalInt32(MobData mob, ObjectField field, int? prototypeValue)
+    {
+        if (mob.Header.GameObjectType is not ObjectType.Portal)
+            return null;
+
+        return TryGetInt32Property(mob, field) ?? prototypeValue;
+    }
+
+    private static int? ResolvePlacedOrPrototypeContainerInt32(MobData mob, ObjectField field, int? prototypeValue)
+    {
+        if (mob.Header.GameObjectType is not ObjectType.Container)
+            return null;
+
+        return TryGetInt32Property(mob, field) ?? prototypeValue;
+    }
+
+    private static int? TryGetInt32Property(MobData mob, ObjectField field)
+    {
+        var property = mob.GetProperty(field);
+        return property is null ? null : property.GetInt32();
+    }
+
+    private static bool IsValidArtId(ArtId? artId) => artId is { Value: not 0u and not uint.MaxValue };
 }

@@ -34,6 +34,7 @@ internal static class EditorWorldAreaCatalogBuilder
     private static EditorWorldAreaMapEntry CreateMapEntry(WorkspaceWorldAreaMapEntry entry) =>
         new()
         {
+            MapId = entry.MapId,
             MapName = entry.MapName,
             EntryTileX = entry.EntryTileX,
             EntryTileY = entry.EntryTileY,
