@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Threading.Channels;
+using System.Threading.Tasks.Dataflow;
 using ArcNET.Formats;
 using ArcNET.GameObjects;
 
@@ -17,6 +17,7 @@ public static class GameDataLoader
     private const int MaxReadParallelism = 256;
     private const int MinReadParallelism = 8;
     private const int MaxLoadedEntryBufferSize = 128;
+    private const int ParseProgressReportStride = 128;
     private const long MinLoadedEntryRetainedByteBudget = 32L * 1024L * 1024L;
     private const long MaxLoadedEntryRetainedByteBudget = 256L * 1024L * 1024L;
     private const long UnknownEntryEstimatedLength = 64L * 1024L;
@@ -367,79 +368,106 @@ public static class GameDataLoader
 
         var parseParallelism = GetParseParallelism();
         var readParallelism = GetReadParallelism(parseParallelism);
+        var loadedEntryBufferSize = GetLoadedEntryBufferSize(parseParallelism);
         var loadedEntryByteBudget = GetLoadedEntryByteBudget(parseParallelism);
         var timingAccumulator = stageProgress is null ? null : new GameDataLoadTimingAccumulator();
         Debug.WriteLine(
-            $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, BufferedEntries={GetLoadedEntryBufferSize(parseParallelism)}, RetainedByteBudget={loadedEntryByteBudget}, TotalAssets={entries.Count}"
+            $"[GameDataLoader] CPU={Environment.ProcessorCount}, ParseParallelism={parseParallelism}, ReadParallelism={readParallelism}, BufferedEntries={loadedEntryBufferSize}, RetainedByteBudget={loadedEntryByteBudget}, TotalAssets={entries.Count}"
         );
-        // Use a bounded channel to prevent unbounded memory growth if reading is faster than parsing.
-        // AllowSynchronousContinuations MUST be false to ensure that the CPU-intensive parse continuations
-        // do not hijack the I/O threads. Setting it to true destroys the parallelism pipeline.
-        var loadedEntryChannel = Channel.CreateBounded<LoadedEntry>(
-            new BoundedChannelOptions(GetLoadedEntryBufferSize(parseParallelism))
+
+        var inFlightByteBudget = new InFlightByteBudget(loadedEntryByteBudget);
+        var readBlock = new TransformBlock<int, LoadedEntry>(
+            async index =>
             {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleWriter = false,
-                SingleReader = false, // Multiple parse workers read from the channel
-                AllowSynchronousContinuations = false, // Critical: Decouple I/O and CPU work
+                var entry = entries[index];
+                var byteLease = await inFlightByteBudget
+                    .AcquireAsync(GetEffectiveEstimatedContentLength(entry), ct)
+                    .ConfigureAwait(false);
+
+                try
+                {
+                    var memory = timingAccumulator is null
+                        ? await entry.LoadContentAsync(ct).ConfigureAwait(false)
+                        : await timingAccumulator
+                            .MeasureLoadAsync(entry, entry.LoadContentAsync, ct)
+                            .ConfigureAwait(false);
+                    return new LoadedEntry(index, entry, memory, byteLease);
+                }
+                catch
+                {
+                    byteLease.Dispose();
+                    throw;
+                }
+            },
+            new ExecutionDataflowBlockOptions
+            {
+                BoundedCapacity = loadedEntryBufferSize,
+                CancellationToken = ct,
+                EnsureOrdered = false,
+                MaxDegreeOfParallelism = readParallelism,
+                SingleProducerConstrained = true,
             }
         );
-        var inFlightByteBudget = new InFlightByteBudget(loadedEntryByteBudget);
 
-        var parseWorkers = Enumerable
-            .Range(0, parseParallelism)
-            .Select(_ =>
-                Task.Run(
-                    () => ConsumeLoadedEntriesAsync(loadedEntryChannel.Reader, parsedEntries, timingAccumulator, ct),
-                    ct
-                )
-            )
-            .ToArray();
+        var parseBlock = new TransformBlock<LoadedEntry, ParsedIndexedLoadEntry>(
+            loadedEntry =>
+            {
+                try
+                {
+                    var parsedEntry = timingAccumulator is null
+                        ? ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory)
+                        : timingAccumulator.MeasureParse(loadedEntry.Entry, loadedEntry.Memory);
+                    return new ParsedIndexedLoadEntry(loadedEntry.Index, parsedEntry);
+                }
+                finally
+                {
+                    loadedEntry.ByteLease.Dispose();
+                }
+            },
+            new ExecutionDataflowBlockOptions
+            {
+                BoundedCapacity = loadedEntryBufferSize,
+                CancellationToken = ct,
+                EnsureOrdered = false,
+                MaxDegreeOfParallelism = parseParallelism,
+            }
+        );
 
-        Exception? loadFailure = null;
-        try
+        var completedCount = 0;
+        var recordBlock = new ActionBlock<ParsedIndexedLoadEntry>(
+            indexedEntry =>
+            {
+                parsedEntries[indexedEntry.Index] = indexedEntry.Entry;
+                completedCount++;
+                ReportParseProgress(progress, loadProgress, completedCount, entries.Count);
+            },
+            new ExecutionDataflowBlockOptions
+            {
+                BoundedCapacity = loadedEntryBufferSize,
+                CancellationToken = ct,
+                EnsureOrdered = false,
+                MaxDegreeOfParallelism = 1,
+            }
+        );
+
+        using var readToParseLink = readBlock.LinkTo(
+            parseBlock,
+            new DataflowLinkOptions { PropagateCompletion = true }
+        );
+        using var parseToRecordLink = parseBlock.LinkTo(
+            recordBlock,
+            new DataflowLinkOptions { PropagateCompletion = true }
+        );
+
+        for (var index = 0; index < entries.Count; index++)
         {
-            await Parallel
-                .ForEachAsync(
-                    Enumerable.Range(0, entries.Count),
-                    new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = readParallelism },
-                    async (index, cancellationToken) =>
-                    {
-                        var entry = entries[index];
-                        var byteLease = await inFlightByteBudget
-                            .AcquireAsync(GetEffectiveEstimatedContentLength(entry), cancellationToken)
-                            .ConfigureAwait(false);
-
-                        try
-                        {
-                            var memory = timingAccumulator is null
-                                ? await entry.LoadContentAsync(cancellationToken).ConfigureAwait(false)
-                                : await timingAccumulator
-                                    .MeasureLoadAsync(entry, entry.LoadContentAsync, cancellationToken)
-                                    .ConfigureAwait(false);
-                            await loadedEntryChannel
-                                .Writer.WriteAsync(new LoadedEntry(index, entry, memory, byteLease), cancellationToken)
-                                .ConfigureAwait(false);
-                        }
-                        catch
-                        {
-                            byteLease.Dispose();
-                            throw;
-                        }
-                    }
-                )
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            loadFailure = ex;
-        }
-        finally
-        {
-            loadedEntryChannel.Writer.TryComplete(loadFailure);
+            ct.ThrowIfCancellationRequested();
+            if (!await readBlock.SendAsync(index, ct).ConfigureAwait(false))
+                throw new InvalidOperationException("The game data load pipeline declined an entry before completion.");
         }
 
-        await Task.WhenAll(parseWorkers).ConfigureAwait(false);
+        readBlock.Complete();
+        await recordBlock.Completion.ConfigureAwait(false);
         timingAccumulator?.Report(stageProgress);
 
         // Final progress report
@@ -449,26 +477,21 @@ public static class GameDataLoader
         return parsedEntries;
     }
 
-    private static async Task ConsumeLoadedEntriesAsync(
-        ChannelReader<LoadedEntry> reader,
-        ParsedLoadEntry[] parsedEntries,
-        GameDataLoadTimingAccumulator? timingAccumulator,
-        CancellationToken ct
+    private static void ReportParseProgress(
+        IProgress<float>? progress,
+        IProgress<GameDataLoadProgress>? loadProgress,
+        int completedCount,
+        int totalCount
     )
     {
-        await foreach (var loadedEntry in reader.ReadAllAsync(ct).ConfigureAwait(false))
-        {
-            try
-            {
-                parsedEntries[loadedEntry.Index] = timingAccumulator is null
-                    ? ParseLoadedEntry(loadedEntry.Entry, loadedEntry.Memory)
-                    : timingAccumulator.MeasureParse(loadedEntry.Entry, loadedEntry.Memory);
-            }
-            finally
-            {
-                loadedEntry.ByteLease.Dispose();
-            }
-        }
+        if (completedCount != totalCount && completedCount % ParseProgressReportStride != 0)
+            return;
+
+        var fraction = completedCount / (float)totalCount;
+        progress?.Report(fraction);
+        loadProgress?.Report(
+            new GameDataLoadProgress("Parsing game data assets", fraction, completedCount, totalCount)
+        );
     }
 
     private static ParsedLoadEntry ParseLoadedEntry(GameDataLoadEntry entry, ReadOnlyMemory<byte> memory)
@@ -775,6 +798,8 @@ public static class GameDataLoader
         ReadOnlyMemory<byte> Memory,
         InFlightByteBudget.Lease ByteLease
     );
+
+    private readonly record struct ParsedIndexedLoadEntry(int Index, ParsedLoadEntry Entry);
 
     private readonly record struct FileLoadEntry(FileFormat Format, string Path);
 

@@ -60,7 +60,9 @@ public sealed class WorkspaceWorldAreaCatalogBuilderTests
         await Assert.That(tarant.IsWorldMapVisible).IsTrue();
         await Assert.That(tarant.MapEntries.Count).IsEqualTo(2);
         await Assert.That(tarant.MapEntries[0].MapName).IsEqualTo("Tarant Sewers-01");
+        await Assert.That(tarant.MapEntries[0].MapId).IsEqualTo(2);
         await Assert.That(tarant.MapEntries[1].MapName).IsEqualTo("Tarant-City Hall Downstairs");
+        await Assert.That(tarant.MapEntries[1].MapId).IsEqualTo(3);
 
         var vendigroth = catalog.FindArea(22);
         await Assert.That(vendigroth).IsNotNull();

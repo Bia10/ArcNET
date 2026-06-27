@@ -218,9 +218,9 @@ public sealed class EditorMapFloorRenderBuilderTests
                             TileX = 1,
                             TileY = 63,
                             ScriptId = 77,
-                            NodeFlags = 0u,
-                            ScriptFlags = 0u,
-                            ScriptCounters = 0u,
+                            NodeFlags = 0x00000002u,
+                            ScriptFlags = 0x00000004u,
+                            ScriptCounters = 0x00000008u,
                         },
                     ],
                     Objects = [],
@@ -273,18 +273,25 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Overlays[0].CenterX).IsEqualTo(64d);
         await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(32d);
         await Assert.That(preview.Overlays[0].SuggestedTintColor).IsEqualTo(0x88CC6666u);
+        await Assert.That(preview.Overlays[0].Label).IsEqualTo("BLOCK");
+        await Assert.That(preview.Overlays[0].Detail).IsEqualTo("Pathing blocked");
 
         await Assert.That(preview.Overlays[1].Kind).IsEqualTo(EditorMapTileOverlayKind.Light);
         await Assert.That(preview.Overlays[1].MapTileX).IsEqualTo(0);
         await Assert.That(preview.Overlays[1].MapTileY).IsEqualTo(63);
         await Assert.That(preview.Overlays[1].SuggestedTintColor).IsEqualTo(0x88E0C85Au);
+        await Assert.That(preview.Overlays[1].Label).IsNull();
 
         await Assert.That(preview.Overlays[2].Kind).IsEqualTo(EditorMapTileOverlayKind.Script);
         await Assert.That(preview.Overlays[2].MapTileX).IsEqualTo(1);
         await Assert.That(preview.Overlays[2].MapTileY).IsEqualTo(63);
         await Assert.That(preview.Overlays[2].CenterX).IsEqualTo(32d);
         await Assert.That(preview.Overlays[2].CenterY).IsEqualTo(48d);
-        await Assert.That(preview.Overlays[2].SuggestedTintColor).IsEqualTo(0x88996CCCu);
+        await Assert.That(preview.Overlays[2].SuggestedTintColor).IsEqualTo(0x8866CC88u);
+        await Assert.That(preview.Overlays[2].Label).IsEqualTo("SCRIPT 77\nC:0x8");
+        await Assert
+            .That(preview.Overlays[2].Detail)
+            .IsEqualTo("Script 77; node=0x00000002; flags=0x00000004; counters=0x00000008");
 
         await Assert.That(preview.Lights).HasSingleItem();
         await Assert.That(preview.Lights[0].ArtId).IsEqualTo(new ArtId(0x01020304u));
@@ -1742,7 +1749,7 @@ public sealed class EditorMapFloorRenderBuilderTests
                             DestinationMapId = 42,
                             DestinationTileX = 10,
                             DestinationTileY = 11,
-                            Flags = 0u,
+                            Flags = 0x00000005u,
                         },
                     ],
                     Objects = [],
@@ -1763,8 +1770,14 @@ public sealed class EditorMapFloorRenderBuilderTests
         await Assert.That(preview.Overlays[0].CenterX).IsEqualTo(16d);
         await Assert.That(preview.Overlays[0].CenterY).IsEqualTo(16d);
         await Assert.That(preview.Overlays[0].SuggestedTintColor).IsEqualTo(0x8866BBDDu);
+        await Assert.That(preview.Overlays[0].Label).IsEqualTo("MAP 42\n10,11");
+        await Assert.That(preview.Overlays[0].Detail).IsEqualTo("Jump to map 42 at 10, 11; flags=0x00000005");
         await Assert.That(preview.RenderQueue.Count).IsEqualTo(2);
         await Assert.That(preview.RenderQueue[1].TileOverlay?.Kind).IsEqualTo(EditorMapTileOverlayKind.JumpPoint);
+        await Assert.That(preview.RenderQueue[1].TileOverlay?.Label).IsEqualTo("MAP 42\n10,11");
+        await Assert
+            .That(preview.RenderQueue[1].TileOverlay?.Detail)
+            .IsEqualTo("Jump to map 42 at 10, 11; flags=0x00000005");
     }
 
     private static EditorMapScenePreview CreateScenePreview(params EditorMapSectorScenePreview[] sectors) =>

@@ -10,4 +10,6 @@ public sealed class WorkspaceAssetSource
     public required string SourcePath { get; init; }
 
     public string? SourceEntryPath { get; init; }
+
+    public int? ByteLength { get; init; }
 }

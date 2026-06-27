@@ -21,7 +21,8 @@ internal static class EditorAssetReferenceCounter
         out IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> scriptReferencesById,
         out IReadOnlyDictionary<string, IReadOnlyList<EditorScriptReference>> scriptReferencesByAssetPath,
         out IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> artReferencesById,
-        out IReadOnlyDictionary<string, IReadOnlyList<EditorArtReference>> artReferencesByAssetPath
+        out IReadOnlyDictionary<string, IReadOnlyList<EditorArtReference>> artReferencesByAssetPath,
+        bool includeArtReferences = true
     )
     {
         var rawProtoByNumber = new Dictionary<int, List<EditorProtoReference>>();
@@ -35,7 +36,7 @@ internal static class EditorAssetReferenceCounter
 
         var tempProtoCounts = new Dictionary<int, int>();
         var tempScriptCounts = new Dictionary<int, int>();
-        var tempArtCounts = new Dictionary<uint, int>();
+        Dictionary<uint, int>? tempArtCounts = includeArtReferences ? [] : null;
 
         foreach (var (assetPath, mobs) in gameData.MobsBySource)
         {
@@ -59,7 +60,7 @@ internal static class EditorAssetReferenceCounter
         }
 
         var sectorGroups = CreateSourceGroups(gameData.SectorsBySource, assetsByPath);
-        var sectorCounts = CountSectorReferences(sectorGroups);
+        var sectorCounts = CountSectorReferences(sectorGroups, includeArtReferences);
         for (var index = 0; index < sectorCounts.Length; index++)
         {
             var counts = sectorCounts[index];
@@ -96,13 +97,16 @@ internal static class EditorAssetReferenceCounter
         return [.. groups];
     }
 
-    private static SourceReferenceCounts[] CountSectorReferences(SourceGroup<Sector>[] groups)
+    private static SourceReferenceCounts[] CountSectorReferences(
+        SourceGroup<Sector>[] groups,
+        bool includeArtReferences
+    )
     {
         var counts = new SourceReferenceCounts[groups.Length];
         if (groups.Length < ParallelSectorSourceThreshold || Environment.ProcessorCount <= 1)
         {
             for (var index = 0; index < groups.Length; index++)
-                counts[index] = CountSectorReferences(groups[index]);
+                counts[index] = CountSectorReferences(groups[index], includeArtReferences);
 
             return counts;
         }
@@ -111,12 +115,12 @@ internal static class EditorAssetReferenceCounter
             0,
             groups.Length,
             new ParallelOptions { MaxDegreeOfParallelism = EditorParallelism.InteractiveMaxDegreeOfParallelism },
-            index => counts[index] = CountSectorReferences(groups[index])
+            index => counts[index] = CountSectorReferences(groups[index], includeArtReferences)
         );
         return counts;
     }
 
-    private static SourceReferenceCounts CountSectorReferences(SourceGroup<Sector> group)
+    private static SourceReferenceCounts CountSectorReferences(SourceGroup<Sector> group, bool includeArtReferences)
     {
         var counts = new SourceReferenceCounts(group.AssetPath, group.Asset);
 
@@ -134,16 +138,15 @@ internal static class EditorAssetReferenceCounter
                     counts.IncrementScript(tileScript.ScriptNum);
             }
 
-            for (var j = 0; j < sector.Lights.Count; j++)
-                counts.IncrementNonZeroArt(sector.Lights[j].ArtId);
-
-            for (var j = 0; j < sector.Tiles.Length; j++)
-                counts.IncrementNonZeroArt(sector.Tiles[j]);
-
-            if (sector.Roofs is not null)
+            if (includeArtReferences)
             {
-                for (var j = 0; j < sector.Roofs.Length; j++)
-                    counts.IncrementNonZeroArt(sector.Roofs[j]);
+                for (var j = 0; j < sector.Lights.Count; j++)
+                    counts.IncrementNonZeroArt(sector.Lights[j].ArtId);
+
+                counts.IncrementNonZeroArts(sector.Tiles);
+
+                if (sector.Roofs is not null)
+                    counts.IncrementNonZeroArts(sector.Roofs);
             }
 
             for (var j = 0; j < sector.Objects.Count; j++)
@@ -153,7 +156,7 @@ internal static class EditorAssetReferenceCounter
                 if (protoNumber.HasValue)
                     counts.IncrementProto(protoNumber.Value);
 
-                AddObjectReferences(counts, obj.Properties);
+                AddObjectReferences(counts, obj.Properties, includeArtReferences);
             }
         }
 
@@ -164,12 +167,12 @@ internal static class EditorAssetReferenceCounter
         IReadOnlyList<MobData> mobs,
         Dictionary<int, int> protoCounts,
         Dictionary<int, int> scriptCounts,
-        Dictionary<uint, int> artCounts
+        Dictionary<uint, int>? artCounts
     )
     {
         protoCounts.Clear();
         scriptCounts.Clear();
-        artCounts.Clear();
+        artCounts?.Clear();
 
         for (var index = 0; index < mobs.Count; index++)
         {
@@ -185,11 +188,11 @@ internal static class EditorAssetReferenceCounter
     private static void CountProtoReferences(
         IReadOnlyList<ProtoData> protos,
         Dictionary<int, int> scriptCounts,
-        Dictionary<uint, int> artCounts
+        Dictionary<uint, int>? artCounts
     )
     {
         scriptCounts.Clear();
-        artCounts.Clear();
+        artCounts?.Clear();
 
         for (var index = 0; index < protos.Count; index++)
             AddObjectReferences(scriptCounts, artCounts, protos[index].Properties);
@@ -197,7 +200,7 @@ internal static class EditorAssetReferenceCounter
 
     private static void AddObjectReferences(
         Dictionary<int, int> scriptCounts,
-        Dictionary<uint, int> artCounts,
+        Dictionary<uint, int>? artCounts,
         IReadOnlyList<ObjectProperty> properties
     )
     {
@@ -214,14 +217,18 @@ internal static class EditorAssetReferenceCounter
                 case ObjectField.LightAid:
                 case ObjectField.Aid:
                 case ObjectField.DestroyedAid:
-                    if (TryGetArtId(property, out var artId))
+                    if (artCounts is not null && TryGetArtId(property, out var artId))
                         IncrementNonZeroCount(artCounts, artId);
                     break;
             }
         }
     }
 
-    private static void AddObjectReferences(SourceReferenceCounts counts, IReadOnlyList<ObjectProperty> properties)
+    private static void AddObjectReferences(
+        SourceReferenceCounts counts,
+        IReadOnlyList<ObjectProperty> properties,
+        bool includeArtReferences
+    )
     {
         for (var index = 0; index < properties.Count; index++)
         {
@@ -236,7 +243,7 @@ internal static class EditorAssetReferenceCounter
                 case ObjectField.LightAid:
                 case ObjectField.Aid:
                 case ObjectField.DestroyedAid:
-                    if (TryGetArtId(property, out var artId))
+                    if (includeArtReferences && TryGetArtId(property, out var artId))
                         counts.IncrementNonZeroArt(artId);
                     break;
             }
@@ -448,28 +455,46 @@ internal static class EditorAssetReferenceCounter
     )
     {
         foreach (var list in rawProtoByNumber.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
+        {
+            if (list.Count > 1)
+                list.Sort(
+                    static (a, b) =>
+                        string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+                );
+        }
         foreach (var list in rawProtoByAsset.Values)
-            list.Sort(static (a, b) => a.ProtoNumber.CompareTo(b.ProtoNumber));
+        {
+            if (list.Count > 1)
+                list.Sort(static (a, b) => a.ProtoNumber.CompareTo(b.ProtoNumber));
+        }
 
         foreach (var list in rawScriptById.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
+        {
+            if (list.Count > 1)
+                list.Sort(
+                    static (a, b) =>
+                        string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+                );
+        }
         foreach (var list in rawScriptByAsset.Values)
-            list.Sort(static (a, b) => a.ScriptId.CompareTo(b.ScriptId));
+        {
+            if (list.Count > 1)
+                list.Sort(static (a, b) => a.ScriptId.CompareTo(b.ScriptId));
+        }
 
         foreach (var list in rawArtById.Values)
-            list.Sort(
-                static (a, b) =>
-                    string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
-            );
+        {
+            if (list.Count > 1)
+                list.Sort(
+                    static (a, b) =>
+                        string.Compare(a.Asset.AssetPath, b.Asset.AssetPath, StringComparison.OrdinalIgnoreCase)
+                );
+        }
         foreach (var list in rawArtByAsset.Values)
-            list.Sort(static (a, b) => a.ArtId.CompareTo(b.ArtId));
+        {
+            if (list.Count > 1)
+                list.Sort(static (a, b) => a.ArtId.CompareTo(b.ArtId));
+        }
     }
 
     private static void IncrementCount<TKey>(Dictionary<TKey, int> counts, TKey key)
@@ -533,6 +558,21 @@ internal static class EditorAssetReferenceCounter
                 return;
 
             IncrementCount(ArtCounts ??= [], artId);
+        }
+
+        public void IncrementNonZeroArts(ReadOnlySpan<uint> artIds)
+        {
+            Dictionary<uint, int>? artCounts = null;
+            for (var index = 0; index < artIds.Length; index++)
+            {
+                var artId = artIds[index];
+                if (artId == 0)
+                    continue;
+
+                artCounts ??= ArtCounts ??= [];
+                ref var count = ref CollectionsMarshal.GetValueRefOrAddDefault(artCounts, artId, out _);
+                count++;
+            }
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace ArcNET.Editor;
+using System.Threading;
+
+namespace ArcNET.Editor;
 
 internal sealed record EditorAssetIndexData
 {
@@ -8,8 +10,9 @@ internal sealed record EditorAssetIndexData
             MapNames = [],
             MapAssetsByName = new Dictionary<string, IReadOnlyList<EditorAssetEntry>>(StringComparer.OrdinalIgnoreCase),
             MapNameByAssetPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            AssetDependencySummariesByAssetPath = new Dictionary<string, EditorAssetDependencySummary>(
-                StringComparer.OrdinalIgnoreCase
+            AssetDependencySummariesByAssetPath = new Lazy<IReadOnlyDictionary<string, EditorAssetDependencySummary>>(
+                () => new Dictionary<string, EditorAssetDependencySummary>(StringComparer.OrdinalIgnoreCase),
+                LazyThreadSafetyMode.ExecutionAndPublication
             ),
             MapSectorsByName = new Dictionary<string, IReadOnlyList<EditorSectorSummary>>(
                 StringComparer.OrdinalIgnoreCase
@@ -38,15 +41,17 @@ internal sealed record EditorAssetIndexData
             ),
             ProtoReferencesByNumber = new Dictionary<int, IReadOnlyList<EditorProtoReference>>(),
             ScriptReferencesById = new Dictionary<int, IReadOnlyList<EditorScriptReference>>(),
-            ArtReferencesById = new Dictionary<uint, IReadOnlyList<EditorArtReference>>(),
+            ArtReferencesById = new Lazy<IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>>>(
+                () => new Dictionary<uint, IReadOnlyList<EditorArtReference>>(),
+                LazyThreadSafetyMode.ExecutionAndPublication
+            ),
         };
 
     public required IReadOnlyList<string> MapNames { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<EditorAssetEntry>> MapAssetsByName { get; init; }
     public required IReadOnlyDictionary<string, string> MapNameByAssetPath { get; init; }
-    public required IReadOnlyDictionary<
-        string,
-        EditorAssetDependencySummary
+    public required Lazy<
+        IReadOnlyDictionary<string, EditorAssetDependencySummary>
     > AssetDependencySummariesByAssetPath { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<EditorSectorSummary>> MapSectorsByName { get; init; }
     public required IReadOnlyDictionary<string, EditorSectorSummary> SectorSummariesByAssetPath { get; init; }
@@ -79,11 +84,10 @@ internal sealed record EditorAssetIndexData
     public required IReadOnlyDictionary<string, EditorFacadeWalkDefinition> FacadeWalkDetailsByAssetPath { get; init; }
     public required IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>> ProtoReferencesByNumber { get; init; }
     public required IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>> ScriptReferencesById { get; init; }
-    public required IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> ArtReferencesById { get; init; }
+    public required Lazy<IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>>> ArtReferencesById { get; init; }
 
     public bool IsEmpty =>
         MapNames.Count == 0
-        && AssetDependencySummariesByAssetPath.Count == 0
         && SectorSummariesByAssetPath.Count == 0
         && LightSchemeSectorsByIndex.Count == 0
         && MusicSchemeSectorsByIndex.Count == 0
@@ -101,6 +105,5 @@ internal sealed record EditorAssetIndexData
         && TerrainDetailsByAssetPath.Count == 0
         && FacadeWalkDetailsByAssetPath.Count == 0
         && ProtoReferencesByNumber.Count == 0
-        && ScriptReferencesById.Count == 0
-        && ArtReferencesById.Count == 0;
+        && ScriptReferencesById.Count == 0;
 }

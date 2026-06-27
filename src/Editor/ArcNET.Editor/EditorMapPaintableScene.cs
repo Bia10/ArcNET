@@ -28,6 +28,8 @@ public sealed class EditorMapPaintableSceneItem
     public SectorLightFlags? LightFlags { get; init; }
     public EditorMapTileLightDiagnostics? TileLightDiagnostics { get; init; }
     public EditorMapTileOverlayKind? TileOverlayKind { get; init; }
+    public string? TileOverlayLabel { get; init; }
+    public string? TileOverlayDetail { get; init; }
     public EditorMapPaintableSceneSpriteSourceRect? SpriteSourceRect { get; init; }
     public EditorMapPaintableSceneSpriteDestinationRect? SpriteDestinationRect { get; init; }
     public bool IsRoofCovered { get; init; }
@@ -550,6 +552,8 @@ internal abstract class EditorMapPaintableSceneSegmentSourceBase : IEditorMapPai
             var items = new EditorMapPaintableSceneItem[_count];
 
             var destIndex = 0;
+            Span<EditorMapPaintableSceneItemBounds> quadrantBounds =
+                stackalloc EditorMapPaintableSceneItemBounds[EditorMapPaintableSceneBuilder.FloorTileQuadrantCount];
             for (var queueIndex = 0; queueIndex < QueueCount; queueIndex++)
             {
                 var queueItem = GetQueueItem(queueIndex);
@@ -561,13 +565,14 @@ internal abstract class EditorMapPaintableSceneSegmentSourceBase : IEditorMapPai
                     && tile.LightDiagnostics?.HasInterpolationVariance == true
                 )
                 {
-                    var quadrantBounds = EditorMapPaintableSceneBuilder.BuildFloorTileQuadrantBounds(
+                    EditorMapPaintableSceneBuilder.BuildFloorTileQuadrantBounds(
                         _sceneRender,
                         queueItem,
                         _spriteSource,
-                        _spriteReferenceCache
+                        _spriteReferenceCache,
+                        quadrantBounds
                     );
-                    planCountByQueueIndex[queueIndex] = checked((byte)quadrantBounds.Length);
+                    planCountByQueueIndex[queueIndex] = EditorMapPaintableSceneBuilder.FloorTileQuadrantCount;
                     for (var quadrantIndex = 0; quadrantIndex < quadrantBounds.Length; quadrantIndex++)
                     {
                         plans[destIndex++] = new EditorMapPaintableSceneItemPlan(
@@ -695,6 +700,8 @@ internal sealed class EditorMapPaintableSceneFlatSource : EditorMapPaintableScen
 /// </summary>
 public static class EditorMapPaintableSceneBuilder
 {
+    internal const int FloorTileQuadrantCount = 4;
+
     private const double CeTerrainBlitWidth = 78d;
     private const double CeTerrainBlitHeight = 40d;
     private const double CeTerrainLayoutCenterX = 39d;
@@ -741,7 +748,8 @@ public static class EditorMapPaintableSceneBuilder
         EditorMapPlacementPreview? placementPreview = null,
         IEditorMapRenderSpriteSource? spriteSource = null,
         EditorMapRenderSpriteCoverage? existingSpriteCoverage = null,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        bool includeVirtualTerrainSpriteCoverage = true
     )
     {
         ArgumentNullException.ThrowIfNull(sceneRender);
@@ -753,7 +761,12 @@ public static class EditorMapPaintableSceneBuilder
             existingSpriteCoverage
             ?? (
                 placementPreview is null && sceneRender.Slices.Count > 0
-                    ? BuildSpriteCoverage(sceneRender, spriteSource, cancellationToken)
+                    ? BuildSpriteCoverage(
+                        sceneRender,
+                        spriteSource,
+                        includeVirtualTerrainSpriteCoverage,
+                        cancellationToken
+                    )
                     : BuildSpriteCoverage(queue, spriteSource, cancellationToken)
             );
         cancellationToken.ThrowIfCancellationRequested();
@@ -842,26 +855,28 @@ public static class EditorMapPaintableSceneBuilder
             : EditorMapPaintableSceneItemSource.CreateFlat(sceneRender, queue, spriteSource);
     }
 
-    internal static EditorMapPaintableSceneItemBounds[] BuildFloorTileQuadrantBounds(
+    internal static void BuildFloorTileQuadrantBounds(
         EditorMapFloorRenderPreview sceneRender,
         EditorMapRenderQueueItem queueItem,
         IEditorMapRenderSpriteSource? spriteSource,
-        EditorMapPaintableSceneSpriteReferenceCache spriteReferenceCache
+        EditorMapPaintableSceneSpriteReferenceCache spriteReferenceCache,
+        Span<EditorMapPaintableSceneItemBounds> bounds
     )
     {
+        if (bounds.Length < FloorTileQuadrantCount)
+            throw new ArgumentException("Floor tile quadrant bounds must provide four slots.", nameof(bounds));
+
         var layout = GetFloorTileQuadrantLayout(sceneRender, queueItem, spriteSource, spriteReferenceCache);
-        var bounds = new EditorMapPaintableSceneItemBounds[4];
-        for (var quadrantIndex = 0; quadrantIndex < 4; quadrantIndex++)
+        for (var quadrantIndex = 0; quadrantIndex < FloorTileQuadrantCount; quadrantIndex++)
         {
+            var quadrant = layout.GetQuadrant(quadrantIndex);
             bounds[quadrantIndex] = new EditorMapPaintableSceneItemBounds(
-                layout.Quadrants[quadrantIndex].Left,
-                layout.Quadrants[quadrantIndex].Top,
-                layout.Quadrants[quadrantIndex].Width,
-                layout.Quadrants[quadrantIndex].Height
+                quadrant.Left,
+                quadrant.Top,
+                quadrant.Width,
+                quadrant.Height
             );
         }
-
-        return bounds;
     }
 
     internal static EditorMapPaintableSceneItem BuildFloorTileQuadrant(
@@ -889,15 +904,10 @@ public static class EditorMapPaintableSceneBuilder
         var c7 = g.BottomCenter ?? defaultColor;
         var c8 = g.BottomRight ?? defaultColor;
 
-        uint[][] quadrantColors =
-        [
-            [c0, c1, c4, c3], // Q0: Top-Left
-            [c1, c2, c5, c4], // Q1: Top-Right
-            [c3, c4, c7, c6], // Q2: Bottom-Left
-            [c4, c5, c8, c7], // Q3: Bottom-Right
-        ];
+        Span<uint> quadrantColors = stackalloc uint[FloorTileQuadrantCount];
+        FillFloorTileQuadrantColors(quadrantIndex, quadrantColors, c0, c1, c2, c3, c4, c5, c6, c7, c8);
 
-        var quadrant = layout.Quadrants[quadrantIndex];
+        var quadrant = layout.GetQuadrant(quadrantIndex);
         return new EditorMapPaintableSceneItem
         {
             Kind = queueItem.Kind,
@@ -911,7 +921,7 @@ public static class EditorMapPaintableSceneBuilder
             AnchorY = quadrant.AnchorY,
             SuggestedOpacity = 1d,
             SuggestedTintColor = null,
-            ObjectColorArray = new EditorMapObjectColorArray(quadrantColors[quadrantIndex]),
+            ObjectColorArray = new EditorMapObjectColorArray(quadrantColors),
             TileLightDiagnostics = tile.LightDiagnostics,
             SpriteSourceRect = quadrant.SourceRect,
             SpriteDestinationRect = quadrant.DestinationRect,
@@ -919,6 +929,38 @@ public static class EditorMapPaintableSceneBuilder
             SpriteReference = layout.SpriteReference,
             Geometry = quadrant.Geometry,
         };
+    }
+
+    private static void FillFloorTileQuadrantColors(
+        int quadrantIndex,
+        Span<uint> colors,
+        uint topLeft,
+        uint topCenter,
+        uint topRight,
+        uint middleLeft,
+        uint middleCenter,
+        uint middleRight,
+        uint bottomLeft,
+        uint bottomCenter,
+        uint bottomRight
+    )
+    {
+        if (colors.Length < FloorTileQuadrantCount)
+            throw new ArgumentException("Floor tile quadrant colors must provide four slots.", nameof(colors));
+
+        var (c0, c1, c2, c3) = quadrantIndex switch
+        {
+            0 => (topLeft, topCenter, middleCenter, middleLeft),
+            1 => (topCenter, topRight, middleRight, middleCenter),
+            2 => (middleLeft, middleCenter, bottomCenter, bottomLeft),
+            3 => (middleCenter, middleRight, bottomRight, bottomCenter),
+            _ => throw new ArgumentOutOfRangeException(nameof(quadrantIndex)),
+        };
+
+        colors[0] = c0;
+        colors[1] = c1;
+        colors[2] = c2;
+        colors[3] = c3;
     }
 
     private static EditorMapRenderSpriteCoverage BuildSpriteCoverage(
@@ -946,6 +988,7 @@ public static class EditorMapPaintableSceneBuilder
     private static EditorMapRenderSpriteCoverage BuildSpriteCoverage(
         EditorMapFloorRenderPreview sceneRender,
         IEditorMapRenderSpriteSource? spriteSource,
+        bool includeVirtualTerrainSpriteCoverage,
         CancellationToken cancellationToken
     )
     {
@@ -991,7 +1034,8 @@ public static class EditorMapPaintableSceneBuilder
                 AddSpriteReference(referencedSet, slice.Lights[i].ArtId, EditorMapRenderQueueItemKind.Light);
         }
 
-        AddVirtualTerrainSpriteReferences(referencedSet, sceneRender, cancellationToken);
+        if (includeVirtualTerrainSpriteCoverage)
+            AddVirtualTerrainSpriteReferences(referencedSet, sceneRender, cancellationToken);
         return BuildSpriteCoverage(referencedSet, spriteSource, cancellationToken);
     }
 
@@ -1304,7 +1348,9 @@ public static class EditorMapPaintableSceneBuilder
             spriteReference: null,
             geometry,
             overlay.SuggestedOpacity,
-            overlay.SuggestedTintColor
+            overlay.SuggestedTintColor,
+            tileOverlayLabel: overlay.Label,
+            tileOverlayDetail: overlay.Detail
         );
     }
 
@@ -1587,6 +1633,8 @@ public static class EditorMapPaintableSceneBuilder
         double? layoutCenterY = null,
         EditorMapRoofAlphaLerp? roofAlphaLerp = null,
         bool suppressFallback = false,
+        string? tileOverlayLabel = null,
+        string? tileOverlayDetail = null,
         double sceneScaleX = 1d,
         double sceneScaleY = 1d
     )
@@ -1699,6 +1747,8 @@ public static class EditorMapPaintableSceneBuilder
             LightFlags = lightFlags,
             TileLightDiagnostics = queueItem.Tile?.LightDiagnostics,
             TileOverlayKind = queueItem.TileOverlay?.Kind,
+            TileOverlayLabel = tileOverlayLabel,
+            TileOverlayDetail = tileOverlayDetail,
             SpriteSourceRect = layout.SourceRect,
             SpriteDestinationRect = layout.DestinationRect,
             IsRoofCovered = queueItem.Object?.IsRoofCovered ?? queueItem.ObjectAuxiliaryItem?.IsRoofCovered ?? false,
@@ -2290,9 +2340,9 @@ public static class EditorMapPaintableSceneBuilder
         var halfFootprintHeight = footprintHeight / 2d;
         var footprintLeft = tile.CenterX - halfFootprintWidth;
         var footprintTop = tile.CenterY - halfFootprintHeight;
-        var quadrants = new FloorTileQuadrantInfo[4];
+        Span<FloorTileQuadrantInfo> quadrants = stackalloc FloorTileQuadrantInfo[FloorTileQuadrantCount];
 
-        for (int i = 0; i < 4; i++)
+        for (var i = 0; i < FloorTileQuadrantCount; i++)
         {
             var isRight = i % 2 == 1;
             var isBottom = i >= 2;
@@ -2346,13 +2396,27 @@ public static class EditorMapPaintableSceneBuilder
             );
         }
 
-        return new FloorTileQuadrantLayout(spriteReference, quadrants);
+        return new FloorTileQuadrantLayout(spriteReference, quadrants[0], quadrants[1], quadrants[2], quadrants[3]);
     }
 
     private readonly record struct FloorTileQuadrantLayout(
         EditorMapPaintableSceneSpriteReference? SpriteReference,
-        FloorTileQuadrantInfo[] Quadrants
-    );
+        FloorTileQuadrantInfo TopLeft,
+        FloorTileQuadrantInfo TopRight,
+        FloorTileQuadrantInfo BottomLeft,
+        FloorTileQuadrantInfo BottomRight
+    )
+    {
+        public FloorTileQuadrantInfo GetQuadrant(int quadrantIndex) =>
+            quadrantIndex switch
+            {
+                0 => TopLeft,
+                1 => TopRight,
+                2 => BottomLeft,
+                3 => BottomRight,
+                _ => throw new ArgumentOutOfRangeException(nameof(quadrantIndex)),
+            };
+    }
 
     private readonly record struct FloorTileQuadrantInfo(
         double Left,
