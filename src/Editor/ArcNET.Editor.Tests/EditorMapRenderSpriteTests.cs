@@ -275,6 +275,54 @@ public sealed class EditorMapRenderSpriteTests
     }
 
     [Test]
+    public async Task ApplyCeHorizontalTileMirror_MirroredOddWidthRows_FlipsEachPackedPixelRow()
+    {
+        var pixelData = new byte[]
+        {
+            1,
+            0,
+            0,
+            255,
+            2,
+            0,
+            0,
+            255,
+            3,
+            0,
+            0,
+            255,
+            4,
+            0,
+            0,
+            255,
+            5,
+            0,
+            0,
+            255,
+            6,
+            0,
+            0,
+            255,
+        };
+
+        EditorWorkspaceMapRenderSpriteSource.ApplyCeHorizontalTileMirror(
+            EditorMapRenderQueueItemKind.FloorTile,
+            new ArtId(0x000121C1u),
+            pixelData,
+            width: 3,
+            height: 2
+        );
+
+        await Assert
+            .That(
+                pixelData.SequenceEqual(
+                    new byte[] { 3, 0, 0, 255, 2, 0, 0, 255, 1, 0, 0, 255, 6, 0, 0, 255, 5, 0, 0, 255, 4, 0, 0, 255 }
+                )
+            )
+            .IsTrue();
+    }
+
+    [Test]
     public async Task ApplyCeHorizontalTileMirror_FacadeWalkableBit_DoesNotFlipPixels()
     {
         var pixelData = new byte[] { 255, 0, 0, 255, 0, 0, 255, 255 };

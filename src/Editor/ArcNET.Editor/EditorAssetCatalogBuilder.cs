@@ -74,7 +74,7 @@ internal static class EditorAssetCatalogBuilder
         Func<string, WorkspaceAssetSource> resolveSource
     )
     {
-        foreach (var (assetPath, assets) in assetsBySource.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (var (assetPath, assets) in assetsBySource)
         {
             var source = resolveSource(assetPath);
             entries.Add(
@@ -100,12 +100,7 @@ internal static class EditorAssetCatalogBuilder
             return;
 
         var knownPaths = entries.Select(static entry => entry.AssetPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (
-            var (assetPath, source) in discoveredAssetSources.OrderBy(
-                pair => pair.Key,
-                StringComparer.OrdinalIgnoreCase
-            )
-        )
+        foreach (var (assetPath, source) in discoveredAssetSources)
         {
             var normalizedPath = NormalizeAssetPath(assetPath);
             if (!knownPaths.Add(normalizedPath))

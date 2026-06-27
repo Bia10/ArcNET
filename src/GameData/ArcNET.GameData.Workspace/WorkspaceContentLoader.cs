@@ -354,15 +354,24 @@ public static class WorkspaceContentLoader
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var format = ResolveSupportedFormat(entry.Path);
-                if (!IsSupportedFormat(format))
-                    continue;
-
                 var assetPath = NormalizeVirtualPath(entry.Path);
-                var archiveEntryPath = entry.Path;
+                if (!IsSupportedFormat(format))
+                {
+                    AddAudioAssetSource(
+                        overlay,
+                        assetPath,
+                        WorkspaceAssetSourceKind.DatArchive,
+                        archivePath,
+                        assetPath,
+                        entry.UncompressedSize
+                    );
+                    continue;
+                }
+
                 overlay.LoadEntries[assetPath] = new GameDataLoadEntry(
                     format,
                     assetPath,
-                    ct => Task.FromResult(LoadArchiveEntry(archive, archiveEntryPath, ct)),
+                    ct => Task.FromResult(LoadArchiveEntry(archive, entry, ct)),
                     entry.UncompressedSize
                 );
                 overlay.AssetSources[assetPath] = new WorkspaceAssetSource
@@ -370,6 +379,7 @@ public static class WorkspaceContentLoader
                     SourceKind = WorkspaceAssetSourceKind.DatArchive,
                     SourcePath = archivePath,
                     SourceEntryPath = assetPath,
+                    ByteLength = entry.UncompressedSize,
                 };
             }
 
@@ -407,11 +417,24 @@ public static class WorkspaceContentLoader
                 continue;
 
             var format = ResolveSupportedFormat(filePath);
-            if (!IsSupportedFormat(format))
-                continue;
-
             var relativePath = Path.GetRelativePath(rootDirectory, filePath);
             var assetPath = NormalizeVirtualPath(relativePath);
+            if (!IsSupportedFormat(format))
+            {
+                if (IsAudioAsset(assetPath))
+                {
+                    AddAudioAssetSource(
+                        overlay,
+                        assetPath,
+                        WorkspaceAssetSourceKind.LooseFile,
+                        filePath,
+                        sourceEntryPath: null,
+                        checked((int)new FileInfo(filePath).Length)
+                    );
+                }
+                continue;
+            }
+
             overlay.LoadEntries[assetPath] = GameDataLoadEntry.FromFile(format, assetPath, filePath);
             overlay.AssetSources[assetPath] = new WorkspaceAssetSource
             {
@@ -422,6 +445,27 @@ public static class WorkspaceContentLoader
         }
 
         return overlay;
+    }
+
+    private static void AddAudioAssetSource(
+        InstallOverlaySource overlay,
+        string assetPath,
+        WorkspaceAssetSourceKind sourceKind,
+        string sourcePath,
+        string? sourceEntryPath,
+        int byteLength
+    )
+    {
+        if (!IsAudioAsset(assetPath))
+            return;
+
+        overlay.AssetSources[assetPath] = new WorkspaceAssetSource
+        {
+            SourceKind = sourceKind,
+            SourcePath = sourcePath,
+            SourceEntryPath = sourceEntryPath,
+            ByteLength = byteLength,
+        };
     }
 
     private static bool IsSaveFilePath(string filePath) =>
@@ -440,6 +484,8 @@ public static class WorkspaceContentLoader
 
         return false;
     }
+
+    private static bool IsAudioAsset(string path) => path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
 
     private static FileFormat ResolveSupportedFormat(string path)
     {
@@ -524,12 +570,12 @@ public static class WorkspaceContentLoader
 
     private static ReadOnlyMemory<byte> LoadArchiveEntry(
         DatArchive archive,
-        string archiveEntryPath,
+        ArchiveEntry archiveEntry,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return archive.GetEntryData(archiveEntryPath);
+        return archive.GetEntryData(archiveEntry);
     }
 
     private static string NormalizeVirtualPath(string path) => ArcNET.Core.VirtualPath.Normalize(path);

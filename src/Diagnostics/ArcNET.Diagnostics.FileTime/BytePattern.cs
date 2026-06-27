@@ -4,10 +4,22 @@ namespace ArcNET.Diagnostics;
 
 public sealed class BytePattern
 {
+    private readonly int _anchorIndex = -1;
+    private readonly byte _anchorValue;
+
     private BytePattern(byte?[] bytes, string normalizedText)
     {
         Bytes = bytes;
         NormalizedText = normalizedText;
+        for (var index = 0; index < bytes.Length; index++)
+        {
+            if (bytes[index] is not { } value)
+                continue;
+
+            _anchorIndex = index;
+            _anchorValue = value;
+            break;
+        }
     }
 
     public byte?[] Bytes { get; }
@@ -52,8 +64,28 @@ public sealed class BytePattern
             return [];
 
         List<int> matches = [];
+        if (_anchorIndex < 0)
+        {
+            for (var start = 0; start <= haystack.Length - Bytes.Length; start++)
+            {
+                if (MatchesAt(haystack, start))
+                    matches.Add(start);
+            }
+
+            return [.. matches];
+        }
+
         for (var start = 0; start <= haystack.Length - Bytes.Length; start++)
         {
+            var anchorOffset = start + _anchorIndex;
+            var maxAnchorOffset = haystack.Length - Bytes.Length + _anchorIndex;
+            var nextAnchorOffset = haystack
+                .Slice(anchorOffset, maxAnchorOffset - anchorOffset + 1)
+                .IndexOf(_anchorValue);
+            if (nextAnchorOffset < 0)
+                break;
+
+            start += nextAnchorOffset;
             if (MatchesAt(haystack, start))
                 matches.Add(start);
         }

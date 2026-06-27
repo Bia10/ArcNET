@@ -507,11 +507,24 @@ public sealed class EditorMapPaintableSceneBuilderTests
                 new EditorMapPaintableSceneSpriteDestinationRect(100d, 200d, 39d, 20d)
             ),
         };
+        uint[][] expectedColors =
+        [
+            [0xFF101010u, 0xFF202020u, 0xFF505050u, 0xFF404040u],
+            [0xFF202020u, 0xFF303030u, 0xFF606060u, 0xFF505050u],
+            [0xFF404040u, 0xFF505050u, 0xFF808080u, 0xFF707070u],
+            [0xFF505050u, 0xFF606060u, 0xFF909090u, 0xFF808080u],
+        ];
 
         for (var index = 0; index < expected.Length; index++)
         {
             await Assert.That(paintableScene.Items[index].SpriteSourceRect).IsEqualTo(expected[index].Item1);
             await Assert.That(paintableScene.Items[index].SpriteDestinationRect).IsEqualTo(expected[index].Item2);
+
+            var objectColorArray = paintableScene.Items[index].ObjectColorArray;
+            await Assert.That(objectColorArray).IsNotNull();
+            await Assert.That(objectColorArray!.Count).IsEqualTo(4);
+            for (var colorIndex = 0; colorIndex < objectColorArray.Count; colorIndex++)
+                await Assert.That(objectColorArray[colorIndex]).IsEqualTo(expectedColors[index][colorIndex]);
         }
     }
 
@@ -588,7 +601,7 @@ public sealed class EditorMapPaintableSceneBuilderTests
     }
 
     [Test]
-    public async Task Build_AssignsCeRoofAlphaLerpForFadedRoofPieces()
+    public async Task Build_DoesNotEmitFadedRoofPiecesAsPaintableItems()
     {
         var tileArtIds = new uint[64 * 64];
         tileArtIds[63 * 64] = 100u;
@@ -631,6 +644,8 @@ public sealed class EditorMapPaintableSceneBuilderTests
             }
         );
 
+        await Assert.That(sceneRender.Roofs).IsEmpty();
+
         var paintableScene = EditorMapPaintableSceneBuilder.Build(
             sceneRender,
             spriteSource: new StubSpriteSource(
@@ -643,8 +658,10 @@ public sealed class EditorMapPaintableSceneBuilderTests
             )
         );
 
-        var roofItem = paintableScene.Items.Single(static item => item.Kind == EditorMapRenderQueueItemKind.Roof);
-        await Assert.That(roofItem.RoofAlphaLerp).IsEqualTo(new EditorMapRoofAlphaLerp(255, 128, 128, 255));
+        await Assert
+            .That(paintableScene.Items.Where(static item => item.Kind == EditorMapRenderQueueItemKind.Roof))
+            .IsEmpty();
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedArtIds).DoesNotContain(new ArtId(0xA0001000u));
     }
 
     [Test]
@@ -2079,8 +2096,28 @@ public sealed class EditorMapPaintableSceneBuilderTests
         await Assert.That(referencedArtIds).Contains(new ArtId(0x90000000u));
         await Assert.That(referencedArtIds).Contains(new ArtId(0xA0008000u));
         await Assert.That(referencedArtIds).DoesNotContain(new ArtId(0xA0003000u));
+        await Assert.That(referencedArtIds).DoesNotContain(new ArtId(0xA0001000u));
         await Assert.That(referencedArtIds.Count(static artId => artId == new ArtId(202u))).IsEqualTo(1);
         await Assert.That(paintableScene.SpriteCoverage.ReferencedSpriteReferenceCount).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task Build_CanSkipPartialVirtualTerrainSpriteCoverage()
+    {
+        var sceneRender = CreatePartialTerrainSceneRender(includeVirtualRoofAndLight: true);
+
+        var paintableScene = EditorMapPaintableSceneBuilder.Build(
+            sceneRender,
+            spriteSource: new StubSpriteSource(0, 0),
+            includeVirtualTerrainSpriteCoverage: false
+        );
+        var referencedArtIds = paintableScene.SpriteCoverage.ReferencedArtIds;
+
+        await Assert.That(referencedArtIds).Contains(new ArtId(101u));
+        await Assert.That(referencedArtIds).DoesNotContain(new ArtId(202u));
+        await Assert.That(referencedArtIds).DoesNotContain(new ArtId(0x90000000u));
+        await Assert.That(referencedArtIds).DoesNotContain(new ArtId(0xA0008000u));
+        await Assert.That(paintableScene.SpriteCoverage.ReferencedSpriteReferenceCount).IsEqualTo(1);
     }
 
     private static EditorMapFloorRenderPreview CreatePartialTerrainSceneRender(bool includeVirtualRoofAndLight = false)
@@ -2143,7 +2180,8 @@ public sealed class EditorMapPaintableSceneBuilderTests
             roofArtIds[0] = roof;
             roofArtIds[1] = roof;
             roofArtIds[2] = 0xA0003000u;
-            roofArtIds[3] = uint.MaxValue;
+            roofArtIds[3] = 0xA0001000u;
+            roofArtIds[4] = uint.MaxValue;
         }
 
         IReadOnlyList<EditorMapLightPreview> lights = lightArtId is { } light

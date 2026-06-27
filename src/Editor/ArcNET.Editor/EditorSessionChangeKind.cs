@@ -39,4 +39,9 @@ public enum EditorSessionChangeKind
     /// Pending message-file edits.
     /// </summary>
     Message = 6,
+
+    /// <summary>
+    /// Pending jump-point file edits.
+    /// </summary>
+    Jump = 7,
 }

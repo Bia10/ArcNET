@@ -19,4 +19,19 @@ public sealed class EditorProjectMapCameraState
     /// Host-neutral zoom factor applied to the map camera.
     /// </summary>
     public double Zoom { get; init; } = 1d;
+
+    /// <summary>
+    /// Clockwise camera roll, in degrees, around the viewport center.
+    /// </summary>
+    public double RollDegrees { get; init; }
+
+    /// <summary>
+    /// Camera pitch, in degrees, applied as vertical render-space tilt.
+    /// </summary>
+    public double PitchDegrees { get; init; }
+
+    /// <summary>
+    /// Camera yaw, in degrees, applied as horizontal render-space tilt.
+    /// </summary>
+    public double YawDegrees { get; init; }
 }

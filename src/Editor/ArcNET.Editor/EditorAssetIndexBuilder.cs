@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks.Dataflow;
 using ArcNET.Core;
 using ArcNET.Formats;
 using ArcNET.GameData;
@@ -23,95 +25,232 @@ internal static partial class EditorAssetIndexBuilder
         ArgumentNullException.ThrowIfNull(assets);
 
         const int TotalPhases = 13;
+        var progressGate = new object();
         var completedPhases = 0;
-        void Report(string activity) =>
-            progress?.Report(
-                new EditorAssetIndexBuildProgress(
-                    activity,
-                    completedPhases / (float)TotalPhases,
-                    completedPhases,
-                    TotalPhases
-                )
-            );
+        void Report(string activity)
+        {
+            lock (progressGate)
+            {
+                progress?.Report(
+                    new EditorAssetIndexBuildProgress(
+                        activity,
+                        completedPhases / (float)TotalPhases,
+                        completedPhases,
+                        TotalPhases
+                    )
+                );
+            }
+        }
+
+        void CompletePhase()
+        {
+            lock (progressGate)
+                completedPhases++;
+        }
 
         Report("Indexing asset paths");
         var assetsByPath = assets.Entries.ToDictionary(entry => entry.AssetPath, StringComparer.OrdinalIgnoreCase);
-        completedPhases++;
+        CompletePhase();
 
         Report("Indexing map assets");
         var (mapNames, mapAssetsByName, mapNameByAssetPath) = BuildMapAssets(assets.Entries);
-        completedPhases++;
+        CompletePhase();
 
-        Report("Summarizing sectors");
-        var (mapSectorsByName, sectorSummariesByAssetPath) = BuildSectorSummaries(
-            gameData,
-            assetsByPath,
-            mapNameByAssetPath
+        IReadOnlyDictionary<string, IReadOnlyList<EditorSectorSummary>>? mapSectorsByName = null;
+        IReadOnlyDictionary<string, EditorSectorSummary>? sectorSummariesByAssetPath = null;
+        IReadOnlyList<EditorSectorSummary>? sectorSummaries = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorAssetEntry>>? messageAssetsByIndex = null;
+        IReadOnlySet<int>? protoDisplayNameMessageIndices = null;
+        IReadOnlyDictionary<int, EditorAssetEntry>? protoDefinitionsByNumber = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorAssetEntry>>? scriptDefinitionsById = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorAssetEntry>>? dialogDefinitionsById = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorScriptDefinition>>? scriptDetailsById = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorDialogDefinition>>? dialogDetailsById = null;
+        IReadOnlyDictionary<string, EditorArtDefinition>? artDetailsByAssetPath = null;
+        IReadOnlyDictionary<string, EditorJumpDefinition>? jumpDetailsByAssetPath = null;
+        IReadOnlyDictionary<string, EditorMapPropertiesDefinition>? mapPropertiesDetailsByAssetPath = null;
+        IReadOnlyDictionary<string, EditorTerrainDefinition>? terrainDetailsByAssetPath = null;
+        IReadOnlyDictionary<string, EditorFacadeWalkDefinition>? facadeWalkDetailsByAssetPath = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorProtoReference>>? protoReferencesByNumber = null;
+        IReadOnlyDictionary<string, IReadOnlyList<EditorProtoReference>>? protoReferencesByAssetPath = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorScriptReference>>? scriptReferencesById = null;
+        IReadOnlyDictionary<string, IReadOnlyList<EditorScriptReference>>? scriptReferencesByAssetPath = null;
+
+        RunIndexBuildPhases(
+            new IndexBuildPhase(
+                "Summarizing sectors",
+                () =>
+                {
+                    Report("Summarizing sectors");
+                    (mapSectorsByName, sectorSummariesByAssetPath) = BuildSectorSummaries(
+                        gameData,
+                        assetsByPath,
+                        mapNameByAssetPath
+                    );
+                    sectorSummaries = sectorSummariesByAssetPath.Values.ToArray();
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Indexing message assets",
+                () =>
+                {
+                    Report("Indexing message assets");
+                    messageAssetsByIndex = BuildMessageAssetsByIndex(gameData, assetsByPath);
+                    protoDisplayNameMessageIndices = BuildProtoDisplayNameMessageIndices(gameData);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Indexing asset definitions",
+                () =>
+                {
+                    Report("Indexing asset definitions");
+                    protoDefinitionsByNumber = BuildProtoDefinitionsByNumber(assets.Entries);
+                    scriptDefinitionsById = BuildScriptDefinitionsById(assets.Entries);
+                    dialogDefinitionsById = BuildDialogDefinitionsById(assets.Entries);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Indexing script details",
+                () =>
+                {
+                    Report("Indexing script details");
+                    scriptDetailsById = BuildScriptDetailsById(gameData, assetsByPath);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Indexing dialog details",
+                () =>
+                {
+                    Report("Indexing dialog details");
+                    dialogDetailsById = BuildDialogDetailsById(gameData, assetsByPath);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Indexing art and map details",
+                () =>
+                {
+                    Report("Indexing art and map details");
+                    artDetailsByAssetPath = BuildArtDetailsByAssetPath(gameData, assetsByPath);
+                    jumpDetailsByAssetPath = BuildJumpDetailsByAssetPath(gameData, assetsByPath);
+                    mapPropertiesDetailsByAssetPath = BuildMapPropertiesDetailsByAssetPath(gameData, assetsByPath);
+                    terrainDetailsByAssetPath = BuildTerrainDetailsByAssetPath(gameData, assetsByPath);
+                    facadeWalkDetailsByAssetPath = BuildFacadeWalkDetailsByAssetPath(gameData, assetsByPath);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Counting asset references",
+                () =>
+                {
+                    Report("Counting asset references");
+                    EditorAssetReferenceCounter.CountReferences(
+                        gameData,
+                        assetsByPath,
+                        out var protoRefsByNumber,
+                        out var protoRefsByAssetPath,
+                        out var scriptRefsById,
+                        out var scriptRefsByAssetPath,
+                        out _,
+                        out _,
+                        includeArtReferences: false
+                    );
+                    protoReferencesByNumber = protoRefsByNumber;
+                    protoReferencesByAssetPath = protoRefsByAssetPath;
+                    scriptReferencesById = scriptRefsById;
+                    scriptReferencesByAssetPath = scriptRefsByAssetPath;
+                    CompletePhase();
+                }
+            )
         );
-        var sectorSummaries = sectorSummariesByAssetPath.Values.ToArray();
-        completedPhases++;
 
-        Report("Building scheme lookups");
-        var (lightSchemeSectorsByIndex, musicSchemeSectorsByIndex, ambientSchemeSectorsByIndex) =
-            BuildSectorSchemeLookups(sectorSummaries);
-        completedPhases++;
-
-        Report("Projecting map sectors");
-        var mapProjectionsByName = EditorSectorProjectionBuilder.Build(mapSectorsByName);
-        completedPhases++;
-
-        Report("Indexing message assets");
-        var messageAssetsByIndex = BuildMessageAssetsByIndex(gameData, assetsByPath);
-        var protoDisplayNameMessageIndices = BuildProtoDisplayNameMessageIndices(gameData);
-        completedPhases++;
-
-        Report("Indexing asset definitions");
-        var protoDefinitionsByNumber = BuildProtoDefinitionsByNumber(assets.Entries);
-        var scriptDefinitionsById = BuildScriptDefinitionsById(assets.Entries);
-        var dialogDefinitionsById = BuildDialogDefinitionsById(assets.Entries);
-        completedPhases++;
-
-        Report("Indexing script details");
-        var scriptDetailsById = BuildScriptDetailsById(gameData, assetsByPath);
-        completedPhases++;
-
-        Report("Indexing dialog details");
-        var dialogDetailsById = BuildDialogDetailsById(gameData, assetsByPath);
-        completedPhases++;
-
-        Report("Indexing art and map details");
-        var artDetailsByAssetPath = BuildArtDetailsByAssetPath(gameData, assetsByPath);
-        var jumpDetailsByAssetPath = BuildJumpDetailsByAssetPath(gameData, assetsByPath);
-        var mapPropertiesDetailsByAssetPath = BuildMapPropertiesDetailsByAssetPath(gameData, assetsByPath);
-        var terrainDetailsByAssetPath = BuildTerrainDetailsByAssetPath(gameData, assetsByPath);
-        var facadeWalkDetailsByAssetPath = BuildFacadeWalkDetailsByAssetPath(gameData, assetsByPath);
-        completedPhases++;
-
-        Report("Counting asset references");
-        EditorAssetReferenceCounter.CountReferences(
-            gameData,
-            assetsByPath,
-            out var protoReferencesByNumber,
-            out var protoReferencesByAssetPath,
-            out var scriptReferencesById,
-            out var scriptReferencesByAssetPath,
-            out var artReferencesById,
-            out var artReferencesByAssetPath
+        var artReferenceIndexes = CreateLazyArtReferenceIndexes(gameData, assetsByPath);
+        var artReferencesById = new Lazy<IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>>>(
+            () => artReferenceIndexes.Value.ById,
+            LazyThreadSafetyMode.ExecutionAndPublication
         );
-        completedPhases++;
 
-        Report("Building dependency summaries");
-        var assetDependencySummariesByAssetPath = BuildAssetDependencySummaries(
-            assets.Entries,
-            mapNameByAssetPath,
-            protoReferencesByNumber,
-            protoReferencesByAssetPath,
-            scriptReferencesById,
-            scriptReferencesByAssetPath,
-            artReferencesById,
-            artReferencesByAssetPath
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>>? lightSchemeSectorsByIndex = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>>? musicSchemeSectorsByIndex = null;
+        IReadOnlyDictionary<int, IReadOnlyList<EditorSectorSummary>>? ambientSchemeSectorsByIndex = null;
+        IReadOnlyDictionary<string, EditorMapProjection>? mapProjectionsByName = null;
+
+        RunIndexBuildPhases(
+            new IndexBuildPhase(
+                "Building scheme lookups",
+                () =>
+                {
+                    Report("Building scheme lookups");
+                    (lightSchemeSectorsByIndex, musicSchemeSectorsByIndex, ambientSchemeSectorsByIndex) =
+                        BuildSectorSchemeLookups(sectorSummaries!);
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Projecting map sectors",
+                () =>
+                {
+                    Report("Projecting map sectors");
+                    mapProjectionsByName = EditorSectorProjectionBuilder.Build(mapSectorsByName!);
+                    CompletePhase();
+                }
+            )
         );
-        completedPhases++;
+
+        Lazy<IReadOnlyDictionary<string, EditorAssetDependencySummary>>? assetDependencySummariesByAssetPath = null;
+        EditorWorkspaceValidationReport? validation = null;
+
+        RunIndexBuildPhases(
+            new IndexBuildPhase(
+                "Building dependency summaries",
+                () =>
+                {
+                    Report("Building dependency summaries");
+                    assetDependencySummariesByAssetPath = new Lazy<
+                        IReadOnlyDictionary<string, EditorAssetDependencySummary>
+                    >(
+                        () =>
+                        {
+                            var artReferences = artReferenceIndexes.Value;
+                            return BuildAssetDependencySummaries(
+                                assets.Entries,
+                                mapNameByAssetPath,
+                                protoReferencesByNumber!,
+                                protoReferencesByAssetPath!,
+                                scriptReferencesById!,
+                                scriptReferencesByAssetPath!,
+                                artReferences.ById,
+                                artReferences.ByAssetPath
+                            );
+                        },
+                        LazyThreadSafetyMode.ExecutionAndPublication
+                    );
+                    CompletePhase();
+                }
+            ),
+            new IndexBuildPhase(
+                "Validating workspace",
+                () =>
+                {
+                    Report("Validating workspace");
+                    validation = new EditorWorkspaceValidator().Build(
+                        protoDefinitionsByNumber!,
+                        scriptDefinitionsById!,
+                        scriptDetailsById!,
+                        dialogDetailsById!,
+                        protoReferencesByNumber!,
+                        scriptReferencesById!,
+                        protoDisplayNameMessageIndices!,
+                        installationType
+                    );
+                    CompletePhase();
+                }
+            )
+        );
 
         var index = EditorAssetIndex.Create(
             new EditorAssetIndexData
@@ -119,46 +258,80 @@ internal static partial class EditorAssetIndexBuilder
                 MapNames = mapNames,
                 MapAssetsByName = mapAssetsByName,
                 MapNameByAssetPath = mapNameByAssetPath,
-                AssetDependencySummariesByAssetPath = assetDependencySummariesByAssetPath,
-                MapSectorsByName = mapSectorsByName,
-                SectorSummariesByAssetPath = sectorSummariesByAssetPath,
-                LightSchemeSectorsByIndex = lightSchemeSectorsByIndex,
-                MusicSchemeSectorsByIndex = musicSchemeSectorsByIndex,
-                AmbientSchemeSectorsByIndex = ambientSchemeSectorsByIndex,
-                MapProjectionsByName = mapProjectionsByName,
-                MessageAssetsByIndex = messageAssetsByIndex,
-                ProtoDefinitionsByNumber = protoDefinitionsByNumber,
-                ScriptDefinitionsById = scriptDefinitionsById,
-                DialogDefinitionsById = dialogDefinitionsById,
-                ScriptDetailsById = scriptDetailsById,
-                DialogDetailsById = dialogDetailsById,
-                ArtDetailsByAssetPath = artDetailsByAssetPath,
-                JumpDetailsByAssetPath = jumpDetailsByAssetPath,
-                MapPropertiesDetailsByAssetPath = mapPropertiesDetailsByAssetPath,
-                TerrainDetailsByAssetPath = terrainDetailsByAssetPath,
-                FacadeWalkDetailsByAssetPath = facadeWalkDetailsByAssetPath,
-                ProtoReferencesByNumber = protoReferencesByNumber,
-                ScriptReferencesById = scriptReferencesById,
+                AssetDependencySummariesByAssetPath = assetDependencySummariesByAssetPath!,
+                MapSectorsByName = mapSectorsByName!,
+                SectorSummariesByAssetPath = sectorSummariesByAssetPath!,
+                LightSchemeSectorsByIndex = lightSchemeSectorsByIndex!,
+                MusicSchemeSectorsByIndex = musicSchemeSectorsByIndex!,
+                AmbientSchemeSectorsByIndex = ambientSchemeSectorsByIndex!,
+                MapProjectionsByName = mapProjectionsByName!,
+                MessageAssetsByIndex = messageAssetsByIndex!,
+                ProtoDefinitionsByNumber = protoDefinitionsByNumber!,
+                ScriptDefinitionsById = scriptDefinitionsById!,
+                DialogDefinitionsById = dialogDefinitionsById!,
+                ScriptDetailsById = scriptDetailsById!,
+                DialogDetailsById = dialogDetailsById!,
+                ArtDetailsByAssetPath = artDetailsByAssetPath!,
+                JumpDetailsByAssetPath = jumpDetailsByAssetPath!,
+                MapPropertiesDetailsByAssetPath = mapPropertiesDetailsByAssetPath!,
+                TerrainDetailsByAssetPath = terrainDetailsByAssetPath!,
+                FacadeWalkDetailsByAssetPath = facadeWalkDetailsByAssetPath!,
+                ProtoReferencesByNumber = protoReferencesByNumber!,
+                ScriptReferencesById = scriptReferencesById!,
                 ArtReferencesById = artReferencesById,
             }
         );
-        Report("Validating workspace");
-        var validation = new EditorWorkspaceValidator().Build(
-            protoDefinitionsByNumber,
-            scriptDefinitionsById,
-            scriptDetailsById,
-            dialogDetailsById,
-            protoReferencesByNumber,
-            scriptReferencesById,
-            protoDisplayNameMessageIndices,
-            installationType
-        );
-        completedPhases++;
 
         progress?.Report(new EditorAssetIndexBuildProgress("Asset index complete", 1f, TotalPhases, TotalPhases));
 
-        return (index, validation);
+        return (index, validation!);
     }
+
+    private static void RunIndexBuildPhases(params IndexBuildPhase[] phases)
+    {
+        var block = new ActionBlock<IndexBuildPhase>(
+            phase => phase.Execute(),
+            new ExecutionDataflowBlockOptions
+            {
+                BoundedCapacity = phases.Length,
+                EnsureOrdered = false,
+                MaxDegreeOfParallelism = GetIndexBuildParallelism(),
+            }
+        );
+
+        for (var index = 0; index < phases.Length; index++)
+        {
+            if (!block.Post(phases[index]))
+                throw new InvalidOperationException("The workspace index pipeline declined a phase before completion.");
+        }
+
+        block.Complete();
+        block.Completion.GetAwaiter().GetResult();
+    }
+
+    private static int GetIndexBuildParallelism() => Math.Clamp(Environment.ProcessorCount / 3, 2, 4);
+
+    private static Lazy<ArtReferenceIndexes> CreateLazyArtReferenceIndexes(
+        GameDataStore gameData,
+        IReadOnlyDictionary<string, EditorAssetEntry> assetsByPath
+    ) =>
+        new(
+            () =>
+            {
+                EditorAssetReferenceCounter.CountReferences(
+                    gameData,
+                    assetsByPath,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out var artReferencesById,
+                    out var artReferencesByAssetPath
+                );
+                return new ArtReferenceIndexes(artReferencesById, artReferencesByAssetPath);
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication
+        );
 
     private static (
         IReadOnlyList<string> MapNames,
@@ -877,6 +1050,13 @@ internal static partial class EditorAssetIndexBuilder
 
     [GeneratedRegex(@"(?:^|/)(?<number>\d+)[^/]*\.dlg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DialogAssetPathPattern();
+
+    private readonly record struct IndexBuildPhase(string Activity, Action Execute);
+
+    private readonly record struct ArtReferenceIndexes(
+        IReadOnlyDictionary<uint, IReadOnlyList<EditorArtReference>> ById,
+        IReadOnlyDictionary<string, IReadOnlyList<EditorArtReference>> ByAssetPath
+    );
 
     private delegate bool TryGetAssetId(string assetPath, out int assetId);
 }

@@ -14,5 +14,13 @@ public sealed record class WorkspacePrototypeCatalogEntry(
     string? Description,
     string? PaletteGroup,
     ArtId? CurrentArtId,
-    string? ArtAssetPath
+    ArtId? DestroyedArtId,
+    string? ArtAssetPath,
+    PortalFlags? PortalFlags = null,
+    ContainerFlags? ContainerFlags = null,
+    SceneryFlags? SceneryFlags = null,
+    int? PortalLockDifficulty = null,
+    int? PortalKeyId = null,
+    int? ContainerLockDifficulty = null,
+    int? ContainerKeyId = null
 );

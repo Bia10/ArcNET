@@ -29,6 +29,7 @@ public sealed class EditorWorkspaceSession
     private readonly Dictionary<string, ProtoData> _pendingProtoAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MobData> _pendingMobAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Sector> _pendingSectorAssets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, JmpFile> _pendingJumpAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stack<EditorWorkspaceSessionHistoryFrame> _undoSnapshots = new();
     private readonly Stack<EditorWorkspaceSessionHistoryFrame> _redoSnapshots = new();
     private readonly Stack<EditorSessionStagedHistoryScopeKey> _undoStagedHistoryScopes = new();
@@ -115,6 +116,7 @@ public sealed class EditorWorkspaceSession
         || _pendingProtoAssets.Count > 0
         || _pendingMobAssets.Count > 0
         || _pendingSectorAssets.Count > 0
+        || _pendingJumpAssets.Count > 0
         || _saveEditor?.HasPendingChanges == true;
 
     /// <summary>
@@ -1405,18 +1407,6 @@ public sealed class EditorWorkspaceSession
         var effectiveWorkspace = HasPendingChanges ? BuildPendingWorkspaceState().Workspace : Workspace;
         var selection = mapViewState.Selection;
         var explicitSelectedObjectIds = selection.GetSelectedObjectIds();
-        if (explicitSelectedObjectIds.Count == 0)
-        {
-            return CreateTrackedObjectSelectionSummary(
-                mapViewState.Id,
-                mapViewState.MapName,
-                selection,
-                explicitSelectedObjectIds,
-                [],
-                []
-            );
-        }
-
         var (selectedObjects, sectorAssetPaths) = ResolveSelectedObjectSelectionFromRender(
             effectiveWorkspace,
             sceneRender,
@@ -2905,7 +2895,8 @@ public sealed class EditorWorkspaceSession
         var mapChanged =
             existingMapViewState is not null
             && !string.Equals(existingMapViewState.MapName, target.MapName, StringComparison.OrdinalIgnoreCase);
-        var existingZoom = existingMapViewState?.Camera?.Zoom > 0d ? existingMapViewState.Camera.Zoom : 1d;
+        var existingCamera = existingMapViewState?.Camera;
+        var existingZoom = existingCamera?.Zoom > 0d ? existingCamera.Zoom : 1d;
 
         var updatedMapViewState = SetMapViewState(
             new EditorProjectMapViewState
@@ -2918,6 +2909,9 @@ public sealed class EditorWorkspaceSession
                     CenterTileX = target.CenterTileX,
                     CenterTileY = target.CenterTileY,
                     Zoom = existingZoom,
+                    RollDegrees = existingCamera?.RollDegrees ?? 0d,
+                    PitchDegrees = existingCamera?.PitchDegrees ?? 0d,
+                    YawDegrees = existingCamera?.YawDegrees ?? 0d,
                 },
                 Selection = new EditorProjectMapSelectionState
                 {
@@ -3312,7 +3306,10 @@ public sealed class EditorWorkspaceSession
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var normalizedMapViewState = NormalizeProjectMapViewState(mapViewState);
+        var normalizedMapViewState = ApplySpecialTileOverlayPreviewPreference(
+            NormalizeProjectMapViewState(mapViewState),
+            request?.IncludeSpecialTileOverlays
+        );
         cancellationToken.ThrowIfCancellationRequested();
 
         var focusedTerrainSectorAssetPaths = request?.FocusedTerrainSectorRadius
@@ -3429,12 +3426,17 @@ public sealed class EditorWorkspaceSession
         }
 
         reportProgress?.Invoke("Creating paintable scene", 0.56f);
+        var existingSpriteCoverage =
+            request?.IncludeSpriteCoverage == false
+                ? EditorMapRenderSpriteCoverage.Empty
+                : request?.ExistingSpriteCoverage;
         var paintableScene = EditorMapPaintableSceneBuilder.Build(
             sceneRender,
             placementPreview,
             spriteSource,
-            request?.ExistingSpriteCoverage,
-            cancellationToken
+            existingSpriteCoverage,
+            cancellationToken,
+            request?.IncludeVirtualTerrainSpriteCoverage ?? true
         );
         reportProgress?.Invoke("World-edit scene completed", 0.59f);
 
@@ -3513,6 +3515,37 @@ public sealed class EditorWorkspaceSession
             result.Add(VirtualPath.Normalize(nearestSector.Asset.AssetPath));
 
         return result;
+    }
+
+    private static EditorProjectMapViewState ApplySpecialTileOverlayPreviewPreference(
+        EditorProjectMapViewState mapViewState,
+        bool? includeSpecialTileOverlays
+    )
+    {
+        if (includeSpecialTileOverlays is not { } enabled)
+            return mapViewState;
+
+        var preview = mapViewState.Preview;
+        return new EditorProjectMapViewState
+        {
+            Id = mapViewState.Id,
+            MapName = mapViewState.MapName,
+            ViewId = mapViewState.ViewId,
+            Camera = mapViewState.Camera,
+            Selection = mapViewState.Selection,
+            Preview = new EditorProjectMapPreviewState
+            {
+                UseScenePreview = preview.UseScenePreview,
+                OutlineMode = preview.OutlineMode,
+                ShowObjects = preview.ShowObjects,
+                ShowRoofs = preview.ShowRoofs,
+                ShowLights = preview.ShowLights,
+                ShowBlockedTiles = enabled,
+                ShowScripts = enabled,
+                ShowJumpPoints = enabled,
+            },
+            WorldEdit = mapViewState.WorldEdit,
+        };
     }
 
     /// <summary>
@@ -3693,10 +3726,13 @@ public sealed class EditorWorkspaceSession
                     IncludeEmptyTiles = renderPreset.IncludeEmptyTiles,
                     IncludeObjects = renderPreset.IncludeObjects,
                     IncludeRoofs = renderPreset.IncludeRoofs,
-                    IncludeBlockedTileOverlays = renderPreset.IncludeBlockedTileOverlays,
+                    IncludeBlockedTileOverlays =
+                        renderPreset.IncludeBlockedTileOverlays && effectiveRequest.IncludeSpecialTileOverlays,
                     IncludeLightOverlays = renderPreset.IncludeLightOverlays,
-                    IncludeScriptOverlays = renderPreset.IncludeScriptOverlays,
-                    IncludeJumpPointOverlays = renderPreset.IncludeJumpPointOverlays,
+                    IncludeScriptOverlays =
+                        renderPreset.IncludeScriptOverlays && effectiveRequest.IncludeSpecialTileOverlays,
+                    IncludeJumpPointOverlays =
+                        renderPreset.IncludeJumpPointOverlays && effectiveRequest.IncludeSpecialTileOverlays,
                     IncludeEditorObjectStateTint = effectiveRequest.IncludeEditorObjectStateTint,
                     IncludeFloorLightTint = effectiveRequest.IncludeFloorLightTint,
                     AmbientLighting = effectiveRequest.AmbientLighting ?? ResolveCurrentAmbientLighting(),
@@ -3727,8 +3763,11 @@ public sealed class EditorWorkspaceSession
                             ArtResolver = effectiveArtResolver,
                             SpriteSource = effectiveSpriteSource,
                             PreloadSceneSprites = effectiveRequest.PreloadSceneSprites,
+                            IncludeSpriteCoverage = effectiveRequest.IncludeSpriteCoverage,
+                            IncludeVirtualTerrainSpriteCoverage = effectiveRequest.IncludeVirtualTerrainSpriteCoverage,
                             FocusedTerrainSectorRadius = effectiveRequest.FocusedTerrainSectorRadius,
                             FocusedObjectSectorRadius = effectiveRequest.FocusedObjectSectorRadius,
+                            IncludeSpecialTileOverlays = effectiveRequest.IncludeSpecialTileOverlays,
                         },
                         cancellationToken,
                         progressReporter.Report
@@ -3749,7 +3788,7 @@ public sealed class EditorWorkspaceSession
                     && objectPlacementTool.CanPreviewOrApply;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId);
+                var objectSelection = GetTrackedObjectSelectionSummary(mapViewStateId, scene.SceneRender);
                 var objectInspectorState = GetTrackedObjectInspectorState(mapViewStateId);
                 var objectInspector = CreateTrackedObjectInspectorSummary(objectSelection, objectInspectorState);
 
@@ -4485,6 +4524,7 @@ public sealed class EditorWorkspaceSession
         var pendingProtos = CollectProtoChanges(selectedScopeKeys);
         var pendingMobs = CollectMobChanges(selectedScopeKeys);
         var pendingSectors = CollectSectorChanges(selectedScopeKeys);
+        var pendingJumpFiles = CollectJumpChanges(selectedScopeKeys);
         var saveBackedMobs = CollectSaveBackedMobChanges(pendingMobs);
         var saveBackedSectors = CollectSaveBackedSectorChanges(pendingSectors);
         var contentMobs = ExcludeSaveBackedMobChanges(pendingMobs, saveBackedMobs);
@@ -4501,6 +4541,7 @@ public sealed class EditorWorkspaceSession
             && pendingProtos.Count == 0
             && contentMobs.Count == 0
             && contentSectors.Count == 0
+            && pendingJumpFiles.Count == 0
             && !persistSave
         )
         {
@@ -4513,6 +4554,7 @@ public sealed class EditorWorkspaceSession
         PersistProtoChanges(pendingProtos);
         PersistMobChanges(contentMobs);
         PersistSectorChanges(contentSectors);
+        PersistJumpChanges(pendingJumpFiles);
 
         if (persistSave)
             PersistSaveChanges(saveSnapshotToPersist!);
@@ -4537,6 +4579,7 @@ public sealed class EditorWorkspaceSession
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
+        _pendingJumpAssets.Clear();
         ClearDirectAssetDraftHistory();
         _saveEditor?.DiscardPendingChanges();
         return this;
@@ -5479,6 +5522,126 @@ public sealed class EditorWorkspaceSession
     }
 
     /// <summary>
+    /// Stages one tile-script replacement for each unique grouped scene hit.
+    /// Existing tile scripts on the same sector-local tile are replaced.
+    /// </summary>
+    public IReadOnlyList<EditorSessionChange> SetSectorTileScripts(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        int scriptId,
+        uint nodeFlags = 0,
+        uint scriptFlags = 0,
+        uint scriptCounters = 0
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ValidateScriptId(scriptId);
+
+        var changes = new List<EditorSessionChange>();
+        foreach (var sectorHitGroup in sectorHitGroups)
+        {
+            ArgumentNullException.ThrowIfNull(sectorHitGroup);
+            if (sectorHitGroup.Hits.Count == 0)
+                continue;
+
+            var normalizedPath = NormalizeAssetPath(sectorHitGroup.SectorAssetPath);
+            var localTiles = CollectUniqueLocalTiles(sectorHitGroup);
+            if (localTiles.Count == 0)
+                continue;
+
+            var change = StageSectorChange(
+                normalizedPath,
+                sector => SetSectorTileScriptsCore(sector, localTiles, scriptId, nodeFlags, scriptFlags, scriptCounters)
+            );
+            if (change is not null)
+                changes.Add(change);
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    /// Stages removal of every tile script on each unique grouped scene-hit tile.
+    /// </summary>
+    public IReadOnlyList<EditorSessionChange> ClearSectorTileScripts(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+
+        var changes = new List<EditorSessionChange>();
+        foreach (var sectorHitGroup in sectorHitGroups)
+        {
+            ArgumentNullException.ThrowIfNull(sectorHitGroup);
+            if (sectorHitGroup.Hits.Count == 0)
+                continue;
+
+            var normalizedPath = NormalizeAssetPath(sectorHitGroup.SectorAssetPath);
+            var localTiles = CollectUniqueLocalTiles(sectorHitGroup);
+            if (localTiles.Count == 0)
+                continue;
+
+            var change = StageSectorChange(normalizedPath, sector => ClearSectorTileScriptsCore(sector, localTiles));
+            if (change is not null)
+                changes.Add(change);
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    /// Stages one map jump-point replacement for each unique grouped scene hit.
+    /// Existing jump points with the same source tile are replaced.
+    /// </summary>
+    public IReadOnlyList<EditorSessionChange> SetMapJumpPoints(
+        string mapName,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups,
+        int destinationMapId,
+        int destinationTileX,
+        int destinationTileY,
+        uint flags = 0
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ValidateMapName(mapName);
+        ValidateJumpMapId(destinationMapId);
+        ValidateJumpTileCoordinate(nameof(destinationTileX), destinationTileX);
+        ValidateJumpTileCoordinate(nameof(destinationTileY), destinationTileY);
+
+        var mapTiles = CollectUniqueMapTiles(sectorHitGroups);
+        if (mapTiles.Count == 0)
+            return [];
+
+        var normalizedPath = ResolveMapJumpAssetPath(mapName);
+        var change = StageJumpChange(
+            normalizedPath,
+            jumpFile =>
+                SetMapJumpPointsCore(jumpFile, mapTiles, destinationMapId, destinationTileX, destinationTileY, flags)
+        );
+
+        return change is null ? [] : [change];
+    }
+
+    /// <summary>
+    /// Stages removal of every map jump point on each unique grouped scene-hit source tile.
+    /// </summary>
+    public IReadOnlyList<EditorSessionChange> ClearMapJumpPoints(
+        string mapName,
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sectorHitGroups);
+        ValidateMapName(mapName);
+
+        var mapTiles = CollectUniqueMapTiles(sectorHitGroups);
+        if (mapTiles.Count == 0)
+            return [];
+
+        var normalizedPath = ResolveMapJumpAssetPath(mapName);
+        var change = StageJumpChange(normalizedPath, jumpFile => ClearMapJumpPointsCore(jumpFile, mapTiles));
+        return change is null ? [] : [change];
+    }
+
+    /// <summary>
     /// Instantiates one placed object from a loaded proto definition and stages it on a sector asset.
     /// Returns the created object so hosts can capture the generated object ID for later move/remove operations.
     /// </summary>
@@ -6118,6 +6281,7 @@ public sealed class EditorWorkspaceSession
             IncludeTrackedPlacementPreview = normalizedShellState.IncludeTrackedPlacementPreview,
             IncludeEditorObjectStateTint = normalizedShellState.IncludeEditorObjectStateTint,
             IncludeFloorLightTint = normalizedShellState.IncludeFloorLightTint,
+            IncludeSpecialTileOverlays = normalizedShellState.IncludeSpecialTileOverlays,
         };
     }
 
@@ -6137,6 +6301,7 @@ public sealed class EditorWorkspaceSession
             IncludeTrackedPlacementPreview = request.IncludeTrackedPlacementPreview,
             IncludeEditorObjectStateTint = request.IncludeEditorObjectStateTint,
             IncludeFloorLightTint = request.IncludeFloorLightTint,
+            IncludeSpecialTileOverlays = request.IncludeSpecialTileOverlays,
         };
     }
 
@@ -8653,6 +8818,7 @@ public sealed class EditorWorkspaceSession
         var pendingProtos = CollectProtoChanges(selectedScopeKeys);
         var pendingMobs = CollectMobChanges(selectedScopeKeys);
         var pendingSectors = CollectSectorChanges(selectedScopeKeys);
+        var pendingJumpFiles = CollectJumpChanges(selectedScopeKeys);
         var saveBackedMobs = CollectSaveBackedMobChanges(pendingMobs);
         var saveBackedSectors = CollectSaveBackedSectorChanges(pendingSectors);
         var pendingSave = CreatePendingSaveSnapshot(selectedScopeKeys, saveBackedMobs, saveBackedSectors);
@@ -8664,6 +8830,7 @@ public sealed class EditorWorkspaceSession
             && pendingProtos.Count == 0
             && pendingMobs.Count == 0
             && pendingSectors.Count == 0
+            && pendingJumpFiles.Count == 0
                 ? Workspace.GameData
                 : GameDataStoreSnapshotBuilder.CloneWithAssetReplacements(
                     Workspace.GameData,
@@ -8672,7 +8839,8 @@ public sealed class EditorWorkspaceSession
                     updatedDialogs: pendingDialogs,
                     updatedSectors: pendingSectors,
                     updatedProtos: pendingProtos,
-                    updatedMobs: pendingMobs
+                    updatedMobs: pendingMobs,
+                    updatedJumpFiles: pendingJumpFiles
                 );
         updatedGameData = EditorWorkspaceSaveComposition.OverlayWorldAssets(
             updatedGameData,
@@ -9011,6 +9179,11 @@ public sealed class EditorWorkspaceSession
                 )
             )
                 changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Sector, Target = assetPath });
+
+            foreach (
+                var assetPath in _pendingJumpAssets.Keys.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            )
+                changes.Add(new EditorSessionChange { Kind = EditorSessionChangeKind.Jump, Target = assetPath });
         }
 
         if (
@@ -9664,6 +9837,9 @@ public sealed class EditorWorkspaceSession
                 CenterTileX = camera.CenterTileX,
                 CenterTileY = camera.CenterTileY,
                 Zoom = camera.Zoom,
+                RollDegrees = camera.RollDegrees,
+                PitchDegrees = camera.PitchDegrees,
+                YawDegrees = camera.YawDegrees,
             },
             Selection = new EditorProjectMapSelectionState
             {
@@ -9754,6 +9930,7 @@ public sealed class EditorWorkspaceSession
             IncludeTrackedPlacementPreview = shellState?.IncludeTrackedPlacementPreview ?? true,
             IncludeEditorObjectStateTint = shellState?.IncludeEditorObjectStateTint ?? false,
             IncludeFloorLightTint = shellState?.IncludeFloorLightTint ?? false,
+            IncludeSpecialTileOverlays = shellState?.IncludeSpecialTileOverlays ?? true,
         };
 
     private static EditorProjectMapTerrainToolState NormalizeProjectMapTerrainToolState(
@@ -9949,6 +10126,7 @@ public sealed class EditorWorkspaceSession
                             or EditorSessionChangeKind.Proto
                             or EditorSessionChangeKind.Mob
                             or EditorSessionChangeKind.Sector
+                            or EditorSessionChangeKind.Jump
                 )
                 .ToArray(),
             _ => throw new InvalidOperationException($"Unsupported staged transaction scope {scope.Kind}."),
@@ -10244,7 +10422,8 @@ public sealed class EditorWorkspaceSession
             new Dictionary<string, MesFile>(_pendingMessageAssets, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, ProtoData>(_pendingProtoAssets, StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, MobData>(_pendingMobAssets, StringComparer.OrdinalIgnoreCase),
-            new Dictionary<string, Sector>(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase)
+            new Dictionary<string, Sector>(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, JmpFile>(_pendingJumpAssets, StringComparer.OrdinalIgnoreCase)
         );
 
     private EditorWorkspaceSessionSnapshot CaptureHistorySnapshot() => new(Workspace, CreateProject());
@@ -10408,6 +10587,7 @@ public sealed class EditorWorkspaceSession
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
+        _pendingJumpAssets.Clear();
         ClearDirectAssetDraftHistory();
         _ = RestoreProject(snapshot.Project);
         RestoreDialogEditorBaselines();
@@ -10421,6 +10601,7 @@ public sealed class EditorWorkspaceSession
         RestorePendingAssetDictionary(_pendingProtoAssets, snapshot.Protos);
         RestorePendingAssetDictionary(_pendingMobAssets, snapshot.Mobs);
         RestorePendingAssetDictionary(_pendingSectorAssets, snapshot.Sectors);
+        RestorePendingAssetDictionary(_pendingJumpAssets, snapshot.JumpFiles);
     }
 
     private static void RestorePendingAssetDictionary<T>(
@@ -10803,11 +10984,10 @@ public sealed class EditorWorkspaceSession
         ArgumentNullException.ThrowIfNull(selection);
 
         var selectedObjectIds = selection.GetSelectedObjectIds();
-        if (selectedObjectIds.Count == 0)
-            return ([], []);
-
-        var selectedObjectIdSet = selectedObjectIds.ToHashSet();
-        var selectedRenderItems = ResolveSelectedObjectRenderItems(sceneRender, selection, selectedObjectIdSet);
+        var selectedRenderItems =
+            selectedObjectIds.Count == 0
+                ? ResolveImplicitSelectedObjectRenderItems(sceneRender, selection)
+                : ResolveSelectedObjectRenderItems(sceneRender, selection, selectedObjectIds.ToHashSet());
         if (selectedRenderItems.Count > 0)
         {
             return (
@@ -10816,7 +10996,7 @@ public sealed class EditorWorkspaceSession
             );
         }
 
-        if (!CanFallbackTrackedObjectSelectionSummary(selection))
+        if (selectedObjectIds.Count == 0 || !CanFallbackTrackedObjectSelectionSummary(selection))
             return ([], []);
 
         var sector = workspace.FindSector(selection.SectorAssetPath!);
@@ -10865,23 +11045,16 @@ public sealed class EditorWorkspaceSession
         if (selection.Area is { } areaSelection)
         {
             var resolvedObjects = new List<EditorMapObjectRenderItem>(selectedObjectIdSet.Count);
-            var seenObjectIds = new HashSet<GameObjectGuid>();
             for (var index = 0; index < sceneRender.Objects.Count; index++)
             {
                 var candidate = sceneRender.Objects[index];
                 if (
-                    candidate.MapTileX < areaSelection.MinMapTileX
-                    || candidate.MapTileX > areaSelection.MaxMapTileX
-                    || candidate.MapTileY < areaSelection.MinMapTileY
-                    || candidate.MapTileY > areaSelection.MaxMapTileY
-                    || !selectedObjectIdSet.Contains(candidate.ObjectId)
-                    || !seenObjectIds.Add(candidate.ObjectId)
+                    IsRenderItemInsideAreaSelection(candidate, areaSelection)
+                    && selectedObjectIdSet.Contains(candidate.ObjectId)
                 )
                 {
-                    continue;
+                    resolvedObjects.Add(candidate);
                 }
-
-                resolvedObjects.Add(candidate);
             }
 
             return resolvedObjects;
@@ -10915,6 +11088,39 @@ public sealed class EditorWorkspaceSession
 
         return directObjects;
     }
+
+    private static IReadOnlyList<EditorMapObjectRenderItem> ResolveImplicitSelectedObjectRenderItems(
+        EditorMapFloorRenderPreview sceneRender,
+        EditorProjectMapSelectionState selection
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sceneRender);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.Area is { } areaSelection)
+        {
+            var areaObjects = new List<EditorMapObjectRenderItem>();
+            for (var index = 0; index < sceneRender.Objects.Count; index++)
+            {
+                var candidate = sceneRender.Objects[index];
+                if (IsRenderItemInsideAreaSelection(candidate, areaSelection))
+                    areaObjects.Add(candidate);
+            }
+
+            return areaObjects;
+        }
+
+        return selection.Tile is { } tile ? sceneRender.GetObjectsAtTile(selection.SectorAssetPath, tile) : [];
+    }
+
+    private static bool IsRenderItemInsideAreaSelection(
+        EditorMapObjectRenderItem candidate,
+        EditorProjectMapAreaSelectionState areaSelection
+    ) =>
+        candidate.MapTileX >= areaSelection.MinMapTileX
+        && candidate.MapTileX <= areaSelection.MaxMapTileX
+        && candidate.MapTileY >= areaSelection.MinMapTileY
+        && candidate.MapTileY <= areaSelection.MaxMapTileY;
 
     private static string? ResolveSelectionSourceAssetPath(EditorProjectMapSelectionState selection)
     {
@@ -12908,6 +13114,13 @@ public sealed class EditorWorkspaceSession
             ? new(_pendingSectorAssets, StringComparer.OrdinalIgnoreCase)
             : new(StringComparer.OrdinalIgnoreCase);
 
+    private Dictionary<string, JmpFile> CollectJumpChanges(
+        IReadOnlySet<EditorSessionStagedHistoryScopeKey>? selectedScopeKeys = null
+    ) =>
+        IncludesScope(selectedScopeKeys, EditorSessionStagedHistoryScopeKind.DirectAssets, null)
+            ? new(_pendingJumpAssets, StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
+
     private EditorSessionChange? StageProtoChange(string normalizedPath, Func<ProtoData, ProtoData?> update) =>
         TrackDirectAssetEdit(
             () =>
@@ -12949,6 +13162,21 @@ public sealed class EditorWorkspaceSession
 
                 _pendingSectorAssets[normalizedPath] = updatedSector;
                 return CreateDirectAssetChange(normalizedPath, FileFormat.Sector);
+            },
+            static change => change is not null
+        );
+
+    private EditorSessionChange? StageJumpChange(string normalizedPath, Func<JmpFile, JmpFile?> update) =>
+        TrackDirectAssetEdit(
+            () =>
+            {
+                var currentJumpFile = GetCurrentJumpAsset(normalizedPath);
+                var updatedJumpFile = update(currentJumpFile);
+                if (updatedJumpFile is null)
+                    return null;
+
+                _pendingJumpAssets[normalizedPath] = updatedJumpFile;
+                return CreateDirectAssetChange(normalizedPath, FileFormat.Jmp);
             },
             static change => change is not null
         );
@@ -13010,6 +13238,16 @@ public sealed class EditorWorkspaceSession
             var outputPath = ResolveWorkspaceContentPath(assetPath);
             EnsureParentDirectory(outputPath);
             SectorFormat.WriteToFile(in sector, outputPath);
+        }
+    }
+
+    private void PersistJumpChanges(IReadOnlyDictionary<string, JmpFile> jumpFiles)
+    {
+        foreach (var (assetPath, jumpFile) in jumpFiles)
+        {
+            var outputPath = ResolveWorkspaceContentPath(assetPath);
+            EnsureParentDirectory(outputPath);
+            JmpFormat.WriteToFile(in jumpFile, outputPath);
         }
     }
 
@@ -13075,6 +13313,7 @@ public sealed class EditorWorkspaceSession
         _pendingProtoAssets.Clear();
         _pendingMobAssets.Clear();
         _pendingSectorAssets.Clear();
+        _pendingJumpAssets.Clear();
         ClearDirectAssetDraftHistory();
     }
 
@@ -13843,6 +14082,183 @@ public sealed class EditorWorkspaceSession
         }
     }
 
+    private static IReadOnlyList<int> CollectUniqueLocalTiles(EditorMapSceneSectorHitGroup sectorHitGroup)
+    {
+        var tileIndices = new HashSet<int>();
+        foreach (var hit in sectorHitGroup.Hits)
+        {
+            ArgumentNullException.ThrowIfNull(hit);
+            ValidateTileCoordinate(nameof(hit.Tile.X), hit.Tile.X);
+            ValidateTileCoordinate(nameof(hit.Tile.Y), hit.Tile.Y);
+            tileIndices.Add((hit.Tile.Y * SectorTileAxisLength) + hit.Tile.X);
+        }
+
+        return [.. tileIndices.Order()];
+    }
+
+    private static IReadOnlyList<long> CollectUniqueMapTiles(
+        IReadOnlyList<EditorMapSceneSectorHitGroup> sectorHitGroups
+    )
+    {
+        var tileLocations = new HashSet<long>();
+        foreach (var sectorHitGroup in sectorHitGroups)
+        {
+            ArgumentNullException.ThrowIfNull(sectorHitGroup);
+            foreach (var hit in sectorHitGroup.Hits)
+            {
+                ArgumentNullException.ThrowIfNull(hit);
+                ValidateJumpTileCoordinate(nameof(hit.MapTileX), hit.MapTileX);
+                ValidateJumpTileCoordinate(nameof(hit.MapTileY), hit.MapTileY);
+                tileLocations.Add(PackJumpTileLocation(hit.MapTileX, hit.MapTileY));
+            }
+        }
+
+        return [.. tileLocations.Order()];
+    }
+
+    private static Sector? SetSectorTileScriptsCore(
+        Sector sector,
+        IReadOnlyList<int> tileIndices,
+        int scriptId,
+        uint nodeFlags,
+        uint scriptFlags,
+        uint scriptCounters
+    )
+    {
+        var updatedScripts = sector.TileScripts.ToList();
+        var changed = false;
+
+        foreach (var tileIndex in tileIndices)
+        {
+            var replacement = CreateTileScript(tileIndex, scriptId, nodeFlags, scriptFlags, scriptCounters);
+            var existingCount = 0;
+            var alreadyEqual = false;
+            foreach (var tileScript in updatedScripts)
+            {
+                if (tileScript.TileId != replacement.TileId)
+                    continue;
+
+                existingCount++;
+                alreadyEqual = tileScript == replacement;
+            }
+
+            if (existingCount == 1 && alreadyEqual)
+                continue;
+
+            updatedScripts.RemoveAll(tileScript => tileScript.TileId == replacement.TileId);
+            updatedScripts.Add(replacement);
+            changed = true;
+        }
+
+        return changed ? RebuildSectorTileScripts(sector, updatedScripts) : null;
+    }
+
+    private static Sector? ClearSectorTileScriptsCore(Sector sector, IReadOnlyList<int> tileIndices)
+    {
+        var tileIndexSet = tileIndices.Select(static tileIndex => (uint)tileIndex).ToHashSet();
+        if (!sector.TileScripts.Any(tileScript => tileIndexSet.Contains(tileScript.TileId)))
+            return null;
+
+        var updatedScripts = sector.TileScripts.Where(tileScript => !tileIndexSet.Contains(tileScript.TileId)).ToList();
+        return RebuildSectorTileScripts(sector, updatedScripts);
+    }
+
+    private static Sector RebuildSectorTileScripts(Sector sector, IReadOnlyList<TileScript> updatedScripts)
+    {
+        var builder = new SectorBuilder(sector);
+        for (var index = sector.TileScripts.Count - 1; index >= 0; index--)
+            builder.RemoveTileScript(index);
+
+        foreach (var tileScript in updatedScripts)
+            builder.AddTileScript(tileScript);
+
+        return builder.Build();
+    }
+
+    private static JmpFile? SetMapJumpPointsCore(
+        JmpFile jumpFile,
+        IReadOnlyList<long> sourceLocations,
+        int destinationMapId,
+        int destinationTileX,
+        int destinationTileY,
+        uint flags
+    )
+    {
+        var updatedJumps = jumpFile.Jumps.ToList();
+        var destinationLoc = PackJumpTileLocation(destinationTileX, destinationTileY);
+        var changed = false;
+
+        foreach (var sourceLoc in sourceLocations)
+        {
+            var replacement = new JumpEntry
+            {
+                Flags = flags,
+                SourceLoc = sourceLoc,
+                DestinationMapId = destinationMapId,
+                DestinationLoc = destinationLoc,
+            };
+            var existing = updatedJumps.Where(jump => jump.SourceLoc == sourceLoc).ToArray();
+            if (existing.Length == 1 && JumpEntriesEqual(existing[0], replacement))
+                continue;
+
+            updatedJumps.RemoveAll(jump => jump.SourceLoc == sourceLoc);
+            updatedJumps.Add(replacement);
+            changed = true;
+        }
+
+        return changed ? new JmpFile { Jumps = [.. updatedJumps] } : null;
+    }
+
+    private static JmpFile? ClearMapJumpPointsCore(JmpFile jumpFile, IReadOnlyList<long> sourceLocations)
+    {
+        var sourceLocationSet = sourceLocations.ToHashSet();
+        if (!jumpFile.Jumps.Any(jump => sourceLocationSet.Contains(jump.SourceLoc)))
+            return null;
+
+        return new JmpFile { Jumps = [.. jumpFile.Jumps.Where(jump => !sourceLocationSet.Contains(jump.SourceLoc))] };
+    }
+
+    private string ResolveMapJumpAssetPath(string mapName)
+    {
+        ValidateMapName(mapName);
+
+        var defaultPath = NormalizeAssetPath($"maps/{mapName.Trim()}/map.jmp");
+        if (_pendingJumpAssets.ContainsKey(defaultPath) || Workspace.FindJumpFile(defaultPath) is not null)
+            return defaultPath;
+
+        foreach (var asset in Workspace.Index.FindMapAssets(mapName.Trim()))
+        {
+            if (asset.Format == FileFormat.Jmp)
+                return NormalizeAssetPath(asset.AssetPath);
+        }
+
+        return defaultPath;
+    }
+
+    private static TileScript CreateTileScript(
+        int tileIndex,
+        int scriptId,
+        uint nodeFlags,
+        uint scriptFlags,
+        uint scriptCounters
+    ) =>
+        new()
+        {
+            NodeFlags = nodeFlags,
+            TileId = (uint)tileIndex,
+            ScriptFlags = scriptFlags,
+            ScriptCounters = scriptCounters,
+            ScriptNum = scriptId,
+        };
+
+    private static bool JumpEntriesEqual(JumpEntry left, JumpEntry right) =>
+        left.Flags == right.Flags
+        && left.SourceLoc == right.SourceLoc
+        && left.DestinationMapId == right.DestinationMapId
+        && left.DestinationLoc == right.DestinationLoc;
+
+    private static long PackJumpTileLocation(int tileX, int tileY) => (long)(uint)tileX | ((long)(uint)tileY << 32);
+
     private static void ValidateSectorLight(SectorLight light)
     {
         ValidateTileCoordinate("lightTileX", light.TileX);
@@ -13860,6 +14276,26 @@ public sealed class EditorWorkspaceSession
                 $"Tile script tile indices must be between 0 and {maxTileScriptTileId - 1}."
             );
         }
+    }
+
+    private static void ValidateScriptId(int scriptId)
+    {
+        if (scriptId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(scriptId), scriptId, "Script identifiers must be positive.");
+    }
+
+    private static void ValidateMapName(string mapName) => ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+
+    private static void ValidateJumpMapId(int mapId)
+    {
+        if (mapId < 0)
+            throw new ArgumentOutOfRangeException(nameof(mapId), mapId, "Map identifiers cannot be negative.");
+    }
+
+    private static void ValidateJumpTileCoordinate(string paramName, int value)
+    {
+        if (value < 0)
+            throw new ArgumentOutOfRangeException(paramName, value, "Jump tile coordinates cannot be negative.");
     }
 
     private static void ValidateSectorItemIndex(
@@ -15078,6 +15514,15 @@ public sealed class EditorWorkspaceSession
             ?? throw new InvalidOperationException($"No loaded sector asset matched '{normalizedPath}'.");
     }
 
+    private JmpFile GetCurrentJumpAsset(string assetPath)
+    {
+        var normalizedPath = NormalizeAssetPath(assetPath);
+        if (_pendingJumpAssets.TryGetValue(normalizedPath, out var pendingJumpFile))
+            return pendingJumpFile;
+
+        return Workspace.FindJumpFile(normalizedPath) ?? new JmpFile { Jumps = [] };
+    }
+
     private static MobData? FindWorkspaceMobByObjectId(EditorWorkspace workspace, GameObjectGuid objectId)
     {
         ArgumentNullException.ThrowIfNull(workspace);
@@ -15135,6 +15580,7 @@ public sealed class EditorWorkspaceSession
                 FileFormat.Proto => EditorSessionChangeKind.Proto,
                 FileFormat.Mob => EditorSessionChangeKind.Mob,
                 FileFormat.Sector => EditorSessionChangeKind.Sector,
+                FileFormat.Jmp => EditorSessionChangeKind.Jump,
                 _ => throw new InvalidOperationException(
                     $"Direct asset changes do not support assets of format {format}."
                 ),
@@ -15148,7 +15594,8 @@ public sealed class EditorWorkspaceSession
         IReadOnlyDictionary<string, MesFile> Messages,
         IReadOnlyDictionary<string, ProtoData> Protos,
         IReadOnlyDictionary<string, MobData> Mobs,
-        IReadOnlyDictionary<string, Sector> Sectors
+        IReadOnlyDictionary<string, Sector> Sectors,
+        IReadOnlyDictionary<string, JmpFile> JumpFiles
     );
 
     private readonly record struct EditorWorkspaceSessionHistoryFrame(

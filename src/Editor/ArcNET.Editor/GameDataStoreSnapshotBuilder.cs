@@ -12,7 +12,8 @@ internal static class GameDataStoreSnapshotBuilder
         IReadOnlyDictionary<string, DlgFile>? updatedDialogs = null,
         IReadOnlyDictionary<string, Sector>? updatedSectors = null,
         IReadOnlyDictionary<string, ProtoData>? updatedProtos = null,
-        IReadOnlyDictionary<string, MobData>? updatedMobs = null
+        IReadOnlyDictionary<string, MobData>? updatedMobs = null,
+        IReadOnlyDictionary<string, JmpFile>? updatedJumpFiles = null
     )
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -46,6 +47,12 @@ internal static class GameDataStoreSnapshotBuilder
             snapshot,
             null,
             static (store, asset, assetPath) => store.AddArt(asset, assetPath)
+        );
+        CopyTrackedAssets(
+            source.JumpFilesBySource,
+            snapshot,
+            updatedJumpFiles,
+            static (store, asset, assetPath) => store.AddJumpFile(asset, assetPath)
         );
         CopyTrackedScripts(source.ScriptsBySource, snapshot, updatedScripts);
         CopyTrackedDialogs(source.DialogsBySource, snapshot, updatedDialogs);

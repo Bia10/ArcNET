@@ -145,7 +145,8 @@ public static class WorkspaceWorldAreaCatalogBuilder
         List<MapListEntry> entries = [];
         foreach (var entry in file.Entries)
         {
-            if (!TryParseMapListEntry(entry, out var parsed))
+            var mapId = entries.Count + 1;
+            if (!TryParseMapListEntry(entry, mapId, out var parsed))
                 continue;
 
             entries.Add(parsed);
@@ -222,7 +223,7 @@ public static class WorkspaceWorldAreaCatalogBuilder
         return parsed.DisplayName.Length > 0;
     }
 
-    private static bool TryParseMapListEntry(MessageEntry entry, out MapListEntry parsed)
+    private static bool TryParseMapListEntry(MessageEntry entry, int mapId, out MapListEntry parsed)
     {
         parsed = null!;
 
@@ -279,6 +280,7 @@ public static class WorkspaceWorldAreaCatalogBuilder
             type,
             new WorkspaceWorldAreaMapEntry
             {
+                MapId = mapId,
                 MapName = mapName,
                 EntryTileX = entryTileX,
                 EntryTileY = entryTileY,
