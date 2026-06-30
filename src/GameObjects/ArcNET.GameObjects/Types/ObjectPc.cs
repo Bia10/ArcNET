@@ -3,6 +3,8 @@ using ArcNET.Core.Primitives;
 
 namespace ArcNET.GameObjects.Types;
 
+public readonly record struct PcQuestState(long DateTime, int State, int Padding = 0);
+
 public sealed class ObjectPc : ObjectCritter
 {
     private int _pcPadIas2Reserved;
@@ -14,16 +16,17 @@ public sealed class ObjectPc : ObjectCritter
     public int PcFlags { get; internal set; }
     public int FateFlags { get; internal set; }
     public int[] Reputation { get; internal set; } = [];
-    public int[] ReputationTs { get; internal set; } = [];
+    public long[] ReputationTs { get; internal set; } = [];
     public int Background { get; internal set; }
     public int BackgroundText { get; internal set; }
     public int[] Quest { get; internal set; } = [];
+    public PcQuestState[] QuestEntries { get; internal set; } = [];
     public int[] Blessing { get; internal set; } = [];
-    public int[] BlessingTs { get; internal set; } = [];
+    public long[] BlessingTs { get; internal set; } = [];
     public int[] Curse { get; internal set; } = [];
-    public int[] CurseTs { get; internal set; } = [];
+    public long[] CurseTs { get; internal set; } = [];
     public int PartyId { get; internal set; }
-    public int[] Rumor { get; internal set; } = [];
+    public long[] Rumor { get; internal set; } = [];
     public int[] SchematicsFound { get; internal set; } = [];
     public int[] LogbookEgo { get; internal set; } = [];
     public int FogMask { get; internal set; }

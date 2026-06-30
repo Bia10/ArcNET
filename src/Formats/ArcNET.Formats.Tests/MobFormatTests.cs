@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using ArcNET.Core;
 using ArcNET.Core.Primitives;
 using ArcNET.Formats;
@@ -403,8 +404,23 @@ public sealed class MobFormatTests
         await Assert.That(parsed.GetProperty(ObjectField.PadI64As1)).IsNotNull();
         await Assert.That(parsed.GetProperty(ObjectField.PadI64As1)!.GetInt64()).IsEqualTo(padI64);
         await Assert.That(bridged.GetProperty(ObjectField.PcQuestIdx)).IsNotNull();
+        var bridgedQuestRaw = bridged.GetProperty(ObjectField.PcQuestIdx)!.RawBytes;
+        await Assert.That(bridgedQuestRaw[0]).IsEqualTo((byte)1);
+        await Assert.That(BinaryPrimitives.ReadInt32LittleEndian(bridgedQuestRaw.AsSpan(1))).IsEqualTo(16);
         await Assert
-            .That(bridged.GetProperty(ObjectField.PcQuestIdx)!.GetInt32Array().SequenceEqual(questValues))
+            .That(BinaryPrimitives.ReadInt32LittleEndian(bridgedQuestRaw.AsSpan(5)))
+            .IsEqualTo(questValues.Length);
+        await Assert
+            .That(
+                questValues
+                    .Select(
+                        (state, index) =>
+                            BinaryPrimitives.ReadInt32LittleEndian(bridgedQuestRaw.AsSpan(21 + (index * 16))) == state
+                            && BinaryPrimitives.ReadInt64LittleEndian(bridgedQuestRaw.AsSpan(13 + (index * 16))) == 0
+                            && BinaryPrimitives.ReadInt32LittleEndian(bridgedQuestRaw.AsSpan(25 + (index * 16))) == 0
+                    )
+                    .All(static matches => matches)
+            )
             .IsTrue();
         await Assert.That(bridged.GetProperty(ObjectField.PcPlayerName)).IsNotNull();
         await Assert.That(bridged.GetProperty(ObjectField.PcPlayerName)!.GetString()).IsEqualTo(playerName);

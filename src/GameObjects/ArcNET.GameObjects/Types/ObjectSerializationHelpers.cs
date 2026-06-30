@@ -23,11 +23,71 @@ internal static class ObjectSerializationHelpers
         return result;
     }
 
+    public static long[] ReadIndexedLongs(ref SpanReader reader)
+    {
+        var (isPresent, count) = ReadSarHeader(ref reader, expectedElementSize: 8);
+        if (!isPresent)
+            return [];
+
+        var result = new long[count];
+        for (var index = 0; index < count; index++)
+            result[index] = reader.ReadInt64();
+
+        SkipSarFooter(ref reader);
+        return result;
+    }
+
+    public static PcQuestState[] ReadIndexedPcQuestStates(ref SpanReader reader)
+    {
+        var (isPresent, elementSize, count) = ReadSarHeader(ref reader);
+        if (!isPresent)
+            return [];
+
+        var result = new PcQuestState[count];
+        switch (elementSize)
+        {
+            case 4:
+                for (var index = 0; index < count; index++)
+                    result[index] = new PcQuestState(0, reader.ReadInt32());
+                break;
+            case 16:
+                for (var index = 0; index < count; index++)
+                    result[index] = new PcQuestState(reader.ReadInt64(), reader.ReadInt32(), reader.ReadInt32());
+                break;
+            default:
+                throw new InvalidDataException($"Expected PC quest SAR element size 4 or 16, but found {elementSize}.");
+        }
+
+        SkipSarFooter(ref reader);
+        return result;
+    }
+
     public static void WriteIndexedInts(ref SpanWriter writer, int[] values)
     {
         WriteSarHeader(ref writer, elementSize: 4, elementCount: values.Length);
         foreach (var value in values)
             writer.WriteInt32(value);
+        WriteSarFooter(ref writer, values.Length);
+    }
+
+    public static void WriteIndexedLongs(ref SpanWriter writer, long[] values)
+    {
+        WriteSarHeader(ref writer, elementSize: 8, elementCount: values.Length);
+        foreach (var value in values)
+            writer.WriteInt64(value);
+        WriteSarFooter(ref writer, values.Length);
+    }
+
+    public static void WriteIndexedPcQuestStates(ref SpanWriter writer, PcQuestState[] values)
+    {
+        WriteSarHeader(ref writer, elementSize: 16, elementCount: values.Length);
+        foreach (var value in values)
+        {
+            writer.WriteInt64(value.DateTime);
+            writer.WriteInt32(value.State);
+            writer.WriteInt32(value.Padding);
+        }
+
         WriteSarFooter(ref writer, values.Length);
     }
 
@@ -137,25 +197,31 @@ internal static class ObjectSerializationHelpers
 
     private static (bool IsPresent, int ElementCount) ReadSarHeader(ref SpanReader reader, int expectedElementSize)
     {
-        var presence = reader.ReadByte();
-        if (presence == 0)
-            return (false, 0);
-
-        var elementSize = reader.ReadInt32();
-        var elementCount = reader.ReadInt32();
-        _ = reader.ReadInt32();
-
-        if (elementSize != expectedElementSize)
+        var (isPresent, elementSize, elementCount) = ReadSarHeader(ref reader);
+        if (isPresent && elementSize != expectedElementSize)
         {
             throw new InvalidDataException(
                 $"Expected SAR element size {expectedElementSize}, but found {elementSize}."
             );
         }
 
+        return (isPresent, elementCount);
+    }
+
+    private static (bool IsPresent, int ElementSize, int ElementCount) ReadSarHeader(ref SpanReader reader)
+    {
+        var presence = reader.ReadByte();
+        if (presence == 0)
+            return (false, 0, 0);
+
+        var elementSize = reader.ReadInt32();
+        var elementCount = reader.ReadInt32();
+        _ = reader.ReadInt32();
+
         if (elementCount < 0)
             throw new InvalidDataException($"SAR element count cannot be negative ({elementCount}).");
 
-        return (true, elementCount);
+        return (true, elementSize, elementCount);
     }
 
     private static void SkipSarFooter(ref SpanReader reader)

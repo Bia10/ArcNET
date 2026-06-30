@@ -31,25 +31,28 @@ internal static class ObjectPcCodec
         if (Bit(ObjectField.PcReputationIdx))
             obj.Reputation = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.PcReputationTsIdx))
-            obj.ReputationTs = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.ReputationTs = ObjectCommon.ReadIndexedLongs(ref reader);
         if (Bit(ObjectField.PcBackground))
             obj.Background = reader.ReadInt32();
         if (Bit(ObjectField.PcBackgroundText))
             obj.BackgroundText = reader.ReadInt32();
         if (Bit(ObjectField.PcQuestIdx))
-            obj.Quest = ObjectCommon.ReadIndexedInts(ref reader);
+        {
+            obj.QuestEntries = ObjectCommon.ReadIndexedPcQuestStates(ref reader);
+            obj.Quest = [.. obj.QuestEntries.Select(static entry => entry.State)];
+        }
         if (Bit(ObjectField.PcBlessingIdx))
             obj.Blessing = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.PcBlessingTsIdx))
-            obj.BlessingTs = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.BlessingTs = ObjectCommon.ReadIndexedLongs(ref reader);
         if (Bit(ObjectField.PcCurseIdx))
             obj.Curse = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.PcCurseTsIdx))
-            obj.CurseTs = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.CurseTs = ObjectCommon.ReadIndexedLongs(ref reader);
         if (Bit(ObjectField.PcPartyId))
             obj.PartyId = reader.ReadInt32();
         if (Bit(ObjectField.PcRumorIdx))
-            obj.Rumor = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.Rumor = ObjectCommon.ReadIndexedLongs(ref reader);
         if (Bit(ObjectField.PcPadIas2))
             obj.PcPadIas2Reserved = reader.ReadInt32();
         if (Bit(ObjectField.PcSchematicsFoundIdx))
@@ -87,25 +90,30 @@ internal static class ObjectPcCodec
         if (Bit(ObjectField.PcReputationIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Reputation);
         if (Bit(ObjectField.PcReputationTsIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.ReputationTs);
+            ObjectCommon.WriteIndexedLongs(ref writer, obj.ReputationTs);
         if (Bit(ObjectField.PcBackground))
             writer.WriteInt32(obj.Background);
         if (Bit(ObjectField.PcBackgroundText))
             writer.WriteInt32(obj.BackgroundText);
         if (Bit(ObjectField.PcQuestIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.Quest);
+            ObjectCommon.WriteIndexedPcQuestStates(
+                ref writer,
+                obj.QuestEntries.Length != 0
+                    ? obj.QuestEntries
+                    : [.. obj.Quest.Select(static state => new PcQuestState(0, state))]
+            );
         if (Bit(ObjectField.PcBlessingIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Blessing);
         if (Bit(ObjectField.PcBlessingTsIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.BlessingTs);
+            ObjectCommon.WriteIndexedLongs(ref writer, obj.BlessingTs);
         if (Bit(ObjectField.PcCurseIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Curse);
         if (Bit(ObjectField.PcCurseTsIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.CurseTs);
+            ObjectCommon.WriteIndexedLongs(ref writer, obj.CurseTs);
         if (Bit(ObjectField.PcPartyId))
             writer.WriteInt32(obj.PartyId);
         if (Bit(ObjectField.PcRumorIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.Rumor);
+            ObjectCommon.WriteIndexedLongs(ref writer, obj.Rumor);
         if (Bit(ObjectField.PcPadIas2))
             writer.WriteInt32(obj.PcPadIas2Reserved);
         if (Bit(ObjectField.PcSchematicsFoundIdx))
