@@ -59,7 +59,7 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.NpcSocialClass))
             obj.SocialClass = reader.ReadInt32();
         if (Bit(ObjectField.NpcReactionPcIdx))
-            obj.ReactionPc = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.ReactionPc = ObjectSerializationHelpers.ReadGuidArray(ref reader);
         if (Bit(ObjectField.NpcReactionLevelIdx))
             obj.ReactionLevel = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.NpcReactionTimeIdx))
@@ -73,7 +73,7 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.NpcDamageIdx))
             obj.Damage = ObjectCommon.ReadIndexedInts(ref reader);
         if (Bit(ObjectField.NpcHostileListIdx))
-            obj.HostileList = ObjectCommon.ReadIndexedInts(ref reader);
+            obj.HostileList = ObjectSerializationHelpers.ReadGuidArray(ref reader);
     }
 
     public static void WriteFields(ObjectNpc obj, ref SpanWriter writer, byte[] bitmap, bool isPrototype)
@@ -115,7 +115,7 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.NpcSocialClass))
             writer.WriteInt32(obj.SocialClass);
         if (Bit(ObjectField.NpcReactionPcIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.ReactionPc);
+            ObjectSerializationHelpers.WriteGuidArray(ref writer, obj.ReactionPc);
         if (Bit(ObjectField.NpcReactionLevelIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.ReactionLevel);
         if (Bit(ObjectField.NpcReactionTimeIdx))
@@ -129,6 +129,6 @@ internal static class ObjectNpcCodec
         if (Bit(ObjectField.NpcDamageIdx))
             ObjectCommon.WriteIndexedInts(ref writer, obj.Damage);
         if (Bit(ObjectField.NpcHostileListIdx))
-            ObjectCommon.WriteIndexedInts(ref writer, obj.HostileList);
+            ObjectSerializationHelpers.WriteGuidArray(ref writer, obj.HostileList);
     }
 }

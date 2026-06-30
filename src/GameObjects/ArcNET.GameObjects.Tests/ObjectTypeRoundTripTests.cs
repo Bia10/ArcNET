@@ -584,7 +584,11 @@ public class ObjectTypeRoundTripTests
         original.WaypointCurrent = 0;
         original.StandpointDay = TestLocation;
         original.StandpointNight = new Location(5, 5);
-        original.ReactionPc = [100, 50];
+        original.ReactionPc =
+        [
+            TestGuid,
+            new GameObjectGuid((short)10, (short)11, 12, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13)),
+        ];
         PopulateNpcReserved(original);
 
         var bytes1 = WriteAndCapture(w => original.Write(ref w, bitmap, isPrototype: true));
@@ -652,7 +656,11 @@ public class ObjectTypeRoundTripTests
         original.Leader = TestGuid;
         original.ExperienceWorth = 250;
         original.Waypoints = [TestLocation, new Location(30, 40)];
-        original.ReactionPc = [100, 50];
+        original.ReactionPc =
+        [
+            TestGuid,
+            new GameObjectGuid((short)10, (short)11, 12, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13)),
+        ];
 
         var restoredGameObject = RoundTripGameObject(ObjectType.Npc, original);
 
@@ -667,7 +675,12 @@ public class ObjectTypeRoundTripTests
         await Assert.That(restored.Leader).IsEqualTo(TestGuid);
         await Assert.That(restored.ExperienceWorth).IsEqualTo(250);
         await Assert.That(restored.Waypoints).IsEquivalentTo([TestLocation, new Location(30, 40)]);
-        await Assert.That(restored.ReactionPc).IsEquivalentTo([100, 50]);
+        await Assert
+            .That(restored.ReactionPc)
+            .IsEquivalentTo([
+                TestGuid,
+                new GameObjectGuid((short)10, (short)11, 12, new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13)),
+            ]);
     }
 
     // ── ObjectPc ─────────────────────────────────────────────────────────────

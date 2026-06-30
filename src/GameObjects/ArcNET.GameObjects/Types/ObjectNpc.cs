@@ -24,13 +24,13 @@ public sealed class ObjectNpc : ObjectCritter
     public GameObjectGuid SubstituteInventory { get; internal set; }
     public int ReactionBase { get; internal set; }
     public int SocialClass { get; internal set; }
-    public int[] ReactionPc { get; internal set; } = [];
+    public GameObjectGuid[] ReactionPc { get; internal set; } = [];
     public int[] ReactionLevel { get; internal set; } = [];
     public int[] ReactionTime { get; internal set; } = [];
     public int Wait { get; internal set; }
     public int GeneratorData { get; internal set; }
     public int[] Damage { get; internal set; } = [];
-    public int[] HostileList { get; internal set; } = [];
+    public GameObjectGuid[] HostileList { get; internal set; } = [];
 
     internal int NpcPadI1Reserved
     {

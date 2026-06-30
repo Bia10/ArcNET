@@ -2667,13 +2667,13 @@ namespace ArcNET.GameObjects.Types
         public int ExperienceWorth { get; }
         public int Faction { get; }
         public int GeneratorData { get; }
-        public int[] HostileList { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid[] HostileList { get; }
         public ArcNET.Core.Primitives.GameObjectGuid Leader { get; }
         public ArcNET.GameObjects.NpcFlags NpcFlags { get; }
         public int Origin { get; }
         public int ReactionBase { get; }
         public int[] ReactionLevel { get; }
-        public int[] ReactionPc { get; }
+        public ArcNET.Core.Primitives.GameObjectGuid[] ReactionPc { get; }
         public int[] ReactionTime { get; }
         public int RetailPriceMultiplier { get; }
         public int SocialClass { get; }
@@ -2692,9 +2692,9 @@ namespace ArcNET.GameObjects.Types
         public int BackgroundText { get; }
         public int BankMoney { get; }
         public int[] Blessing { get; }
-        public int[] BlessingTs { get; }
+        public long[] BlessingTs { get; }
         public int[] Curse { get; }
-        public int[] CurseTs { get; }
+        public long[] CurseTs { get; }
         public int FateFlags { get; }
         public int FogMask { get; }
         public int[] GlobalFlags { get; }
@@ -2704,9 +2704,10 @@ namespace ArcNET.GameObjects.Types
         public int PcFlags { get; }
         public ArcNET.Core.Primitives.PrefixedString PlayerName { get; }
         public int[] Quest { get; }
+        public ArcNET.GameObjects.Types.PcQuestState[] QuestEntries { get; }
         public int[] Reputation { get; }
-        public int[] ReputationTs { get; }
-        public int[] Rumor { get; }
+        public long[] ReputationTs { get; }
+        public long[] Rumor { get; }
         public int[] SchematicsFound { get; }
     }
     public sealed class ObjectPortal : ArcNET.GameObjects.Types.ObjectCommon
@@ -2782,6 +2783,13 @@ namespace ArcNET.GameObjects.Types
         public int TextEndLine { get; }
         public int TextStartLine { get; }
         public int WrittenFlags { get; }
+    }
+    public readonly struct PcQuestState : System.IEquatable<ArcNET.GameObjects.Types.PcQuestState>
+    {
+        public PcQuestState(long DateTime, int State, int Padding = 0) { }
+        public long DateTime { get; init; }
+        public int Padding { get; init; }
+        public int State { get; init; }
     }
 }```
 

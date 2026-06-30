@@ -291,6 +291,12 @@ public abstract class ObjectCommon
     internal static int[] ReadIndexedInts(ref SpanReader reader) =>
         ObjectSerializationHelpers.ReadIndexedInts(ref reader);
 
+    internal static long[] ReadIndexedLongs(ref SpanReader reader) =>
+        ObjectSerializationHelpers.ReadIndexedLongs(ref reader);
+
+    internal static PcQuestState[] ReadIndexedPcQuestStates(ref SpanReader reader) =>
+        ObjectSerializationHelpers.ReadIndexedPcQuestStates(ref reader);
+
     internal static GameObjectScript[] ReadScripts(ref SpanReader reader) =>
         ObjectSerializationHelpers.ReadScripts(ref reader);
 
@@ -301,6 +307,12 @@ public abstract class ObjectCommon
 
     internal static void WriteIndexedInts(ref SpanWriter writer, int[] values) =>
         ObjectSerializationHelpers.WriteIndexedInts(ref writer, values);
+
+    internal static void WriteIndexedLongs(ref SpanWriter writer, long[] values) =>
+        ObjectSerializationHelpers.WriteIndexedLongs(ref writer, values);
+
+    internal static void WriteIndexedPcQuestStates(ref SpanWriter writer, PcQuestState[] values) =>
+        ObjectSerializationHelpers.WriteIndexedPcQuestStates(ref writer, values);
 
     internal static void WriteScripts(ref SpanWriter writer, GameObjectScript[] scripts) =>
         ObjectSerializationHelpers.WriteScripts(ref writer, scripts);
